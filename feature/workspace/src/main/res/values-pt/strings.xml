@@ -75,7 +75,7 @@
     <string name="workspace_linux_chip_unavailable">Indisponível</string>
     <string name="workspace_linux_chip_not_installed">Não instalado</string>
     <string name="workspace_linux_chip_ready">Pronto</string>
-    <string name="workspace_linux_chip_failed">Falhou</string>
+    <string name="workspace_linux_chip_failed">Com falha</string>
     <string name="workspace_linux_failed_title">Não foi possível instalar o Linux</string>
     <string name="workspace_linux_working_install">Instalando</string>
     <string name="workspace_linux_working_reinstall">Reinstalando</string>

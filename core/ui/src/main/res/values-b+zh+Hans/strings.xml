@@ -38,7 +38,7 @@
     <string name="ui_telegram_steps">1. 在 Telegram 中打开 @BotFather，发送 /⁠newbot，并复制它给出的令牌。\n2. 打开你的新机器人并点击“开始”（或给它发任意消息）。\n3. 在此粘贴令牌，然后点按“查找我的对话”。</string>
     <string name="ui_telegram_bot_token">机器人令牌</string>
     <string name="ui_telegram_token_keep">留空则保留已保存的令牌</string>
-    <string name="ui_telegram_no_messages">还没有消息。请在 Telegram 中打开%1$s，点击“开始”，然后再次点按“查找我的对话”。</string>
+    <string name="ui_telegram_no_messages">还没有消息。请在 Telegram 中打开 %1$s，点击“开始”，然后再次点按“查找我的对话”。</string>
     <string name="ui_telegram_your_bot">你的机器人</string>
     <string name="ui_telegram_find_chat">查找我的对话</string>
     <string name="ui_telegram_open_bot">打开 @%1$s</string>
@@ -63,7 +63,7 @@
     <string name="ui_telegram_widened_off">已关闭：任务可以查找信息、阅读和回答，但不能更改文件、运行命令或发送任何内容。</string>
     <string name="ui_telegram_duration_minutes">%1$d 分钟</string>
     <string name="ui_telegram_duration_hours">%1$d 小时</string>
-    <string name="ui_telegram_mode_for">远程模式 %1$s</string>
+    <string name="ui_telegram_mode_for">远程模式，持续 %1$s</string>
     <string name="ui_telegram_remote_note">安全审查器标记的内容，或必须确认的操作（付款、发送、读取外部内容之后），仍需在 Locus 中点按确认；Telegram 只会提示。远程模式开启期间会显示通知，Locus 会保持与 Telegram 的连接，这会消耗一些电量。向机器人发送 /off 即可在任何地方将其关闭。</string>
     <string name="ui_telegram_widened_warning">任何登录你 Telegram 账号的人也可以发出请求，普通的批准也可以在同一对话中回复。与机器人的对话不能证明是你本人，因此默认关闭更安全。</string>
     <string name="ui_telegram_untrusted_note">来自 Telegram 的消息会被视为外部内容，绝不会当作你自己的话，且只有此对话有效。Locus 会忽略远程模式开启前发送的消息，以及每分钟超过几条的消息。</string>
@@ -159,7 +159,7 @@
     <string name="ui_workflow_optional">%1$s（可选）</string>
     <string name="ui_workflow_plan">计划</string>
     <string name="ui_workflow_plan_step">%1$d. %2$s</string>
-    <string name="ui_workflow_asks_before">在可以%1$s之前会先询问你。</string>
+    <string name="ui_workflow_asks_before">在%1$s之前会先询问你。</string>
     <string name="ui_workflow_only_reads">自行执行时仅读取。其他操作都会先询问。</string>
     <string name="ui_workflow_can_on_its_own">可自行%1$s。其他操作都会先询问。</string>
     <string name="ui_workflow_run_title">运行工作流</string>

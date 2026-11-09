@@ -76,7 +76,7 @@
     </plurals>
     <string name="analytics_tools_approvals">Aprobaciones</string>
     <string name="analytics_tools_auto">auto %1$d</string>
-    <string name="analytics_tools_approved">aprobadas %1$d</string>
+    <string name="analytics_tools_approved">aprobadas por ti %1$d</string>
     <string name="analytics_tools_blocked">bloqueadas %1$d</string>
     <plurals name="analytics_slow_calls">
         <item quantity="one">%1$s · %2$d llamada</item>
@@ -93,7 +93,7 @@
     </plurals>
     <string name="analytics_tasks_last_run">última %1$s</string>
     <string name="analytics_tasks_paused">En pausa</string>
-    <string name="analytics_tasks_removed">Eliminada</string>
+    <string name="analytics_tasks_removed">Quitada</string>
     <string name="analytics_chart_week_of">Semana del %1$s</string>
     <string name="analytics_chart_today">Hoy</string>
 </resources>

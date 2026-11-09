@@ -167,7 +167,7 @@
     <string name="onboarding_linux_installed_note">Instalado, com seu espaço de trabalho em /workspace</string>
     <string name="onboarding_linux_ready">Pronto</string>
     <string name="onboarding_linux_installing">Instalando</string>
-    <string name="onboarding_linux_failed">Falhou</string>
+    <string name="onboarding_linux_failed">Com falha</string>
     <string name="onboarding_linux_tools_label">Ferramentas para adicionar</string>
     <string name="onboarding_linux_package_installed">Instalado</string>
     <string name="onboarding_linux_package_waiting">Aguardando</string>

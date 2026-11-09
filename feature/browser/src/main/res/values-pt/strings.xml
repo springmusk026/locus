@@ -27,7 +27,7 @@
     <string name="browser_overlay_using">O Locus está usando esta página.</string>
     <string name="browser_overlay_take_over">Assumir</string>
     <string name="browser_control_turn_title">Sua vez</string>
-    <string name="browser_control_turn_done">Pronto</string>
+    <string name="browser_control_turn_done">Concluir</string>
     <string name="browser_control_user_title">Você está no controle</string>
     <string name="browser_control_user_waiting">O Locus está esperando você. Ele não vê nada desta página até você devolver o controle, e nunca o que você digita.</string>
     <string name="browser_control_user_paused">O Locus está em pausa nesta página. Ele não vê nada dela até você devolver o controle, e nunca o que você digita.</string>

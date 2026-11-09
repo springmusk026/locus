@@ -76,7 +76,7 @@
     </plurals>
     <string name="analytics_tools_approvals">Aprovações</string>
     <string name="analytics_tools_auto">auto %1$d</string>
-    <string name="analytics_tools_approved">aprovadas %1$d</string>
+    <string name="analytics_tools_approved">aprovadas por você %1$d</string>
     <string name="analytics_tools_blocked">bloqueadas %1$d</string>
     <plurals name="analytics_slow_calls">
         <item quantity="one">%1$s · %2$d chamada</item>
