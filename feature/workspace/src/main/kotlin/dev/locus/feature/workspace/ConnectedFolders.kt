@@ -17,6 +17,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import dev.locus.core.data.folders.FolderStatus
 import dev.locus.core.designsystem.AddRow
 import dev.locus.core.designsystem.Banner
@@ -43,12 +44,17 @@ import dev.locus.core.model.ConnectedFolders
 import dev.locus.core.model.Project
 
 /** What a connected folder's row says about it, and in which tone. */
+@Composable
 internal fun folderStatus(row: ConnectedFolderRow): Pair<String, Tone> = when (row.status) {
-    FolderStatus.PERMISSION_LOST -> "Access lost · reconnect it" to Tone.Critical
-    FolderStatus.GONE -> "Folder not found" to Tone.Critical
-    FolderStatus.PROVIDER_READ_ONLY -> "Read-only (storage app)" to Tone.Caution
-    null -> "Checking…" to Tone.Neutral
-    FolderStatus.OK -> if (row.folder.readOnly) "Read-only" to Tone.Neutral else "Can edit · asks first" to Tone.Live
+    FolderStatus.PERMISSION_LOST -> stringResource(R.string.workspace_connected_status_access_lost) to Tone.Critical
+    FolderStatus.GONE -> stringResource(R.string.workspace_folder_not_found) to Tone.Critical
+    FolderStatus.PROVIDER_READ_ONLY -> stringResource(R.string.workspace_connected_status_provider_read_only) to Tone.Caution
+    null -> stringResource(R.string.workspace_connected_status_checking) to Tone.Neutral
+    FolderStatus.OK -> if (row.folder.readOnly) {
+        stringResource(R.string.workspace_connected_status_read_only) to Tone.Neutral
+    } else {
+        stringResource(R.string.workspace_connected_status_can_edit) to Tone.Live
+    }
 }
 
 /**
@@ -61,11 +67,11 @@ internal fun LazyListScope.connectedFolders(
     onOpen: (ConnectedFolder) -> Unit,
     onManage: (String) -> Unit,
 ) {
-    item(key = "connected-label") { SectionLabel("Connected folders", Modifier.padding(bottom = Spacing.sm)) }
+    item(key = "connected-label") { SectionLabel(stringResource(R.string.workspace_connected_label), Modifier.padding(bottom = Spacing.sm)) }
     if (rows.isEmpty()) {
         item(key = "connected-note") {
             SectionNote(
-                "Let Locus read and edit a folder on your phone, like a notes vault or a synced folder. Linux can't see connected folders.",
+                stringResource(R.string.workspace_connected_note),
                 Modifier.padding(bottom = Spacing.sm),
             )
         }
@@ -82,13 +88,13 @@ internal fun LazyListScope.connectedFolders(
                 leading = { IconTile(LocusIcons.Folder) },
                 meta = { StatusLine(status, tone) },
                 trailing = {
-                    CompactIconButton(LocusIcons.Settings, contentDescription = "${row.folder.name} settings", onClick = { onManage(row.folder.id) })
+                    CompactIconButton(LocusIcons.Settings, contentDescription = stringResource(R.string.workspace_files_folder_settings, row.folder.name), onClick = { onManage(row.folder.id) })
                 },
             )
         }
     }
     item(key = "connected-add") {
-        Box(Modifier.cardSegment(rows.size, count)) { AddRow("Connect a folder", onClick = onConnect) }
+        Box(Modifier.cardSegment(rows.size, count)) { AddRow(stringResource(R.string.workspace_connected_add), onClick = onConnect) }
     }
 }
 
@@ -104,31 +110,34 @@ internal fun ConnectFolderSheet(
     var canEdit by rememberSaveable(pending.picked.uri) { mutableStateOf(pending.picked.writable) }
     val problem = ConnectedFolders.nameProblem(name, taken)
     LocusSheet(
-        title = "Connect folder",
+        title = stringResource(R.string.workspace_connect_title),
         subtitle = pending.picked.source,
         onDismiss = onDismiss,
-        action = "Connect",
+        action = stringResource(R.string.workspace_connect_action),
         actionEnabled = problem == null,
         onAction = { onConnect(name, !canEdit) },
     ) {
         OutlinedTextField(
             name, { name = it.trim() },
-            label = { Text("Name") },
+            label = { Text(stringResource(R.string.workspace_connect_name)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
             isError = name.isNotEmpty() && problem != null,
-            supportingText = { Text(if (name.isNotEmpty() && problem != null) problem else "Locus finds it at folders/$name.") },
+            supportingText = { Text(if (name.isNotEmpty() && problem != null) problem else stringResource(R.string.workspace_connect_name_hint, name)) },
         )
         SwitchRow(
-            title = "Locus can edit files",
+            title = stringResource(R.string.workspace_folder_can_edit),
             checked = canEdit,
             onCheckedChange = { canEdit = it },
             enabled = pending.picked.writable,
-            subtitle = if (pending.picked.writable) "Every change asks you first; deleting always asks. Hidden folders like .obsidian stay read-only."
-            else "The storage app holding this folder doesn't let other apps change it, so Locus can only read it.",
+            subtitle = if (pending.picked.writable) {
+                stringResource(R.string.workspace_connect_can_edit_summary)
+            } else {
+                stringResource(R.string.workspace_folder_provider_read_only)
+            },
         )
         Banner(
-            "Linux can't see connected folders: Android's storage access isn't a folder Linux can open. Locus can copy files into the workspace when a command needs them.",
+            stringResource(R.string.workspace_connect_linux_banner),
             Tone.Info,
         )
     }
@@ -149,9 +158,9 @@ internal fun FolderSheet(
     var confirming by remember { mutableStateOf(false) }
     if (confirming) {
         ConfirmSheet(
-            title = "Disconnect ${folder.name}?",
-            message = "Locus loses access to this folder and forgets “Always allow” answers for it. The files stay where they are, and copies in Locus's trash stay there.",
-            confirmLabel = "Disconnect",
+            title = stringResource(R.string.workspace_folder_disconnect_title, folder.name),
+            message = stringResource(R.string.workspace_folder_disconnect_message),
+            confirmLabel = stringResource(R.string.workspace_folder_disconnect),
             tone = Tone.Critical,
             onConfirm = { confirming = false; onDisconnect() },
             onDismiss = { confirming = false },
@@ -162,34 +171,37 @@ internal fun FolderSheet(
         when (row.status) {
             FolderStatus.PERMISSION_LOST, FolderStatus.GONE -> Banner(
                 if (row.status == FolderStatus.GONE) {
-                    "The folder was deleted or moved, or the SD card it was on was removed. Pick it again to reconnect it."
+                    stringResource(R.string.workspace_folder_gone_banner)
                 } else {
-                    "Android no longer lets Locus open this folder (the permission was removed, or the folder moved). Pick it again to reconnect it."
+                    stringResource(R.string.workspace_folder_access_lost_banner)
                 },
                 Tone.Critical,
-                title = if (row.status == FolderStatus.GONE) "Folder not found" else "Access lost",
-            ) { TextButton(onClick = onReconnect) { Text("Reconnect") } }
-            FolderStatus.PROVIDER_READ_ONLY -> Banner("The storage app holding this folder doesn't let other apps change it, so Locus can only read it.", Tone.Caution)
+                title = stringResource(if (row.status == FolderStatus.GONE) R.string.workspace_folder_not_found else R.string.workspace_folder_access_lost),
+            ) { TextButton(onClick = onReconnect) { Text(stringResource(R.string.workspace_folder_reconnect)) } }
+            FolderStatus.PROVIDER_READ_ONLY -> Banner(stringResource(R.string.workspace_folder_provider_read_only), Tone.Caution)
             else -> Unit
         }
         SwitchRow(
-            title = "Locus can edit files",
+            title = stringResource(R.string.workspace_folder_can_edit),
             checked = !folder.readOnly,
             onCheckedChange = { onSave(folder.copy(readOnly = !it)) },
             enabled = row.status != FolderStatus.PROVIDER_READ_ONLY,
-            subtitle = "Every change asks you first, with “Always for this folder”. Deleting always asks.",
+            subtitle = stringResource(R.string.workspace_folder_can_edit_summary),
         )
         SwitchRow(
-            title = "Edit hidden folders",
+            title = stringResource(R.string.workspace_folder_hidden_title),
             checked = folder.hiddenWritable,
             onCheckedChange = { onSave(folder.copy(hiddenWritable = it)) },
             enabled = !folder.readOnly,
-            subtitle = "Apps keep settings and history in .obsidian, .git and .trash. Off keeps them read-only.",
+            subtitle = stringResource(R.string.workspace_folder_hidden_summary),
         )
-        SectionLabel("Projects")
+        SectionLabel(stringResource(R.string.workspace_folder_projects))
         SectionNote(
-            if (projects.isEmpty()) "Chats outside projects see every connected folder. Once you have projects, you can link this folder to them here."
-            else "Chats outside projects see every connected folder. A project's chats see only the folders linked to it.",
+            if (projects.isEmpty()) {
+                stringResource(R.string.workspace_folder_projects_none)
+            } else {
+                stringResource(R.string.workspace_folder_projects_some)
+            },
         )
         if (projects.isNotEmpty()) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
@@ -205,9 +217,9 @@ internal fun FolderSheet(
             }
         }
         if (row.status == FolderStatus.OK || row.status == FolderStatus.PROVIDER_READ_ONLY) {
-            TextButton(onClick = onReconnect) { Text("Pick the folder again") }
+            TextButton(onClick = onReconnect) { Text(stringResource(R.string.workspace_folder_pick_again)) }
         }
-        CriticalOutlinedButton("Disconnect", onClick = { confirming = true })
+        CriticalOutlinedButton(stringResource(R.string.workspace_folder_disconnect), onClick = { confirming = true })
     }
 }
 

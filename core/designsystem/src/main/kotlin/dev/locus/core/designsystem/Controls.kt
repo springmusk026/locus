@@ -2,6 +2,7 @@ package dev.locus.core.designsystem
 
 import androidx.compose.foundation.clickable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -59,11 +60,22 @@ fun SwitchRow(
     busy: Boolean = false,
     error: String? = null,
 ) {
+    val busyState = if (busy) {
+        switchState(
+            checked,
+            busy = true,
+            on = stringResource(R.string.common_on),
+            off = stringResource(R.string.common_off),
+            busyFormat = stringResource(R.string.designsystem_switch_updating),
+        )
+    } else {
+        null
+    }
     ListRow(
         title = title,
         modifier = modifier
             .toggleable(value = checked, enabled = enabled && !busy, role = Role.Switch, onValueChange = onCheckedChange)
-            .then(if (busy) Modifier.semantics { stateDescription = switchState(checked, busy = true) } else Modifier),
+            .then(if (busyState != null) Modifier.semantics { stateDescription = busyState } else Modifier),
         subtitle = subtitle,
         titleMaxLines = 2,
         // A switch's subtitle says what it does; it wraps instead of being cut off.
@@ -109,10 +121,19 @@ fun InlineSwitch(
     )
 }
 
-/** What TalkBack says for a switch row's state. */
-internal fun switchState(checked: Boolean, busy: Boolean): String = buildString {
-    append(if (checked) "On" else "Off")
-    if (busy) append(", updating")
+/**
+ * What TalkBack says for a switch row's state. The words come from resources in [SwitchRow]; the defaults
+ * are English, for a caller without a context. [busyFormat] takes the state as `%1$s`.
+ */
+internal fun switchState(
+    checked: Boolean,
+    busy: Boolean,
+    on: String = "On",
+    off: String = "Off",
+    busyFormat: String = "%1\$s, updating",
+): String {
+    val state = if (checked) on else off
+    return if (busy) String.format(busyFormat, state) else state
 }
 
 /**
@@ -239,7 +260,7 @@ fun DestinationLink(
             Modifier
                 .heightIn(min = Sizes.touchTarget)
                 .clip(RoundedCornerShape(Radius.chip))
-                .clickable(enabled = enabled, role = Role.Button, onClickLabel = "Open", onClick = onNavigate)
+                .clickable(enabled = enabled, role = Role.Button, onClickLabel = stringResource(R.string.common_open), onClick = onNavigate)
                 .clearAndSetSemantics { contentDescription = destinationSpeech(destination) }
                 .padding(horizontal = Spacing.xs)
                 .alpha(if (enabled) 1f else Emphasis.disabled),

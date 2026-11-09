@@ -25,6 +25,8 @@ internal fun Project.configureKotlinAndroid(commonExtension: CommonExtension) {
             targetCompatibility = JavaVersion.VERSION_17
             isCoreLibraryDesugaringEnabled = true
         }
+        // One lint.xml for every module (the localisation checks' severities, docs/design/localization.md).
+        lint.lintConfig = rootProject.file("lint.xml")
     }
     extensions.configure<KotlinAndroidProjectExtension> {
         compilerOptions {

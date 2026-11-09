@@ -1,5 +1,7 @@
 package dev.locus.core.markdown.artifact
 
+import androidx.annotation.StringRes
+import dev.locus.core.markdown.R
 import java.net.URI
 
 /**
@@ -211,6 +213,20 @@ object ArtifactSandbox {
         resources.styles > 0 -> "Styles from the web are blocked here"
         resources.scripts > 0 -> "Scripts from the web are blocked here"
         resources.other > 0 -> "Images and fonts from the web are blocked here"
+        else -> null
+    }
+
+    /**
+     * [blockedNotice] as a string resource, for the card (markdown_artifact_blocked_*). Callers without a
+     * composition (the workspace preview, the tests) read the English from [blockedNotice]; the wording
+     * is the same in both.
+     */
+    @StringRes
+    fun blockedNoticeRes(resources: WebResources): Int? = when {
+        resources.styles > 0 && resources.scripts > 0 -> R.string.markdown_artifact_blocked_styles_scripts
+        resources.styles > 0 -> R.string.markdown_artifact_blocked_styles
+        resources.scripts > 0 -> R.string.markdown_artifact_blocked_scripts
+        resources.other > 0 -> R.string.markdown_artifact_blocked_other
         else -> null
     }
 

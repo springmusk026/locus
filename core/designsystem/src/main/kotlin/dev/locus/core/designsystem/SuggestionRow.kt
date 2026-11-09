@@ -14,6 +14,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CollectionInfo
 import androidx.compose.ui.semantics.CollectionItemInfo
 import androidx.compose.ui.semantics.collectionInfo
@@ -45,6 +46,7 @@ fun SuggestionRow(suggestions: List<String>, onPick: (String) -> Unit, modifier:
         verticalAlignment = Alignment.CenterVertically,
     ) {
         suggestions.forEachIndexed { i, text ->
+            val spoken = stringResource(R.string.designsystem_suggestion_spoken, text)
             LocusChip(
                 text,
                 Modifier
@@ -54,7 +56,7 @@ fun SuggestionRow(suggestions: List<String>, onPick: (String) -> Unit, modifier:
                 variant = ChipVariant.Suggestion,
                 tone = Tone.Brand,
                 onClick = { onPick(text) },
-                contentDescription = "Suggested: $text",
+                contentDescription = spoken,
             )
         }
     }

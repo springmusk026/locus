@@ -56,6 +56,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.layout.layout
@@ -410,7 +411,7 @@ fun Banner(
     // Dismiss sits in the header, at the top end, never alone on a row under the actions.
     val dismiss = @Composable {
         if (onDismiss != null) {
-            IconButton(onClick = onDismiss) { Icon(LocusIcons.Close, contentDescription = "Dismiss", modifier = Modifier.size(IconSize.medium)) }
+            IconButton(onClick = onDismiss) { Icon(LocusIcons.Close, contentDescription = stringResource(R.string.common_dismiss), modifier = Modifier.size(IconSize.medium)) }
         }
     }
     val below = actionsBelow || (actions != null && (text.length > BANNER_SIDE_ACTION_CHARS || LocalDensity.current.fontScale > 1.3f))
@@ -552,7 +553,7 @@ fun LocusTopBar(
     TopAppBar(
         modifier = modifier,
         colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background, scrolledContainerColor = MaterialTheme.colorScheme.background),
-        navigationIcon = { if (onBack != null) IconButton(onClick = onBack) { Icon(LocusIcons.Back, contentDescription = "Back") } },
+        navigationIcon = { if (onBack != null) IconButton(onClick = onBack) { Icon(LocusIcons.Back, contentDescription = stringResource(R.string.common_back)) } },
         title = {
             Column {
                 Text(

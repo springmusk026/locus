@@ -1,6 +1,7 @@
 package dev.locus.feature.activity
 
 import dev.locus.core.designsystem.Accent
+import dev.locus.core.designsystem.UiText
 import dev.locus.core.designsystem.accentFor
 import dev.locus.core.model.ApprovalDecision
 import dev.locus.core.model.AuditEntry
@@ -45,7 +46,7 @@ data class Run(
         .sortedByDescending { it.value }.map { it.key }
 }
 
-data class DaySection(val label: String, val runs: List<Run>)
+data class DaySection(val label: UiText, val runs: List<Run>)
 
 /** Declined and blocked calls report an error to the model, but nothing failed: someone said no. */
 val AuditEntry.refused: Boolean

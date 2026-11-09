@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Android lint settings for every Android module (build-logic's configureKotlinAndroid points lint here). -->
+<lint>
+    <!-- Localisation (docs/design/localization.md): warnings while the strings move to resources and
+         the translations arrive module by module; the last localisation PR makes them errors. -->
+    <issue id="MissingTranslation" severity="warning" />
+    <issue id="ExtraTranslation" severity="warning" />
+</lint>

@@ -13,8 +13,12 @@ import androidx.compose.foundation.text.KeyboardOptions
 import android.text.format.DateFormat
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import dev.locus.core.agent.integrations.TelegramRemote
 import dev.locus.core.designsystem.ConfirmSheet
+import dev.locus.core.designsystem.R as DesignR
+import dev.locus.core.designsystem.UiText
+import dev.locus.core.designsystem.asString
 import dev.locus.core.model.TelegramRemoteSettings
 import kotlinx.coroutines.flow.Flow
 import java.util.Date
@@ -101,20 +105,20 @@ fun TelegramSheet(integration: Integration, hasKey: Boolean, actions: TelegramAc
     var running by remember { mutableStateOf<String?>(null) }
     val busy = running != null
     var confirmRemove by remember { mutableStateOf(false) }
-    var note by remember { mutableStateOf<String?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var note by remember { mutableStateOf<UiText?>(null) }
+    var error by remember { mutableStateOf<UiText?>(null) }
 
     LaunchedEffect(Unit) { if (hasKey) actions.savedChatId { id -> if (id != null && chatText.isEmpty()) chatText = id.toString() } }
 
     val chatId = Telegram.parseChatId(chatText)
     val tokenOk = if (token.isBlank()) hasKey else Telegram.isToken(token)
-    fun failed(e: Throwable) { error = e.message ?: "Something went wrong."; note = null; running = null }
+    fun failed(e: Throwable) { error = e.message?.let { UiText.Plain(it) } ?: UiText.Res(DesignR.string.common_error_generic); note = null; running = null }
 
     LocusSheet(
         title = integration.name,
-        subtitle = "Notifications and scheduled task results from your own bot.",
+        subtitle = stringResource(R.string.ui_telegram_subtitle),
         onDismiss = onDismiss,
-        action = "Save",
+        action = stringResource(DesignR.string.common_save),
         actionEnabled = !busy && tokenOk && chatId != null,
         onAction = {
             running = "save"
@@ -122,16 +126,11 @@ fun TelegramSheet(integration: Integration, hasKey: Boolean, actions: TelegramAc
         },
     ) {
         // A word joiner after the slash: "/newbot" is a command and never breaks into "/ newbot".
-        Text(
-            "1. In Telegram, open @BotFather, send /\u2060newbot and copy the token it gives you.\n" +
-                "2. Open your new bot and press Start (or send it any message).\n" +
-                "3. Paste the token here and tap Find my chat.",
-            style = LocusType.rowSupporting,
-        )
+        Text(stringResource(R.string.ui_telegram_steps), style = LocusType.rowSupporting)
         OutlinedTextField(
             token, { token = it.trim(); error = null },
-            label = { Text(if (hasKey) "Bot token" else integration.keyLabel) },
-            supportingText = if (hasKey) { { Text("Leave blank to keep the saved one") } } else null,
+            label = { Text(if (hasKey) stringResource(R.string.ui_telegram_bot_token) else integration.keyLabel) },
+            supportingText = if (hasKey) { { Text(stringResource(R.string.ui_telegram_token_keep)) } } else null,
             singleLine = true, isError = token.isNotBlank() && !Telegram.isToken(token),
             visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
         )
@@ -148,13 +147,13 @@ fun TelegramSheet(integration: Integration, hasKey: Boolean, actions: TelegramAc
                             found = d
                             val first = d.chats.firstOrNull()
                             if (first != null) chatText = first.id.toString()
-                            else note = "No messages yet. Open " + (d.botUsername?.let { "@$it" } ?: "your bot") + " in Telegram, press Start, then tap Find my chat again."
+                            else note = UiText.Res(R.string.ui_telegram_no_messages, d.botUsername?.let { UiText.Plain("@$it") } ?: UiText.Res(R.string.ui_telegram_your_bot))
                         }.onFailure(::failed)
                     }
                 },
-            ) { BusyLabel("Find my chat", running == "find") }
+            ) { BusyLabel(stringResource(R.string.ui_telegram_find_chat), running == "find") }
             TextButton(onClick = { uriHandler.openUri(found?.botUsername?.let { "https://t.me/$it" } ?: integration.signupUrl) }) {
-                Text(found?.botUsername?.let { "Open @$it" } ?: integration.linkLabel)
+                Text(found?.botUsername?.let { stringResource(R.string.ui_telegram_open_bot, it) } ?: integration.linkLabel)
             }
         }
         found?.chats?.takeIf { it.isNotEmpty() }?.let { chats ->
@@ -166,7 +165,7 @@ fun TelegramSheet(integration: Integration, hasKey: Boolean, actions: TelegramAc
                     ) {
                         RadioButton(selected = chatId == chat.id, onClick = { chatText = chat.id.toString() })
                         Text(
-                            "${chat.name} · ${if (chat.type == "private") "private chat" else chat.type}",
+                            stringResource(R.string.ui_telegram_chat_line, chat.name, if (chat.type == "private") stringResource(R.string.ui_telegram_chat_private) else chat.type),
                             style = LocusType.rowSupporting,
                         )
                     }
@@ -174,14 +173,14 @@ fun TelegramSheet(integration: Integration, hasKey: Boolean, actions: TelegramAc
             }
         }
         OutlinedTextField(
-            chatText, { chatText = it.trim(); error = null }, label = { Text("Chat ID") }, singleLine = true,
+            chatText, { chatText = it.trim(); error = null }, label = { Text(stringResource(R.string.ui_telegram_chat_id)) }, singleLine = true,
             isError = chatText.isNotBlank() && chatId == null,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(),
         )
         val type = found?.chats?.firstOrNull { it.id == chatId }?.type
         if ((type != null && type != "private") || (type == null && chatId != null && chatId < 0)) {
             Text(
-                "This is a group or channel: everyone in it will see your notifications.",
+                stringResource(R.string.ui_telegram_group_warning),
                 style = LocusType.supporting, color = Locus.colors.onCautionContainer,
             )
         }
@@ -190,27 +189,24 @@ fun TelegramSheet(integration: Integration, hasKey: Boolean, actions: TelegramAc
                 enabled = !busy && tokenOk && chatId != null,
                 onClick = {
                     running = "test"; error = null; note = null
-                    actions.test(token, chatId!!) { r -> r.onSuccess { running = null; note = "Sent. Check Telegram." }.onFailure(::failed) }
+                    actions.test(token, chatId!!) { r -> r.onSuccess { running = null; note = UiText.Res(R.string.ui_telegram_test_sent) }.onFailure(::failed) }
                 },
-            ) { BusyLabel("Send a test", running == "test") }
+            ) { BusyLabel(stringResource(R.string.ui_telegram_send_test), running == "test") }
             Spacer(Modifier.weight(1f))
-            if (hasKey) TextButton(onClick = { confirmRemove = true }, enabled = !busy) { Text("Remove", color = Locus.colors.critical) }
+            if (hasKey) TextButton(onClick = { confirmRemove = true }, enabled = !busy) { Text(stringResource(DesignR.string.common_remove), color = Locus.colors.critical) }
         }
-        note?.let { SupportingText(it) }
-        error?.let { Text(it, style = LocusType.supporting, color = Locus.colors.critical) }
-        SupportingText(
-            "The token is stored encrypted on this phone and the AI never sees it. Locus only calls Telegram to send you something; " +
-                "it reads what you send the bot only once here, to find your chat, and while the remote options below are on.",
-        )
+        note?.let { SupportingText(it.asString()) }
+        error?.let { Text(it.asString(), style = LocusType.supporting, color = Locus.colors.critical) }
+        SupportingText(stringResource(R.string.ui_telegram_token_note))
         val remoteFlow = actions.remote
         if (hasKey && remoteFlow != null) TelegramRemoteSection(remoteFlow, chatId, actions)
     }
 
     if (confirmRemove) {
         ConfirmSheet(
-            title = "Remove Telegram?",
-            message = "The bot token and chat are deleted from this phone. Notifications and scheduled task results stop going to Telegram.",
-            confirmLabel = "Remove",
+            title = stringResource(R.string.ui_telegram_remove_title),
+            message = stringResource(R.string.ui_telegram_remove_message),
+            confirmLabel = stringResource(DesignR.string.common_remove),
             tone = Tone.Critical,
             onConfirm = { confirmRemove = false; actions.remove(); onDismiss() },
             onDismiss = { confirmRemove = false },
@@ -219,7 +215,7 @@ fun TelegramSheet(integration: Integration, hasKey: Boolean, actions: TelegramAc
 }
 
 /** How long remote mode stays on before it switches itself off. */
-private val REMOTE_DURATIONS = listOf(30L to "30 min", 60L to "1 h", 120L to "2 h", 240L to "4 h", 480L to "8 h")
+private val REMOTE_DURATIONS = listOf(30L, 60L, 120L, 240L, 480L)
 
 /**
  * Remote: approvals by button, and remote mode (docs/design/telegram-remote.md). Both need a private chat
@@ -236,59 +232,52 @@ private fun TelegramRemoteSection(remoteFlow: Flow<TelegramRemoteSettings>, chat
     val on by rememberBefore(remote.switchesOffAt)
 
     GroupDivider(inset = 0.dp)
-    Text("Remote", style = LocusType.cardTitle)
+    Text(stringResource(R.string.ui_telegram_remote_title), style = LocusType.cardTitle)
     if (!private) {
-        SupportingText("Approving and sending tasks from Telegram need a private chat with your bot, so only your account can press a button.")
+        SupportingText(stringResource(R.string.ui_telegram_remote_private_only))
         return
     }
     CardGroup {
         SwitchRow(
-            "Approve from Telegram",
+            stringResource(R.string.ui_telegram_approve_title),
             checked = remote.approvals,
             onCheckedChange = actions.setApprovals,
-            subtitle = "Allow and Deny buttons come to this chat when a task working in the background asks.",
+            subtitle = stringResource(R.string.ui_telegram_approve_subtitle),
         )
         GroupDivider()
         SwitchRow(
-            "Remote mode",
+            stringResource(R.string.ui_telegram_mode_title),
             checked = on,
             onCheckedChange = { actions.setRemoteMode(it, minutes * 60_000) },
-            subtitle = if (on) "On until ${DateFormat.getTimeFormat(context).format(Date(remote.until))}. Messages to the bot start tasks in a chat called Telegram, or join the one running."
-            else "Messages to the bot start tasks in a chat called Telegram. It switches itself off after the time below.",
+            subtitle = if (on) stringResource(R.string.ui_telegram_mode_on_until, DateFormat.getTimeFormat(context).format(Date(remote.until)))
+            else stringResource(R.string.ui_telegram_mode_off_subtitle),
         )
         GroupDivider()
         SwitchRow(
-            "Let Telegram tasks do more than read",
+            stringResource(R.string.ui_telegram_widened_title),
             checked = remote.widened,
             onCheckedChange = actions.setWidened,
-            subtitle = if (remote.widened) "Telegram tasks run like a chat, asking before they change anything."
-            else "Off: they can look things up, read and answer, but can't change files, run commands or send anything.",
+            subtitle = stringResource(if (remote.widened) R.string.ui_telegram_widened_on else R.string.ui_telegram_widened_off),
         )
     }
     if (!on) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            REMOTE_DURATIONS.forEach { (m, label) ->
-                LocusChip(label, variant = ChipVariant.Filter, selected = minutes == m, onClick = { minutes = m }, contentDescription = "Remote mode for $label")
+            REMOTE_DURATIONS.forEach { m ->
+                val label = if (m < 60) stringResource(R.string.ui_telegram_duration_minutes, m) else stringResource(R.string.ui_telegram_duration_hours, m / 60)
+                val spoken = stringResource(R.string.ui_telegram_mode_for, label)
+                LocusChip(label, variant = ChipVariant.Filter, selected = minutes == m, onClick = { minutes = m }, contentDescription = spoken)
             }
         }
     }
-    SupportingText(
-        "Anything the safety reviewer flagged, or that must be confirmed (payments, sending, after reading outside content), still needs a tap " +
-            "in Locus; Telegram only says so. While remote mode is on, a notification shows and Locus keeps a connection to Telegram open, " +
-            "which uses some battery. Send /off to the bot to stop it from anywhere.",
-    )
+    SupportingText(stringResource(R.string.ui_telegram_remote_note))
     if (remote.widened) {
         Text(
-            "Anyone who gets into your Telegram account can ask too, and plain approvals can be answered from the same chat. " +
-                "A bot chat isn't proof it's you, so off is the safe default.",
+            stringResource(R.string.ui_telegram_widened_warning),
             style = LocusType.supporting,
             color = Locus.colors.onCautionContainer,
         )
     }
-    SupportingText(
-        "Messages from Telegram are treated as outside content, never as your own words, and only this chat counts. " +
-            "Locus ignores messages sent before remote mode was on, and more than a few a minute.",
-    )
+    SupportingText(stringResource(R.string.ui_telegram_untrusted_note))
 }
 
 /** A button label with a small spinner in front while its action runs. */

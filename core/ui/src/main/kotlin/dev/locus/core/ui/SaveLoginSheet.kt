@@ -17,10 +17,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.R as DesignR
 import dev.locus.core.designsystem.Sizes
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.SupportingText
@@ -47,27 +49,27 @@ fun SaveLoginSheet(
 ) {
     var user by rememberSaveable(host) { mutableStateOf(username) }
     LocusSheet(
-        title = if (isUpdate) "Update the saved login for $host?" else "Save this login for $host?",
-        subtitle = "Locus can then sign in to $host for you, asking you first. The AI never sees the password.",
+        title = stringResource(if (isUpdate) R.string.ui_save_login_title_update else R.string.ui_save_login_title, host),
+        subtitle = stringResource(R.string.ui_save_login_subtitle, host),
         onDismiss = onDismiss,
     ) {
         OutlinedTextField(
             user, { user = it },
-            label = { Text("Username or email") },
+            label = { Text(stringResource(R.string.ui_save_login_username)) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, autoCorrectEnabled = false),
             modifier = Modifier.fillMaxWidth(),
         )
-        SupportingText("The password you just typed is kept on this phone, encrypted. Edit or delete it in Settings → Saved logins.")
+        SupportingText(stringResource(R.string.ui_save_login_password_note))
         Column(Modifier.fillMaxWidth().padding(top = Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             Button(onClick = { onSave(user) }, modifier = Modifier.fillMaxWidth().heightIn(min = Sizes.touchTarget)) {
-                Text(if (isUpdate) "Update" else "Save", style = LocusType.label, textAlign = TextAlign.Center)
+                Text(stringResource(if (isUpdate) R.string.ui_save_login_update else DesignR.string.common_save), style = LocusType.label, textAlign = TextAlign.Center)
             }
             OutlinedButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth().heightIn(min = Sizes.touchTarget)) {
-                Text("Not now", style = LocusType.label, textAlign = TextAlign.Center)
+                Text(stringResource(DesignR.string.common_not_now), style = LocusType.label, textAlign = TextAlign.Center)
             }
             TextButton(onClick = onNever, modifier = Modifier.fillMaxWidth().heightIn(min = Sizes.touchTarget)) {
-                Text("Never for this site", style = LocusType.label, textAlign = TextAlign.Center)
+                Text(stringResource(R.string.ui_save_login_never), style = LocusType.label, textAlign = TextAlign.Center)
             }
         }
     }

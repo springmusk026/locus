@@ -1,5 +1,10 @@
 <resources>
-    <string name="app_name">Locus</string>
+    <!-- The brand, never translated (docs/design/localization.md). -->
+    <string name="app_name" translatable="false">Locus</string>
+    <!-- The name of the language these resources are in, in that language. It gives each language
+         folder (values-es, values-pt, values-b+zh+Hans) a resource, so the generated LocaleConfig
+         lists it; the app's own strings arrive in later batches. -->
+    <string name="locale_name">English</string>
     <!-- Launcher shortcuts (res/xml/shortcuts.xml); short labels fit the launcher's menu. -->
     <string name="shortcut_new_chat">New chat</string>
     <string name="shortcut_voice">Voice</string>
@@ -18,4 +23,31 @@
     <string name="widget_ask">Ask Locus</string>
     <!-- The default-assistant entry (ACTION_ASSIST): the name in Settings → Default apps → Digital assistant app. -->
     <string name="assist_label">Locus</string>
+    <!-- Notices and sheets in the main window (MainActivity.kt). -->
+    <string name="app_restore_unfinished_title">Restore didn\'t finish</string>
+    <string name="app_restore_tasks_off_title">Scheduled tasks are off</string>
+    <string name="app_integrity_title">Settings were changed outside Locus</string>
+    <string name="app_storage_keys_locked_title">Enter your saved keys again</string>
+    <string name="app_storage_keys_restored_title">Saved keys restored</string>
+    <string name="app_storage_reset_title">Settings were reset</string>
+    <string name="app_keys_reset_title">Can\'t open saved keys</string>
+    <string name="app_keys_reset_action">Reset</string>
+    <string name="app_keys_reset_message">Locus can\'t open your saved keys. This can happen after changing the lock screen or restoring the phone. Reset and re-enter keys? (A copy is kept in case it can be recovered.)</string>
+    <plurals name="app_share_failures_title">
+        <item quantity="one">A shared file wasn\'t imported</item>
+        <item quantity="other">%1$d shared files weren\'t imported</item>
+    </plurals>
+    <!-- Another app asks Locus to start a task (AutomationActivity.kt). %1$s is the app's name, %2$s what it asked for, in a few words. -->
+    <string name="app_automation_off_title">Let other apps start Locus tasks?</string>
+    <string name="app_automation_turn_on">Turn on</string>
+    <string name="app_automation_off_message">%1$s asked Locus to %2$s. Automation is off, so apps can\'t start Locus tasks. Turn it on to review this request; you can turn it off again in Settings → Automation.</string>
+    <string name="app_automation_request_title">Allow this request?</string>
+    <string name="app_automation_from">From %1$s</string>
+    <string name="app_automation_run_once">Run once</string>
+    <string name="app_automation_asked">%1$s asked Locus to %2$s.</string>
+    <string name="app_automation_note">It runs in a new chat with your usual approvals. Locus treats what the app sent as untrusted, so anything that would send or change something outside the phone asks you first.</string>
+    <string name="app_automation_deny">Don\'t allow</string>
+    <string name="app_automation_never">Never</string>
+    <string name="app_automation_always">Always allow</string>
+    <string name="app_automation_unknown_caller">Android didn\'t say which app this is, so Locus asks every time. Apps that start Locus for a result, or share their identity when they start it (Android 14+), can be allowed always.</string>
 </resources>

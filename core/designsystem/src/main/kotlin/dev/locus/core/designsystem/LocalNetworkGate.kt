@@ -20,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
 import dev.locus.core.model.LocalNetwork
 
@@ -79,19 +80,20 @@ fun rememberLocalNetworkGate(): LocalNetworkGate {
     if (pending != null && !gate.asking) {
         AlertDialog(
             onDismissRequest = gate::finish,
-            title = { Text("Allow local network access?") },
+            title = { Text(stringResource(R.string.designsystem_network_gate_title)) },
             text = {
                 androidx.compose.foundation.layout.Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(Spacing.md)) {
                     Text(
-                        "${pending.host.ifBlank { "This address" }} is on your local network. Android asks before an app " +
-                            "connects to devices like a computer running Ollama, an SSH machine or a home server, and lists " +
-                            "it as “Nearby devices”. Locus only uses it to reach the addresses you add.",
+                        stringResource(
+                            R.string.designsystem_network_gate_message,
+                            pending.host.ifBlank { stringResource(R.string.designsystem_network_gate_this_address) },
+                        ),
                     )
                     // Android's own page for this app (whichever build it is: dev.locus or dev.locus.debug).
                     DestinationLink(
-                        destinationPath("Android settings", "Apps", "Locus", "Permissions"),
+                        stringResource(R.string.designsystem_network_gate_settings_path),
                         onNavigate = { openAppDetails(context) },
-                        hint = "If Android doesn't ask, allow it in",
+                        hint = stringResource(R.string.designsystem_network_gate_hint),
                     )
                 }
             },
@@ -99,9 +101,9 @@ fun rememberLocalNetworkGate(): LocalNetworkGate {
                 TextButton(onClick = {
                     gate.asking = true
                     launcher.launch(LocalNetwork.PERMISSION)
-                }) { Text("Continue") }
+                }) { Text(stringResource(R.string.designsystem_network_gate_continue)) }
             },
-            dismissButton = { TextButton(onClick = gate::finish) { Text("Not now") } },
+            dismissButton = { TextButton(onClick = gate::finish) { Text(stringResource(R.string.common_not_now)) } },
         )
     }
     return gate
@@ -113,11 +115,11 @@ fun LocalNetworkNote(target: String, gate: LocalNetworkGate, modifier: Modifier 
     if (!gate.needs(target)) return
     Column(modifier.fillMaxWidth()) {
         Text(
-            "This is on your local network. Locus needs Android's Nearby devices permission to reach it.",
+            stringResource(R.string.designsystem_network_note),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        TextButton(onClick = { gate.run(target) {} }) { Text("Allow access") }
+        TextButton(onClick = { gate.run(target) {} }) { Text(stringResource(R.string.designsystem_network_note_allow)) }
     }
 }
 

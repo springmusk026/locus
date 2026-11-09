@@ -25,6 +25,11 @@ import dev.locus.core.designsystem.LocusChip
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.rememberBefore
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.platform.LocalContext
+import dev.locus.core.designsystem.AppLocale
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.model.ApiFormat
 import dev.locus.core.designsystem.Insets
@@ -38,6 +43,11 @@ internal fun SettingsHub(state: SettingsUiState, onBack: () -> Unit, onOpen: (Se
     val version = appVersion()
     // Until the settings have loaded, every summary shows the same placeholder rather than a guess.
     fun summary(text: String) = if (state.loading) LOADING_SUMMARY else text
+    // The per-app language isn't in SettingsUiState: Android keeps it (AppLocale, API 33+), and changing
+    // it recreates the screen, which reads it again here. Below 33 Locus follows the phone: no row.
+    val context = LocalContext.current
+    var languageTags by remember { mutableStateOf(if (AppLocale.supported) AppLocale.get(context) else "") }
+    var choosingLanguage by rememberSaveable { mutableStateOf(false) }
 
     SettingsPageScaffold("Settings", onBack) {
         item { SectionLabel("Providers", SectionPadding) }
@@ -113,6 +123,15 @@ internal fun SettingsHub(state: SettingsUiState, onBack: () -> Unit, onOpen: (Se
             }
         }
 
+        if (AppLocale.supported) {
+            item { Spacer(Modifier.height(Spacing.xl)) }
+            item {
+                CardGroup {
+                    HubRow("Language", languageSummary(languageTags), LocusIcons.Globe) { choosingLanguage = true }
+                }
+        }
+        }
+
         // No label: a lone "About" label over "About & privacy" would say the same thing twice.
         item { Spacer(Modifier.height(Spacing.xl)) }
         item {
@@ -120,6 +139,18 @@ internal fun SettingsHub(state: SettingsUiState, onBack: () -> Unit, onOpen: (Se
                 HubRow("About & privacy", "What leaves this phone, and setup", LocusIcons.Info, meta = version?.let { "v$it" }) { onOpen(SettingsPage.About) }
             }
         }
+    }
+
+    if (choosingLanguage) {
+        LanguageSheet(
+            current = languageTags,
+            onPick = { tag ->
+                choosingLanguage = false
+                languageTags = tag
+                if (AppLocale.supported) AppLocale.set(context, tag)
+            },
+            onDismiss = { choosingLanguage = false },
+        )
     }
 }
 

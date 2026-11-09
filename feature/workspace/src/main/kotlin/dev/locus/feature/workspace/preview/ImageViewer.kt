@@ -36,9 +36,11 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.res.stringResource
 import dev.locus.core.designsystem.EmptyState
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.Spacing
+import dev.locus.feature.workspace.R
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -66,17 +68,19 @@ internal fun ImageViewer(file: File, modifier: Modifier = Modifier, onInfo: (Str
     when (val d = decoded) {
         Decoded.Loading -> Box(modifier.fillMaxSize())
         Decoded.Failed -> EmptyState(
-            "Can't show this image",
-            "The format isn't supported on this phone, or the file is damaged. Try Open with.",
+            stringResource(R.string.workspace_preview_image_failed_title),
+            stringResource(R.string.workspace_preview_image_failed_body),
             modifier,
             icon = LocusIcons.File,
         )
         is Decoded.Still -> {
-            LaunchedEffect(d) { onInfo("${d.width} × ${d.height}") }
+            val size = stringResource(R.string.workspace_preview_image_size, d.width, d.height)
+            LaunchedEffect(d) { onInfo(size) }
             Zoomable(modifier) { Image(d.bitmap, contentDescription = file.name, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize()) }
         }
         is Decoded.Animated -> {
-            LaunchedEffect(d) { onInfo("${d.width} × ${d.height} · animated") }
+            val size = stringResource(R.string.workspace_preview_image_size_animated, d.width, d.height)
+            LaunchedEffect(d) { onInfo(size) }
             DisposableEffect(d.drawable) {
                 if (Build.VERSION.SDK_INT >= 28) (d.drawable as? AnimatedImageDrawable)?.start()
                 onDispose { if (Build.VERSION.SDK_INT >= 28) (d.drawable as? AnimatedImageDrawable)?.stop() }
