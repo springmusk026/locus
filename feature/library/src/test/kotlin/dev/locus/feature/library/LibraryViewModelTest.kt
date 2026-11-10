@@ -1,6 +1,7 @@
 package dev.locus.feature.library
 
 import dev.locus.core.data.repository.Library
+import dev.locus.core.designsystem.UiText
 import dev.locus.core.testing.MainDispatcherRule
 import dev.locus.core.testing.TestGraph
 import dev.locus.core.testing.ViewModelHost
@@ -84,8 +85,9 @@ class LibraryViewModelTest {
             // The project has no such note: the move fails.
             vm.moveMemoryToGeneral(project.id, "soil").join()
             val error = assertNotNull(vm.error.value)
-            assertEquals("Couldn't move “soil”", error.title)
-            assertTrue(error.message.isNotBlank())
+            assertEquals(UiText.Res(R.string.library_error_move_memory, "soil"), error.title)
+            // The data layer's reason, or our own words when it gave none: never an empty banner.
+            assertTrue(error.message.let { it !is UiText.Plain || it.value.isNotBlank() }, error.message.toString())
 
             // Once the note is there, Try again does the same move.
             g.home.projectMemory(project.id).saveMemory("soil", "Soil pH", "Slightly acidic.")
@@ -96,7 +98,7 @@ class LibraryViewModelTest {
             assertEquals("Slightly acidic.\n", g.home.readMemory("soil"))
 
             vm.saveMemory("x", "s", "c", projectId = "not a project").join()
-            assertEquals("Couldn't save “x”", vm.error.value?.title)
+            assertEquals(UiText.Res(R.string.library_error_save_memory, "x"), vm.error.value?.title)
             vm.dismissError()
             assertNull(vm.error.value)
         } finally {
@@ -124,9 +126,9 @@ class LibraryViewModelTest {
     @Test
     fun `a library that can't be read shows why, and a retry shows loading first`() = runTest {
         val failed = flow<Library> { throw IOException("Disk unavailable") }.asUiStates(reloading = false).toList()
-        assertEquals(listOf<LibraryUiState>(LibraryUiState.Failed("Disk unavailable")), failed)
+        assertEquals(listOf<LibraryUiState>(LibraryUiState.Failed(UiText.Plain("Disk unavailable"))), failed)
         val silent = flow<Library> { throw IOException() }.asUiStates(reloading = false).toList().single()
-        assertTrue((silent as LibraryUiState.Failed).message.isNotBlank())
+        assertEquals(LibraryUiState.Failed(UiText.Res(R.string.library_load_failed_body)), silent, "no reason given: our own words")
 
         val library = Library(memory = emptyList(), skills = emptyList(), connectors = emptyList())
         assertEquals(listOf(LibraryUiState.Loading, LibraryUiState.Ready(library)), flowOf(library).asUiStates(reloading = true).toList())

@@ -1,5 +1,6 @@
 package dev.locus.feature.library
 
+import dev.locus.core.designsystem.asString
 import dev.locus.core.designsystem.RowChevron
 import dev.locus.core.designsystem.LocusChip
 import dev.locus.core.designsystem.Sizes
@@ -314,10 +315,10 @@ private fun CodeBox(text: String, maxHeight: Int) {
 private fun ImportBanner(status: SkillImportStatus, viewModel: LibraryViewModel) {
     val modifier = Modifier.padding(bottom = Spacing.md)
     when (status) {
-        is SkillImportStatus.Working -> Banner(stringResource(R.string.library_skills_importing_body, status.label), Tone.Live, modifier, title = stringResource(R.string.library_skills_importing_title)) {
+        is SkillImportStatus.Working -> Banner(stringResource(R.string.library_skills_importing_body, status.label.asString()), Tone.Live, modifier, title = stringResource(R.string.library_skills_importing_title)) {
             TextButton(onClick = viewModel::cancelImport) { Text(stringResource(R.string.library_action_cancel)) }
         }
-        is SkillImportStatus.Failed -> Banner(status.message, Tone.Critical, modifier, title = stringResource(R.string.library_skills_import_failed_title)) {
+        is SkillImportStatus.Failed -> Banner(status.message.asString(), Tone.Critical, modifier, title = stringResource(R.string.library_skills_import_failed_title)) {
             TextButton(onClick = viewModel::cancelImport) { Text(stringResource(R.string.library_action_ok)) }
         }
         is SkillImportStatus.Imported -> Banner(
@@ -392,7 +393,7 @@ private fun ImportReviewSheet(status: SkillImportStatus.Review, viewModel: Libra
                 { name = it.trim().lowercase() },
                 label = { Text(stringResource(R.string.library_skills_review_new_name)) },
                 isError = problem != null,
-                supportingText = problem?.let { { Text(it) } },
+                supportingText = problem?.let { { Text(it.asString()) } },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )

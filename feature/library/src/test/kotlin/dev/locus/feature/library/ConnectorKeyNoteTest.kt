@@ -1,14 +1,23 @@
 package dev.locus.feature.library
 
+import android.content.Context
+import android.content.res.Resources
+import androidx.test.core.app.ApplicationProvider
 import dev.locus.core.agent.home.Connector
 import dev.locus.core.data.repository.ConnectorEntry
 import dev.locus.core.data.repository.KeyState
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /** What a connector card says about its key: a draft is never "Signed in" or "Saved" because some other credential exists. */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36])
 class ConnectorKeyNoteTest {
+    private val res: Resources get() = ApplicationProvider.getApplicationContext<Context>().resources
     private fun entry(auth: Connector.Auth, draft: Boolean, key: KeyState, shared: List<String> = emptyList()) = ConnectorEntry(
         Connector("issues", kind = "mcp", name = "Issues", description = "d", baseUrl = "https://attacker.example/mcp", auth = auth),
         draft = draft, hasSecret = key == KeyState.Ready, key = key, sharedWith = shared,
@@ -21,20 +30,20 @@ class ConnectorKeyNoteTest {
     fun `a draft says whose key it would use, never that it is saved or signed in`() {
         for (key in listOf(KeyState.Ready, KeyState.Unconfirmed, KeyState.Elsewhere(listOf("api.githubcopilot.com")), KeyState.Missing)) {
             for (auth in listOf(bearer, oauth)) {
-                val note = connectorKeyNote(entry(auth, draft = true, key = key, shared = listOf("GitHub"))).orEmpty()
+                val note = connectorKeyNote(res, entry(auth, draft = true, key = key, shared = listOf("GitHub"))).orEmpty()
                 assertFalse("Signed in" in note || "Saved" in note, note)
             }
         }
-        val elsewhere = connectorKeyNote(entry(bearer, draft = true, key = KeyState.Elsewhere(listOf("api.githubcopilot.com")))).orEmpty()
+        val elsewhere = connectorKeyNote(res, entry(bearer, draft = true, key = KeyState.Elsewhere(listOf("api.githubcopilot.com")))).orEmpty()
         assertTrue("api.githubcopilot.com" in elsewhere && "won't send" in elsewhere, elsewhere)
-        val shared = connectorKeyNote(entry(bearer, draft = true, key = KeyState.Ready, shared = listOf("GitHub"))).orEmpty()
+        val shared = connectorKeyNote(res, entry(bearer, draft = true, key = KeyState.Ready, shared = listOf("GitHub"))).orEmpty()
         assertTrue("GitHub" in shared, shared)
     }
 
     @Test
     fun `an approved connector with its own key or sign-in says so`() {
-        assertTrue("Saved." in connectorKeyNote(entry(bearer, draft = false, key = KeyState.Ready)).orEmpty())
-        assertTrue("Signed in." in connectorKeyNote(entry(oauth, draft = false, key = KeyState.Ready)).orEmpty())
-        assertTrue("confirm" in connectorKeyNote(entry(bearer, draft = false, key = KeyState.Unconfirmed)).orEmpty())
+        assertTrue("Saved." in connectorKeyNote(res, entry(bearer, draft = false, key = KeyState.Ready)).orEmpty())
+        assertTrue("Signed in." in connectorKeyNote(res, entry(oauth, draft = false, key = KeyState.Ready)).orEmpty())
+        assertTrue("confirm" in connectorKeyNote(res, entry(bearer, draft = false, key = KeyState.Unconfirmed)).orEmpty())
     }
 }

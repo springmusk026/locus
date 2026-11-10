@@ -1,5 +1,7 @@
 package dev.locus.feature.library
 
+import android.content.res.Resources
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -209,15 +211,15 @@ private fun SavedKeyChoice(integration: Integration, template: McpTemplate, form
                 Tone.Caution,
             )
         } else {
-            Text(savedKeyNote(integration, template), style = LocusType.supporting)
+            Text(savedKeyNote(LocalResources.current, integration, template), style = LocusType.supporting)
         }
     }
 }
 
 /** The confirmation under "Use the key saved for …": where the key will also be sent. */
-internal fun savedKeyNote(integration: Integration, template: McpTemplate): String =
-    "Your ${integration.name} key will also be sent to ${template.host}, as ${template.key?.sentAs}. Locus copies it inside the encrypted vault; " +
-        "neither you nor the AI sees it. Changing or removing it in Settings later doesn't change this copy."
+internal fun savedKeyNote(resources: Resources, integration: Integration, template: McpTemplate): String =
+    // How it's sent ("a bearer token", "the x-api-key header") is the template's, in core.
+    resources.getString(R.string.library_mcp_saved_key_note, integration.name, template.host, template.key?.sentAs.toString())
 
 @Composable
 private fun ColumnScope.LocalTemplateFields(local: McpTemplate.Local, form: TemplateForm, linuxInstalled: Boolean) {

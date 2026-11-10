@@ -218,7 +218,7 @@ private fun TestButton(enabled: Boolean, testing: Boolean, onClick: () -> Unit) 
 /** The outcome of Test connection or Add, as the email sheet shows its checks. */
 @Composable
 internal fun ConnectionResult(setup: ServiceSetup) {
-    setup.error?.let { Banner(it, Tone.Critical, title = stringResource(R.string.library_service_add_failed)) }
+    setup.error?.let { Banner(it.asString(), Tone.Critical, title = stringResource(R.string.library_service_add_failed)) }
     val result = setup.result
     if (!setup.testing && result == null) return
     val pill = @Composable {
@@ -235,7 +235,7 @@ internal fun ConnectionResult(setup: ServiceSetup) {
             subtitle = when (result) {
                 null -> stringResource(R.string.library_service_trying)
                 is ConnectionCheck.Passed -> result.detail
-                is ConnectionCheck.Failed -> result.message
+                is ConnectionCheck.Failed -> result.message.ifBlank { stringResource(R.string.library_service_test_failed_body) }
             },
             subtitleMaxLines = Int.MAX_VALUE,
             meta = if (large) ({ Box(Modifier.padding(top = Spacing.xs)) { pill() } }) else null,
