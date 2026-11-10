@@ -1,5 +1,6 @@
 package dev.locus.feature.settings
 
+import android.content.res.Resources
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -14,6 +15,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.math.RoundingMode
+import java.text.NumberFormat
 import javax.inject.Inject
 
 /** Settings → About & privacy → Updates: the setting, Check now, and the release in hand. */
@@ -45,52 +48,68 @@ class UpdatesViewModel @Inject constructor(private val updates: Updates) : ViewM
 // ---- Words (plain functions so they are easy to test) ----
 
 /** What About says under "Check now". */
-internal fun updateStatusLine(info: UpdateInfo?, state: UpdateState, now: Long, relative: (Long, Long) -> String): String {
-    val checked = info?.checkedAt?.takeIf { it > 0 }?.let { "checked ${relative(it, now).replaceFirstChar(Char::lowercase)}" }
+internal fun updateStatusLine(res: Resources, info: UpdateInfo?, state: UpdateState, now: Long, relative: (Long, Long) -> String): String {
+    val ago = info?.checkedAt?.takeIf { it > 0 }?.let { relative(it, now).replaceFirstChar(Char::lowercase) }
+    val checked = ago?.let { res.getString(R.string.settings_updates_status_checked, it) }
     return when (state) {
-        UpdateState.Checking -> "Checking GitHub…"
-        is UpdateState.UpToDate -> listOfNotNull(
-            if (state.latest == null) "No release published yet" else "Up to date (${info?.installedVersion ?: state.latest})",
-            checked,
-        ).joinToString(" · ")
-        is UpdateState.Available -> listOfNotNull(
-            when {
-                state.skipped -> "${state.release.version} skipped"
-                state.release.prerelease -> "Beta ${state.release.version} available"
-                else -> "${state.release.version} available"
-            },
-            checked,
-        ).joinToString(" · ")
+        UpdateState.Checking -> res.getString(R.string.settings_updates_status_checking)
+        is UpdateState.UpToDate -> summaryJoin(
+            res,
+            listOfNotNull(
+                if (state.latest == null) {
+                    res.getString(R.string.settings_updates_status_no_release)
+                } else {
+                    res.getString(R.string.settings_updates_status_up_to_date, info?.installedVersion ?: state.latest)
+                },
+                checked,
+            ),
+        )
+        is UpdateState.Available -> summaryJoin(
+            res,
+            listOfNotNull(
+                when {
+                    state.skipped -> res.getString(R.string.settings_updates_status_skipped, state.release.version)
+                    state.release.prerelease -> res.getString(R.string.settings_updates_status_beta_available, state.release.version)
+                    else -> res.getString(R.string.settings_updates_status_available, state.release.version)
+                },
+                checked,
+            ),
+        )
         is UpdateState.Downloading, is UpdateState.Verifying, is UpdateState.ReadyToInstall, is UpdateState.Installing ->
-            "Updating to ${releaseOf(state)?.version}"
-        is UpdateState.Failed -> checked?.replaceFirstChar(Char::uppercase) ?: "Not checked yet"
-        UpdateState.Idle -> checked?.replaceFirstChar(Char::uppercase) ?: if (info?.enabled == true) "Waiting for Wi-Fi to check" else "Not checked yet"
+            res.getString(R.string.settings_updates_status_updating, releaseOf(state)?.version.toString())
+        is UpdateState.Failed -> ago?.let { res.getString(R.string.settings_updates_status_checked_start, it) } ?: res.getString(R.string.settings_updates_status_not_checked)
+        UpdateState.Idle -> ago?.let { res.getString(R.string.settings_updates_status_checked_start, it) }
+            ?: res.getString(if (info?.enabled == true) R.string.settings_updates_status_waiting_wifi else R.string.settings_updates_status_not_checked)
     }
 }
 
 /** The one-line explanation for a build that can't update itself here; null when it can. */
-internal fun availabilityNote(availability: UpdateAvailability): String? = when (availability) {
+internal fun availabilityNote(res: Resources, availability: UpdateAvailability): String? = when (availability) {
     UpdateAvailability.Available -> null
-    UpdateAvailability.DisabledInBuild -> "This build doesn't check for updates. They come from where you installed Locus (F-Droid or IzzyOnDroid)."
-    UpdateAvailability.DebugBuild -> "Debug build: updates come from your own builds. Check now still shows the latest release."
-    is UpdateAvailability.FromStore -> "Installed from ${availability.store}, which keeps Locus up to date."
+    UpdateAvailability.DisabledInBuild -> res.getString(R.string.settings_updates_note_disabled)
+    UpdateAvailability.DebugBuild -> res.getString(R.string.settings_updates_note_debug)
+    is UpdateAvailability.FromStore -> res.getString(R.string.settings_updates_note_store, availability.store)
 }
 
 /** What went wrong, in words, for [problem]. */
-internal fun problemMessage(problem: UpdateProblem, timeOf: (Long) -> String): String = when (problem) {
-    UpdateProblem.NoNetwork -> "Couldn't reach GitHub. Check your connection and try again."
-    is UpdateProblem.RateLimited -> "GitHub limits how often a network can ask without signing in, and this one has asked too often. Try again after ${timeOf(problem.until)}."
-    is UpdateProblem.Server -> if (problem.code == 0) "GitHub's answer couldn't be read. Try again later." else "GitHub answered with an error (HTTP ${problem.code}). Try again later."
-    is UpdateProblem.NoApkForDevice -> "This release has no APK for this phone (${problem.abis.joinToString().ifEmpty { "unknown ABI" }}). See the release page."
-    UpdateProblem.NoChecksum -> "This release doesn't publish a SHA-256 checksum Locus can check the APK against, so Locus won't install it. You can download it yourself from the release page."
-    UpdateProblem.ChecksumMismatch -> "The download didn't match the release's SHA-256 checksum, so Locus deleted it. Try again; if it happens again, report it on GitHub."
-    UpdateProblem.SignatureMismatch -> "This APK is signed with a different key than the Locus on this phone, so Android won't install it as an update. " +
-        "To switch, make a backup in Settings → Backup & restore, uninstall Locus, install the new APK, then restore the backup."
-    UpdateProblem.BadApk -> "The download isn't a newer Locus, so Locus deleted it."
-    UpdateProblem.InstallNotAllowed -> "Android needs your permission for Locus to install apps. Turn on \"Allow from this source\" for Locus, then come back here."
-    UpdateProblem.InstallCancelled -> "The update was cancelled in Android's installer. The verified download is kept."
-    UpdateProblem.Storage -> "There isn't enough free space for the update. Free some up and try again."
-    is UpdateProblem.InstallFailed -> "Android couldn't install the update" + (problem.message?.takeIf { it.isNotBlank() }?.let { ": $it" } ?: ".")
+internal fun problemMessage(res: Resources, problem: UpdateProblem, timeOf: (Long) -> String): String = when (problem) {
+    UpdateProblem.NoNetwork -> res.getString(R.string.settings_updates_problem_no_network)
+    is UpdateProblem.RateLimited -> res.getString(R.string.settings_updates_problem_rate_limited, timeOf(problem.until))
+    is UpdateProblem.Server ->
+        if (problem.code == 0) res.getString(R.string.settings_updates_problem_unreadable) else res.getString(R.string.settings_updates_problem_server, problem.code)
+    is UpdateProblem.NoApkForDevice ->
+        res.getString(R.string.settings_updates_problem_no_apk, problem.abis.joinToString().ifEmpty { res.getString(R.string.settings_updates_problem_unknown_abi) })
+    UpdateProblem.NoChecksum -> res.getString(R.string.settings_updates_problem_no_checksum)
+    UpdateProblem.ChecksumMismatch -> res.getString(R.string.settings_updates_problem_checksum_mismatch)
+    UpdateProblem.SignatureMismatch -> res.getString(R.string.settings_updates_problem_signature_mismatch)
+    UpdateProblem.BadApk -> res.getString(R.string.settings_updates_problem_bad_apk)
+    UpdateProblem.InstallNotAllowed -> res.getString(R.string.settings_updates_problem_install_not_allowed)
+    UpdateProblem.InstallCancelled -> res.getString(R.string.settings_updates_problem_install_cancelled)
+    UpdateProblem.Storage -> res.getString(R.string.settings_updates_problem_storage)
+    // Android's own reason, as it gave it.
+    is UpdateProblem.InstallFailed -> problem.message?.takeIf { it.isNotBlank() }
+        ?.let { res.getString(R.string.settings_updates_problem_install_failed_reason, it) }
+        ?: res.getString(R.string.settings_updates_problem_install_failed)
 }
 
 internal fun releaseOf(state: UpdateState) = when (state) {
@@ -103,10 +122,16 @@ internal fun releaseOf(state: UpdateState) = when (state) {
     else -> null
 }
 
-/** "12.3 of 17.1 MB", or "12.3 MB" when the size isn't known. */
-internal fun downloadProgress(bytes: Long, total: Long): String {
-    fun mb(b: Long) = "%.1f".format(java.util.Locale.ROOT, b / 1_000_000.0)
-    return if (total > 0) "${mb(bytes)} of ${mb(total)} MB" else "${mb(bytes)} MB"
+/** "12.3 of 17.1 MB", or "12.3 MB" when the size isn't known; the digits in the language shown. */
+internal fun downloadProgress(res: Resources, bytes: Long, total: Long): String {
+    val number = NumberFormat.getNumberInstance(res.configuration.locales[0]).apply {
+        minimumFractionDigits = 1
+        maximumFractionDigits = 1
+        roundingMode = RoundingMode.HALF_UP
+        isGroupingUsed = false
+    }
+    fun mb(b: Long) = number.format(b / 1_000_000.0)
+    return if (total > 0) res.getString(R.string.settings_updates_progress_of, mb(bytes), mb(total)) else res.getString(R.string.settings_updates_progress, mb(bytes))
 }
 
 internal const val RELEASES_PAGE = ReleaseSource.RELEASES_URL

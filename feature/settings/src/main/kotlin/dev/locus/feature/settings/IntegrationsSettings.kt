@@ -52,6 +52,8 @@ import dev.locus.core.ui.EmailActions
 import dev.locus.core.ui.EmailSheet
 import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.RowChevron
+import androidx.compose.ui.platform.LocalResources
+import android.content.res.Resources
 
 /** Built-in integrations that need a key, plus the way into connectors and MCP servers. */
 @Composable
@@ -161,9 +163,6 @@ internal fun IntegrationsSettings(
 internal fun officialMcp(integrationId: String): McpTemplate? =
     McpTemplates.forIntegration(integrationId)?.takeIf { it.local == null }
 
-/** What the row says when new chats use the MCP server instead of the built-in tools. */
-internal const val USING_MCP = "Using the MCP server in new chats"
-
 @Composable
 private fun McpHint(text: String, tone: Tone) {
     LocusChip(text, tone = tone)
@@ -175,11 +174,12 @@ private fun McpHint(text: String, tone: Tone) {
  */
 @Composable
 private fun McpFirstCard(integration: Integration, status: McpFirstStatus, onSetUseMcp: (Boolean) -> Unit) {
-    val server = status.connector?.name ?: "the MCP server"
+    val resources = LocalResources.current
+    val server = status.connector?.name ?: stringResource(R.string.settings_integrations_mcpfirst_the_server)
     LocusCard {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            Text(mcpFirstTitle(status), style = LocusType.cardTitle)
-            SupportingText(mcpFirstBody(integration, status, server))
+            Text(mcpFirstTitle(resources, status), style = LocusType.cardTitle)
+            SupportingText(mcpFirstBody(resources, integration, status, server))
             when {
                 status.usingMcp -> TextButton(onClick = { onSetUseMcp(false) }) { Text(stringResource(R.string.settings_integrations_use_builtin)) }
                 status.keptBuiltIn -> TextButton(onClick = { onSetUseMcp(true) }) { Text(stringResource(R.string.settings_integrations_use_mcp)) }
@@ -188,19 +188,29 @@ private fun McpFirstCard(integration: Integration, status: McpFirstStatus, onSet
     }
 }
 
-internal fun mcpFirstTitle(status: McpFirstStatus): String = when {
-    status.usingMcp -> USING_MCP
-    status.keptBuiltIn -> "Using the built-in tools in new chats"
-    else -> "The MCP server isn't working"
-}
+internal fun mcpFirstTitle(res: Resources, status: McpFirstStatus): String = res.getString(
+    when {
+        status.usingMcp -> R.string.settings_integrations_mcpfirst_using
+        status.keptBuiltIn -> R.string.settings_integrations_mcpfirst_kept
+        else -> R.string.settings_integrations_mcpfirst_failing
+    },
+)
 
-internal fun mcpFirstBody(integration: Integration, status: McpFirstStatus, server: String): String {
+internal fun mcpFirstBody(res: Resources, integration: Integration, status: McpFirstStatus, server: String): String {
+    // Tool names, which stay as they are.
     val kept = McpFirst.alwaysKept.filter { it.startsWith(integration.id + "_") }
-    val keeps = if (kept.isEmpty()) "" else " ${kept.joinToString(" and ")} stays, since it uploads from your workspace."
     return when {
-        status.usingMcp -> "New chats leave out the built-in ${integration.name} tools and use “$server”.$keeps Chats you already have keep the tools they started with."
-        status.keptBuiltIn -> "“$server” is connected too, but new chats use the built-in ${integration.name} tools, as you chose."
-        else -> "“$server” ${status.problem?.let { "failed: ${it.take(160)}" } ?: "can't be used yet"}. Until it works, new chats use the built-in ${integration.name} tools."
+        status.usingMcp && kept.isNotEmpty() -> res.getString(
+            R.string.settings_integrations_mcpfirst_body_using_keeps,
+            integration.name,
+            server,
+            res.getQuantityString(R.plurals.settings_integrations_mcpfirst_body_kept, kept.size, kept.joinToString(", ")),
+        )
+        status.usingMcp -> res.getString(R.string.settings_integrations_mcpfirst_body_using, integration.name, server)
+        status.keptBuiltIn -> res.getString(R.string.settings_integrations_mcpfirst_body_kept_builtin, server, integration.name)
+        // The connector's own error, from core, as it gave it.
+        else -> status.problem?.let { res.getString(R.string.settings_integrations_mcpfirst_body_failed, server, it.take(160), integration.name) }
+            ?: res.getString(R.string.settings_integrations_mcpfirst_body_not_ready, server, integration.name)
     }
 }
 

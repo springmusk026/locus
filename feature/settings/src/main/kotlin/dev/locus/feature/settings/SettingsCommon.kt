@@ -13,6 +13,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.locus.core.designsystem.LocusTopBar
 import dev.locus.core.designsystem.Spacing
+import android.content.res.Resources
 
 /** The frame every Settings page shares: a top bar with back, and a padded list. */
 @Composable
@@ -36,6 +37,9 @@ internal fun summaryJoin(first: String, second: String): String = stringResource
 /** [summaryJoin] for any number of parts. */
 @Composable
 internal fun summaryJoin(parts: List<String>): String = parts.reduce { acc, part -> summaryJoin(acc, part) }
+
+/** [summaryJoin] outside a composable. */
+internal fun summaryJoin(res: Resources, parts: List<String>): String = parts.reduce { acc, part -> res.getString(R.string.settings_summary_join, acc, part) }
 
 internal val SectionPadding = Modifier.padding(start = 0.dp)
 internal val NotePadding = Modifier.padding(top = Spacing.sm, start = 0.dp)

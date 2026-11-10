@@ -76,8 +76,11 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/** A row of the self-test: [result] is null until its check has run. */
-internal data class SelfTestRow(val id: String, val title: String, val result: SelfTestResult? = null)
+/**
+ * A row of the self-test: [result] is null until its check has run. [crash] names the exception when
+ * the check itself threw; the row then says so in words instead of the result's detail.
+ */
+internal data class SelfTestRow(val id: String, val title: String, val result: SelfTestResult? = null, val crash: String? = null)
 
 /**
  * The self-test page. [rows] is empty before the first run starts; [checking] is the id of the check
@@ -91,6 +94,7 @@ internal data class SelfTestUiState(
     val providerCount: Int? = null,
     val finishedAt: Long? = null,
     val resetting: Boolean = false,
+    /** The system's own message. */
     val error: String? = null,
 ) {
     val done: Int get() = rows.count { it.result != null }
@@ -139,7 +143,7 @@ internal class SelfTestViewModel @Inject constructor(
         val check = checks[id] ?: return
         if (job?.isActive == true) return
         job = viewModelScope.launch {
-            _state.update { s -> s.copy(running = true, rows = s.rows.map { if (it.id == id) it.copy(result = null) else it }) }
+            _state.update { s -> s.copy(running = true, rows = s.rows.map { if (it.id == id) it.copy(result = null, crash = null) else it }) }
             runOne(check)
             _state.update { it.copy(running = false, checking = null, finishedAt = System.currentTimeMillis()) }
         }
@@ -158,14 +162,17 @@ internal class SelfTestViewModel @Inject constructor(
 
     private suspend fun runOne(check: SelfTestCheck) {
         _state.update { it.copy(checking = check.id) }
+        var crash: String? = null
         val result = try {
             check.run()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            SelfTestResult(check.id, check.title, SelfTestLevel.Fail, "The check itself failed (${e::class.java.simpleName}).", SelfTestFix.RunAgain)
+            crash = e::class.java.simpleName
+            // SelfTestResult is core's and holds plain text; the row shows [SelfTestRow.crash] in words instead.
+            SelfTestResult(check.id, check.title, SelfTestLevel.Fail, "", SelfTestFix.RunAgain)
         }
-        _state.update { s -> s.copy(rows = s.rows.map { if (it.id == check.id) it.copy(result = result) else it }) }
+        _state.update { s -> s.copy(rows = s.rows.map { if (it.id == check.id) it.copy(result = result, crash = crash) else it }) }
     }
 }
 
@@ -334,7 +341,7 @@ private fun CheckRow(row: SelfTestRow, checking: Boolean, busy: Boolean, onFix: 
     val large = LocalDensity.current.fontScale > LARGE_FONT
     ListRow(
         title = row.title,
-        subtitle = result?.detail ?: stringResource(if (checking) R.string.settings_selftest_checking else R.string.settings_selftest_waiting),
+        subtitle = row.crash?.let { stringResource(R.string.settings_selftest_check_crashed, it) } ?: result?.detail ?: stringResource(if (checking) R.string.settings_selftest_checking else R.string.settings_selftest_waiting),
         titleMaxLines = 2,
         subtitleMaxLines = 6,
         leading = {
