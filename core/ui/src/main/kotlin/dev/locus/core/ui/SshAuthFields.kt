@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import dev.locus.core.designsystem.SecretContent
 import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.R as DesignR
 import dev.locus.core.designsystem.Segmented
@@ -57,23 +58,29 @@ fun SshAuthFields(
             SupportingText(stringResource(R.string.ui_ssh_auth_none_warning))
         }
         SshAuth.KEY -> {
+            // The private key, as pasted, is as secret as the passphrase.
+            SecretContent()
             OutlinedTextField(
                 privateKey, onPrivateKey,
                 label = { Text(stringResource(if (needsSecret) R.string.ui_ssh_key_paste else R.string.ui_ssh_key_saved)) },
                 supportingText = note,
                 minLines = 3, maxLines = 6, modifier = Modifier.fillMaxWidth(),
             )
+            SecretContent()
             OutlinedTextField(
                 passphrase, onPassphrase, label = { Text(stringResource(R.string.ui_ssh_key_passphrase)) }, singleLine = true,
                 visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
             )
         }
-        SshAuth.PASSWORD -> OutlinedTextField(
-            password, onPassword,
-            label = { Text(stringResource(if (needsSecret) R.string.ui_ssh_auth_password else R.string.ui_ssh_password_saved)) },
-            supportingText = note,
-            singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
-        )
+        SshAuth.PASSWORD -> {
+            SecretContent()
+            OutlinedTextField(
+                password, onPassword,
+                label = { Text(stringResource(if (needsSecret) R.string.ui_ssh_auth_password else R.string.ui_ssh_password_saved)) },
+                supportingText = note,
+                singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 }
 

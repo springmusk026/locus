@@ -59,6 +59,7 @@ import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
+import dev.locus.core.designsystem.SecretContent
 import dev.locus.core.designsystem.UiText
 import dev.locus.core.designsystem.asString
 import dev.locus.feature.workspace.R
@@ -229,6 +230,7 @@ private fun PasswordPrompt(wrong: Boolean, modifier: Modifier, onSubmit: (String
         icon = LocusIcons.Key,
         action = {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                SecretContent()
                 OutlinedTextField(
                     text,
                     { text = it },

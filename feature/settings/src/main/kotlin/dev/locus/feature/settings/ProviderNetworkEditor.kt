@@ -24,6 +24,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import dev.locus.core.data.network.NetworkSecretEdits
 import dev.locus.core.data.network.SavedNetworkSecrets
+import dev.locus.core.designsystem.SecretContent
 import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.UiText
 import dev.locus.core.designsystem.asString
@@ -310,6 +311,7 @@ private fun AddHeaderSheet(existing: Set<String>, onAdd: (String, String) -> Uni
             },
             modifier = Modifier.fillMaxWidth(),
         )
+        SecretContent()
         OutlinedTextField(
             value,
             { value = it },
@@ -384,6 +386,7 @@ internal fun ProxyFields(
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
+        SecretContent()
         OutlinedTextField(
             password,
             onPassword,

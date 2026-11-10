@@ -3,6 +3,7 @@ package dev.locus.feature.settings
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import dev.locus.core.designsystem.SecretContent
 import dev.locus.core.designsystem.ConfirmSheet
 import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.LocalNetworkNote
@@ -479,6 +480,7 @@ private fun ProviderEditor(
             )
             if (!signsIn) LocalNetworkNote(baseUrl, localNetwork)
             if (initial.requiresKey) {
+                SecretContent()
                 OutlinedTextField(
                     key,
                     { key = it },
@@ -489,6 +491,7 @@ private fun ProviderEditor(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 val backupsSaved = editing.hasBackupKeys && !clearBackupKeys
+                SecretContent()
                 OutlinedTextField(
                     backupKeys,
                     { backupKeys = it },

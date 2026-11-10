@@ -3,6 +3,7 @@ package dev.locus.feature.settings
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import dev.locus.core.model.SettingsDestination
+import dev.locus.core.designsystem.SecretContent
 import dev.locus.core.designsystem.SettingsLink
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -251,6 +252,7 @@ private fun NewPasswordSheet(includesVault: Boolean, onDismiss: () -> Unit, onDo
         actionEnabled = problem == null,
         onAction = { onDone(password) },
     ) {
+        SecretContent()
         OutlinedTextField(
             password, { password = it },
             label = { Text(stringResource(R.string.settings_backup_password_label)) },
@@ -260,6 +262,7 @@ private fun NewPasswordSheet(includesVault: Boolean, onDismiss: () -> Unit, onDo
             modifier = Modifier.fillMaxWidth(),
             supportingText = { Text(stringResource(R.string.settings_backup_password_hint, MIN_PASSWORD)) },
         )
+        SecretContent()
         OutlinedTextField(
             again, { again = it },
             label = { Text(stringResource(R.string.settings_backup_password_again)) },
@@ -315,6 +318,7 @@ private fun RestoreSheet(
                 if (step.noSpace != null) NoSpaceBanner(step.noSpace)
                 else if (step.error != null) Banner(text = step.error.asString(), tone = Tone.Critical)
                 if (!notABackup) {
+                    SecretContent()
                     OutlinedTextField(
                         password, { password = it },
                         label = { Text(stringResource(R.string.settings_backup_open_password)) },

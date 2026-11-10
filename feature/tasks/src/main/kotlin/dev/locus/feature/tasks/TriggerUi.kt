@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Alignment
+import dev.locus.core.designsystem.SecretContent
 import dev.locus.core.designsystem.IconSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -211,6 +212,7 @@ internal fun TriggerFields(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                 supportingText = { Text(stringResource(R.string.tasks_trigger_ntfy_topic_help)) },
             )
+            SecretContent()
             OutlinedTextField(
                 draft.token, { onChange(draft.copy(token = it, clearToken = false)) },
                 label = { Text(stringResource(if (draft.hasToken && !draft.clearToken) R.string.tasks_trigger_ntfy_token_saved else R.string.tasks_trigger_ntfy_token_optional)) },

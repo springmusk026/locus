@@ -27,6 +27,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import dev.locus.core.data.mcp.LocalMcpHealth
 import dev.locus.core.data.repository.ConnectorEntry
+import dev.locus.core.designsystem.SecretContent
 import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.ExpandableRow
 import dev.locus.core.designsystem.Locus
@@ -107,6 +108,7 @@ internal fun ColumnScope.LocalMcpFields(form: LocalMcpForm, linuxInstalled: Bool
     form.env.forEachIndexed { i, (key, value) ->
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(key, { form.env[i] = it.trim() to value }, label = { Text(stringResource(R.string.library_localmcp_env_name)) }, singleLine = true, textStyle = LocusType.code, modifier = Modifier.weight(1f))
+            SecretContent()
             OutlinedTextField(value, { form.env[i] = key to it }, label = { Text(stringResource(R.string.library_localmcp_env_value)) }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.weight(1f))
             IconButton(onClick = { form.env.removeAt(i) }) {
                 Icon(LocusIcons.Trash, contentDescription = stringResource(R.string.library_localmcp_env_remove, key.ifBlank { stringResource(R.string.library_localmcp_env_variable) }))

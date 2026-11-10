@@ -1,5 +1,6 @@
 package dev.locus.feature.library
 
+import dev.locus.core.designsystem.SecretContent
 import dev.locus.core.designsystem.asString
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.runtime.getValue
@@ -541,6 +542,7 @@ private fun ConnectorsTab(
                     Text(warning, style = LocusType.supporting, color = MaterialTheme.colorScheme.error)
                 }
                 LocalNetworkNote(url, localNetwork)
+                SecretContent()
                 OutlinedTextField(
                     token, { token = it }, label = { Text(stringResource(R.string.library_connectors_custom_token)) }, supportingText = { Text(stringResource(R.string.library_connectors_custom_token_hint)) }, singleLine = true,
                     visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
@@ -561,6 +563,7 @@ private fun ConnectorsTab(
             actionEnabled = value.isNotBlank(),
             onAction = { viewModel.setSecret(entry.connector.id, secretName, value); secretFor = null },
         ) {
+            SecretContent()
             OutlinedTextField(value, { value = it }, label = { Text(secretName) }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
         }
     }
