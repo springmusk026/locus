@@ -152,12 +152,5 @@ class BrowserApprovalsTest {
         f.graph.runner.cancel(other)
     }
 
-    @Test
-    fun `what TalkBack hears and the queue count`() {
-        assertEquals("1 of 3", queueText(3))
-        assertEquals("Locus needs your approval. Click: Sign in", waitingAnnouncement("Click: Sign in", null, 1))
-        assertEquals("Locus asks: Which date? 1 of 2 waiting.", waitingAnnouncement(null, "Which date?", 2))
-        assertEquals("Locus needs your approval. Click: Sign in. 1 of 2 waiting.", waitingAnnouncement("Click: Sign in", null, 2))
-        assertEquals("", waitingAnnouncement(null, null, 0))
-    }
+    // What TalkBack hears and the queue count: BrowserAnnouncementTest, on Robolectric for the strings.
 }

@@ -243,4 +243,32 @@
     <string name="onboarding_done_integrations">Integrações</string>
     <string name="onboarding_done_none">Nenhum</string>
     <string name="onboarding_done_checked">Concluído</string>
+
+    <!-- Onboarding: results and errors of the steps' actions -->
+    <string name="onboarding_provider_no_models">O provedor não listou nenhum modelo. Digite o ID de um modelo.</string>
+    <plurals name="onboarding_provider_models_found">
+        <item quantity="one">%1$d modelo</item>
+        <item quantity="many">%1$d modelos</item>
+        <item quantity="other">%1$d modelos</item>
+    </plurals>
+    <string name="onboarding_provider_signed_in_as">Conectado como %1$s</string>
+    <string name="onboarding_provider_signed_in">Conectado</string>
+    <string name="onboarding_provider_saved_default">Salvo como seu modelo padrão</string>
+    <string name="onboarding_identity_change_kept">%1$s mantido. Os novos chats o usam.</string>
+    <string name="onboarding_identity_change_discarded">A alteração em %1$s foi descartada. Os novos chats continuam usando a versão que você salvou.</string>
+    <string name="onboarding_identity_polish_no_model">Configure um modelo primeiro.</string>
+    <string name="onboarding_identity_polish_no_answer">Seu modelo não respondeu, então o texto do template foi mantido. Verifique o modelo em Configurações ou use os templates.</string>
+    <string name="onboarding_identity_polish_bad_reply">A resposta do seu modelo não veio no formato esperado, então o texto do template foi mantido.</string>
+    <string name="onboarding_identity_polished">Reescrito pelo seu modelo. Revise abaixo.</string>
+    <string name="onboarding_identity_saved">Salvo. Os novos chats o usam.</string>
+    <string name="onboarding_job_timed_out">O tempo esgotou. Tente de novo ou verifique a conexão.</string>
+    <string name="onboarding_added">%1$s adicionado</string>
+    <string name="onboarding_test_no_model">Nenhum modelo foi configurado ainda. Volte à etapa Modelo.</string>
+    <string name="onboarding_test_model_downloading">O modelo do telefone ainda não terminou de baixar.</string>
+    <string name="onboarding_test_empty_reply">(resposta vazia)</string>
+    <string name="onboarding_test_model_reply">%1$s: “%2$s” · %3$.1f s</string>
+    <string name="onboarding_test_linux_timed_out">O tempo esgotou</string>
+    <string name="onboarding_test_linux_exited">Encerrou com o código %1$s</string>
+    <string name="onboarding_connectors_ntfy_problem">Isso não é uma URL de tópico como https://ntfy.sh/seu-topico (opcionalmente seguida de um token tk_).</string>
+    <string name="onboarding_connectors_email_problem">Isso não é uma configuração de servidor de e-mail que o Locus consiga ler.</string>
 </resources>

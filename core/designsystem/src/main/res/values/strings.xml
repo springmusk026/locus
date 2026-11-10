@@ -28,6 +28,9 @@
     <string name="common_off">Off</string>
 
     <!-- Image grid (Attachments.kt): %1$s is a picture's description, %2$d how many more follow it. -->
+    <!-- An image a tool showed the model (view_image), for TalkBack and the viewer -->
+    <string name="designsystem_image_named">Image, %1$s</string>
+    <string name="designsystem_image_named_of">Image %1$d of %2$d, %3$s</string>
     <plurals name="designsystem_image_grid_and_more">
         <item quantity="one">%1$s, and %2$d more</item>
         <item quantity="other">%1$s, and %2$d more</item>

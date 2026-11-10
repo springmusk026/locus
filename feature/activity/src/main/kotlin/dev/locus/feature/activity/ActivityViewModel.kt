@@ -81,7 +81,9 @@ data class ActivityUiState(
     val filters: ActivityFilters = ActivityFilters(),
     /** The chat this view is limited to, or null for everything. */
     val conversationId: String? = null,
-    val scopeTitle: String? = null,
+    val scopeTitle: UiText? = null,
+    /** Whether the chat this view is limited to is still known (so it can be opened); false once it's deleted. */
+    val scopeChatKnown: Boolean = false,
     /** Whether the scope came from inside this screen ("View all in this chat"), so Back widens it again. */
     val scopedHere: Boolean = false,
     val days: List<DaySection> = emptyList(),
@@ -153,7 +155,7 @@ class ActivityViewModel @Inject constructor(
             val parent = c.parentConversationId
             c.id to RunChat(
                 // A helper's run is named after its job and the chat it worked for.
-                title = if (parent == null) c.title else "${(c.agentType ?: "helper").replaceFirstChar { it.uppercase() }} helper · ${titles[parent] ?: "Deleted chat"}",
+                title = if (parent == null) UiText.Plain(c.title) else helperTitle(c.agentType, titles[parent]),
                 exists = parent == null || parent in titles,
                 openId = parent ?: c.id,
                 provider = p?.let { RunProvider(it.name, it.baseUrl, it.format == ApiFormat.ON_DEVICE, c.modelOverride ?: it.model) },
@@ -180,7 +182,7 @@ class ActivityViewModel @Inject constructor(
     }
 
     private val sections: Flow<Pair<Window, List<DaySection>>> = combine(window, chats) { w, c ->
-        val runs = clusterRuns(w.entries, { id -> c[id] ?: RunChat("Deleted chat", exists = false) })
+        val runs = clusterRuns(w.entries, { id -> c[id] ?: RunChat(UiText.Res(R.string.activity_deleted_chat), exists = false) })
         w to runs.groupBy { dayLabel(it.latest.startedAt) }.map { (day, list) -> DaySection(day, list) }
     }.flowOn(Dispatchers.Default)
 
@@ -188,7 +190,8 @@ class ActivityViewModel @Inject constructor(
         ActivityUiState(
             loading = false,
             conversationId = s.conversationId,
-            scopeTitle = s.conversationId?.let { c[it]?.title ?: "Deleted chat" },
+            scopeTitle = s.conversationId?.let { c[it]?.title ?: UiText.Res(R.string.activity_deleted_chat) },
+            scopeChatKnown = s.conversationId?.let { it in c } == true,
             scopedHere = s.here,
             days = days,
             hasMore = w.hasMore,
@@ -259,4 +262,14 @@ class ActivityViewModel @Inject constructor(
             else -> UiText.Plain(DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(millis)))
         }
     }
+}
+
+/**
+ * A helper's run, named after its job and the chat it worked for: "Research helper · Trip plans". The job
+ * is the helper's type as saved (an id, not translated); a helper saved without one is just "Helper".
+ */
+internal fun helperTitle(agentType: String?, parentTitle: String?): UiText {
+    val parent = parentTitle?.let(UiText::Plain) ?: UiText.Res(R.string.activity_deleted_chat)
+    return if (agentType == null) UiText.Res(R.string.activity_helper_chat_untyped, parent)
+    else UiText.Res(R.string.activity_helper_chat, agentType.replaceFirstChar { it.uppercase() }, parent)
 }

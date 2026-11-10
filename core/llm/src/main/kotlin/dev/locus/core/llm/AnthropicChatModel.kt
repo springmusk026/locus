@@ -201,7 +201,15 @@ class AnthropicChatModel(
                     buildJsonObject {
                         put("type", "tool_result")
                         put("tool_use_id", result.callId)
-                        put("content", result.content)
+                        if (result.images.isEmpty()) {
+                            put("content", result.content)
+                        } else {
+                            // view_image: the text, then the images, as one tool_result (docs/design/view-image.md).
+                            putJsonArray("content") {
+                                add(textBlock(result.content))
+                                result.images.forEach { add(attachmentBlock(it)) }
+                            }
+                        }
                         if (result.isError) put("is_error", true)
                     }
                 })

@@ -1,12 +1,23 @@
 package dev.locus.feature.workspace.preview
 
+import android.content.Context
+import android.content.res.Resources
+import androidx.test.core.app.ApplicationProvider
 import dev.locus.core.markdown.files.PreviewKind
 import dev.snipme.highlights.model.SyntaxLanguage
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
+/** Runs on Robolectric for the module's English strings (the language label, the web notice). */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36])
 class PreviewParsingTest {
+    private val res: Resources get() = ApplicationProvider.getApplicationContext<Context>().resources
+
     @Test
     fun `kinds come from the extension`() {
         assertEquals(PreviewKind.Pdf, previewKindFor("docs/Report.PDF"))
@@ -33,8 +44,10 @@ class PreviewParsingTest {
         assertEquals(SyntaxLanguage.JAVASCRIPT, syntaxFor("a.json"))
         assertEquals(SyntaxLanguage.DEFAULT, syntaxFor("config.yaml"))
         assertNull(syntaxFor("notes.txt"))
-        assertEquals("Python", languageLabel("main.py"))
-        assertEquals("JSON", languageLabel("a.json"))
+        assertEquals("Python", languageLabel("main.py").asString(res))
+        assertEquals("JSON", languageLabel("a.json").asString(res))
+        assertEquals("Text", languageLabel("notes.txt").asString(res))
+        assertEquals("Text", languageLabel("notes").asString(res))
     }
 
     @Test
@@ -57,7 +70,7 @@ class PreviewParsingTest {
     fun `a page that loads from the web says what is missing and where to see it whole`() {
         assertEquals(
             "Styles from the web are blocked here, so the page may look plain.",
-            webNotice("<link rel=\"stylesheet\" href=\"https://cdn.example.com/site.css\"><h1>Hi</h1>"),
+            webNotice("<link rel=\"stylesheet\" href=\"https://cdn.example.com/site.css\"><h1>Hi</h1>")?.asString(res),
         )
         assertNull(webNotice("<style>h1{color:red}</style><h1>Hi</h1>"))
     }

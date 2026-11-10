@@ -311,7 +311,16 @@ class OpenAiResponsesModel(
                     add(buildJsonObject {
                         put("type", "function_call_output")
                         put("call_id", result.callId)
-                        put("output", if (result.isError) "ERROR: ${result.content}" else result.content)
+                        val text = if (result.isError) "ERROR: ${result.content}" else result.content
+                        if (result.images.isEmpty()) {
+                            put("output", text)
+                        } else {
+                            // view_image: the text, then the images, in the output itself (docs/design/view-image.md).
+                            putJsonArray("output") {
+                                add(inputText(text))
+                                result.images.forEach { a -> add(inputImage(a)) }
+                            }
+                        }
                     })
                 }
             }
@@ -321,6 +330,16 @@ class OpenAiResponsesModel(
     private fun inputText(text: String) = buildJsonObject {
         put("type", "input_text")
         put("text", text)
+    }
+
+    /** A tool's image as an input part; a copy that's gone becomes a note. */
+    private fun inputImage(a: Part.Attachment): JsonObject = when (val p = payload(a, allowPdf = false)) {
+        is AttachmentPayload.Image -> buildJsonObject {
+            put("type", "input_image")
+            put("image_url", "data:${p.mimeType};base64,${p.base64}")
+            put("detail", "auto")
+        }
+        is AttachmentPayload.Pdf, is AttachmentPayload.Note -> inputText(note(a))
     }
 
     /** [response] with [items] as its output when the server left `output` empty. */
@@ -417,8 +436,9 @@ class OpenAiResponsesModel(
             if (name in DISCOVERY_TOOL_NAMES) return "discovery"
             // The phone integrations share the phone apps' namespace, whose one-line description stays as it was.
             if (dev.locus.core.model.DeviceIntegrations.isIntegration(name)) return "device"
-            // provider_draft sits with connector_create; the namespace's line still counts only the tools it had.
-            if (name == dev.locus.core.model.ProviderDrafts.TOOL) return "connector"
+            // provider_draft and view_image sit with connector_create; the namespace's line still counts only the
+            // tools it had, so a chat's up-front namespaces (and its cached prefix) don't change.
+            if (name in QUIET_IN_CONNECTOR) return "connector"
             return when (val family = name.substringBefore('_')) {
                 "sftp" -> "ssh"
                 "notify", "weather", "wikipedia" -> "quick"
@@ -435,8 +455,11 @@ class OpenAiResponsesModel(
             space == "discovery" -> "Locus's own tool finder; tool_search already does its job."
             space == "device" -> "The phone's own apps: calendar, alarms, timers, SMS and email drafts, calls, directions, sharing."
             space == "quick" -> "Weather, Wikipedia and push notifications."
-            else -> "Locus's ${space.replaceFirstChar { it.uppercase() }} tools (${tools.count { it != dev.locus.core.model.ProviderDrafts.TOOL }})."
+            else -> "Locus's ${space.replaceFirstChar { it.uppercase() }} tools (${tools.count { it !in QUIET_IN_CONNECTOR }})."
         }
+
+        /** Tools added to existing chats' deferred sets after namespaces shipped: they join a namespace without changing its line. */
+        private val QUIET_IN_CONNECTOR = setOf(dev.locus.core.model.ProviderDrafts.TOOL, dev.locus.core.model.ViewImages.TOOL)
     }
 }
 

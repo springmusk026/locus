@@ -92,7 +92,7 @@ object GgufWire {
                             put("role", "tool")
                             put("tool_call_id", r.callId)
                             put("name", r.toolName)
-                            put("content", if (r.isError) "Error: ${r.content}" else r.content)
+                            put("content", dev.locus.core.ondevice.OnDeviceText.toolText(r))
                         },
                     )
                 }

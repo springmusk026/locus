@@ -1,5 +1,7 @@
 package dev.locus.feature.onboarding
 
+import dev.locus.core.designsystem.UiText
+import kotlin.test.assertIs
 import androidx.lifecycle.SavedStateHandle
 import dev.locus.core.agent.home.AgentHome.PersonaFile
 import dev.locus.core.datastore.SecretStore
@@ -160,7 +162,7 @@ class OnboardingViewModelTest {
         settle { vm.providerSave.result != null || vm.providerSave.error != null }
 
         val id = vm.provider!!.id
-        assertEquals("Saved as your default model", vm.providerSave.result)
+        assertEquals(UiText.Res(R.string.onboarding_provider_saved_default), vm.providerSave.result)
         assertEquals(id, g.settingsRepository.current().defaultProviderId)
         assertEquals("sk-ant-1", g.secrets.get(SecretStore.providerKey(id)))
         assertNull(g.secrets.get(SecretStore.providerKey(ScriptedProvider.config.id)))
@@ -187,6 +189,7 @@ class OnboardingViewModelTest {
         vm.loadModels()
         settle { vm.modelList.result != null || vm.modelList.error != null }
         assertEquals(listOf("claude-a", "claude-b"), vm.remoteModels.map { it.id })
+        assertEquals(UiText.Plural(R.plurals.onboarding_provider_models_found, 2), vm.modelList.result)
         assertEquals("typed", g.requests.single().headers["x-api-key"])
     }
 
@@ -197,7 +200,11 @@ class OnboardingViewModelTest {
         val vm = vm(g)
         vm.testModel()
         settle { !vm.modelTest.running }
-        assertTrue(vm.modelTest.result.orEmpty().startsWith("test-model: “Ready when you are!”"), vm.modelTest.toString())
+        // "test-model: “Ready when you are!” · 0.4 s": the model, its reply as written, and how long it took.
+        val result = assertIs<UiText.Res>(vm.modelTest.result, vm.modelTest.toString())
+        assertEquals(R.string.onboarding_test_model_reply, result.id)
+        assertEquals(listOf("test-model", UiText.Plain("Ready when you are!")), result.args.take(2))
+        assertIs<Double>(result.args[2])
         assertEquals(1, g.requests.size)
     }
 
@@ -206,13 +213,13 @@ class OnboardingViewModelTest {
         val vm = vm(TestGraph(backgroundScope))
         vm.testModel()
         settle { !vm.modelTest.running }
-        assertTrue("No model is set up" in vm.modelTest.error.orEmpty())
+        assertEquals(UiText.Res(R.string.onboarding_test_no_model), vm.modelTest.error)
 
         val keyed = TestGraph(backgroundScope, AppSettings(providers = listOf(dev.locus.core.model.ProviderConfig("a", "Anthropic", ApiFormat.ANTHROPIC_MESSAGES, "https://x.test", "m")), defaultProviderId = "a"))
         val noKey = vm(keyed)
         noKey.testModel()
         settle { !noKey.modelTest.running }
-        assertTrue("no API key" in noKey.modelTest.error.orEmpty())
+        assertTrue("no API key" in (noKey.modelTest.error as UiText.Plain).value, noKey.modelTest.toString())
         assertTrue(keyed.requests.isEmpty())
     }
 

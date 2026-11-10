@@ -14,6 +14,7 @@ import dev.locus.core.agent.home.SkillBundle
 import dev.locus.core.agent.home.SkillReview
 import dev.locus.core.data.repository.LibraryRepository
 import dev.locus.core.data.repository.SkillClash
+import dev.locus.core.designsystem.UiText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -31,14 +32,15 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 sealed interface SignInStatus {
+    /** [label] is the server's name. */
     data class Working(val label: String) : SignInStatus
-    data class Failed(val message: String, val title: String = "Couldn't sign in") : SignInStatus
+    data class Failed(val message: UiText, val title: UiText = UiText.Res(R.string.library_connectors_sign_in_failed_title)) : SignInStatus
 }
 
 /** Where a skill import is: fetching, failed, waiting for the user's review, or saved as a draft. */
 sealed interface SkillImportStatus {
-    data class Working(val label: String) : SkillImportStatus
-    data class Failed(val message: String) : SkillImportStatus
+    data class Working(val label: UiText) : SkillImportStatus
+    data class Failed(val message: UiText) : SkillImportStatus
     /**
      * Fetched and checked: the user reads its manifest (and, when [clash] isn't None, how it changes
      * the skill of the same name) and then saves it, renames it, or replaces the one there.
@@ -55,7 +57,7 @@ data class ServiceSetup(
     val testing: Boolean = false,
     val result: ConnectionCheck? = null,
     val adding: Boolean = false,
-    val error: String? = null,
+    val error: UiText? = null,
     val added: Boolean = false,
 )
 
@@ -66,7 +68,7 @@ sealed interface LibraryUiState {
     data object Loading : LibraryUiState
     data class Ready(val library: Library) : LibraryUiState
     /** Reading the library failed; [retryLoad][LibraryViewModel.retryLoad] tries again. */
-    data class Failed(val message: String) : LibraryUiState
+    data class Failed(val message: UiText) : LibraryUiState
 }
 
 /**
@@ -78,14 +80,14 @@ internal fun Flow<Library>.asUiStates(reloading: Boolean): Flow<LibraryUiState> 
         .onStart { if (reloading) emit(LibraryUiState.Loading) }
         .catch { e ->
             if (e is CancellationException) throw e
-            emit(LibraryUiState.Failed(e.message?.takeIf { it.isNotBlank() } ?: "Something went wrong reading Locus's files."))
+            emit(LibraryUiState.Failed(e.message?.takeIf { it.isNotBlank() }?.let(UiText::Plain) ?: UiText.Res(R.string.library_load_failed_body)))
         }
 
 /**
  * A Library action that failed (approve, remove, save, forget…): shown as a banner. [retry] runs the
  * same action again.
  */
-data class LibraryError(val title: String, val message: String, val retry: (() -> Unit)? = null)
+data class LibraryError(val title: UiText, val message: UiText, val retry: (() -> Unit)? = null)
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -117,23 +119,23 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
 
     /** Saves a memory topic: in general memory, or with [projectId] in that project's memory. */
     fun saveMemory(topic: String, summary: String, content: String, projectId: String? = null) =
-        act("Couldn't save “${label(topic)}”") { repository.saveMemory(topic, summary, content, projectId) }
+        act(UiText.Res(R.string.library_error_save_memory, label(topic))) { repository.saveMemory(topic, summary, content, projectId) }
     /** Forgets a memory topic from general memory, or with [projectId] from that project's memory. */
     fun forgetMemory(topic: String, projectId: String? = null) =
-        act("Couldn't forget “${label(topic)}”") { repository.forgetMemory(topic, projectId) }
+        act(UiText.Res(R.string.library_error_forget_memory, label(topic))) { repository.forgetMemory(topic, projectId) }
     /** Moves a project's memory topic to general memory, where every chat can use it. */
     fun moveMemoryToGeneral(projectId: String, topic: String) =
-        act("Couldn't move “${label(topic)}”") { repository.moveMemoryToGeneral(projectId, topic) }
-    fun approveSkill(name: String) = act("Couldn't approve “$name”") { repository.approveSkill(name) }
-    fun rejectSkill(name: String) = act("Couldn't reject “$name”") { repository.rejectSkill(name) }
-    fun removeSkill(name: String) = act("Couldn't remove “$name”") { repository.removeSkill(name) }
-    fun approveConnector(id: String) = act("Couldn't approve the connector") { repository.approveConnector(id) }
+        act(UiText.Res(R.string.library_error_move_memory, label(topic))) { repository.moveMemoryToGeneral(projectId, topic) }
+    fun approveSkill(name: String) = act(UiText.Res(R.string.library_error_approve, name)) { repository.approveSkill(name) }
+    fun rejectSkill(name: String) = act(UiText.Res(R.string.library_error_reject, name)) { repository.rejectSkill(name) }
+    fun removeSkill(name: String) = act(UiText.Res(R.string.library_error_remove, name)) { repository.removeSkill(name) }
+    fun approveConnector(id: String) = act(UiText.Res(R.string.library_error_approve_connector)) { repository.approveConnector(id) }
 
     /** MCP tools waiting for approval, by connector id (docs/design/mcp-connectors.md, "Tool pinning"). */
     val pendingTools: StateFlow<Map<String, List<dev.locus.core.data.mcp.PendingTool>>> get() = repository.pendingTools
 
     /** Approves every waiting tool of connector [id]: new chats can use them. */
-    fun approveTools(id: String) = act("Couldn't approve the tool changes") { repository.approveTools(id) }
+    fun approveTools(id: String) = act(UiText.Res(R.string.library_error_approve_tools)) { repository.approveTools(id) }
 
     private var toolsChecked = false
 
@@ -146,14 +148,14 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
         toolsChecked = true
         viewModelScope.launch { ids.forEach { id -> runCatching { repository.checkTools(id) } } }
     }
-    fun approveAgent(name: String) = act("Couldn't approve “$name”") { repository.approveAgent(name) }
-    fun rejectAgent(name: String) = act("Couldn't reject “$name”") { repository.rejectAgent(name) }
-    fun removeAgent(name: String) = act("Couldn't remove “$name”") { repository.removeAgent(name) }
-    fun rejectConnector(id: String) = act("Couldn't reject the connector") { repository.rejectConnector(id) }
-    fun removeConnector(id: String) = act("Couldn't remove the connector") { repository.removeConnector(id) }
-    fun setSecret(connectorId: String, name: String, value: String) = act("Couldn't save the key") { repository.setConnectorSecret(name, value, connectorId) }
+    fun approveAgent(name: String) = act(UiText.Res(R.string.library_error_approve, name)) { repository.approveAgent(name) }
+    fun rejectAgent(name: String) = act(UiText.Res(R.string.library_error_reject, name)) { repository.rejectAgent(name) }
+    fun removeAgent(name: String) = act(UiText.Res(R.string.library_error_remove, name)) { repository.removeAgent(name) }
+    fun rejectConnector(id: String) = act(UiText.Res(R.string.library_error_reject_connector)) { repository.rejectConnector(id) }
+    fun removeConnector(id: String) = act(UiText.Res(R.string.library_error_remove_connector)) { repository.removeConnector(id) }
+    fun setSecret(connectorId: String, name: String, value: String) = act(UiText.Res(R.string.library_error_save_key)) { repository.setConnectorSecret(name, value, connectorId) }
     /** The user confirmed where an older saved key goes (it was saved before Locus recorded that). */
-    fun confirmKey(id: String) = act("Couldn't confirm the key") { repository.confirmConnectorKey(id) }
+    fun confirmKey(id: String) = act(UiText.Res(R.string.library_error_confirm_key)) { repository.confirmConnectorKey(id) }
     fun addMcpServer(name: String, url: String, token: String?) = signingIn(name) { repository.addMcpServer(name, url, token) }
     /** Adds a server from the catalogue; signing in, when it needs to, shows in the same banner. */
     /** [useSavedKey]: copy the built-in integration's saved key (inside the vault; it never comes here). */
@@ -168,7 +170,7 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _signIn.value = SignInStatus.Failed(e.message ?: "Couldn't add the server.", title = "Couldn't add ${template.name}")
+                _signIn.value = SignInStatus.Failed(e.message?.let(UiText::Plain) ?: UiText.Res(R.string.library_error_add_server_body), title = UiText.Res(R.string.library_error_add_named, template.name))
             }
         }
     }
@@ -182,7 +184,7 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            _signIn.value = SignInStatus.Failed(e.message ?: "Couldn't add the server.", title = "Couldn't add the server")
+            _signIn.value = SignInStatus.Failed(e.message?.let(UiText::Plain) ?: UiText.Res(R.string.library_error_add_server_body), title = UiText.Res(R.string.library_error_add_server))
         }
     }
     /** Starts begun here, so Stop can cancel one that is still starting (the process is stopped too). */
@@ -190,7 +192,7 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
 
     fun startLocalMcp(id: String) {
         starts[id]?.cancel()
-        val job = act("Couldn't start the server") { repository.startLocalMcp(id) }
+        val job = act(UiText.Res(R.string.library_error_start_server)) { repository.startLocalMcp(id) }
         starts[id] = job
         job.invokeOnCompletion { if (starts[id] === job) starts.remove(id) }
     }
@@ -198,7 +200,7 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
     /** Cancels a start begun here; one a chat began finishes starting first, then stops. */
     fun stopLocalMcp(id: String) {
         starts.remove(id)?.cancel()
-        act("Couldn't stop the server") { repository.stopLocalMcp(id) }
+        act(UiText.Res(R.string.library_error_stop_server)) { repository.stopLocalMcp(id) }
     }
     fun dismissSignIn() { _signIn.value = null }
 
@@ -229,7 +231,7 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
         adding { repository.addHomeAssistant(address, full, token, rules) }
 
     fun setHomeAssistantRules(id: String, rules: Connector.HomeAssistantRules) =
-        act("Couldn't save the always-confirm list") { repository.setHomeAssistantRules(id, rules) }
+        act(UiText.Res(R.string.library_error_save_rules)) { repository.setHomeAssistantRules(id, rules) }
 
     private fun testing(block: suspend () -> ConnectionCheck) {
         setupJob?.cancel()
@@ -240,7 +242,8 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                ConnectionCheck.Failed(e.message ?: "The test failed.")
+                // ConnectionCheck is core's and holds plain text: an empty message is shown as our "The test failed."
+                ConnectionCheck.Failed(e.message.orEmpty())
             }
             _setup.value = ServiceSetup(result = result)
         }
@@ -256,7 +259,7 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _setup.value = _setup.value.copy(adding = false, error = e.message ?: "Couldn't add it.")
+                _setup.value = _setup.value.copy(adding = false, error = e.message?.let(UiText::Plain) ?: UiText.Res(R.string.library_service_add_failed_body))
             }
         }
     }
@@ -280,7 +283,7 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
             _signIn.value = SignInStatus.Working(label)
             val result = runCatching { block() }
             if (result.exceptionOrNull() is CancellationException) return@launch
-            _signIn.value = result.fold(onSuccess = { null }, onFailure = { SignInStatus.Failed(it.message ?: "Sign-in failed.") })
+            _signIn.value = result.fold(onSuccess = { null }, onFailure = { SignInStatus.Failed(it.message?.let(UiText::Plain) ?: UiText.Res(R.string.library_connectors_sign_in_failed)) })
         }
     }
 
@@ -293,9 +296,9 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
 
     private var importJob: kotlinx.coroutines.Job? = null
 
-    fun importSkillFromGitHub(url: String) = importing("Downloading from GitHub") { repository.fetchSkill(url) }
+    fun importSkillFromGitHub(url: String) = importing(UiText.Res(R.string.library_skills_importing_github)) { repository.fetchSkill(url) }
 
-    fun importSkillZip(uri: Uri) = importing("Reading the zip") { repository.readSkillZip(uri) }
+    fun importSkillZip(uri: Uri) = importing(UiText.Res(R.string.library_skills_importing_zip)) { repository.readSkillZip(uri) }
 
     /**
      * Saves the reviewed import under its own name: a new draft, or, when the name is taken, a new
@@ -315,9 +318,9 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
     }
 
     /** Why [name] can't be used for an import, or null if it can. */
-    fun renameProblem(name: String): String? = when {
-        !AgentHome.SKILL_NAME.matches(name) -> "Use lowercase letters, digits and single hyphens."
-        repository.skillClash(name) != SkillClash.None -> "That name is taken too."
+    fun renameProblem(name: String): UiText? = when {
+        !AgentHome.SKILL_NAME.matches(name) -> UiText.Res(R.string.library_skills_rename_invalid)
+        repository.skillClash(name) != SkillClash.None -> UiText.Res(R.string.library_skills_rename_taken)
         else -> null
     }
 
@@ -326,7 +329,7 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
         _import.value = null
     }
 
-    private fun importing(label: String, fetch: suspend () -> SkillBundle) {
+    private fun importing(label: UiText, fetch: suspend () -> SkillBundle) {
         importJob?.cancel()
         importJob = viewModelScope.launch {
             _import.value = SkillImportStatus.Working(label)
@@ -337,7 +340,7 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                SkillImportStatus.Failed(e.message ?: "The import failed.")
+                SkillImportStatus.Failed(e.message?.let(UiText::Plain) ?: UiText.Res(R.string.library_skills_import_failed_body))
             }
         }
     }
@@ -353,7 +356,7 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            SkillImportStatus.Failed(e.message ?: "Couldn't save the skill.")
+            SkillImportStatus.Failed(e.message?.let(UiText::Plain) ?: UiText.Res(R.string.library_skills_save_failed_body))
         }
     }
 
@@ -362,8 +365,8 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
     /** A skill file opened for review. */
     val openFile: StateFlow<SkillFileView?> = _file
 
-    fun openSkillFile(skill: AgentHome.Skill, path: String) = act("Couldn't open $path") {
-        val bytes = repository.skillFile(skill.name, path, skill.draft) ?: throw IllegalStateException("The file isn't in the skill any more.")
+    fun openSkillFile(skill: AgentHome.Skill, path: String) = act(UiText.Res(R.string.library_skills_open_file_failed, path)) {
+        val bytes = repository.skillFile(skill.name, path, skill.draft) ?: throw Failure(UiText.Res(R.string.library_skills_file_gone))
         _file.value = SkillFileView(skill.name, path, bytes.size, textOf(bytes))
     }
 
@@ -373,7 +376,7 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
      * Runs a Library action. A failure is shown as [error] titled [title], with a retry, instead of
      * crashing the app; cancellation (leaving the screen, Stop) is passed on, never reported.
      */
-    private fun act(title: String, block: suspend () -> Unit): Job = viewModelScope.launch {
+    private fun act(title: UiText, block: suspend () -> Unit): Job = viewModelScope.launch {
         try {
             block()
         } catch (e: CancellationException) {
@@ -383,11 +386,15 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
             repository.refresh()
             _error.value = LibraryError(
                 title = title,
-                message = e.message?.takeIf { it.isNotBlank() } ?: "Something went wrong.",
+                message = (e as? Failure)?.text ?: e.message?.takeIf { it.isNotBlank() }?.let(UiText::Plain)
+                    ?: UiText.Res(dev.locus.core.designsystem.R.string.common_error_generic),
                 retry = { _error.value = null; act(title, block) },
             )
         }
     }
+
+    /** A failure in our own words (the rest are the data layer's). */
+    private class Failure(val text: UiText) : Exception()
 
     /** A memory topic's name as Library shows it. */
     private fun label(topic: String) = topic.replace('-', ' ')

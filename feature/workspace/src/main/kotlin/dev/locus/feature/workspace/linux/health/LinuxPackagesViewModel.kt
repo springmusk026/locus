@@ -3,7 +3,9 @@ package dev.locus.feature.workspace.linux.health
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.locus.core.designsystem.UiText
 import dev.locus.core.linux.LinuxEnvironment
+import dev.locus.feature.workspace.R
 import dev.locus.core.model.runCatchingCancellable
 import dev.locus.core.linux.LinuxInventory
 import dev.locus.core.linux.LinuxProbe
@@ -41,7 +43,7 @@ data class LinuxPackagesUiState(
     val query: String = "",
     val all: Boolean = false,
     val loading: Boolean = false,
-    val error: String? = null,
+    val error: UiText? = null,
     val upgrades: List<LinuxInventory.Upgrade>? = null,
     val checkingUpgrades: Boolean = false,
     val upgradesError: String? = null,
@@ -113,8 +115,8 @@ class LinuxPackagesViewModel(
                 s.copy(
                     packages = pkgs,
                     loading = false,
-                    error = result.exceptionOrNull()?.let { it.message ?: it.toString() }
-                        ?: if (pkgs == null) "apk's package database can't be read. Reinstalling Linux fixes it." else null,
+                    error = result.exceptionOrNull()?.let { UiText.Plain(it.message ?: it.toString()) }
+                        ?: if (pkgs == null) UiText.Res(R.string.workspace_packages_database_unreadable) else null,
                 )
             }
         }
@@ -142,11 +144,11 @@ class LinuxPackagesViewModel(
         viewModelScope.launch {
             val message = try {
                 source.uninstall(name)
-                LinuxHealthUiState.Message("Removed $name.")
+                LinuxHealthUiState.Message(UiText.Res(R.string.workspace_packages_removed, name))
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                LinuxHealthUiState.Message("Couldn't remove $name: ${e.message ?: e}", problem = true)
+                LinuxHealthUiState.Message(UiText.Res(R.string.workspace_packages_remove_failed, name, e.message ?: e.toString()), problem = true)
             }
             local.update { it.copy(uninstalling = null, message = message) }
             load()

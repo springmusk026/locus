@@ -68,14 +68,14 @@ data class GridImage(val bitmap: ImageBitmap?, val missing: Boolean, val label: 
 
 /**
  * Pictures sent together, as one compact block (the way messaging apps group an album): one keeps its
- * shape within a [ImageGridSize] square; two sit side by side; three are one large and two small; four
+ * shape within a [size] square ([ImageGridSize] by default); two sit side by side; three are one large and two small; four
  * or more are a 2×2 grid whose last tile says how many more there are ("+2"). Tiles share one rounded
  * outline with a hairline edge. A tap opens [onOpen] with the tile's index (the "+N" tile opens the
  * fourth picture, and the viewer swipes on to the rest). Before a thumbnail is decoded the tile is a
  * quiet fill; a missing file shows the image icon.
  */
 @Composable
-fun ImageGrid(images: List<GridImage>, onOpen: (Int) -> Unit, modifier: Modifier = Modifier) {
+fun ImageGrid(images: List<GridImage>, onOpen: (Int) -> Unit, modifier: Modifier = Modifier, size: Dp = ImageGridSize) {
     if (images.isEmpty()) return
     val shape = RoundedCornerShape(Radius.control)
     val outline = modifier.clip(shape).border(Stroke.hairline, Locus.colors.hairline, shape)
@@ -85,20 +85,20 @@ fun ImageGrid(images: List<GridImage>, onOpen: (Int) -> Unit, modifier: Modifier
             val bitmap = images[0].bitmap
             // Its own shape, clamped so a panorama or a tall screenshot doesn't run away.
             val ratio = bitmap?.let { (it.width.toFloat() / it.height).coerceIn(MIN_RATIO, MAX_RATIO) } ?: 1f
-            val size = if (ratio >= 1f) Modifier.width(ImageGridSize).aspectRatio(ratio) else Modifier.height(ImageGridSize).aspectRatio(ratio)
-            Tile(images[0], size.then(outline), onClick = { onOpen(0) })
+            val shape1 = if (ratio >= 1f) Modifier.width(size).aspectRatio(ratio) else Modifier.height(size).aspectRatio(ratio)
+            Tile(images[0], shape1.then(outline), onClick = { onOpen(0) })
         }
-        2 -> Row(outline.width(ImageGridSize), horizontalArrangement = Arrangement.spacedBy(gap)) {
+        2 -> Row(outline.width(size), horizontalArrangement = Arrangement.spacedBy(gap)) {
             images.forEachIndexed { i, image -> Tile(image, Modifier.weight(1f).aspectRatio(1f), onClick = { onOpen(i) }) }
         }
-        3 -> Row(outline.width(ImageGridSize).height(ImageGridSize * 2 / 3), horizontalArrangement = Arrangement.spacedBy(gap)) {
+        3 -> Row(outline.width(size).height(size * 2 / 3), horizontalArrangement = Arrangement.spacedBy(gap)) {
             Tile(images[0], Modifier.weight(2f).fillMaxSize(), onClick = { onOpen(0) })
             Column(Modifier.weight(1f).fillMaxSize(), verticalArrangement = Arrangement.spacedBy(gap)) {
                 Tile(images[1], Modifier.weight(1f).fillMaxWidth(), onClick = { onOpen(1) })
                 Tile(images[2], Modifier.weight(1f).fillMaxWidth(), onClick = { onOpen(2) })
             }
         }
-        else -> Column(outline.width(ImageGridSize), verticalArrangement = Arrangement.spacedBy(gap)) {
+        else -> Column(outline.width(size), verticalArrangement = Arrangement.spacedBy(gap)) {
             val more = images.size - 4
             for (row in 0..1) {
                 Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
@@ -122,6 +122,9 @@ fun ImageGrid(images: List<GridImage>, onOpen: (Int) -> Unit, modifier: Modifier
 
 /** The widest (and tallest) an [ImageGrid] gets: a third of a phone screen, so the message stays in view. */
 val ImageGridSize: Dp = 240.dp
+
+/** A smaller [ImageGrid] (pass it as `size`), for pictures that sit inside a row, such as the images a tool looked at. */
+val ImageGridCompactSize: Dp = 120.dp
 
 private const val MIN_RATIO = 0.6f
 private const val MAX_RATIO = 1.8f
@@ -281,6 +284,7 @@ internal fun ImageGridPreview() {
                 ImageGrid(grid(2), onOpen = {})
                 ImageGrid(grid(3), onOpen = {})
                 ImageGrid(grid(5), onOpen = {})
+                ImageGrid(grid(2), onOpen = {}, size = ImageGridCompactSize)
                 ImageGrid(listOf(GridImage(null, missing = true, label = "Photo 1 of 2"), GridImage(null, missing = false, label = "Photo 2 of 2")), onOpen = {})
                 FileChip("invoice-garden-centre-march.pdf", "182 kB")
             }

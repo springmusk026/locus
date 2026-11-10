@@ -23,6 +23,9 @@
     <string name="common_error_generic">Algo salió mal.</string>
     <string name="common_on">Activado</string>
     <string name="common_off">Desactivado</string>
+    <!-- An image a tool showed the model (view_image), for TalkBack and the viewer -->
+    <string name="designsystem_image_named">Imagen, %1$s</string>
+    <string name="designsystem_image_named_of">Imagen %1$d de %2$d, %3$s</string>
     <plurals name="designsystem_image_grid_and_more">
         <item quantity="one">%1$s y %2$d más</item>
         <item quantity="many">%1$s y %2$d más</item>

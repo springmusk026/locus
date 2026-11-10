@@ -82,6 +82,7 @@ The eight items chosen in November 2026 (#82), in priority order. All eight have
 ## Phase 2c: Everyday polish
 
 - [x] **Attachments.** Photos and files from the composer's +. Saved to `inbox/` in the workspace, with photos downscaled to 1568 px. Images go to vision models inline, PDFs to Claude as documents, other files as workspace references.
+- [x] **The agent sees its own images** (`view_image`): screenshots, charts and photos in the workspace go to vision models in each provider's tool-result shape, resized and kept byte-stable ([design](design/view-image.md)). *Not yet tried on the phone.*
 - [x] **Native integrations** with a key in Settings → Integrations: **Firecrawl** (`web_search`, `web_read`; free plan 1,000 credits a month).
 - [x] No-key integrations: Open-Meteo `weather`, `wikipedia`.
 - [x] More search services, each with its own key: **Tavily** (1,000 free searches a month, no card), **Brave Search**, **Exa** ($10 of free credit a month). `web_search` routes to the first connected service in the order Firecrawl → Tavily → Brave → Exa, so the agent keeps one tool. Endpoints and fields come from each service's docs (2026-10-31) and are covered by mock tests. *Not yet tried with real keys.*
@@ -184,7 +185,7 @@ The eight items chosen in November 2026 (#82), in priority order. All eight have
 - [x] **Next:** message branching (#6), a searchable model picker with favourites (#8), full-text search (#12), editable helper prompts (#18), a models.dev capability catalogue (#8), `agent_send` to continue a helper (#21).
 - [ ] UI/UX pass 3: a full TalkBack walk-through and a real two-pane tablet layout. *Nov 2026: at target 37, orientation and resize locks are ignored at 600dp+; use a Material 3 Adaptive list-detail layout and check side panels with predictive back ([product P6](research/product-platform-2026.md#p-android-platform)).*
 - [~] Image support for the on-device model. `EngineConfig.visionBackend` is set (the encoder loads on demand), and photos from the newest user message are sent as `Content.ImageFile` before the text. Earlier photos are referenced by path so each step stays fast. Verified on the device: Gemma 4 E2B loaded its vision adapter and correctly described an attached screenshot.
-- [~] **Localisation** (in progress, [design](design/localization.md)): Spanish, Portuguese (Brazil) and Simplified Chinese besides English. Built: Settings → Language with the per-app language (Android's per-app language, API 33+; older phones follow the phone's language), the `UiText` type, a guard against new hardcoded text and the lint settings. Next: the English text moves to resources module by module, then the translations; the last PR makes missing translations a lint error.
+- [x] **Localisation** ([design](design/localization.md)): Spanish, Portuguese (Brazil) and Simplified Chinese besides English, for every screen's own text; Settings → Language (Android's per-app language, API 33+); missing translations are a lint error; Settings links work in every language. Next: the engine's English text (core modules) behind a display/model split, view-model messages that tests pin in English, and a native-speaker review (see the design note).
 
 ## Ideas from comparable projects
 

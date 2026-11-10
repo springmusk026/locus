@@ -6,6 +6,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.locus.core.data.linux.LinuxOperation
 import dev.locus.core.data.linux.LinuxSetup
 import dev.locus.core.data.linux.LinuxSetupState
+import dev.locus.core.designsystem.UiText
+import dev.locus.feature.workspace.R
 import dev.locus.core.linux.HealthCheck
 import dev.locus.core.linux.LinuxEnvironment
 import dev.locus.core.model.runCatchingCancellable
@@ -46,7 +48,8 @@ data class LinuxHealthUiState(
     val checks: List<HealthCheck> = emptyList(),
     val loading: Boolean = false,
     val refreshing: Boolean = false,
-    val error: String? = null,
+    /** Why the report couldn't be read: the probe's own words, or ours when it read nothing. */
+    val error: UiText? = null,
     val checkingNetwork: Boolean = false,
     val busy: Busy? = null,
     /** The service [busy] acts on, for [Busy.Autostart] (the other actions show on every row). */
@@ -56,7 +59,7 @@ data class LinuxHealthUiState(
 ) {
     enum class Busy { Clean, Dns, Restart, Autostart }
 
-    data class Message(val text: String, val problem: Boolean = false)
+    data class Message(val text: UiText, val problem: Boolean = false)
 }
 
 /**
@@ -110,7 +113,8 @@ class LinuxHealthViewModel(
     }
 
     private fun outcome(run: LinuxSetupState) {
-        val text = run.error?.let { "That didn't work: $it" } ?: run.message ?: return
+        // LinuxSetup's own words are core's (English); the frame around them is ours.
+        val text = run.error?.let { UiText.Res(R.string.workspace_health_action_failed, it) } ?: run.message?.let(UiText::Plain) ?: return
         local.update { it.copy(message = LinuxHealthUiState.Message(text, problem = run.error != null)) }
         setup.outcomeShown()
         if (linux.status.value == LinuxStatus.Ready) refresh()
@@ -126,12 +130,12 @@ class LinuxHealthViewModel(
                 val fresh = source.report()
                 local.update { s ->
                     val merged = fresh?.copy(network = s.report?.network)
-                    s.copy(report = merged, checks = merged?.let(LinuxHealth::checks).orEmpty(), loading = false, refreshing = false, error = if (merged == null) NOT_READABLE else null)
+                    s.copy(report = merged, checks = merged?.let(LinuxHealth::checks).orEmpty(), loading = false, refreshing = false, error = if (merged == null) UiText.Res(R.string.workspace_health_not_readable) else null)
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                local.update { it.copy(loading = false, refreshing = false, error = e.message ?: e.toString()) }
+                local.update { it.copy(loading = false, refreshing = false, error = UiText.Plain(e.message ?: e.toString())) }
             }
         }
     }
@@ -148,7 +152,7 @@ class LinuxHealthViewModel(
                     checkingNetwork = false,
                     report = report,
                     checks = report?.let(LinuxHealth::checks).orEmpty(),
-                    message = result.exceptionOrNull()?.let { LinuxHealthUiState.Message("Couldn't check the network: ${it.message ?: it}", problem = true) } ?: s.message,
+                    message = result.exceptionOrNull()?.let { LinuxHealthUiState.Message(UiText.Res(R.string.workspace_health_network_failed, it.message ?: it.toString()), problem = true) } ?: s.message,
                 )
             }
         }
@@ -157,7 +161,7 @@ class LinuxHealthViewModel(
     /** Empties the package and download caches, then measures again. */
     fun cleanCaches() = act(LinuxHealthUiState.Busy.Clean) {
         val freed = source.cleanCaches()
-        "Freed ${LinuxHealth.bytes(freed)}."
+        UiText.Res(R.string.workspace_health_freed, LinuxHealth.bytes(freed))
     }
 
     /** Puts Linux's DNS servers back, then checks the network again if it was checked. */
@@ -167,24 +171,24 @@ class LinuxHealthViewModel(
             val n = runCatchingCancellable { source.network() }.getOrNull()
             if (n != null) local.update { s -> s.copy(report = s.report?.copy(network = n)) }
         }
-        "DNS servers reset to 1.1.1.1 and 8.8.8.8."
+        UiText.Res(R.string.workspace_health_dns_reset)
     }
 
     fun restartService(name: String) = act(LinuxHealthUiState.Busy.Restart) {
-        val service = linux.restartService(name) ?: error("There's no service “$name” any more.")
+        val service = linux.restartService(name) ?: fail(R.string.workspace_health_service_gone, name)
         // A server that fails on start (a port in use, a missing file) usually exits within a second.
         kotlinx.coroutines.delay(RESTART_SETTLE_MS)
-        if (linux.isAlive(service)) "Started “$name”." else error("“$name” exited right away. Its log may say why.")
+        if (linux.isAlive(service)) UiText.Res(R.string.workspace_health_service_started, name) else fail(R.string.workspace_health_service_exited, name)
     }
 
     /** "Start when Locus opens" for service [name] ([dev.locus.core.data.linux.LinuxAutostart] starts it). */
     fun setAutostart(name: String, on: Boolean) = act(LinuxHealthUiState.Busy.Autostart, service = name) {
-        if (!linux.setServiceAutostart(name, on)) error("There's no service “$name” any more.")
-        if (on) "“$name” will start each time Locus opens." else "“$name” won't start on its own."
+        if (!linux.setServiceAutostart(name, on)) fail(R.string.workspace_health_service_gone, name)
+        UiText.Res(if (on) R.string.workspace_health_autostart_on else R.string.workspace_health_autostart_off, name)
     }
 
     fun stopService(name: String) = act(LinuxHealthUiState.Busy.Restart) {
-        if (linux.stopService(name)) "Stopped “$name”." else "“$name” had already stopped."
+        UiText.Res(if (linux.stopService(name)) R.string.workspace_health_service_stopped else R.string.workspace_health_service_already_stopped, name)
     }
 
     fun repair() = setup.repair()
@@ -197,7 +201,7 @@ class LinuxHealthViewModel(
 
     fun messageShown() = local.update { it.copy(message = null) }
 
-    private fun act(kind: LinuxHealthUiState.Busy, service: String? = null, block: suspend () -> String) {
+    private fun act(kind: LinuxHealthUiState.Busy, service: String? = null, block: suspend () -> UiText) {
         if (local.value.busy != null) return
         local.update { it.copy(busy = kind, busyService = service) }
         viewModelScope.launch {
@@ -205,16 +209,22 @@ class LinuxHealthViewModel(
                 LinuxHealthUiState.Message(block())
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: Failure) {
+                LinuxHealthUiState.Message(e.text, problem = true)
             } catch (e: Exception) {
-                LinuxHealthUiState.Message(e.message ?: e.toString(), problem = true)
+                LinuxHealthUiState.Message(UiText.Plain(e.message ?: e.toString()), problem = true)
             }
             local.update { it.copy(busy = null, busyService = null, message = result) }
             refresh()
         }
     }
 
+    /** An action that ends in our own words, shown as a problem. */
+    private class Failure(val text: UiText) : Exception()
+
     private companion object {
         const val RESTART_SETTLE_MS = 1_500L
-        const val NOT_READABLE = "Linux's state couldn't be read. It may have just been removed or be reinstalling."
+
+        fun fail(id: Int, vararg args: Any): Nothing = throw Failure(UiText.Res(id, *args))
     }
 }

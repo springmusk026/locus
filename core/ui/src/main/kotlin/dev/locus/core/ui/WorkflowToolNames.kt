@@ -12,6 +12,7 @@ fun workflowToolName(name: String): String {
     return when (name) {
         "list_files" -> "list files"
         "read_file" -> "read files"
+        "view_image" -> "look at images"
         "write_file" -> "write files"
         "edit_file", "multi_edit" -> "edit files"
         "delete_path" -> "delete files"

@@ -46,9 +46,18 @@ object OnDeviceText {
                 }
                 Role.ASSISTANT -> "model" to (listOf(message.text) + message.toolCalls.map { "[tool call] ${it.name} ${it.argumentsJson}" })
                     .filter { it.isNotEmpty() }.joinToString("\n")
-                Role.TOOL -> "tool" to message.toolResults.joinToString("\n") { "${it.toolName}: ${if (it.isError) "Error: ${it.content}" else it.content}" }
+                Role.TOOL -> "tool" to message.toolResults.joinToString("\n") { "${it.toolName}: ${toolText(it)}" }
             }
         }
+    }
+
+    /**
+     * A tool result as on-device models read it: text only. A result with images (view_image, from another
+     * model of the chat) says they weren't shown; without images it reads as it always did.
+     */
+    fun toolText(r: Part.ToolResult): String {
+        val text = if (r.isError) "Error: ${r.content}" else r.content
+        return dev.locus.core.llm.toolImagesNotShown(r.images)?.let { "$text\n$it" } ?: text
     }
 
     /** The photos sent as pixels (only with the newest user message, and only if still on disk), and the rest. */

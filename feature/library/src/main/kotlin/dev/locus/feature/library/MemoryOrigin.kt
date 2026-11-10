@@ -1,5 +1,6 @@
 package dev.locus.feature.library
 
+import android.content.res.Resources
 import dev.locus.core.agent.home.MemoryAuthor
 import dev.locus.core.agent.home.MemoryProvenance
 import dev.locus.core.data.repository.MemoryChat
@@ -30,6 +31,7 @@ internal data class MemoryOriginView(
 )
 
 internal fun memoryOriginView(
+    resources: Resources,
     origin: MemoryProvenance,
     /** The chat it was saved in, when that chat still exists. */
     chat: MemoryChat?,
@@ -37,17 +39,17 @@ internal fun memoryOriginView(
     locale: Locale = Locale.getDefault(),
 ): MemoryOriginView {
     val savedInChat = origin.chatId != null && origin.by != MemoryAuthor.USER
-    val who = when (origin.by) {
-        MemoryAuthor.USER -> "Saved by you"
-        MemoryAuthor.REFLECTION -> "Saved by Locus after a task"
-        else -> if (savedInChat) "Saved by Locus in a chat" else "Saved by Locus"
-    }
+    val who = resources.getString(
+        when (origin.by) {
+            MemoryAuthor.USER -> R.string.library_memory_saved_by_you
+            MemoryAuthor.REFLECTION -> R.string.library_memory_saved_after_task
+            else -> if (savedInChat) R.string.library_memory_saved_in_chat else R.string.library_memory_saved_by_locus
+        },
+    )
     val date = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
         .withLocale(locale)
         .format(Instant.ofEpochMilli(origin.savedAt).atZone(zone))
-    val warning = if (!origin.tainted) null else
-        "Saved while reading outside content (${taintSources(origin.taintedBy)}). It may have put this here: " +
-            "check it before Locus relies on it, then Edit and Save to confirm it."
+    val warning = if (!origin.tainted) null else resources.getString(R.string.library_memory_tainted, taintSources(resources, origin.taintedBy))
     return MemoryOriginView(
         by = origin.by,
         who = who,
@@ -59,15 +61,16 @@ internal fun memoryOriginView(
 }
 
 /** The outside content a run had read, as kinds a person recognises: "a web page, an email". */
-internal fun taintSources(tools: List<String>): String = tools.map { tool ->
+internal fun taintSources(resources: Resources, tools: List<String>): String = tools.map { tool ->
     when {
-        tool == "web_search" -> "web search results"
-        tool == "fetch_url" || tool == "web_read" || tool == "wikipedia" || tool.startsWith("browser_") -> "a web page"
-        tool.startsWith("email_") -> "an email"
+        tool == "web_search" -> resources.getString(R.string.library_memory_taint_search)
+        tool == "fetch_url" || tool == "web_read" || tool == "wikipedia" || tool.startsWith("browser_") -> resources.getString(R.string.library_memory_taint_web_page)
+        tool.startsWith("email_") -> resources.getString(R.string.library_memory_taint_email)
         tool.startsWith("github_") -> "GitHub"
-        tool.startsWith("mcp_") || tool.startsWith("connector_") -> "a connector"
-        tool == "run_command" || tool.startsWith("linux_") || tool.startsWith("ssh_") -> "command output"
-        tool.startsWith("agent_") -> "a helper's report"
+        tool.startsWith("mcp_") || tool.startsWith("connector_") -> resources.getString(R.string.library_memory_taint_connector)
+        tool == "run_command" || tool.startsWith("linux_") || tool.startsWith("ssh_") -> resources.getString(R.string.library_memory_taint_command)
+        tool.startsWith("agent_") -> resources.getString(R.string.library_memory_taint_helper)
+        // A tool Locus has no words for is named by its id.
         else -> tool.replace('_', ' ')
     }
-}.distinct().joinToString(", ").ifEmpty { "outside content" }
+}.distinct().joinToString(resources.getString(R.string.library_memory_taint_separator)).ifEmpty { resources.getString(R.string.library_memory_taint_outside) }

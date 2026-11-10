@@ -1,10 +1,12 @@
 package dev.locus.feature.workspace.linux.health
 
+import android.content.res.Resources
 import dev.locus.core.linux.HealthCheck
 import dev.locus.core.linux.HealthLevel
 import dev.locus.core.linux.LinuxHealth
 import dev.locus.core.linux.LinuxInventory
 import dev.locus.core.linux.LinuxReport
+import dev.locus.feature.workspace.R
 
 /**
  * What the health page shows, as pure rules (docs/design/linux-health.md, "The health page"). It's a
@@ -30,19 +32,20 @@ internal object HealthSummary {
     fun hasMore(items: List<*>): Boolean = items.size > TOP_FEW
 
     /** "42 you installed · 214 total": the one Packages row; the list itself is its own screen. */
-    fun packagesLine(packages: List<LinuxInventory.Package>?): String =
-        packages?.let { all -> "${all.count { it.userInstalled }} you installed · ${all.size} total" } ?: "Can't read apk's package database"
+    fun packagesLine(resources: Resources, packages: List<LinuxInventory.Package>?): String =
+        packages?.let { all -> resources.getString(R.string.workspace_health_packages_line, all.count { it.userInstalled }, all.size) }
+            ?: resources.getString(R.string.workspace_health_packages_unreadable)
 
     /** The low-memory warning, or null when memory is fine (then there's no memory dashboard, just one line). */
-    fun memoryWarning(memory: LinuxReport.Memory?): String? =
+    fun memoryWarning(resources: Resources, memory: LinuxReport.Memory?): String? =
         memory?.takeIf(LinuxHealth::isLowMemory)?.let {
-            "${LinuxHealth.bytes(it.availableBytes)} of ${LinuxHealth.bytes(it.totalBytes)} available. " +
-                "Android may stop Linux programs, especially while Locus is in the background."
+            resources.getString(R.string.workspace_health_memory_low, LinuxHealth.bytes(it.availableBytes), LinuxHealth.bytes(it.totalBytes))
         }
 
     /** "2 running · 84 MB": what Linux's programs hold. */
-    fun processesLine(processes: List<LinuxReport.GuestProcess>): String =
-        if (processes.isEmpty()) "None running" else "${processes.size} running · ${LinuxHealth.bytes(processes.sumOf { it.rssBytes })}"
+    fun processesLine(resources: Resources, processes: List<LinuxReport.GuestProcess>): String =
+        if (processes.isEmpty()) resources.getString(R.string.workspace_health_processes_none)
+        else resources.getString(R.string.workspace_health_processes, processes.size, LinuxHealth.bytes(processes.sumOf { it.rssBytes }))
 
     private const val MEMORY = "memory"
 }

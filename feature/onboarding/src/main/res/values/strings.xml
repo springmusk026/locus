@@ -279,4 +279,30 @@
     <string name="onboarding_done_none">None</string>
     <string name="onboarding_done_checked">Done</string>
 
+    <!-- Onboarding: results and errors of the steps' actions -->
+    <string name="onboarding_provider_no_models">The provider didn\'t list any models. Type a model ID instead.</string>
+    <plurals name="onboarding_provider_models_found">
+        <item quantity="one">%1$d model</item>
+        <item quantity="other">%1$d models</item>
+    </plurals>
+    <string name="onboarding_provider_signed_in_as">Signed in as %1$s</string>
+    <string name="onboarding_provider_signed_in">Signed in</string>
+    <string name="onboarding_provider_saved_default">Saved as your default model</string>
+    <string name="onboarding_identity_change_kept">Kept %1$s. New chats use it.</string>
+    <string name="onboarding_identity_change_discarded">Discarded the change to %1$s. New chats keep using the version you saved.</string>
+    <string name="onboarding_identity_polish_no_model">Set up a model first.</string>
+    <string name="onboarding_identity_polish_no_answer">Your model didn\'t answer, so the template text is kept. Check the model in Settings, or just use the templates.</string>
+    <string name="onboarding_identity_polish_bad_reply">Your model\'s reply wasn\'t in the expected shape, so the template text is kept.</string>
+    <string name="onboarding_identity_polished">Rewritten by your model. Review it below.</string>
+    <string name="onboarding_identity_saved">Saved. New chats use it.</string>
+    <string name="onboarding_job_timed_out">Timed out. Try again, or check the connection.</string>
+    <string name="onboarding_added">Added %1$s</string>
+    <string name="onboarding_test_no_model">No model is set up yet. Go back to the Model step.</string>
+    <string name="onboarding_test_model_downloading">The on-device model hasn\'t finished downloading yet.</string>
+    <string name="onboarding_test_empty_reply">(empty reply)</string>
+    <string name="onboarding_test_model_reply">%1$s: “%2$s” · %3$.1f s</string>
+    <string name="onboarding_test_linux_timed_out">Timed out</string>
+    <string name="onboarding_test_linux_exited">Exited with %1$s</string>
+    <string name="onboarding_connectors_ntfy_problem">That isn\'t a topic URL like https://ntfy.sh/your-topic (optionally followed by a tk_ token).</string>
+    <string name="onboarding_connectors_email_problem">That isn\'t a mail server setting Locus can read.</string>
 </resources>

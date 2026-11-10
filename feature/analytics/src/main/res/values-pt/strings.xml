@@ -96,4 +96,18 @@
     <string name="analytics_tasks_removed">Removida</string>
     <string name="analytics_chart_week_of">Semana de %1$s</string>
     <string name="analytics_chart_today">Hoje</string>
+
+    <!-- Analytics: the spend card's figures and note -->
+    <string name="analytics_cost_unknown">Desconhecido</string>
+    <string name="analytics_cost_note_fetching">Buscando preços no models.dev…</string>
+    <string name="analytics_cost_note_off">O gasto é estimado com a lista pública de preços do models.dev, que está desativada. Ativá-la baixa a lista (cerca de 0,6 MB, no máximo uma vez por dia); nada sobre você ou seus chats é enviado.</string>
+    <string name="analytics_cost_note_failed">Não foi possível baixar os preços do models.dev. Verifique a conexão e tente de novo.</string>
+    <string name="analytics_cost_note_not_loaded">Os preços do models.dev ainda não carregaram, então o gasto é desconhecido.</string>
+    <string name="analytics_cost_note_no_price">O models.dev não tem preço para os modelos usados, então o gasto é desconhecido.</string>
+    <plurals name="analytics_cost_note_unpriced">
+        <item quantity="one">Pelos preços do models.dev. %1$d de %2$d solicitação em 30 dias não tinha preço, então os totais marcados com + são no mínimo esse valor.</item>
+        <item quantity="many">Pelos preços do models.dev. %1$d de %2$d solicitações em 30 dias não tinham preço, então os totais marcados com + são no mínimo esse valor.</item>
+        <item quantity="other">Pelos preços do models.dev. %1$d de %2$d solicitações em 30 dias não tinham preço, então os totais marcados com + são no mínimo esse valor.</item>
+    </plurals>
+    <string name="analytics_cost_note_priced">Pelos preços de tabela do models.dev; a cobrança do seu provedor pode ser diferente.</string>
 </resources>

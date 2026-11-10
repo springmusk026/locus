@@ -1,5 +1,7 @@
 package dev.locus.feature.workspace.linux.health
 
+import dev.locus.core.designsystem.UiText
+import dev.locus.feature.workspace.R
 import dev.locus.core.linux.HealthLevel
 import dev.locus.core.linux.LinuxEnvironment
 import dev.locus.core.linux.LinuxHealth
@@ -80,7 +82,7 @@ class LinuxHealthViewModelTest {
 
             vm.cleanCaches()
             val cleaned = vm.uiState.first { it.message != null }
-            assertEquals("Freed 200 MB.", cleaned.message?.text)
+            assertEquals(UiText.Res(R.string.workspace_health_freed, "200 MB"), cleaned.message?.text)
             vm.messageShown()
             val after = vm.uiState.first { it.busy == null && !it.refreshing && it.report?.storage?.caches?.isEmpty() == true }
             assertTrue(after.checks.none { it.level != HealthLevel.Ok }, after.checks.toString())
@@ -112,21 +114,21 @@ class LinuxHealthViewModelTest {
             assertEquals(HealthLevel.Ok, LinuxHealth.overall(quiet.checks), quiet.checks.toString())
             assertTrue(HealthSummary.problems(quiet.checks).isEmpty())
             assertEquals(ServiceAction.Start, serviceView(service("web", lost = true)).action)
-            assertEquals("Stopped by restart", serviceView(service("web", lost = true)).label)
+            assertEquals(UiText.Res(R.string.workspace_health_service_stopped_by_restart), serviceView(service("web", lost = true)).label)
 
             source.report = source.report?.copy(services = listOf(service("web", lost = true), service("api", exit = 1)))
             vm.refresh()
             val crashed = vm.uiState.first { !it.refreshing && it.checks.any { c -> c.id == "service:api" } }
             assertEquals(listOf("service:api"), HealthSummary.problems(crashed.checks).map { it.id })
             assertEquals(HealthLevel.Problem, LinuxHealth.overall(crashed.checks))
-            assertEquals("Crashed, code 1", serviceView(service("api", exit = 1)).label)
+            assertEquals(UiText.Res(R.string.workspace_health_service_crashed, "code 1"), serviceView(service("api", exit = 1)).label)
             assertEquals(ServiceAction.Restart, serviceView(service("api", exit = 1)).action)
-            assertEquals("Didn't start", serviceView(service("web", lost = true).copy(autostart = true)).label)
+            assertEquals(UiText.Res(R.string.workspace_health_service_didnt_start), serviceView(service("web", lost = true).copy(autostart = true)).label)
 
             // There's no record for "web" in this Linux, so saving the switch says so instead of failing silently.
             vm.setAutostart("web", true)
             val message = vm.uiState.first { it.message != null }.message
-            assertTrue(message?.problem == true && "no service" in message.text, message.toString())
+            assertEquals(LinuxHealthUiState.Message(UiText.Res(R.string.workspace_health_service_gone, "web"), problem = true), message)
             assertNull(vm.uiState.first { it.busy == null }.busyService)
         } finally {
             host.clear()
@@ -141,7 +143,7 @@ class LinuxHealthViewModelTest {
             val source = FakeSource(report()).apply { failWith = java.io.IOException("disk read failed") }
             val vm = host.add(LinuxHealthViewModel(g.linux, g.linuxSetup, source) {})
             backgroundScope.launch { vm.uiState.collect {} }
-            assertEquals("disk read failed", vm.uiState.first { it.error != null }.error)
+            assertEquals(UiText.Plain("disk read failed"), vm.uiState.first { it.error != null }.error)
             source.failWith = null
             vm.refresh()
             assertTrue(vm.uiState.first { it.report != null }.error == null)

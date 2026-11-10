@@ -23,6 +23,7 @@ import dev.locus.core.data.repository.LibraryRepository
 import dev.locus.core.data.repository.SettingsRepository
 import dev.locus.core.data.repository.ToolCatalog
 import dev.locus.core.data.ssh.SshService
+import dev.locus.core.designsystem.UiText
 import dev.locus.core.data.linux.LinuxPackage
 import dev.locus.core.data.linux.LinuxSetup
 import dev.locus.core.data.linux.LinuxSetupState
@@ -88,8 +89,11 @@ data class OnboardingUiState(
     val defaultProvider: ProviderConfig? get() = providers.firstOrNull { it.id == defaultProviderId } ?: providers.firstOrNull()
 }
 
-/** A one-off action's progress: running, a result to show, or an error. */
-data class Job(val running: Boolean = false, val result: String? = null, val error: String? = null) {
+/**
+ * A one-off action's progress: running, a result to show, or an error. Both are [UiText]: our own words,
+ * or what the action returned (command output, a fingerprint, an error from the data layer) as it is.
+ */
+data class Job(val running: Boolean = false, val result: UiText? = null, val error: UiText? = null) {
     companion object {
         val Running = Job(running = true)
     }
@@ -279,7 +283,7 @@ class OnboardingViewModel @Inject constructor(
             val list = settings.listModels(draft.config(), draft.key.takeIf { it.isNotBlank() })
             // The draft may have changed provider while this was loading.
             if (provider?.id == draft.id) remoteModels = list
-            if (list.isEmpty()) "The provider didn't list any models. Type a model ID instead." else "${list.size} models"
+            if (list.isEmpty()) UiText.Res(R.string.onboarding_provider_no_models) else UiText.Plural(R.plurals.onboarding_provider_models_found, list.size)
         }
     }
 
@@ -295,7 +299,7 @@ class OnboardingViewModel @Inject constructor(
                 chatGptWelcome = first
                 loadModels()
             }
-            chatGpt.email(draft.id)?.let { "Signed in as $it" } ?: "Signed in"
+            chatGpt.email(draft.id)?.let { UiText.Res(R.string.onboarding_provider_signed_in_as, it) } ?: UiText.Res(R.string.onboarding_provider_signed_in)
         }
     }
 
@@ -334,7 +338,7 @@ class OnboardingViewModel @Inject constructor(
             settings.setDefaultProvider(draft.id)
             // A new default model deserves a fresh check.
             modelTest = Job()
-            "Saved as your default model"
+            UiText.Res(R.string.onboarding_provider_saved_default)
         }
     }
 
@@ -409,7 +413,7 @@ class OnboardingViewModel @Inject constructor(
         runJob(personaReview, { personaReview = it }) {
             withContext(io) { home.keepPersonaChange(file) }
             loadPersona()
-            "Kept ${file.fileName}. New chats use it."
+            UiText.Res(R.string.onboarding_identity_change_kept, file.fileName)
         }
     }
 
@@ -420,7 +424,7 @@ class OnboardingViewModel @Inject constructor(
                 home.discardPersonaChange(file)
                 home.personaChanges()
             }
-            "Discarded the change to ${file.fileName}. New chats keep using the version you saved."
+            UiText.Res(R.string.onboarding_identity_change_discarded, file.fileName)
         }
     }
 
@@ -445,13 +449,13 @@ class OnboardingViewModel @Inject constructor(
         val drafts = PersonaTemplates.generate(a)
         runJob(personaPolish, { personaPolish = it }) {
             val s = settings.current()
-            val provider = s.provider(s.defaultProviderId) ?: s.providers.firstOrNull() ?: error("Set up a model first.")
+            val provider = s.provider(s.defaultProviderId) ?: s.providers.firstOrNull() ?: fail(R.string.onboarding_identity_polish_no_model)
             val reply = helper.complete(provider, PersonaTemplates.polishPrompt(a, drafts), maxOutputTokens = 1_500, timeoutMs = 90_000)
-                ?: error("Your model didn't answer, so the template text is kept. Check the model in Settings, or just use the templates.")
+                ?: fail(R.string.onboarding_identity_polish_no_answer)
             val files = PersonaTemplates.parsePolished(reply, a)
-                ?: error("Your model's reply wasn't in the expected shape, so the template text is kept.")
+                ?: fail(R.string.onboarding_identity_polish_bad_reply)
             personaOverride = files
-            "Rewritten by your model. Review it below."
+            UiText.Res(R.string.onboarding_identity_polished)
         }
     }
 
@@ -467,7 +471,7 @@ class OnboardingViewModel @Inject constructor(
             hasPersona = true
             // Saved here or from Settings → Agent identity: Home's "Name your agent" card goes.
             settings.clearSetup(setOf(SetupItem.Identity))
-            "Saved. New chats use it."
+            UiText.Res(R.string.onboarding_identity_saved)
         }
     }
 
@@ -518,7 +522,7 @@ class OnboardingViewModel @Inject constructor(
         current: Job,
         set: (Job) -> Unit,
         onSuccess: () -> Unit = {},
-        block: suspend () -> String?,
+        block: suspend () -> UiText?,
     ): kotlinx.coroutines.Job? {
         if (current.running) return null
         set(Job.Running)
@@ -527,12 +531,14 @@ class OnboardingViewModel @Inject constructor(
                 set(Job(result = block()))
                 onSuccess()
             } catch (e: TimeoutCancellationException) {
-                set(Job(error = "Timed out. Try again, or check the connection."))
+                set(Job(error = UiText.Res(R.string.onboarding_job_timed_out)))
             } catch (e: CancellationException) {
                 set(Job())
                 throw e
+            } catch (e: Failure) {
+                set(Job(error = e.text))
             } catch (e: Throwable) {
-                set(Job(error = e.message ?: e.toString()))
+                set(Job(error = UiText.Plain(e.message ?: e.toString())))
             }
         }
     }
@@ -563,7 +569,7 @@ class OnboardingViewModel @Inject constructor(
             val fp = ssh.probeFingerprint(d.host.trim(), port)
             // Only if the address wasn't changed while connecting.
             if (sshDraft.host == d.host && sshDraft.port == d.port) sshDraft = sshDraft.copy(fingerprint = fp)
-            fp
+            UiText.Plain(fp)
         }
     }
 
@@ -586,7 +592,7 @@ class OnboardingViewModel @Inject constructor(
             settings.saveSshHost(save.host, save.password, save.privateKey, save.passphrase)
             sshDraft = SshDraft()
             sshProbe = Job()
-            "Added ${host.alias}"
+            UiText.Res(R.string.onboarding_added, host.alias)
         }
     }
 
@@ -602,7 +608,7 @@ class OnboardingViewModel @Inject constructor(
     fun addMcp(name: String, url: String, token: String) {
         runJob(mcpAdd, { mcpAdd = it }) {
             library.addMcpServer(name, url, token.takeIf { it.isNotBlank() })
-            "Added ${name.trim()}"
+            UiText.Res(R.string.onboarding_added, name.trim())
         }?.let { mcpRun = it }
     }
 
@@ -623,34 +629,42 @@ class OnboardingViewModel @Inject constructor(
     fun testModel() {
         val started = System.currentTimeMillis()
         runJob(modelTest, { modelTest = it }) {
-            run {
-                val s = settings.current()
-                val provider = s.provider(s.defaultProviderId) ?: error("No model is set up yet. Go back to the Model step.")
-                val model = if (provider.format == ApiFormat.ON_DEVICE) {
-                    check(models.isReady(provider.model)) { "The on-device model hasn't finished downloading yet." }
-                    engines.chatModel(provider.model)
-                } else {
-                    access.missing(provider)?.let(::error)
-                    access.chatModel(provider.copy(maxOutputTokens = 1_000, effort = "low"))
+            val s = settings.current()
+            val provider = s.provider(s.defaultProviderId) ?: fail(R.string.onboarding_test_no_model)
+            val model = if (provider.format == ApiFormat.ON_DEVICE) {
+                if (!models.isReady(provider.model)) fail(R.string.onboarding_test_model_downloading)
+                engines.chatModel(provider.model)
+            } else {
+                access.missing(provider)?.let(::error)
+                access.chatModel(provider.copy(maxOutputTokens = 1_000, effort = "low"))
+            }
+            val message = Message(UUID.randomUUID().toString(), "onboarding", Role.USER, listOf(Part.Text(TEST_PROMPT)), started)
+            // On-device models load into memory on first use, which takes a while.
+            val reply = withTimeout(if (provider.format == ApiFormat.ON_DEVICE) 180_000 else 60_000) {
+                var text = ""
+                model.stream(ChatRequest(system = "", messages = listOf(message), tools = emptyList())).collect { e ->
+                    if (e is ChatEvent.Completed) text = e.turn.text
                 }
-                val message = Message(UUID.randomUUID().toString(), "onboarding", Role.USER, listOf(Part.Text(TEST_PROMPT)), started)
-                // On-device models load into memory on first use, which takes a while.
-                withTimeout(if (provider.format == ApiFormat.ON_DEVICE) 180_000 else 60_000) {
-                    var text = ""
-                    model.stream(ChatRequest(system = "", messages = listOf(message), tools = emptyList())).collect { e ->
-                        if (e is ChatEvent.Completed) text = e.turn.text
-                    }
-                    "${dev.locus.core.model.ModelNames.short(provider.model)}: “${text.trim().take(200).ifBlank { "(empty reply)" }}”"
-                }
-            } + " · ${(System.currentTimeMillis() - started) / 100 / 10.0} s"
+                text.trim().take(200)
+            }
+            // The reply is shown as the model wrote it, in quotes; "(empty reply)" is ours.
+            UiText.Res(
+                R.string.onboarding_test_model_reply,
+                dev.locus.core.model.ModelNames.short(provider.model),
+                if (reply.isBlank()) UiText.Res(R.string.onboarding_test_empty_reply) else UiText.Plain(reply),
+                (System.currentTimeMillis() - started) / 100 / 10.0,
+            )
         }
     }
 
     fun testLinux() {
         runJob(linuxTest, { linuxTest = it }) {
             val r = linuxEnv.run("uname -a && cat /etc/alpine-release", timeoutMs = 30_000)
-            if (r.exitCode != 0) error(r.output.trim().ifBlank { if (r.timedOut) "Timed out" else "Exited with ${r.exitCode}" })
-            r.output.trim()
+            if (r.exitCode != 0) {
+                r.output.trim().takeIf { it.isNotBlank() }?.let(::error)
+                if (r.timedOut) fail(R.string.onboarding_test_linux_timed_out) else fail(R.string.onboarding_test_linux_exited, r.exitCode.toString())
+            }
+            UiText.Plain(r.output.trim())
         }
     }
 
@@ -700,7 +714,12 @@ class OnboardingViewModel @Inject constructor(
         }
     }
 
+    /** An action that failed, in our own words. */
+    private class Failure(val text: UiText) : Exception()
+
     private companion object {
+        fun fail(id: Int, vararg args: Any): Nothing = throw Failure(UiText.Res(id, *args))
+
         const val STEP = "step"
         const val CONSENT = "consent"
         const val ANSWERS_FILE = "persona-answers.properties"
@@ -712,11 +731,13 @@ class OnboardingViewModel @Inject constructor(
  * Why [value] can't work as [integration]'s secret, or null when it can (or is empty, or the integration
  * takes a plain key). Saving one that doesn't parse would show Connected while nothing ever works.
  */
-internal fun keyProblem(integration: Integration, value: String): String? {
+internal fun keyProblem(integration: Integration, value: String): UiText? {
     if (value.isBlank()) return null
     return when (integration.id) {
-        Integrations.ntfy.id -> if (Ntfy.parse(value) == null) "That isn't a topic URL like https://ntfy.sh/your-topic (optionally followed by a tk_ token)." else null
-        Integrations.email.id -> runCatching { EmailConfig.parse(value) }.exceptionOrNull()?.let { it.message ?: "That isn't a mail server setting Locus can read." }
+        Integrations.ntfy.id -> if (Ntfy.parse(value) == null) UiText.Res(R.string.onboarding_connectors_ntfy_problem) else null
+        // The parser says what's wrong (core's words); ours when it doesn't.
+        Integrations.email.id -> runCatching { EmailConfig.parse(value) }.exceptionOrNull()
+            ?.let { e -> e.message?.let(UiText::Plain) ?: UiText.Res(R.string.onboarding_connectors_email_problem) }
         else -> null
     }
 }

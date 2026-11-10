@@ -13,7 +13,16 @@ import kotlinx.serialization.json.JsonObject
  * file and returns a shortened copy (run_command): the agent loop then names that file instead of
  * saving its own copy (see [LongOutput]).
  */
-data class ToolResult(val content: String, val isError: Boolean = false, val savedTo: String? = null) {
+/**
+ * What a tool returns. [images] are pictures the model sees with [content] (view_image): private copies
+ * Locus wrote once ([dev.locus.core.model.Part.ToolResult.images]); empty for every other tool.
+ */
+data class ToolResult(
+    val content: String,
+    val isError: Boolean = false,
+    val savedTo: String? = null,
+    val images: List<dev.locus.core.model.Part.Attachment> = emptyList(),
+) {
     companion object {
         fun error(message: String) = ToolResult(message, isError = true)
     }
