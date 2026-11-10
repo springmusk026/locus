@@ -38,6 +38,7 @@ Changing the language recreates the open screens. Settings → Language lists "S
 - **Escaping**: `\'` or a string in double quotes for an apostrophe, `\"` for a quote, `\n` for a line break, `%%` for a percent sign in a formatted string, `&lt;` and `&amp;` for XML. `…` is one character (`&#8230;` or the character itself), not three dots.
 - **`translatable="false"`** for anything that isn't words: the brand (Locus), product and provider names, URLs, commands, file names, model ids, units Locus doesn't translate.
 - **Language names** in the picker are written in their own language, not translated.
+- **Text that names a Settings page** ("… in Settings → Battery & heat") passes that page to the link or button shown with it: `SettingsLinkIn(text, destination = SettingsDestination.Battery)`, `SettingsActionFor(text, destination = …)`, `hasSettingsAction(text, destination = …)`, `TaskBudgetEditor(…, costNoteDestination = …)`. Without one they find the page by reading the English "Settings → …" in the text; only English messages from `core/agent`, `core/data` and other untranslated sources still rely on that. Translators don't need to keep the English wording, the word "Settings" or the arrow: the link opens the right page whatever the sentence says.
 
 ## What stays English
 

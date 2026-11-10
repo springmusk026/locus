@@ -43,6 +43,7 @@ import dev.locus.core.designsystem.LocusChip
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.SettingsLink
 import dev.locus.core.designsystem.SettingsLinkIn
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.SupportingText
@@ -53,6 +54,7 @@ import dev.locus.core.designsystem.color
 import dev.locus.core.designsystem.relativeTime
 import dev.locus.core.model.QuietHours
 import dev.locus.core.model.ScheduledTask
+import dev.locus.core.model.SettingsDestination
 import dev.locus.core.model.TaskRunOutcome
 import dev.locus.core.model.TaskTrigger
 import dev.locus.core.model.TriggerDecision
@@ -225,7 +227,9 @@ internal fun TriggerFields(
         TriggerSource.MAIL -> {
             if (!setup.mailbox) {
                 val message = stringResource(R.string.tasks_trigger_mail_no_mailbox)
-                Banner(message, Tone.Caution, title = stringResource(R.string.tasks_trigger_mail_banner_title), actionsBelow = true) { SettingsLinkIn(message) }
+                Banner(message, Tone.Caution, title = stringResource(R.string.tasks_trigger_mail_banner_title), actionsBelow = true) {
+                    SettingsLinkIn(message, destination = SettingsDestination.Integrations)
+                }
             }
             OutlinedTextField(
                 trigger.from, { set(trigger.copy(from = it)) },
@@ -258,7 +262,8 @@ internal fun TriggerFields(
                     AutomationContract.EXTRA_TEXT,
                 ),
             )
-            SettingsLinkIn("Who may send it is set in Settings → Automation.")
+            // Who may send it is set in Settings → Automation.
+            SettingsLink(SettingsDestination.Automation)
         }
     }
     Text(stringResource(R.string.tasks_trigger_gap_title), style = LocusType.cardTitle)

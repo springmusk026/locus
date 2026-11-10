@@ -45,30 +45,39 @@ fun SettingsLink(destination: SettingsDestination, modifier: Modifier = Modifier
 }
 
 /**
- * A [SettingsLink] to the page [message] names ("… Details are in Settings → About & privacy →
- * Diagnostics."), or nothing when it names none. For text that comes from elsewhere: an error, a
- * notice. [beforeOpen] runs first, to close the sheet the message is in.
+ * A [SettingsLink] to [destination], or nothing when it's null. [destination] defaults to the page
+ * [message] names in English ("… Details are in Settings → About & privacy → Diagnostics."), for text
+ * that comes from elsewhere: an error, a notice from core/agent or core/data. Text from a string
+ * resource passes the page itself, since a translation names it in its own words
+ * (docs/design/localization.md). [beforeOpen] runs first, to close the sheet the message is in.
  */
 @Composable
-fun SettingsLinkIn(message: String?, modifier: Modifier = Modifier, beforeOpen: () -> Unit = {}) {
-    val destination = SettingsDestination.inText(message) ?: return
+fun SettingsLinkIn(
+    message: String?,
+    modifier: Modifier = Modifier,
+    destination: SettingsDestination? = SettingsDestination.inText(message),
+    beforeOpen: () -> Unit = {},
+) {
+    destination ?: return
     SettingsLink(destination, modifier, beforeOpen = beforeOpen)
 }
 
 /**
  * A banner action for a message that names a Settings page ("OpenAI has no API key. Add it in Settings →
- * Models."): "Open Models", which opens that page over the screen; back returns to it. Nothing when the
- * message names no page. Put it in the banner's actions, with [hasSettingsAction] for `actionsBelow`.
+ * Models."): "Open Models", which opens [destination] over the screen; back returns to it. Nothing when
+ * [destination] is null. It defaults to the page [message] names in English; text from a string resource
+ * passes it, as for [SettingsLinkIn]. Put it in the banner's actions, with [hasSettingsAction] for
+ * `actionsBelow`.
  */
 @Composable
-fun SettingsActionFor(message: String?) {
-    val page = SettingsDestination.inText(message) ?: return
+fun SettingsActionFor(message: String?, destination: SettingsDestination? = SettingsDestination.inText(message)) {
+    val page = destination ?: return
     val links = LocalSettingsLinks.current ?: return
     TextButton(onClick = { links.open(page) }) { Text(settingsActionLabel(page)) }
 }
 
-/** Whether [message] gets a [SettingsActionFor] button. */
-fun hasSettingsAction(message: String?): Boolean = SettingsDestination.inText(message) != null
+/** Whether [message] gets a [SettingsActionFor] button: [destination], the same one passed to it, isn't null. */
+fun hasSettingsAction(message: String?, destination: SettingsDestination? = SettingsDestination.inText(message)): Boolean = destination != null
 
 /** "Settings → About & privacy → Diagnostics", the way a link to [destination] is written. */
 fun settingsPath(destination: SettingsDestination): String = destinationPath("Settings", *destination.path.toTypedArray())

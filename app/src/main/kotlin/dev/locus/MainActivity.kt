@@ -459,7 +459,8 @@ private fun SavedKeysReset() {
         Text(stringResource(R.string.app_keys_reset_message), style = LocusType.rowSupporting)
         if (error != null) {
             Text(error, style = LocusType.rowSupporting, color = MaterialTheme.colorScheme.error)
-            SettingsLinkIn(error, beforeOpen = vm::notNow)
+            // The view model's one error names Diagnostics.
+            SettingsLinkIn(error, destination = dev.locus.core.model.SettingsDestination.Diagnostics, beforeOpen = vm::notNow)
         }
         TextButton(onClick = vm::notNow, enabled = !busy) { Text(stringResource(DesignR.string.common_not_now)) }
     }
