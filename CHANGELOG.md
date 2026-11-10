@@ -5,7 +5,11 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Added
-- **Settings → Language.** Locus can use a language of its own, apart from the phone's: Same as phone, English, Español, Português (Brasil) or 简体中文. It needs Android 13 or later, where the same choice is also in App info → Language; on older phones Locus follows the phone's language. For now every screen is still English; the translations follow in later releases. *Not yet tried on the phone.*
+- **Locus speaks Spanish, Portuguese (Brazil) and Simplified Chinese.** Every screen's own text, about 3,000 strings, is translated, following one glossary so the same thing has the same name everywhere. "Settings → …" links stay tappable in every language.
+  - **Settings → Language** picks the app's language apart from the phone's: Same as phone, English, Español, Português (Brasil) or 简体中文. It needs Android 13 or later, where the same choice is also in App info → Language; on older phones Locus follows the phone's language.
+  - What the AI writes and what it is sent stay as they are: the model answers in whatever language you write to it.
+  - Some text is still English: messages from the agent's own engine (Linux health checks, tool names, relative times such as "3 minutes ago") and a few status lines. They follow in later releases.
+  - Translated by AI and reviewed for meaning, consistency and length, then checked on every screen in each language; not yet checked by native speakers. *Not yet tried on the phone.*
 
 ### Fixed
 - **SSH file transfers are much faster.** Uploads, downloads and project sync used to send one 32 KB piece and wait for the machine's reply before sending the next. That capped them at about 300 KB/s on a link with a 100 ms round trip, however fast the connection. Now up to 64 pieces (2 MB) are in flight at once, as OpenSSH's `sftp` does, and project sync moves 4 files at a time and lists folders several at once. A test that simulates a 100 ms link moves a 4 MB file in under 10 round trips instead of 131.
