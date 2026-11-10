@@ -33,6 +33,10 @@
     <string name="app_keys_reset_title">Can\'t open saved keys</string>
     <string name="app_keys_reset_action">Reset</string>
     <string name="app_keys_reset_message">Locus can\'t open your saved keys. This can happen after changing the lock screen or restoring the phone. Reset and re-enter keys? (A copy is kept in case it can be recovered.)</string>
+    <string name="app_keys_reset_failed">The reset didn\'t open new keys. Details are in Settings → About &amp; privacy → Diagnostics.</string>
+    <string name="app_restore_rolled_back">Restoring the backup didn\'t finish; your data and saved keys are as they were before. Try again from Settings → Backup &amp; restore.</string>
+    <string name="app_restore_retrying">Restoring the backup didn\'t finish, and some of your data couldn\'t be put back yet. Locus tries again the next time it starts. Restart Locus before restoring again.</string>
+    <string name="app_restore_tasks_failed">Your scheduled tasks couldn\'t be set up again after the restore (%1$s). They won\'t run until they are; Locus tries again the next time it starts.</string>
     <plurals name="app_share_failures_title">
         <item quantity="one">A shared file wasn\'t imported</item>
         <item quantity="other">%1$d shared files weren\'t imported</item>

@@ -39,13 +39,13 @@ internal object HealthSummary {
     /** The low-memory warning, or null when memory is fine (then there's no memory dashboard, just one line). */
     fun memoryWarning(resources: Resources, memory: LinuxReport.Memory?): String? =
         memory?.takeIf(LinuxHealth::isLowMemory)?.let {
-            resources.getString(R.string.workspace_health_memory_low, LinuxHealth.bytes(it.availableBytes), LinuxHealth.bytes(it.totalBytes))
+            resources.getString(R.string.workspace_health_memory_low, LinuxHealth.bytesText(it.availableBytes).asString(resources), LinuxHealth.bytesText(it.totalBytes).asString(resources))
         }
 
     /** "2 running · 84 MB": what Linux's programs hold. */
     fun processesLine(resources: Resources, processes: List<LinuxReport.GuestProcess>): String =
         if (processes.isEmpty()) resources.getString(R.string.workspace_health_processes_none)
-        else resources.getString(R.string.workspace_health_processes, processes.size, LinuxHealth.bytes(processes.sumOf { it.rssBytes }))
+        else resources.getString(R.string.workspace_health_processes, processes.size, LinuxHealth.bytesText(processes.sumOf { it.rssBytes }).asString(resources))
 
     private const val MEMORY = "memory"
 }

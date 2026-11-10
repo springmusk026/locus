@@ -33,6 +33,7 @@ import dev.locus.core.designsystem.asString
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.locus.feature.workspace.linux.asString
 import dev.locus.feature.workspace.preview.FilePreview
 import dev.locus.feature.workspace.preview.defaultShowsSource
 import dev.locus.feature.workspace.preview.hasSourceToggle
@@ -153,7 +154,7 @@ fun WorkspaceRoute(
         bottomBar = {
             if (heatServices.isNotEmpty()) {
                 dev.locus.core.designsystem.Banner(
-                    dev.locus.core.data.device.LinuxHeatAdvice.message(heatServices),
+                    dev.locus.core.data.device.LinuxHeatAdvice.messageText(heatServices).asString(),
                     dev.locus.core.designsystem.Tone.Caution,
                     Modifier.navigationBarsPadding().padding(horizontal = Spacing.lg, vertical = Spacing.sm),
                     title = stringResource(R.string.workspace_heat_title),

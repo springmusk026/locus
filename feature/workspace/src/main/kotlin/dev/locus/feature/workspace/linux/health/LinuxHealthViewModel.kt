@@ -16,6 +16,7 @@ import dev.locus.core.linux.LinuxProbe
 import dev.locus.core.linux.LinuxReport
 import dev.locus.core.linux.LinuxStatus
 import dev.locus.core.terminal.TerminalSessions
+import dev.locus.feature.workspace.linux.toUiText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -114,7 +115,7 @@ class LinuxHealthViewModel(
 
     private fun outcome(run: LinuxSetupState) {
         // LinuxSetup's own words are core's (English); the frame around them is ours.
-        val text = run.error?.let { UiText.Res(R.string.workspace_health_action_failed, it) } ?: run.message?.let(UiText::Plain) ?: return
+        val text = run.error?.let { UiText.Res(R.string.workspace_health_action_failed, it.toUiText()) } ?: run.message?.toUiText() ?: return
         local.update { it.copy(message = LinuxHealthUiState.Message(text, problem = run.error != null)) }
         setup.outcomeShown()
         if (linux.status.value == LinuxStatus.Ready) refresh()
@@ -161,7 +162,7 @@ class LinuxHealthViewModel(
     /** Empties the package and download caches, then measures again. */
     fun cleanCaches() = act(LinuxHealthUiState.Busy.Clean) {
         val freed = source.cleanCaches()
-        UiText.Res(R.string.workspace_health_freed, LinuxHealth.bytes(freed))
+        UiText.Res(R.string.workspace_health_freed, LinuxHealth.bytesText(freed).toUiText())
     }
 
     /** Puts Linux's DNS servers back, then checks the network again if it was checked. */

@@ -412,6 +412,7 @@
     <string name="settings_selftest_level_warn">Aviso</string>
     <string name="settings_selftest_level_fail">Com falha</string>
     <string name="settings_selftest_level_skipped">Ignorada</string>
+    <string name="settings_selftest_check_failed">A própria verificação falhou (%1$s).</string>
     <plurals name="settings_selftest_providers_requests" tools:ignore="ImpliedQuantity">
         <item quantity="one">Usa a rede: uma solicitação ao seu provedor.</item>
         <item quantity="many">Usa a rede: uma solicitação a cada um dos seus %1$d provedores.</item>
@@ -1196,7 +1197,6 @@
     <string name="settings_logins_problem">Os logins salvos não podem ser abertos agora: %1$s.</string>
     <string name="settings_logins_problem_locked">o cofre está bloqueado</string>
     <string name="settings_logins_save_failed">Não foi possível salvar o login.</string>
-    <string name="settings_selftest_check_crashed">A própria verificação falhou (%1$s).</string>
 
     <!-- Settings → Models → On-device models: fit, states, problems and file kinds -->
     <string name="settings_ondevice_fitchip_fits">Cabe neste telefone</string>

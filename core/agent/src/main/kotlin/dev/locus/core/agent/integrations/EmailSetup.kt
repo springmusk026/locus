@@ -405,7 +405,19 @@ object EmailAutoconfig {
 sealed interface ServerCheck {
     data object Passed : ServerCheck
 
-    data class Failed(val problem: Problem, val message: String) : ServerCheck
+    /**
+     * [message] says what went wrong in English. [host], [where] (host:port), [other] (the security
+     * setting it may want) and [said] (the server's own words, for [Problem.OTHER]) let a screen say it
+     * in the app's language.
+     */
+    data class Failed(
+        val problem: Problem,
+        val message: String,
+        val host: String = "",
+        val where: String = "",
+        val other: String = "",
+        val said: String = "",
+    ) : ServerCheck
 
     enum class Problem { SIGN_IN, HOST_NOT_FOUND, UNREACHABLE, TIMEOUT, TLS, OTHER }
 }
@@ -450,32 +462,33 @@ object EmailConnectionTest {
             MailKind.SMTP -> if (server.security == MailSecurity.SSL) "STARTTLS (port 587)" else "SSL/TLS (port 465)"
         }
         val text = chain.mapNotNull { it.message }.joinToString(" ").lowercase()
+        fun failed(problem: ServerCheck.Problem, message: String, said: String = "") =
+            ServerCheck.Failed(problem, message, server.host, where, other, said)
         return when {
-            chain.any { it is AuthenticationFailedException } -> ServerCheck.Failed(
+            chain.any { it is AuthenticationFailedException } -> failed(
                 ServerCheck.Problem.SIGN_IN,
                 "${server.host} turned down the username or password. Most providers need an app password here, not the one you sign in with.",
             )
-            chain.any { it is UnknownHostException } -> ServerCheck.Failed(
+            chain.any { it is UnknownHostException } -> failed(
                 ServerCheck.Problem.HOST_NOT_FOUND,
                 "Couldn't find ${server.host}. Check the host name, and that the phone is online.",
             )
-            chain.any { it is SSLException || it is CertificateException } || "starttls" in text -> ServerCheck.Failed(
+            chain.any { it is SSLException || it is CertificateException } || "starttls" in text -> failed(
                 ServerCheck.Problem.TLS,
                 "Couldn't make a secure connection to $where. Check the security setting; this server may want $other.",
             )
-            chain.any { it is SocketTimeoutException } -> ServerCheck.Failed(
+            chain.any { it is SocketTimeoutException } -> failed(
                 ServerCheck.Problem.TIMEOUT,
                 "$where didn't answer in time. Check the port and security setting (it may want $other), or try another network.",
             )
-            chain.any { it is ConnectException || it is NoRouteToHostException } -> ServerCheck.Failed(
+            chain.any { it is ConnectException || it is NoRouteToHostException } -> failed(
                 ServerCheck.Problem.UNREACHABLE,
                 "Couldn't connect to $where. Check the port, and that the phone is online.",
             )
-            else -> ServerCheck.Failed(
-                ServerCheck.Problem.OTHER,
-                "${server.host} said: " + chain.mapNotNull { it.message }.distinct().joinToString(": ").replace(account.password, "***").take(240)
-                    .ifBlank { "the connection failed." },
-            )
+            else -> {
+                val said = chain.mapNotNull { it.message }.distinct().joinToString(": ").replace(account.password, "***").take(240)
+                failed(ServerCheck.Problem.OTHER, "${server.host} said: " + said.ifBlank { "the connection failed." }, said)
+            }
         }
     }
 }

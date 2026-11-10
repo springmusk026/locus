@@ -2,8 +2,10 @@ package dev.locus.core.data.diagnostics
 
 import dev.locus.core.agent.tools.TrashEntry
 import dev.locus.core.agent.tools.Workspace
+import dev.locus.core.data.R
 import dev.locus.core.datastore.VaultCheck
 import dev.locus.core.datastore.VaultState
+import dev.locus.core.linux.EngineText
 import dev.locus.core.linux.LinuxReport
 import dev.locus.core.model.ApiFormat
 import dev.locus.core.model.FileTrees
@@ -18,7 +20,10 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/** Settings → About & privacy → Diagnostics: the self-test's rules and the Storage screen's sizes and clean-ups. */
+/**
+ * Settings → About & privacy → Diagnostics: the self-test's rules and the Storage screen's sizes and clean-ups.
+ * How the texts read in English is checked as the screen renders them, in feature/settings' EngineTextTest.
+ */
 class SelfTestAndStorageTest {
     private val base: File = Files.createTempDirectory("storage").toFile()
 
@@ -33,7 +38,7 @@ class SelfTestAndStorageTest {
     fun `the vault check passes with counts, and fails with the right fix otherwise`() {
         val ok = SelfTestRules.vault(VaultCheck(VaultState.Ready, entries = 3))
         assertEquals(SelfTestLevel.Pass, ok.level)
-        assertTrue("3 saved values decrypt" in ok.detail)
+        assertEquals(EngineText.Plural(R.plurals.data_selftest_vault_ok, 3), ok.detail)
         assertNull(ok.fix)
 
         val broken = SelfTestRules.vault(VaultCheck(VaultState.Ready, problem = "The saved-keys file doesn't decrypt with the current key."))
@@ -49,7 +54,10 @@ class SelfTestAndStorageTest {
         assertEquals(SelfTestLevel.Pass, SelfTestRules.database(emptyList(), null).level)
         val bad = SelfTestRules.database(listOf("row 3 missing from index idx_messages", "wrong # of entries"), null)
         assertEquals(SelfTestLevel.Fail, bad.level)
-        assertTrue("2 problems" in bad.detail && "idx_messages" in bad.detail && "Backup" in bad.detail)
+        assertEquals(
+            EngineText.Plural(R.plurals.data_selftest_database_problems, 2, 2, "row 3 missing from index idx_messages; wrong # of entries"),
+            bad.detail,
+        )
         val failed = SelfTestRules.database(null, "SQLiteException")
         assertEquals(SelfTestFix.RunAgain, failed.fix)
     }
@@ -90,12 +98,12 @@ class SelfTestAndStorageTest {
         assertEquals(SelfTestLevel.Pass, SelfTestRules.provider(p, null, listed = 12, error = null).level)
         val missing = SelfTestRules.provider(p, "OpenAI has no API key. Add it in Settings → Models.", null, null)
         assertEquals(SelfTestFix.OpenModels, missing.fix)
-        assertTrue(missing.detail.startsWith("Not checked"))
-        assertEquals(SelfTestFix.OpenModels, SelfTestRules.provider(p, null, null, ProviderError("Unauthorized", 401)).fix)
-        assertEquals(SelfTestLevel.Warn, SelfTestRules.provider(p, null, null, ProviderError("Not found", 404)).level)
-        val down = SelfTestRules.provider(p, null, null, ProviderError("Connection refused", null))
+        assertEquals(EngineText.Res(R.string.data_selftest_provider_not_checked, "OpenAI has no API key. Add it in Settings → Models."), missing.detail)
+        assertEquals(SelfTestFix.OpenModels, SelfTestRules.provider(p, null, null, ProviderError(EngineText.Plain("Unauthorized"), 401)).fix)
+        assertEquals(SelfTestLevel.Warn, SelfTestRules.provider(p, null, null, ProviderError(EngineText.Plain("Not found"), 404)).level)
+        val down = SelfTestRules.provider(p, null, null, ProviderError(EngineText.Plain("Connection refused"), null))
         assertEquals(SelfTestLevel.Fail, down.level)
-        assertTrue("api.openai.com" in down.detail)
+        assertEquals(EngineText.Res(R.string.data_selftest_provider_unreachable, "https://api.openai.com/v1", EngineText.Plain("Connection refused")), down.detail)
         assertEquals("provider:p1", down.id)
     }
 
@@ -145,7 +153,7 @@ class SelfTestAndStorageTest {
         // A phone with only a GGUF model isn't "Empty".
         File(files, "models/gemma-4-e2b.litertlm").delete()
         assertEquals(5_900L, StorageMeter.size(roots))
-        assertTrue("GGUF" in StorageArea.Models.note && "LiteRT" in StorageArea.Models.note)
+        assertEquals(R.string.data_storage_models_note, StorageArea.Models.noteRes, "names both engines: LiteRT and GGUF")
     }
 
     @Test

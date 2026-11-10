@@ -41,6 +41,22 @@ import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.model.LINUX_INSTALL_PATH
+import dev.locus.core.ui.authSummaryText
+import dev.locus.core.ui.bylineText
+import dev.locus.core.ui.descriptionText
+import dev.locus.core.ui.displayName
+import dev.locus.core.ui.fieldLabel
+import dev.locus.core.ui.fullWarningText
+import dev.locus.core.ui.hostHintText
+import dev.locus.core.ui.labelText
+import dev.locus.core.ui.needsText
+import dev.locus.core.ui.noteText
+import dev.locus.core.ui.pasteText
+import dev.locus.core.ui.scopesText
+import dev.locus.core.ui.sentAsText
+import dev.locus.core.ui.sentenceLabel
+import dev.locus.core.ui.usernameLabelText
+import dev.locus.core.ui.whereText
 
 /** Templates grouped for the picker, in [McpTemplate.Category] order. */
 internal fun templateGroups(templates: List<McpTemplate> = McpTemplates.all): List<Pair<McpTemplate.Category, List<McpTemplate>>> =
@@ -57,12 +73,13 @@ internal fun McpTemplatePicker(onPick: (McpTemplate) -> Unit, onCustom: () -> Un
         CardGroup {
             TemplateRow(stringResource(R.string.library_mcp_picker_custom_title), stringResource(R.string.library_mcp_picker_custom_subtitle), leading = { ConnectorIcon("custom") }, onClick = onCustom)
         }
+        val res = LocalResources.current
         templateGroups().forEach { (category, templates) ->
-            SectionLabel(category.label, Modifier.padding(top = Spacing.xs))
+            SectionLabel(category.labelText(res), Modifier.padding(top = Spacing.xs))
             CardGroup {
                 templates.forEachIndexed { i, t ->
                     if (i > 0) GroupDivider(inset = Insets.iconRow)
-                    TemplateRow(t.name, stringResource(R.string.library_mcp_picker_template_subtitle, t.description, t.authSummary), leading = { ConnectorIcon(t.id) }) { onPick(t) }
+                    TemplateRow(t.name, stringResource(R.string.library_mcp_picker_template_subtitle, t.descriptionText(res), t.authSummaryText(res)), leading = { ConnectorIcon(t.id) }) { onPick(t) }
                 }
             }
         }
@@ -130,6 +147,7 @@ internal fun McpTemplateSheet(
     )) { TemplateForm(template) }
     if (savedKeyFrom == null && form.useSavedKey) form.useSavedKey = false
     val uriHandler = LocalUriHandler.current
+    val res = LocalResources.current
     val action = when {
         template.local != null -> stringResource(R.string.library_action_add)
         form.useSavedKey -> stringResource(R.string.library_action_add)
@@ -138,7 +156,7 @@ internal fun McpTemplateSheet(
     }
     LocusSheet(
         title = template.name,
-        subtitle = template.description,
+        subtitle = template.descriptionText(res),
         onDismiss = onDismiss,
         action = action,
         actionEnabled = form.isValid,
@@ -147,11 +165,11 @@ internal fun McpTemplateSheet(
         Row(verticalAlignment = Alignment.CenterVertically) {
             ConnectorIcon(template.id)
             Column(Modifier.weight(1f).padding(start = Spacing.md)) {
-                Text(template.byline, style = LocusType.rowSupporting)
-                SupportingText(template.authSummary)
+                Text(template.bylineText(res), style = LocusType.rowSupporting)
+                SupportingText(template.authSummaryText(res))
             }
         }
-        template.note?.let { SupportingText(it) }
+        template.noteText(res)?.let { SupportingText(it) }
         val local = template.local
         if (local != null) {
             LocalTemplateFields(local, form, linuxInstalled)
@@ -159,7 +177,7 @@ internal fun McpTemplateSheet(
             OutlinedTextField(form.url, { form.url = it.trim() }, label = { Text(stringResource(R.string.library_connectors_custom_url)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
             if (template.signIn) {
                 Text(
-                    template.key?.let { stringResource(R.string.library_mcp_sheet_sign_in_or_paste, template.vendor, it.label.lowercase()) }
+                    template.key?.let { stringResource(R.string.library_mcp_sheet_sign_in_or_paste, template.vendor, it.pasteText(res)) }
                         ?: stringResource(R.string.library_mcp_sheet_sign_in, template.vendor),
                     style = LocusType.supporting,
                 )
@@ -169,11 +187,11 @@ internal fun McpTemplateSheet(
             template.key?.takeUnless { form.useSavedKey }?.let { key ->
                 OutlinedTextField(
                     form.key, { form.key = it },
-                    label = { Text(if (key.optional || template.signIn) stringResource(R.string.library_mcp_sheet_key_optional, key.label) else key.label) },
+                    label = { Text(key.labelText(res).let { if (key.optional || template.signIn) stringResource(R.string.library_mcp_sheet_key_optional, it) else it }) },
                     supportingText = {
                         Text(
-                            key.scopes?.let { stringResource(R.string.library_mcp_sheet_key_sent_as_needs, key.sentAs, it) }
-                                ?: stringResource(R.string.library_mcp_sheet_key_sent_as, key.sentAs),
+                            template.scopesText(res)?.let { stringResource(R.string.library_mcp_sheet_key_sent_as_needs, key.sentAsText(res), it) }
+                                ?: stringResource(R.string.library_mcp_sheet_key_sent_as, key.sentAsText(res)),
                         )
                     },
                     singleLine = true,
@@ -197,7 +215,7 @@ internal fun McpTemplateSheet(
 private fun SavedKeyChoice(integration: Integration, template: McpTemplate, form: TemplateForm) {
     CardGroup {
         ListRow(
-            title = stringResource(R.string.library_mcp_saved_key_title, integration.name),
+            title = stringResource(R.string.library_mcp_saved_key_title, integration.displayName(LocalResources.current)),
             subtitle = stringResource(R.string.library_mcp_saved_key_subtitle),
             onClick = { form.useSavedKey = !form.useSavedKey },
             trailing = { Checkbox(checked = form.useSavedKey, onCheckedChange = { form.useSavedKey = it }) },
@@ -207,7 +225,7 @@ private fun SavedKeyChoice(integration: Integration, template: McpTemplate, form
     if (form.useSavedKey) {
         if (form.savedKeyBlocked) {
             Banner(
-                stringResource(R.string.library_mcp_saved_key_blocked, integration.name, template.host),
+                stringResource(R.string.library_mcp_saved_key_blocked, integration.displayName(LocalResources.current), template.host),
                 Tone.Caution,
             )
         } else {
@@ -218,8 +236,7 @@ private fun SavedKeyChoice(integration: Integration, template: McpTemplate, form
 
 /** The confirmation under "Use the key saved for …": where the key will also be sent. */
 internal fun savedKeyNote(resources: Resources, integration: Integration, template: McpTemplate): String =
-    // How it's sent ("a bearer token", "the x-api-key header") is the template's, in core.
-    resources.getString(R.string.library_mcp_saved_key_note, integration.name, template.host, template.key?.sentAs.toString())
+    resources.getString(R.string.library_mcp_saved_key_note, integration.displayName(resources), template.host, template.key?.sentAsText(resources).toString())
 
 @Composable
 private fun ColumnScope.LocalTemplateFields(local: McpTemplate.Local, form: TemplateForm, linuxInstalled: Boolean) {
@@ -232,11 +249,12 @@ private fun ColumnScope.LocalTemplateFields(local: McpTemplate.Local, form: Temp
     }
     Text(stringResource(R.string.library_mcp_local_runs_inside), style = LocusType.supporting)
     Text(local.command, style = LocusType.code)
-    SupportingText(stringResource(R.string.library_mcp_local_needs, local.needs))
+    val res = LocalResources.current
+    SupportingText(stringResource(R.string.library_mcp_local_needs, local.needsText(res)))
     local.env.forEach { name ->
         OutlinedTextField(
             form.env[name].orEmpty(), { v -> form.env = form.env + (name to v) },
-            label = { Text(local.label(name).removePrefix("your ").removePrefix("a ").replaceFirstChar { it.uppercase() }) },
+            label = { Text(local.fieldLabel(res, name)) },
             supportingText = { Text(stringResource(R.string.library_mcp_local_stored)) },
             singleLine = true,
             visualTransformation = if (name in local.plain) androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation(),

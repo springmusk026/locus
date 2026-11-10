@@ -1,6 +1,8 @@
 package dev.locus.core.data.device
 
+import dev.locus.core.data.R
 import dev.locus.core.data.di.ApplicationScope
+import dev.locus.core.linux.EngineText
 import dev.locus.core.linux.LinuxEnvironment
 import dev.locus.core.llm.DeviceConditions
 import dev.locus.core.model.PowerPolicy
@@ -70,6 +72,13 @@ class LinuxHeatAdvice @Inject constructor(
 
     companion object {
         private const val POLL_MS = 10_000L
+
+        /** [message] for the screen, in the app's language. */
+        fun messageText(names: List<String>): EngineText {
+            val shown = names.take(3).joinToString(", ")
+            val list = if (names.size > 3) EngineText.Res(R.string.data_heat_services_more, shown, names.size - 3) else EngineText.Plain(shown)
+            return EngineText.Plural(R.plurals.data_heat_message, names.size, names.size, list)
+        }
 
         /** The suggestion's text: which services, and that stopping them is the user's call and can be undone. */
         fun message(names: List<String>): String {

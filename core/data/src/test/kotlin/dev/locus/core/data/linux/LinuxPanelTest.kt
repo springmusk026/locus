@@ -1,6 +1,8 @@
 package dev.locus.core.data.linux
 
+import dev.locus.core.data.R
 import dev.locus.core.linux.AndroidKillNotice
+import dev.locus.core.linux.EngineText
 import dev.locus.core.linux.LinuxEnvironment
 import dev.locus.core.linux.LinuxStatus
 import org.junit.Test
@@ -21,13 +23,13 @@ class LinuxPanelTest {
     fun `not installed offers an estimate for the ticked packages`() {
         val bare = assertIs<LinuxPanel.NotInstalled>(panel(LinuxStatus.NotInstalled))
         assertEquals(InstallEstimate(4, 9, 1), bare.estimate)
-        assertTrue("Usually under a minute" in bare.estimate.summary)
+        assertEquals(EngineText.Res(R.string.data_linux_estimate_under_a_minute, 4, 9), bare.estimate.summary)
 
         val withTools = assertIs<LinuxPanel.NotInstalled>(panel(LinuxStatus.NotInstalled, selected = setOf(LinuxPackage.Python, LinuxPackage.Git)))
         assertEquals(20, withTools.estimate.downloadMb)
         assertEquals(54, withTools.estimate.diskMb)
         assertEquals(2, withTools.estimate.minutes)
-        assertTrue("About 20 MB to download, 54 MB on the phone." in withTools.estimate.summary)
+        assertEquals(EngineText.Plural(R.plurals.data_linux_estimate_minutes, 2, 20, 54, 2), withTools.estimate.summary)
     }
 
     @Test
@@ -37,9 +39,9 @@ class LinuxPanelTest {
 
     @Test
     fun `downloading shows the step and its fraction, and can be cancelled`() {
-        val running = idle.copy(running = true, operation = LinuxOperation.Install, phase = "Installing Alpine Linux…")
+        val running = idle.copy(running = true, operation = LinuxOperation.Install, phase = EngineText.Plain("Installing Alpine Linux…"))
         val working = assertIs<LinuxPanel.Working>(panel(LinuxStatus.Installing("Downloading Alpine Linux 3.24.3", 0.4f), running))
-        assertEquals("Downloading Alpine Linux 3.24.3", working.step)
+        assertEquals(EngineText.Plain("Downloading Alpine Linux 3.24.3"), working.step)
         assertEquals(0.4f, working.fraction)
         assertTrue(working.cancellable)
 
@@ -49,15 +51,15 @@ class LinuxPanelTest {
 
     @Test
     fun `installing packages on a ready system is still working, with package progress`() {
-        val run = idle.copy(running = true, operation = LinuxOperation.Install, phase = "Installing Git (2 of 2)…", progress = 0.5f)
+        val run = idle.copy(running = true, operation = LinuxOperation.Install, phase = EngineText.Plain("Installing Git (2 of 2)…"), progress = 0.5f)
         val working = assertIs<LinuxPanel.Working>(panel(LinuxStatus.Ready, run))
-        assertEquals("Installing Git (2 of 2)…", working.step)
+        assertEquals(EngineText.Plain("Installing Git (2 of 2)…"), working.step)
         assertEquals(0.5f, working.fraction)
     }
 
     @Test
     fun `a reinstall stays working while Linux is briefly not installed`() {
-        val run = idle.copy(running = true, operation = LinuxOperation.Reinstall, phase = "Removing the old Linux system…")
+        val run = idle.copy(running = true, operation = LinuxOperation.Reinstall, phase = EngineText.Plain("Removing the old Linux system…"))
         val working = assertIs<LinuxPanel.Working>(panel(LinuxStatus.NotInstalled, run))
         assertEquals(LinuxOperation.Reinstall, working.operation)
         assertTrue(working.cancellable)
@@ -66,7 +68,7 @@ class LinuxPanelTest {
     @Test
     fun `repair and remove can't be cancelled`() {
         for (op in listOf(LinuxOperation.Repair, LinuxOperation.Remove)) {
-            val working = assertIs<LinuxPanel.Working>(panel(LinuxStatus.Ready, idle.copy(running = true, operation = op, phase = "…")))
+            val working = assertIs<LinuxPanel.Working>(panel(LinuxStatus.Ready, idle.copy(running = true, operation = op, phase = EngineText.Plain("…"))))
             assertFalse(working.cancellable, "$op")
         }
     }
@@ -87,19 +89,22 @@ class LinuxPanelTest {
 
     @Test
     fun `a failed install is Failed with its reason`() {
-        assertEquals(LinuxPanel.Failed("Checksum mismatch"), panel(LinuxStatus.Failed("Checksum mismatch")))
+        assertEquals(LinuxPanel.Failed(EngineText.Plain("Checksum mismatch")), panel(LinuxStatus.Failed("Checksum mismatch")))
         // A run that failed before Linux said anything still fails the card.
-        assertEquals(LinuxPanel.Failed("Unsupported CPU: armeabi-v7a"), panel(LinuxStatus.NotInstalled, idle.copy(error = "Unsupported CPU: armeabi-v7a")))
+        assertEquals(
+            LinuxPanel.Failed(EngineText.Plain("Unsupported CPU: armeabi-v7a")),
+            panel(LinuxStatus.NotInstalled, idle.copy(error = EngineText.Plain("Unsupported CPU: armeabi-v7a"))),
+        )
     }
 
     @Test
     fun `a cancelled install goes back to not installed`() {
-        assertIs<LinuxPanel.NotInstalled>(panel(LinuxStatus.NotInstalled, idle.copy(cancelled = true, message = "Cancelled.")))
+        assertIs<LinuxPanel.NotInstalled>(panel(LinuxStatus.NotInstalled, idle.copy(cancelled = true, message = EngineText.Plain("Cancelled."))))
     }
 
     @Test
     fun `an unavailable phone wins over everything`() {
         val run = idle.copy(running = true, operation = LinuxOperation.Install)
-        assertEquals(LinuxPanel.Unavailable("No proot for this CPU"), panel(LinuxStatus.Unavailable("No proot for this CPU"), run))
+        assertEquals(LinuxPanel.Unavailable(EngineText.Plain("No proot for this CPU")), panel(LinuxStatus.Unavailable("No proot for this CPU"), run))
     }
 }

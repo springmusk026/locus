@@ -9,6 +9,7 @@ import dev.locus.core.data.linux.LinuxPanel
 import dev.locus.core.data.linux.LinuxSetup
 import dev.locus.core.data.linux.PackageState
 import dev.locus.core.data.linux.linuxPanel
+import dev.locus.core.linux.EngineText
 import dev.locus.core.linux.LinuxEnvironment
 import dev.locus.core.linux.LinuxStatus
 import dev.locus.core.terminal.TerminalSessions
@@ -38,8 +39,8 @@ data class LinuxUiState(
     val panel: LinuxPanel,
     val packages: Map<LinuxPackage, PackageState> = emptyMap(),
     val selected: Set<LinuxPackage> = emptySet(),
-    val error: String? = null,
-    val message: String? = null,
+    val error: EngineText? = null,
+    val message: EngineText? = null,
 )
 
 /**

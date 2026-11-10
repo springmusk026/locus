@@ -37,6 +37,17 @@ object AndroidKill {
     /** What the agent and the user are told: the reason, and the fix to pass on. */
     const val MESSAGE = "Killed by Android (phantom process limit): $REASON $FIX Details: $HELP_URL"
 
+    // The English above is what the model reads (tool results); screens show these, in the app's language.
+
+    /** [REASON] for the screen. */
+    val reasonText: EngineText get() = EngineText.Res(R.string.linux_kill_reason)
+
+    /** [FIX_LEAD] for the screen. */
+    val fixLeadText: EngineText get() = EngineText.Res(R.string.linux_kill_fix_lead)
+
+    /** [FIX] for the screen, with [ADB_COMMAND] as it is. */
+    val fixText: EngineText get() = EngineText.Res(R.string.linux_kill_fix, ADB_COMMAND)
+
     /** True when a process that exited with [exitCode] was most likely killed by Android. */
     fun applies(exitCode: Int?, inBackground: Boolean): Boolean = exitCode == SIGKILL_EXIT && inBackground
 

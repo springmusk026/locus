@@ -322,9 +322,7 @@ class VaultKeys internal constructor(
         const val RESET_AFTER_FAILED_STARTS = 3
         private val AD = DataStoreFiles.SECRETS.encodeToByteArray()
 
-        const val RECOVERED_NOTICE =
-            "Locus could open the saved keys it had set aside at the last reset, and restored them. " +
-                "Keys you entered since were kept. Details are in Settings → About & privacy → Diagnostics."
+        const val RECOVERED_NOTICE = StoreNotices.KEYS_RECOVERED
 
         private fun describe(e: Throwable) =
             "${e::class.java.simpleName}: ${e.message}${e.cause?.let { " (${it::class.java.simpleName})" }.orEmpty()}"

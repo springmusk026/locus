@@ -4,6 +4,9 @@ import androidx.compose.ui.platform.LocalResources
 import dev.locus.core.designsystem.UiText
 import dev.locus.core.designsystem.asString
 import androidx.compose.runtime.remember
+import dev.locus.core.linux.EngineText
+import dev.locus.feature.workspace.linux.asString
+import dev.locus.feature.workspace.linux.toUiText
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
@@ -169,14 +172,15 @@ fun LinuxHealthRoute(
         when (val status = state.status) {
             is LinuxStatus.Unavailable -> EmptyState(
                 title = stringResource(R.string.workspace_health_unavailable_title),
-                body = status.reason,
+                body = status.reasonText.asString(),
                 modifier = body,
                 icon = LocusIcons.Terminal,
             )
             is LinuxStatus.Installing -> Column(body.fillMaxSize().padding(Spacing.xxl), verticalArrangement = Arrangement.Center) {
                 Text(stringResource(R.string.workspace_health_installing), style = LocusType.stateTitle, modifier = Modifier.semantics { heading() })
-                SupportingText(status.step, Modifier.padding(top = Spacing.xs, bottom = Spacing.md))
-                Meter(status.fraction, size = MeterSize.Medium, contentDescription = status.fraction?.let { stringResource(R.string.workspace_health_installing_progress, status.step, meterPercent(it)) } ?: status.step)
+                val step = status.stepText.asString()
+                SupportingText(step, Modifier.padding(top = Spacing.xs, bottom = Spacing.md))
+                Meter(status.fraction, size = MeterSize.Medium, contentDescription = status.fraction?.let { stringResource(R.string.workspace_health_installing_progress, step, meterPercent(it)) } ?: step)
             }
             LinuxStatus.NotInstalled, is LinuxStatus.Failed -> EmptyState(
                 title = stringResource(R.string.workspace_health_not_installed_title),
@@ -225,7 +229,7 @@ fun LinuxHealthRoute(
             title = stringResource(R.string.workspace_health_clean_title),
             message = stringResource(
                 R.string.workspace_health_clean_message,
-                report?.storage?.cacheBytes?.let(LinuxHealth::bytes) ?: stringResource(R.string.workspace_health_clean_size_unknown),
+                report?.storage?.cacheBytes?.let { LinuxHealth.bytesText(it).asString() } ?: stringResource(R.string.workspace_health_clean_size_unknown),
             ),
             confirmLabel = stringResource(R.string.workspace_health_clean),
             onConfirm = { confirm = null; viewModel.cleanCaches() },
@@ -264,7 +268,7 @@ private fun HealthContent(
         item(key = "checks") { Checks(state, report, fixes, onCheckNetwork = viewModel::checkNetwork) }
         report.storage?.let { storage ->
             item(key = "storage-label") { SectionLabel(stringResource(R.string.workspace_health_storage), Modifier.padding(top = Spacing.md)) }
-            item(key = "storage") { StorageCard(storage, cleaning = state.busy == LinuxHealthUiState.Busy.Clean, enabled = !fixes.anyBusy) { fixes.run(HealthCheck("clean", "", HealthLevel.Ok, "", LinuxFix.CleanCaches)) } }
+            item(key = "storage") { StorageCard(storage, cleaning = state.busy == LinuxHealthUiState.Busy.Clean, enabled = !fixes.anyBusy) { fixes.run(HealthCheck("clean", EngineText.Plain(""), HealthLevel.Ok, EngineText.Plain(""), LinuxFix.CleanCaches)) } }
         }
         if (report.memory != null || report.processes.isNotEmpty()) {
             item(key = "memory-label") { SectionLabel(stringResource(R.string.workspace_health_memory), Modifier.padding(top = Spacing.md)) }
@@ -330,7 +334,7 @@ private fun HealthLevel.label() = stringResource(
 @Composable
 private fun Verdict(checks: List<HealthCheck>, report: LinuxReport, repairing: Boolean) {
     val level = LinuxHealth.overall(checks)
-    val headline = LinuxHealth.headline(checks)
+    val headline = LinuxHealth.headline(checks).asString()
     // No glow: the chip carries the level, and a tinted card under it pulls the chip's text below AA.
     LocusCard {
         Column(
@@ -373,7 +377,7 @@ private fun Checks(state: LinuxHealthUiState, report: LinuxReport, fixes: FixAct
             ListRow(
                 title = pluralStringResource(R.plurals.workspace_health_checks_passed, passed.size, passed.size),
                 titleMaxLines = 2,
-                subtitle = passed.joinToString(", ") { it.title },
+                subtitle = passed.map { it.title.asString() }.joinToString(", "),
                 leading = { Icon(LocusIcons.Check, contentDescription = null, tint = Tone.Live.color(), modifier = Modifier.size(IconSize.medium)) },
                 onClick = { showPassed = !showPassed },
                 trailing = { Text(stringResource(if (showPassed) R.string.workspace_health_hide else R.string.workspace_health_show), style = LocusType.label, color = MaterialTheme.colorScheme.primary) },
@@ -407,24 +411,26 @@ private fun CheckRow(check: HealthCheck, fixes: FixActions) {
         HealthLevel.Warning -> LocusIcons.Info
         HealthLevel.Problem -> LocusIcons.Alert
     }
+    val title = check.title.asString()
     ListRow(
-        title = check.title,
-        subtitle = check.detail,
+        title = title,
+        subtitle = check.detail.asString(),
         titleMaxLines = 2,
         subtitleMaxLines = Int.MAX_VALUE,
         leading = { Icon(icon, contentDescription = check.level.label(), tint = check.level.tone().color(), modifier = Modifier.size(IconSize.medium)) },
         // The fix sits under the explanation, so the title and detail keep the row's width.
         meta = check.fix?.let { fix ->
             {
+                val label = stringResource(fix.labelRes)
                 if (fixes.busy(fix)) {
-                    InlineSpinner(contentDescription = stringResource(R.string.workspace_health_fix_in_progress, fix.label))
+                    InlineSpinner(contentDescription = stringResource(R.string.workspace_health_fix_in_progress, label))
                 } else {
-                    val fixDescription = stringResource(R.string.workspace_health_fix_description, fix.label, check.title)
+                    val fixDescription = stringResource(R.string.workspace_health_fix_description, label, title)
                     OutlinedButton(
                         onClick = { fixes.run(check) },
                         enabled = !fixes.anyBusy,
                         modifier = Modifier.padding(top = Spacing.xs).heightIn(min = Sizes.touchTarget).semantics { contentDescription = fixDescription },
-                    ) { Text(fix.label) }
+                    ) { Text(label) }
                 }
             }
         },
@@ -439,13 +445,13 @@ private fun StorageCard(storage: LinuxReport.Storage, cleaning: Boolean, enabled
             val fraction = meterFraction(used, storage.phoneTotalBytes)
             Text(stringResource(R.string.workspace_health_phone_storage), style = LocusType.cardTitle)
             Meter(fraction, size = MeterSize.Medium, contentDescription = stringResource(R.string.workspace_health_phone_storage_used, meterPercent(fraction)))
-            SupportingText(stringResource(R.string.workspace_health_phone_storage_free, LinuxHealth.bytes(storage.phoneFreeBytes), LinuxHealth.bytes(storage.phoneTotalBytes)))
+            SupportingText(stringResource(R.string.workspace_health_phone_storage_free, LinuxHealth.bytesText(storage.phoneFreeBytes).asString(), LinuxHealth.bytesText(storage.phoneTotalBytes).asString()))
         }
         Column(Modifier.padding(top = Spacing.sm)) {
-            AmountRow(stringResource(R.string.workspace_health_linux_uses), LinuxHealth.bytes(storage.linuxBytes))
-            if (storage.tmpBytes > 0) AmountRow("/tmp", LinuxHealth.bytes(storage.tmpBytes), monoLabel = true)
+            AmountRow(stringResource(R.string.workspace_health_linux_uses), LinuxHealth.bytesText(storage.linuxBytes).asString())
+            if (storage.tmpBytes > 0) AmountRow("/tmp", LinuxHealth.bytesText(storage.tmpBytes).asString(), monoLabel = true)
             var allFolders by rememberSaveable { mutableStateOf(false) }
-            HealthSummary.visible(storage.biggest, allFolders).forEach { AmountRow(it.path, LinuxHealth.bytes(it.bytes), monoLabel = true) }
+            HealthSummary.visible(storage.biggest, allFolders).forEach { AmountRow(it.path, LinuxHealth.bytesText(it.bytes).asString(), monoLabel = true) }
             if (HealthSummary.hasMore(storage.biggest)) ShowAll(allFolders, storage.biggest.size) { allFolders = !allFolders }
         }
         // The button goes under the caches when beside them it would squeeze the list.
@@ -454,13 +460,13 @@ private fun StorageCard(storage: LinuxReport.Storage, cleaning: Boolean, enabled
                 Text(stringResource(R.string.workspace_health_caches), style = LocusType.cardTitle)
                 SupportingText(
                     if (storage.caches.isEmpty()) stringResource(R.string.workspace_health_caches_none)
-                    else storage.caches.joinToString(", ") { "${it.path} ${LinuxHealth.bytes(it.bytes)}" },
+                    else storage.caches.map { "${it.path} ${LinuxHealth.bytesText(it.bytes).asString()}" }.joinToString(", "),
                 )
             }
         }) {
             if (cleaning) InlineSpinner(contentDescription = stringResource(R.string.workspace_health_cleaning))
             else OutlinedButton(onClick = onClean, enabled = enabled && storage.cacheBytes > 0, modifier = Modifier.heightIn(min = Sizes.touchTarget)) {
-                Text(if (storage.cacheBytes > 0) stringResource(R.string.workspace_health_clean_size, LinuxHealth.bytes(storage.cacheBytes)) else stringResource(R.string.workspace_health_clean))
+                Text(if (storage.cacheBytes > 0) stringResource(R.string.workspace_health_clean_size, LinuxHealth.bytesText(storage.cacheBytes).asString()) else stringResource(R.string.workspace_health_clean))
             }
         }
     }
@@ -478,11 +484,11 @@ private fun MemorySection(memory: LinuxReport.Memory?, processes: List<LinuxRepo
         if (warning != null) Banner(warning, Tone.Caution, title = stringResource(R.string.workspace_health_low_memory))
         LocusCard {
             if (memory != null && warning == null) {
-                AmountRow(stringResource(R.string.workspace_health_phone_memory), stringResource(R.string.workspace_health_memory_available, LinuxHealth.bytes(memory.availableBytes)))
+                AmountRow(stringResource(R.string.workspace_health_phone_memory), stringResource(R.string.workspace_health_memory_available, LinuxHealth.bytesText(memory.availableBytes).asString()))
             }
             AmountRow(stringResource(R.string.workspace_health_linux_programs), HealthSummary.processesLine(resources, processes))
             var allProcesses by rememberSaveable { mutableStateOf(false) }
-            HealthSummary.visible(processes, allProcesses).forEach { AmountRow(it.name, LinuxHealth.bytes(it.rssBytes), monoLabel = true) }
+            HealthSummary.visible(processes, allProcesses).forEach { AmountRow(it.name, LinuxHealth.bytesText(it.rssBytes).asString(), monoLabel = true) }
             if (HealthSummary.hasMore(processes)) ShowAll(allProcesses, processes.size) { allProcesses = !allProcesses }
         }
     }
@@ -502,9 +508,8 @@ internal enum class ServiceAction(@StringRes val label: Int) {
 
 internal fun serviceView(s: LinuxEnvironment.ServiceStatus): ServiceView = when (s.state) {
     LinuxEnvironment.ServiceState.Running -> ServiceView(UiText.Res(R.string.workspace_health_service_running), Tone.Live, ServiceAction.Stop)
-    // The exit's description is core's (LinuxHealth), in English.
     LinuxEnvironment.ServiceState.Crashed ->
-        ServiceView(UiText.Res(R.string.workspace_health_service_crashed, LinuxHealth.exitDescription(s.exitCode)), Tone.Critical, ServiceAction.Restart)
+        ServiceView(UiText.Res(R.string.workspace_health_service_crashed, LinuxHealth.exitText(s.exitCode).toUiText()), Tone.Critical, ServiceAction.Restart)
     LinuxEnvironment.ServiceState.KilledByAndroid -> ServiceView(UiText.Res(R.string.workspace_health_service_killed), Tone.Caution, ServiceAction.Restart)
     LinuxEnvironment.ServiceState.StoppedByRestart ->
         if (s.autostart) ServiceView(UiText.Res(R.string.workspace_health_service_didnt_start), Tone.Caution, ServiceAction.Start)
@@ -572,8 +577,8 @@ private fun PhantomHelpSheet(phantom: LinuxReport.Phantom?, onDismiss: () -> Uni
     val uri = LocalUriHandler.current
     LocusSheet(title = stringResource(R.string.workspace_health_phantom_title), onDismiss = onDismiss) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
-            Text(AndroidKill.REASON, style = LocusType.rowSupporting)
-            Text(AndroidKill.FIX_LEAD, style = LocusType.rowSupporting)
+            Text(AndroidKill.reasonText.asString(), style = LocusType.rowSupporting)
+            Text(AndroidKill.fixLeadText.asString(), style = LocusType.rowSupporting)
             // The command on its own surface, scrolling sideways rather than breaking mid-identifier, with Copy.
             val clipboard = androidx.compose.ui.platform.LocalClipboard.current
             val scope = androidx.compose.runtime.rememberCoroutineScope()

@@ -404,6 +404,7 @@
     <string name="settings_selftest_level_warn">警告</string>
     <string name="settings_selftest_level_fail">失败</string>
     <string name="settings_selftest_level_skipped">已跳过</string>
+    <string name="settings_selftest_check_failed">检查本身出错（%1$s）。</string>
     <plurals name="settings_selftest_providers_requests">
         <item quantity="other">会使用网络：向你的每个提供商（共 %1$d 个）各发送一次请求。</item>
     </plurals>
@@ -1150,7 +1151,6 @@
     <string name="settings_logins_problem">目前无法打开已保存的登录：%1$s。</string>
     <string name="settings_logins_problem_locked">保管库已锁定</string>
     <string name="settings_logins_save_failed">无法保存登录信息。</string>
-    <string name="settings_selftest_check_crashed">检查本身失败了（%1$s）。</string>
 
     <!-- Settings → Models → On-device models: fit, states, problems and file kinds -->
     <string name="settings_ondevice_fitchip_fits">适合此手机</string>

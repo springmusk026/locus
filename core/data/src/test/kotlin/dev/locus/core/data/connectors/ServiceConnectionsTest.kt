@@ -1,7 +1,9 @@
 package dev.locus.core.data.connectors
 
 import dev.locus.core.agent.home.Connector
+import dev.locus.core.data.R
 import dev.locus.core.datastore.SecretStore
+import dev.locus.core.linux.EngineText
 import dev.locus.core.testing.TestGraph
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.engine.mock.toByteArray
@@ -46,17 +48,24 @@ class ServiceConnectionsTest {
         val req = g.requests.single()
         assertEquals("GET", req.method.value)
         assertEquals("https://rss.example.com/v1/me", req.url.toString())
-        assertFalse(key in result.detail)
+        assertEquals(EngineText.Res(R.string.data_service_passed, "rss.example.com", 200), result.detail)
+        assertFalse(key in result.detail.toString())
     }
 
     @Test
     fun `a refused key, a missing page and a server error say so without the key`() = runBlocking<Unit> {
-        for ((status, word) in listOf(HttpStatusCode.Unauthorized to "refused", HttpStatusCode.Forbidden to "permission", HttpStatusCode.NotFound to "404", HttpStatusCode.BadGateway to "error")) {
+        val said = listOf(
+            HttpStatusCode.Unauthorized to EngineText.Res(R.string.data_service_refused, "rss.example.com"),
+            HttpStatusCode.Forbidden to EngineText.Res(R.string.data_service_forbidden, "rss.example.com"),
+            HttpStatusCode.NotFound to EngineText.Res(R.string.data_service_not_found),
+            HttpStatusCode.BadGateway to EngineText.Res(R.string.data_service_server_error, "rss.example.com", 502),
+        )
+        for ((status, text) in said) {
             g.http = { respond("bad key $key", status) }
             val result = g.library.testService(miniflux, "https://rss.example.com", "", key)
             assertIs<ConnectionCheck.Failed>(result)
-            assertTrue(word in result.message, result.message)
-            assertFalse(key in result.message)
+            assertEquals(text, result.message)
+            assertFalse(key in result.message.toString())
         }
     }
 
@@ -65,7 +74,7 @@ class ServiceConnectionsTest {
         g.http = { respond("", HttpStatusCode.Found, headersOf(HttpHeaders.Location, "https://elsewhere.example/v1/me")) }
         val result = g.library.testService(miniflux, "https://rss.example.com", "", key)
         assertIs<ConnectionCheck.Failed>(result)
-        assertTrue("elsewhere.example" in result.message, result.message)
+        assertEquals(EngineText.Res(R.string.data_service_redirect, "rss.example.com", "elsewhere.example/v1/me"), result.message)
         assertEquals(listOf("rss.example.com"), g.requests.map { it.url.host })
     }
 
@@ -74,7 +83,7 @@ class ServiceConnectionsTest {
         g.http = { throw java.io.IOException("connection reset while sending X-Auth-Token: $key") }
         val result = g.library.testService(miniflux, "https://rss.example.com", "", key)
         assertIs<ConnectionCheck.Failed>(result)
-        assertFalse(key in result.message, result.message)
+        assertFalse(key in result.message.toString(), result.message.toString())
     }
 
     @Test
@@ -127,7 +136,8 @@ class ServiceConnectionsTest {
         assertEquals("https://rss.example.com/freshrss/api/greader.php/reader/api/0/user-info", g.requests.last().url.toString())
         val refused = g.library.testService(freshrss, "https://rss.example.com/freshrss", "alice", "wrong")
         assertIs<ConnectionCheck.Failed>(refused)
-        assertFalse("wrong" in refused.message)
+        assertEquals(EngineText.Res(R.string.data_service_login_refused, "rss.example.com"), refused.message)
+        assertFalse("wrong" in refused.message.toString())
 
         g.library.addService(freshrss, "https://rss.example.com/freshrss", "alice", "api-pass-1")
         assertEquals(token, g.secrets.get(SecretStore.connectorSecret("freshrss-token")))

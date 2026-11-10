@@ -115,7 +115,7 @@ class TerminalSessions @Inject constructor(
         override fun onSessionFinished(finishedSession: TerminalSession) {
             registry.finished(id, finishedSession.exitStatus)
             // Shown on the Workspace's Linux card with the fix (docs/design/linux-setup.md).
-            if (dev.locus.core.linux.AndroidKill.applies(finishedSession.exitStatus, dev.locus.core.linux.AndroidKill.appInBackground())) linux.noteAndroidKill("A terminal")
+            if (dev.locus.core.linux.AndroidKill.applies(finishedSession.exitStatus, dev.locus.core.linux.AndroidKill.appInBackground())) linux.noteAndroidKill("A terminal", dev.locus.core.linux.AndroidKillNotice.Kind.Terminal)
             onScreenUpdated?.invoke(finishedSession)
         }
 

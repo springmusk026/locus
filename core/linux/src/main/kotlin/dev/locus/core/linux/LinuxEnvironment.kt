@@ -32,10 +32,15 @@ import javax.inject.Singleton
 
 sealed interface LinuxStatus {
     data object NotInstalled : LinuxStatus
-    /** [fraction] is how far the current [step] is (0..1), or null when that isn't known (unpacking). */
-    data class Installing(val step: String, val fraction: Float? = null) : LinuxStatus
+    /**
+     * [fraction] is how far the current [step] is (0..1), or null when that isn't known (unpacking).
+     * [step] is English, for the model (linux tools say Linux is being installed); screens show [stepText].
+     */
+    data class Installing(val step: String, val fraction: Float? = null, val stepText: EngineText = EngineText.Plain(step)) : LinuxStatus
     data object Ready : LinuxStatus
-    data class Unavailable(val reason: String) : LinuxStatus
+
+    /** [reason] is English, for the model; screens show [reasonText]. */
+    data class Unavailable(val reason: String, val reasonText: EngineText = EngineText.Plain(reason)) : LinuxStatus
     data class Failed(val message: String) : LinuxStatus
 }
 
@@ -48,9 +53,21 @@ class LinuxNotInstalledException(val unavailableReason: String? = null) :
 
 /**
  * The last time Android killed one of Locus's Linux processes while Locus was in the background
- * ([AndroidKill]): [what] it was ("A command", "Service web", "A terminal") and [at] when.
+ * ([AndroidKill]): [what] it was ("A command", "Service web", "A terminal") and [at] when. [kind] and
+ * [name] (a service's) say the same for the screen, which words it in the app's language ([whatText]).
  */
-data class AndroidKillNotice(val what: String, val at: Long)
+data class AndroidKillNotice(val what: String, val at: Long, val kind: Kind? = null, val name: String? = null) {
+    enum class Kind { Command, Service, Terminal }
+
+    /** [what] in the app's language: "A command", "Service web", "A terminal". */
+    val whatText: EngineText
+        get() = when (kind) {
+            Kind.Command -> EngineText.Res(R.string.linux_kill_what_command)
+            Kind.Service -> EngineText.Res(R.string.linux_kill_what_service, name.orEmpty())
+            Kind.Terminal -> EngineText.Res(R.string.linux_kill_what_terminal)
+            null -> EngineText.Plain(what)
+        }
+}
 
 /**
  * [savedTo] is where the whole output was saved, scrubbed of secrets, when it was [truncated] and the
@@ -124,7 +141,9 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
 
     private fun initialStatus(): LinuxStatus = when {
         !File(context.applicationInfo.nativeLibraryDir, "libproot.so").exists() ->
-            LinuxStatus.Unavailable("This build doesn't include the Linux runtime for ${Build.SUPPORTED_ABIS.firstOrNull()}.")
+            Build.SUPPORTED_ABIS.firstOrNull().let { abi ->
+                LinuxStatus.Unavailable("This build doesn't include the Linux runtime for $abi.", EngineText.Res(R.string.linux_status_no_runtime, abi.toString()))
+            }
         File(File(context.filesDir, "linux"), ".installed-$ALPINE_VERSION").exists() -> LinuxStatus.Ready
         else -> LinuxStatus.NotInstalled
     }
@@ -151,12 +170,13 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
                     else -> throw IllegalStateException("Unsupported CPU: ${Build.SUPPORTED_ABIS.joinToString()}")
                 }
                 val downloading = "Downloading Alpine Linux $ALPINE_VERSION"
-                _status.value = LinuxStatus.Installing(downloading, 0f)
+                val downloadingText = EngineText.Res(R.string.linux_status_downloading, ALPINE_VERSION)
+                _status.value = LinuxStatus.Installing(downloading, 0f, downloadingText)
                 base.mkdirs()
-                download(arch.url, archive, arch.sha256) { fraction -> _status.value = LinuxStatus.Installing(downloading, fraction) }
+                download(arch.url, archive, arch.sha256) { fraction -> _status.value = LinuxStatus.Installing(downloading, fraction, downloadingText) }
 
                 currentCoroutineContext().ensureActive()
-                _status.value = LinuxStatus.Installing("Unpacking")
+                _status.value = LinuxStatus.Installing("Unpacking", stepText = EngineText.Res(R.string.linux_status_unpacking))
                 FileTrees.delete(rootfs)
                 rootfs.mkdirs()
                 GZIPInputStream(archive.inputStream().buffered()).use { Tar.extract(it, rootfs) }
@@ -235,8 +255,8 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
     val androidKill: StateFlow<AndroidKillNotice?> = _androidKill.asStateFlow()
 
     /** Records that Android killed [what] (see [AndroidKill]); the Workspace's Linux card explains it. */
-    fun noteAndroidKill(what: String) {
-        _androidKill.value = AndroidKillNotice(what, System.currentTimeMillis())
+    fun noteAndroidKill(what: String, kind: AndroidKillNotice.Kind? = null, name: String? = null) {
+        _androidKill.value = AndroidKillNotice(what, System.currentTimeMillis(), kind, name)
     }
 
     fun dismissAndroidKill() {
@@ -314,7 +334,7 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
                         code, redactor.scrub(output.text()), timedOut = !exited, truncated = output.truncated,
                         killedByAndroid = AndroidKill.applies(code, inBackground()),
                     )
-                    if (result.killedByAndroid) noteAndroidKill("A command")
+                    if (result.killedByAndroid) noteAndroidKill("A command", AndroidKillNotice.Kind.Command)
                     if (spool == null || saveFullOutputTo == null || !output.truncated) return@coroutineScope result
                     // The output folder is in /workspace, where Linux can leave a link at the name; replace, never write through.
                     // A folder on the way that Linux made a link is refused; the result is then just not saved.
@@ -500,7 +520,7 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
         Thread({
             val code = runCatching { service.process.waitFor() }.getOrNull()
             if (!service.stopping) service.killedByAndroid = AndroidKill.applies(code, inBackground())
-            if (service.killedByAndroid) noteAndroidKill("Service ${service.name}")
+            if (service.killedByAndroid) noteAndroidKill("Service ${service.name}", AndroidKillNotice.Kind.Service, service.name)
             // Kept on disk, so after a restart a crash still reads as a crash, not as "a restart ended it".
             if (!service.stopping && code != null && services[service.name] === service) {
                 runCatching { records.update(service.name) { r -> if (r.startedAt == service.startedAt) r.copy(exitCode = code, killedByAndroid = service.killedByAndroid) else r } }

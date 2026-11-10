@@ -7,10 +7,14 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import dev.locus.core.data.diagnostics.StorageNotices
 import dev.locus.core.designsystem.LocusFeedbackHost
 import dev.locus.core.designsystem.ProvideLocusFeedback
+import dev.locus.core.designsystem.asString
+import dev.locus.core.model.SettingsDestination
 import dev.locus.core.designsystem.R as DesignR
 import dev.locus.core.designsystem.rememberLocusFeedbackState
 import androidx.compose.foundation.layout.fillMaxSize
@@ -398,11 +402,12 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
 @Composable
 private fun RestoreNotice() {
     val notice: RestoreNoticeViewModel = hiltViewModel()
-    val message = notice.message.collectAsStateWithLifecycle().value ?: return
+    val paragraphs = notice.message.collectAsStateWithLifecycle().value ?: return
     val title = stringResource(if (notice.restoreUnfinished) R.string.app_restore_unfinished_title else R.string.app_restore_tasks_off_title)
+    val message = paragraphs.map { it.asString() }.joinToString("\n\n")
     LocusSheet(title = title, onDismiss = notice::dismiss, action = stringResource(DesignR.string.common_ok), onAction = notice::dismiss) {
         Text(message, style = LocusType.rowSupporting)
-        SettingsLinkIn(message, beforeOpen = notice::dismiss)
+        SettingsLinkIn(message, destination = notice.destination, beforeOpen = notice::dismiss)
     }
 }
 
@@ -410,10 +415,14 @@ private fun RestoreNotice() {
 @Composable
 private fun IntegrityNotice() {
     val notice: IntegrityNoticeViewModel = hiltViewModel()
-    val message = notice.message.collectAsStateWithLifecycle().value ?: return
+    val paragraphs = notice.messages.collectAsStateWithLifecycle().value
+    if (paragraphs.isEmpty()) return
+    val destination = notice.destination.collectAsStateWithLifecycle().value
+    val resources = LocalResources.current
+    val message = paragraphs.joinToString("\n\n") { it.asString(resources) }
     LocusSheet(title = stringResource(R.string.app_integrity_title), onDismiss = notice::dismiss, action = stringResource(DesignR.string.common_ok), onAction = notice::dismiss) {
         Text(message, style = LocusType.rowSupporting)
-        SettingsLinkIn(message, beforeOpen = notice::dismiss)
+        SettingsLinkIn(message, destination = destination, beforeOpen = notice::dismiss)
     }
 }
 
@@ -431,9 +440,13 @@ private fun StorageNotice() {
             else -> R.string.app_storage_reset_title
         },
     )
+    // Known notices are said in the app's language; each of those names Diagnostics.
+    val resources = LocalResources.current
+    val message = notices.joinToString("\n\n") { StorageNotices.text(it).asString(resources) }
+    val destination = if (notices.any(StorageNotices::isKnown)) SettingsDestination.Diagnostics else SettingsDestination.inText(notices.joinToString("\n\n"))
     LocusSheet(title = title, onDismiss = notice::dismiss, action = stringResource(DesignR.string.common_ok), onAction = notice::dismiss) {
-        Text(notices.joinToString("\n\n"), style = LocusType.rowSupporting)
-        SettingsLinkIn(notices.joinToString("\n\n"), beforeOpen = notice::dismiss)
+        Text(message, style = LocusType.rowSupporting)
+        SettingsLinkIn(message, destination = destination, beforeOpen = notice::dismiss)
     }
 }
 
@@ -458,9 +471,10 @@ private fun SavedKeysReset() {
     ) {
         Text(stringResource(R.string.app_keys_reset_message), style = LocusType.rowSupporting)
         if (error != null) {
-            Text(error, style = LocusType.rowSupporting, color = MaterialTheme.colorScheme.error)
+            val text = error.asString()
+            Text(text, style = LocusType.rowSupporting, color = MaterialTheme.colorScheme.error)
             // The view model's one error names Diagnostics.
-            SettingsLinkIn(error, destination = dev.locus.core.model.SettingsDestination.Diagnostics, beforeOpen = vm::notNow)
+            SettingsLinkIn(text, destination = dev.locus.core.model.SettingsDestination.Diagnostics, beforeOpen = vm::notNow)
         }
         TextButton(onClick = vm::notNow, enabled = !busy) { Text(stringResource(DesignR.string.common_not_now)) }
     }

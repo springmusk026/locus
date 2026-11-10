@@ -67,6 +67,7 @@ import dev.locus.core.linux.LinuxHealth
 import dev.locus.core.linux.LinuxInventory
 import dev.locus.core.linux.LinuxStatus
 import dev.locus.feature.workspace.R
+import dev.locus.feature.workspace.linux.asString
 
 /**
  * Installed Linux packages (docs/design/linux-health.md#packages): "You installed" by default (world
@@ -239,7 +240,7 @@ private fun PackageRow(
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val size = LinuxHealth.bytes(p.installedBytes).takeIf { p.installedBytes > 0 }
+    val size = LinuxHealth.bytesText(p.installedBytes).asString().takeIf { p.installedBytes > 0 }
     val rowState = stringResource(if (expanded) R.string.workspace_packages_expanded else R.string.workspace_packages_collapsed)
     ListRow(
         title = p.name,

@@ -1,6 +1,8 @@
 package dev.locus.core.data.linux
 
+import dev.locus.core.data.R
 import dev.locus.core.linux.AndroidKillNotice
+import dev.locus.core.linux.EngineText
 import dev.locus.core.linux.LinuxEnvironment
 import dev.locus.core.linux.LinuxStatus
 import kotlin.math.ceil
@@ -9,9 +11,9 @@ import kotlin.math.max
 /** Roughly what an install downloads and takes on the phone, and how long it takes. */
 data class InstallEstimate(val downloadMb: Int, val diskMb: Int, val minutes: Int) {
     /** "About 15 MB to download, 44 MB on the phone. Usually about 2 minutes on Wi-Fi." */
-    val summary: String
-        get() = "About $downloadMb MB to download, $diskMb MB on the phone. " +
-            if (minutes <= 1) "Usually under a minute on Wi-Fi." else "Usually about $minutes minutes on Wi-Fi."
+    val summary: EngineText
+        get() = if (minutes <= 1) EngineText.Res(R.string.data_linux_estimate_under_a_minute, downloadMb, diskMb)
+        else EngineText.Plural(R.plurals.data_linux_estimate_minutes, minutes, downloadMb, diskMb, minutes)
 
     companion object {
         /** The Alpine minirootfs: 4.0 MB from dl-cdn.alpinelinux.org, 8.5 MB unpacked (3.24.3, aarch64). */
@@ -38,7 +40,7 @@ data class InstallEstimate(val downloadMb: Int, val diskMb: Int, val minutes: In
  */
 sealed interface LinuxPanel {
     /** This phone can't run it (no proot for its CPU). Nothing to install. */
-    data class Unavailable(val reason: String) : LinuxPanel
+    data class Unavailable(val reason: EngineText) : LinuxPanel
 
     /** Not installed: offer Install with what it costs. */
     data class NotInstalled(val estimate: InstallEstimate) : LinuxPanel
@@ -49,7 +51,7 @@ sealed interface LinuxPanel {
      */
     data class Working(
         val operation: LinuxOperation,
-        val step: String,
+        val step: EngineText,
         val fraction: Float?,
         val cancellable: Boolean,
     ) : LinuxPanel
@@ -65,7 +67,7 @@ sealed interface LinuxPanel {
     }
 
     /** The install failed, with why; Try again installs again. */
-    data class Failed(val reason: String) : LinuxPanel
+    data class Failed(val reason: EngineText) : LinuxPanel
 }
 
 /** Facts about an installed system, read on IO by the screen. */
@@ -86,19 +88,19 @@ fun linuxPanel(
     facts: LinuxFacts,
     selected: Collection<LinuxPackage>,
 ): LinuxPanel = when {
-    status is LinuxStatus.Unavailable -> LinuxPanel.Unavailable(status.reason)
+    status is LinuxStatus.Unavailable -> LinuxPanel.Unavailable(status.reasonText)
     setup.running || status is LinuxStatus.Installing -> {
         val operation = setup.operation ?: LinuxOperation.Install
         val installing = status as? LinuxStatus.Installing
         LinuxPanel.Working(
             operation = operation,
-            step = installing?.step ?: setup.phase ?: "Working…",
+            step = installing?.stepText ?: setup.phase ?: EngineText.Res(R.string.data_linux_working),
             fraction = installing?.fraction ?: setup.progress,
             cancellable = setup.cancellable,
         )
     }
     status == LinuxStatus.Ready -> LinuxPanel.Installed(facts.version, facts.diskBytes, facts.services, facts.killed)
-    status is LinuxStatus.Failed -> LinuxPanel.Failed(status.message)
+    status is LinuxStatus.Failed -> LinuxPanel.Failed(EngineText.Plain(status.message))
     // A run that failed before Linux reported anything (an unsupported CPU, a crash in setup).
     setup.error != null && !setup.cancelled -> LinuxPanel.Failed(setup.error)
     else -> LinuxPanel.NotInstalled(InstallEstimate.of(selected))

@@ -1,5 +1,6 @@
 package dev.locus.feature.settings
 
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import dev.locus.core.designsystem.ConfirmSheet
@@ -74,6 +75,7 @@ import dev.locus.core.model.ProviderPresets
 import dev.locus.core.ondevice.MemoryGate
 import dev.locus.core.ondevice.ModelState
 import dev.locus.core.ondevice.OnDeviceModel
+import dev.locus.core.ui.noteText
 import java.net.URI
 import java.util.UUID
 import dev.locus.core.designsystem.Insets
@@ -376,7 +378,7 @@ private fun PresetPicker(onPick: (ProviderPreset) -> Unit, onDismiss: () -> Unit
                 if (i > 0) GroupDivider(inset = Insets.iconRow)
                 ListRow(
                     title = preset.name,
-                    subtitle = preset.note,
+                    subtitle = preset.noteText(LocalResources.current),
                     titleMaxLines = 2,
                     subtitleMaxLines = Int.MAX_VALUE,
                     onClick = { onPick(preset) },

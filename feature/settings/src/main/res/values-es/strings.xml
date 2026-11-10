@@ -412,6 +412,7 @@
     <string name="settings_selftest_level_warn">Aviso</string>
     <string name="settings_selftest_level_fail">Con error</string>
     <string name="settings_selftest_level_skipped">Omitida</string>
+    <string name="settings_selftest_check_failed">La propia comprobación falló (%1$s).</string>
     <plurals name="settings_selftest_providers_requests">
         <item quantity="one">Usa la red: una solicitud a tu proveedor.</item>
         <item quantity="many">Usa la red: una solicitud a cada uno de tus %1$d proveedores.</item>
@@ -1196,7 +1197,6 @@
     <string name="settings_logins_problem">Ahora no se pueden abrir los inicios de sesión guardados: %1$s.</string>
     <string name="settings_logins_problem_locked">el almacén está bloqueado</string>
     <string name="settings_logins_save_failed">No se pudo guardar el inicio de sesión.</string>
-    <string name="settings_selftest_check_crashed">La propia comprobación falló (%1$s).</string>
 
     <!-- Settings → Models → On-device models: fit, states, problems and file kinds -->
     <string name="settings_ondevice_fitchip_fits">Cabe en este teléfono</string>

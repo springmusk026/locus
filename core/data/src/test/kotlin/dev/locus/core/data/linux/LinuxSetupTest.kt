@@ -1,6 +1,8 @@
 package dev.locus.core.data.linux
 
+import dev.locus.core.data.R
 import dev.locus.core.linux.CommandResult
+import dev.locus.core.linux.EngineText
 import dev.locus.core.linux.LinuxStatus
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -80,7 +82,7 @@ class LinuxSetupTest {
         assertEquals(LinuxStatus.Ready, linux.status.value)
         assertEquals(PackageState.Installed, s.packages[LinuxPackage.Python])
         assertEquals(PackageState.Installed, s.packages[LinuxPackage.Git])
-        assertEquals("Installed Python, Git.", s.message)
+        assertEquals(EngineText.Res(R.string.data_linux_installed, "Python, Git"), s.message)
         assertNull(s.error)
         // apk update once, then one apk add per package, in the offered order.
         assertEquals(listOf("apk update", "apk add --no-progress python3 py3-pip", "apk add --no-progress git"), linux.commands.filter { !it.startsWith("apk info") })
@@ -103,14 +105,14 @@ class LinuxSetupTest {
         setup.install(emptyList())
         runCurrent()
         assertFalse(setup.state.value.running)
-        assertEquals("Unable to resolve host dl-cdn.alpinelinux.org", setup.state.value.error)
+        assertEquals(EngineText.Plain("Unable to resolve host dl-cdn.alpinelinux.org"), setup.state.value.error)
         assertTrue(linux.status.value is LinuxStatus.Failed)
 
         linux.installError = null
         setup.install(emptyList())
         runCurrent()
         assertNull(setup.state.value.error)
-        assertEquals("Linux is ready.", setup.state.value.message)
+        assertEquals(EngineText.Res(R.string.data_linux_ready), setup.state.value.message)
         assertEquals(LinuxStatus.Ready, linux.status.value)
     }
 
@@ -123,7 +125,9 @@ class LinuxSetupTest {
         val s = setup.state.value
         assertTrue(s.packages[LinuxPackage.Curl] is PackageState.Failed)
         assertTrue(s.packages[LinuxPackage.Git] is PackageState.Failed)
-        assertTrue(s.error!!.startsWith("Couldn't reach Alpine's package servers."))
+        val why = EngineText.Res(R.string.data_linux_update_unreachable)
+        assertEquals(PackageState.Failed(why), s.packages[LinuxPackage.Curl])
+        assertEquals(EngineText.Res(R.string.data_linux_with_output, EngineText.Res(R.string.data_linux_update_failed, why), "fetch failed"), s.error)
     }
 
     @Test
@@ -134,9 +138,12 @@ class LinuxSetupTest {
         runCurrent()
         val s = setup.state.value
         val failed = assertNotNull(s.packages[LinuxPackage.Node] as? PackageState.Failed)
-        assertTrue("unable to select packages" in failed.detail)
+        assertEquals(
+            EngineText.Res(R.string.data_linux_with_output, EngineText.Res(R.string.data_linux_package_exit, "1"), "ERROR: unable to select packages"),
+            failed.detail,
+        )
         assertEquals(PackageState.Installed, s.packages[LinuxPackage.Curl])
-        assertEquals("1 of 2 couldn't be installed. See below; you can retry.", s.error)
+        assertEquals(EngineText.Res(R.string.data_linux_packages_failed, 1, 2), s.error)
     }
 
     @Test
@@ -199,7 +206,7 @@ class LinuxSetupTest {
         runCurrent()
         assertEquals(LinuxStatus.Ready, linux.status.value)
         assertEquals(setOf("git"), linux.installed)
-        assertEquals("Linux was reinstalled with Git.", setup.state.value.message)
+        assertEquals(EngineText.Res(R.string.data_linux_reinstalled_with, "Git"), setup.state.value.message)
     }
 
     @Test
@@ -210,12 +217,12 @@ class LinuxSetupTest {
         assertEquals(LinuxOperation.Repair, setup.state.value.operation)
         assertFalse(setup.state.value.cancellable)
         runCurrent()
-        assertEquals("Repaired. Alpine Linux 3.24.3 starts normally.", setup.state.value.message)
+        assertEquals(EngineText.Res(R.string.data_linux_repaired, "3.24.3"), setup.state.value.message)
 
         linux.repairError = IllegalStateException("Linux's own files are damaged or missing. Reinstall it to fix this.")
         setup.repair()
         runCurrent()
-        assertEquals("Linux's own files are damaged or missing. Reinstall it to fix this.", setup.state.value.error)
+        assertEquals(EngineText.Plain("Linux's own files are damaged or missing. Reinstall it to fix this."), setup.state.value.error)
         assertFalse(setup.state.value.running)
     }
 
@@ -231,7 +238,7 @@ class LinuxSetupTest {
         runCurrent()
         assertEquals(LinuxStatus.NotInstalled, linux.status.value)
         assertTrue(setup.state.value.packages.isEmpty())
-        assertEquals("Linux was removed. Your workspace files are still here.", setup.state.value.message)
+        assertEquals(EngineText.Res(R.string.data_linux_removed), setup.state.value.message)
         setup.outcomeShown()
         assertNull(setup.state.value.message)
     }

@@ -23,6 +23,10 @@
     <string name="app_keys_reset_title">No se pueden abrir las claves guardadas</string>
     <string name="app_keys_reset_action">Restablecer</string>
     <string name="app_keys_reset_message">Locus no puede abrir tus claves guardadas. Puede pasar tras cambiar el bloqueo de pantalla o restaurar el teléfono. ¿Restablecer y volver a ingresar las claves? (Se conserva una copia por si se puede recuperar.)</string>
+    <string name="app_keys_reset_failed">El restablecimiento no abrió claves nuevas. Hay más detalles en Ajustes → Acerca de y privacidad → Diagnóstico.</string>
+    <string name="app_restore_rolled_back">La restauración de la copia de seguridad no terminó; tus datos y claves guardadas siguen como estaban. Vuelve a intentarlo desde Ajustes → Copia de seguridad y restauración.</string>
+    <string name="app_restore_retrying">La restauración de la copia de seguridad no terminó y aún no se pudieron recuperar algunos de tus datos. Locus lo intentará de nuevo la próxima vez que se inicie. Reinicia Locus antes de volver a restaurar.</string>
+    <string name="app_restore_tasks_failed">Tus tareas programadas no se pudieron volver a configurar después de la restauración (%1$s). No se ejecutarán hasta que se configuren; Locus lo intentará de nuevo la próxima vez que se inicie.</string>
     <plurals name="app_share_failures_title">
         <item quantity="one">No se importó un archivo compartido</item>
         <item quantity="many">No se importaron %1$d archivos compartidos</item>

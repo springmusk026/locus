@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.locus.core.data.backup.BackupManager
+import dev.locus.core.designsystem.UiText
+import dev.locus.core.model.SettingsDestination
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,11 +20,16 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class RestoreNoticeViewModel @Inject constructor(private val backup: BackupManager) : ViewModel() {
-    private val _message = MutableStateFlow<String?>(null)
-    val message: StateFlow<String?> = _message.asStateFlow()
+    /** The paragraphs to show, or null when there's nothing to say. */
+    private val _message = MutableStateFlow<List<UiText>?>(null)
+    val message: StateFlow<List<UiText>?> = _message.asStateFlow()
 
-    private var restoreMessage: String? = null
-    private var tasksMessage: String? = null
+    private var restoreMessage: UiText? = null
+    private var tasksMessage: UiText? = null
+
+    /** The page the restore message names (Backup & restore after a rollback), for its link. */
+    var destination: SettingsDestination? = null
+        private set
 
     /** Whether the message includes a restore that didn't finish (else it's only about scheduled tasks); for the title. */
     val restoreUnfinished: Boolean get() = restoreMessage != null
@@ -30,22 +37,16 @@ class RestoreNoticeViewModel @Inject constructor(private val backup: BackupManag
     init {
         viewModelScope.launch {
             val failure = runCatching { backup.restoreFailure() }.getOrNull() ?: return@launch
-            restoreMessage = if (failure.rolledBack) {
-                // True for the vault too: it's swapped in with everything else, and rolled back with it.
-                "Restoring the backup didn't finish; your data and saved keys are as they were before. " +
-                    "Try again from Settings → Backup & restore."
-            } else {
-                "Restoring the backup didn't finish, and some of your data couldn't be put back yet. " +
-                    "Locus tries again the next time it starts. Restart Locus before restoring again."
-            }
+            // Rolled back is true for the vault too: it's swapped in with everything else, and rolled back with it.
+            restoreMessage = UiText.Res(if (failure.rolledBack) R.string.app_restore_rolled_back else R.string.app_restore_retrying)
+            destination = SettingsDestination.Backup.takeIf { failure.rolledBack }
             show()
         }
         viewModelScope.launch {
             runCatching {
                 backup.rescheduleFailures().collect { reason ->
                     if (reason == null) return@collect
-                    tasksMessage = "Your scheduled tasks couldn't be set up again after the restore ($reason). " +
-                        "They won't run until they are; Locus tries again the next time it starts."
+                    tasksMessage = UiText.Res(R.string.app_restore_tasks_failed, reason)
                     show()
                 }
             }
@@ -53,7 +54,7 @@ class RestoreNoticeViewModel @Inject constructor(private val backup: BackupManag
     }
 
     private fun show() {
-        _message.update { listOfNotNull(restoreMessage, tasksMessage).joinToString("\n\n").ifEmpty { null } }
+        _message.update { listOfNotNull(restoreMessage, tasksMessage).ifEmpty { null } }
     }
 
     fun dismiss() {

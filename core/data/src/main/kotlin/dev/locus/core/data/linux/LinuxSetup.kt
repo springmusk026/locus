@@ -1,9 +1,12 @@
 package dev.locus.core.data.linux
 
 import android.content.Context
+import androidx.annotation.StringRes
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.locus.core.data.R
 import dev.locus.core.data.di.ApplicationScope
 import dev.locus.core.linux.CommandResult
+import dev.locus.core.linux.EngineText
 import dev.locus.core.linux.LinuxEnvironment
 import dev.locus.core.linux.LinuxStatus
 import kotlinx.coroutines.CancellationException
@@ -26,11 +29,12 @@ import javax.inject.Singleton
  * (7 MB), nodejs 17.1 MB (46.7 MB) and npm 2.2 MB (7.5 MB), curl 0.2 MB (0.3 MB), each before
  * dependencies (aarch64, 2026-11-02).
  */
-enum class LinuxPackage(val label: String, val note: String, val apk: List<String>, val downloadMb: Int, val diskMb: Int) {
-    Python("Python", "python3 and pip", listOf("python3", "py3-pip"), downloadMb = 11, diskMb = 35),
-    Git("Git", "version control", listOf("git"), downloadMb = 5, diskMb = 10),
-    Node("Node.js", "node and npm", listOf("nodejs", "npm"), downloadMb = 22, diskMb = 65),
-    Curl("curl", "HTTP from the shell", listOf("curl"), downloadMb = 1, diskMb = 1),
+/** An offered tool: [label] is its name (not translated), [noteRes] what it is, in the app's language. */
+enum class LinuxPackage(val label: String, @param:StringRes val noteRes: Int, val apk: List<String>, val downloadMb: Int, val diskMb: Int) {
+    Python("Python", R.string.data_linux_package_python_note, listOf("python3", "py3-pip"), downloadMb = 11, diskMb = 35),
+    Git("Git", R.string.data_linux_package_git_note, listOf("git"), downloadMb = 5, diskMb = 10),
+    Node("Node.js", R.string.data_linux_package_node_note, listOf("nodejs", "npm"), downloadMb = 22, diskMb = 65),
+    Curl("curl", R.string.data_linux_package_curl_note, listOf("curl"), downloadMb = 1, diskMb = 1),
 }
 
 /** How one offered package stands: unknown, already there, waiting, being installed, or failed. */
@@ -39,7 +43,8 @@ sealed interface PackageState {
     data object Installed : PackageState
     data object Queued : PackageState
     data object Installing : PackageState
-    data class Failed(val detail: String) : PackageState
+    /** Why, then apk's last lines of output when there are any. */
+    data class Failed(val detail: EngineText) : PackageState
 }
 
 /** What [LinuxSetup] is doing. Install and Reinstall download, so they run as a foreground job. */
@@ -49,16 +54,16 @@ enum class LinuxOperation { Install, Reinstall, Repair, Remove }
  * Linux setup as onboarding and the Workspace's Linux card show it: whether an [operation] is
  * [running], its current [phase] and [progress] (0..1, null when unknown), each package's state, and
  * the last outcome ([message] on success, [error] on failure). [cancelled] is set when the user
- * cancelled the last install.
+ * cancelled the last install. The texts are only shown, never given to the model.
  */
 data class LinuxSetupState(
     val running: Boolean = false,
     val operation: LinuxOperation? = null,
-    val phase: String? = null,
+    val phase: EngineText? = null,
     val progress: Float? = null,
     val packages: Map<LinuxPackage, PackageState> = emptyMap(),
-    val message: String? = null,
-    val error: String? = null,
+    val message: EngineText? = null,
+    val error: EngineText? = null,
     val cancelled: Boolean = false,
 ) {
     val installedPackages: Set<LinuxPackage> get() = packages.filterValues { it == PackageState.Installed }.keys
@@ -147,7 +152,7 @@ class LinuxSetup(
             it.copy(
                 running = true,
                 operation = if (reinstall) LinuxOperation.Reinstall else LinuxOperation.Install,
-                phase = "Starting…",
+                phase = EngineText.Res(R.string.data_linux_phase_starting),
                 progress = null,
                 error = null,
                 message = null,
@@ -192,44 +197,44 @@ class LinuxSetup(
         var cancelled = false
         try {
             if (request.reinstall) {
-                phase("Removing the old Linux system…")
+                phase(R.string.data_linux_phase_removing_old)
                 linux.uninstall()
             }
             if (linux.status.value != LinuxStatus.Ready) {
-                phase("Installing Alpine Linux…")
+                phase(R.string.data_linux_phase_installing_alpine)
                 linux.ensureInstalled()
             }
             if (chosen.isEmpty()) {
-                _state.update { it.copy(message = if (request.reinstall) "Linux was reinstalled." else "Linux is ready.") }
+                _state.update { it.copy(message = EngineText.Res(if (request.reinstall) R.string.data_linux_reinstalled else R.string.data_linux_ready)) }
                 refreshInstalled()
                 return@withLock
             }
-            phase("Checking what's already installed…")
+            phase(R.string.data_linux_phase_checking)
             val already = installedPackages()
             setPackages(chosen.filter { it in already }.associateWith { PackageState.Installed })
             val todo = chosen.filterNot { it in already }
             if (todo.isNotEmpty()) {
-                phase("Updating the package list (apk update)…")
+                phase(R.string.data_linux_phase_updating)
                 val update = linux.run("apk update", timeoutMs = 5 * 60_000L, maxChars = 4_000)
                 if (update.exitCode != 0) {
-                    val why = if (update.timedOut) "apk update timed out." else "Couldn't reach Alpine's package servers."
+                    val why = EngineText.Res(if (update.timedOut) R.string.data_linux_update_timed_out else R.string.data_linux_update_unreachable)
                     setPackages(todo.associateWith { PackageState.Failed(why) })
-                    _state.update { it.copy(error = "$why Check the internet connection and try again.\n${tail(update.output)}".trim()) }
+                    _state.update { it.copy(error = withOutput(EngineText.Res(R.string.data_linux_update_failed, why), update.output)) }
                     return@withLock
                 }
                 todo.forEachIndexed { i, p ->
-                    _state.update { it.copy(phase = "Installing ${p.label} (${i + 1} of ${todo.size})…", progress = i.toFloat() / todo.size) }
+                    _state.update { it.copy(phase = EngineText.Res(R.string.data_linux_phase_installing_package, p.label, i + 1, todo.size), progress = i.toFloat() / todo.size) }
                     setPackages(mapOf(p to PackageState.Installing))
                     val r = runCatching { linux.run("apk add --no-progress ${p.apk.joinToString(" ")}", timeoutMs = 10 * 60_000L, maxChars = 6_000) }
                     val state = r.fold(
                         onSuccess = { res ->
                             when {
                                 res.exitCode == 0 -> PackageState.Installed
-                                res.timedOut -> PackageState.Failed("Timed out. The agent can finish this later with apk add.\n${tail(res.output)}".trim())
-                                else -> PackageState.Failed("apk exited with ${res.exitCode}\n${tail(res.output)}".trim())
+                                res.timedOut -> PackageState.Failed(withOutput(EngineText.Res(R.string.data_linux_package_timed_out), res.output))
+                                else -> PackageState.Failed(withOutput(EngineText.Res(R.string.data_linux_package_exit, res.exitCode.toString()), res.output))
                             }
                         },
-                        onFailure = { e -> if (e is CancellationException) throw e else PackageState.Failed(e.message ?: e.toString()) },
+                        onFailure = { e -> if (e is CancellationException) throw e else PackageState.Failed(EngineText.Plain(e.message ?: e.toString())) },
                     )
                     setPackages(mapOf(p to state))
                 }
@@ -237,16 +242,16 @@ class LinuxSetup(
             val failed = chosen.count { _state.value.packages[it] is PackageState.Failed }
             _state.update {
                 when {
-                    failed > 0 -> it.copy(error = "$failed of ${chosen.size} couldn't be installed. See below; you can retry.")
-                    request.reinstall -> it.copy(message = "Linux was reinstalled with ${chosen.joinToString { p -> p.label }}.")
-                    else -> it.copy(message = "Installed ${chosen.joinToString { p -> p.label }}.")
+                    failed > 0 -> it.copy(error = EngineText.Res(R.string.data_linux_packages_failed, failed, chosen.size))
+                    request.reinstall -> it.copy(message = EngineText.Res(R.string.data_linux_reinstalled_with, chosen.joinToString { p -> p.label }))
+                    else -> it.copy(message = EngineText.Res(R.string.data_linux_installed, chosen.joinToString { p -> p.label }))
                 }
             }
         } catch (e: CancellationException) {
             cancelled = true
             throw e
         } catch (e: Throwable) {
-            _state.update { it.copy(error = e.message ?: e.toString()) }
+            _state.update { it.copy(error = EngineText.Plain(e.message ?: e.toString())) }
         } finally {
             executing = false
             finish(cancelled)
@@ -262,7 +267,7 @@ class LinuxSetup(
                 phase = null,
                 progress = null,
                 cancelled = cancelled,
-                message = if (cancelled) "Cancelled. Nothing it downloaded was kept." else s.message,
+                message = if (cancelled) EngineText.Res(R.string.data_linux_cancelled) else s.message,
                 packages = s.packages.mapValues { (_, v) -> if (v == PackageState.Queued || v == PackageState.Installing) PackageState.Unknown else v },
             )
         }
@@ -272,16 +277,16 @@ class LinuxSetup(
      * Rewrites the files Locus manages in Linux and checks it starts (see [LinuxEnvironment.repair]);
      * packages and the workspace are kept.
      */
-    fun repair() = quick(LinuxOperation.Repair, "Repairing…") {
+    fun repair() = quick(LinuxOperation.Repair, R.string.data_linux_phase_repairing) {
         val release = linux.repair()
-        "Repaired. Alpine Linux $release starts normally."
+        EngineText.Res(R.string.data_linux_repaired, release)
     }
 
     /** Removes Linux and its packages (services stop first). The workspace is kept. */
-    fun remove() = quick(LinuxOperation.Remove, "Removing Linux…") {
+    fun remove() = quick(LinuxOperation.Remove, R.string.data_linux_phase_removing) {
         linux.uninstall()
         _state.update { it.copy(packages = emptyMap()) }
-        "Linux was removed. Your workspace files are still here."
+        EngineText.Res(R.string.data_linux_removed)
     }
 
     /** Clears the last outcome once a screen has shown it. */
@@ -293,10 +298,10 @@ class LinuxSetup(
         scope.launch { runCatching { refreshInstalled() } }
     }
 
-    private fun quick(operation: LinuxOperation, phase: String, block: suspend () -> String) {
+    private fun quick(operation: LinuxOperation, @StringRes phase: Int, block: suspend () -> EngineText) {
         if (_state.value.running || pending) return
         pending = true
-        _state.update { it.copy(running = true, operation = operation, phase = phase, progress = null, error = null, message = null, cancelled = false) }
+        _state.update { it.copy(running = true, operation = operation, phase = EngineText.Res(phase), progress = null, error = null, message = null, cancelled = false) }
         scope.launch {
             lock.withLock {
                 try {
@@ -305,7 +310,7 @@ class LinuxSetup(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Throwable) {
-                    _state.update { it.copy(error = e.message ?: e.toString()) }
+                    _state.update { it.copy(error = EngineText.Plain(e.message ?: e.toString())) }
                 } finally {
                     finish(cancelled = false)
                 }
@@ -320,7 +325,7 @@ class LinuxSetup(
         }
     }
 
-    private fun phase(text: String) = _state.update { it.copy(phase = text, progress = null) }
+    private fun phase(@StringRes text: Int) = _state.update { it.copy(phase = EngineText.Res(text), progress = null) }
 
     private fun setPackages(states: Map<LinuxPackage, PackageState>) = _state.update { it.copy(packages = it.packages + states) }
 
@@ -333,4 +338,8 @@ class LinuxSetup(
     }
 
     private fun tail(output: String) = output.trim().lines().takeLast(6).joinToString("\n")
+
+    /** [text], then the last lines of [output] on the lines below, when there are any. */
+    private fun withOutput(text: EngineText, output: String): EngineText =
+        tail(output).takeIf { it.isNotEmpty() }?.let { EngineText.Res(R.string.data_linux_with_output, text, it) } ?: text
 }
