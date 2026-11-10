@@ -5,6 +5,7 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Added
+- **The agent can look at images in its workspace.** With the new `view_image`, a vision model sees a screenshot it rendered, a chart it drew or a photo it downloaded: up to 4 images per call, named by path. Images are scaled to at most 1568 px, stripped of EXIF and other metadata, and kept as Locus's own copy, so the chat's history (and its prompt cache) never changes when the file does. Each provider gets its own shape (Anthropic and OpenAI Responses inside the tool result, OpenAI-compatible servers as one message after the tool results). A model without vision, and on-device models, get a clear message instead. The step row shows small thumbnails; tap to open them full screen. Found on demand, so older chats' tool lists and prompts are unchanged. See [view_image](docs/design/view-image.md). *Not yet tried on the phone.*
 - **Settings → Language.** Locus can use a language of its own, apart from the phone's: Same as phone, English, Español, Português (Brasil) or 简体中文. It needs Android 13 or later, where the same choice is also in App info → Language; on older phones Locus follows the phone's language. For now every screen is still English; the translations follow in later releases. *Not yet tried on the phone.*
 
 ### Fixed
