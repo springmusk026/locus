@@ -5,10 +5,15 @@ import dev.locus.core.agent.home.MemoryReads
 import dev.locus.core.agent.home.MemoryRef
 import dev.locus.core.model.Part
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /** The steps card's "Memory read" list, worked out from a turn's calls as the transcript holds them. */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36])
 class MemoryReadItemsTest {
     private fun call(name: String, args: String, result: String?, error: Boolean = false) =
         ChatItem.ToolCall("k-$name-$args", name, args, result?.let { Part.ToolResult("id", name, it, isError = error) })
@@ -33,7 +38,7 @@ class MemoryReadItemsTest {
 
     @Test
     fun `topics are listed in words, general memory marked`() {
-        assertEquals("coffee preferences", memoryReadLabel(MemoryRef("coffee-preferences")))
-        assertEquals("नेपाली खाना · general memory", memoryReadLabel(MemoryRef("नेपाली-खाना", general = true)))
+        assertEquals("coffee preferences", memoryReadLabel(testResources, MemoryRef("coffee-preferences")))
+        assertEquals("नेपाली खाना · general memory", memoryReadLabel(testResources, MemoryRef("नेपाली-खाना", general = true)))
     }
 }

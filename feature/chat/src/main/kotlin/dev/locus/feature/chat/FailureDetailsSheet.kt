@@ -1,5 +1,7 @@
 package dev.locus.feature.chat
 
+import android.content.res.Resources
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
@@ -12,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.locus.core.agent.RunFailure
@@ -44,7 +47,8 @@ internal fun FailureDetailsSheet(failure: RunFailure, message: String, onDismiss
     val clipboard = androidx.compose.ui.platform.LocalClipboard.current
     val scope = rememberCoroutineScope()
     var copied by remember { mutableStateOf(false) }
-    val rows = remember(failure) { failureRows(failure) }
+    val resources = LocalResources.current
+    val rows = remember(failure, resources) { failureRows(failure).map { it.shown(resources) } }
     LocusSheet(
         title = stringResource(R.string.chat_failure_title),
         subtitle = "${failure.provider} · ${ModelNames.short(failure.model)}",
@@ -58,7 +62,7 @@ internal fun FailureDetailsSheet(failure: RunFailure, message: String, onDismiss
         },
     ) {
         // In words: the ids are in the table below, and the next step follows when the advice doesn't give one.
-        SupportingText(failureMessageInWords(message), style = LocusType.rowSupporting)
+        SupportingText(failureMessageInWords(resources, message), style = LocusType.rowSupporting)
         (failure.advice ?: failureNextStep(failure, message)?.asString())?.let { SupportingText(it, style = LocusType.rowSupporting) }
         SelectionContainer {
             CardGroup {
@@ -87,11 +91,12 @@ internal fun FailureDetailsSheet(failure: RunFailure, message: String, onDismiss
 /**
  * The error as the chat shows it, minus what belongs in the details table: "(request id req_…)" goes,
  * and a dropped connection's system words ("Software caused connection abort") become what happened.
+ * The dropped-connection check reads core/agent's own message ([dev.locus.core.agent.AgentLoop.CONNECTION_DROPPED]).
  */
-internal fun failureMessageInWords(message: String): String {
+internal fun failureMessageInWords(resources: Resources, message: String): String {
     val plain = message.replace(IdInText, "")
     return if (plain.startsWith(dev.locus.core.agent.AgentLoop.CONNECTION_DROPPED)) {
-        "The connection dropped before the reply finished."
+        resources.getString(R.string.chat_failure_connection_dropped)
     } else {
         plain
     }
@@ -109,30 +114,66 @@ internal fun failureNextStep(failure: RunFailure, message: String): UiText? = wh
     else -> null
 }
 
-/** The sheet's rows: label and value, every field shown (with what its absence means). */
+/**
+ * A field of the details table. The label and what its absence means are looked up in the screen's
+ * language; the Copy report keeps the English ([reportLabel], [reportAbsent]), since it goes into bug
+ * reports.
+ */
+internal enum class FailureField(
+    @param:StringRes val label: Int,
+    val reportLabel: String,
+    @param:StringRes val absent: Int? = null,
+    val reportAbsent: String = "",
+) {
+    PROVIDER(R.string.chat_failure_field_provider, "Provider"),
+    MODEL(R.string.chat_failure_field_model, "Model"),
+    MODEL_ID(R.string.chat_failure_field_model_id, "Model id"),
+    HTTP_STATUS(R.string.chat_failure_field_http_status, "HTTP status", R.string.chat_failure_absent_http_status, "None (the stream had started)"),
+    ERROR_CODE(R.string.chat_failure_field_error_code, "Error code", R.string.chat_failure_absent_error_code, "None given"),
+    REQUEST_ID(R.string.chat_failure_field_request_id, "Request id", R.string.chat_failure_absent_request_id, "Not sent"),
+    GATEWAY_ID(R.string.chat_failure_field_gateway_id, "Gateway id", R.string.chat_failure_absent_request_id, "Not sent"),
+    RESPONSE_ID(R.string.chat_failure_field_response_id, "Response id", R.string.chat_failure_absent_response_id, "None"),
+    TIME(R.string.chat_failure_field_time, "Time"),
+    TIMES(R.string.chat_failure_field_times, "Times in a row"),
+}
+
+/** One row of the details table: [value] is null when the provider didn't give one. */
+internal data class FailureRow(val field: FailureField, val value: String?) {
+    /** Label and value as the sheet shows them, in the screen's language. */
+    fun shown(resources: Resources): Pair<String, String> =
+        resources.getString(field.label) to (value ?: field.absent?.let(resources::getString).orEmpty())
+
+    /** Label and value as the Copy report writes them: always English. */
+    fun inReport(): Pair<String, String> = field.reportLabel to (value ?: field.reportAbsent)
+}
+
+/** The sheet's rows: every field shown (with what its absence means, see [FailureRow.shown]). */
 internal fun failureRows(
     failure: RunFailure,
     /** For Copy: the exact model id even when screens don't show it (an imported GGUF file's). */
     forReport: Boolean = false,
     timeFormat: (Long) -> String = ::formatFailureTime,
-): List<Pair<String, String>> = listOfNotNull(
-    "Provider" to failure.provider,
+): List<FailureRow> = listOfNotNull(
+    FailureRow(FailureField.PROVIDER, failure.provider),
     // The model by name; its exact id too when that reads differently, since a bug report needs it.
-    "Model" to ModelNames.short(failure.model),
-    ModelNames.idIfDifferent(failure.model, forReport)?.let { "Model id" to it },
-    "HTTP status" to (failure.httpStatus?.toString() ?: "None (the stream had started)"),
-    "Error code" to (failure.errorCode ?: "None given"),
+    FailureRow(FailureField.MODEL, ModelNames.short(failure.model)),
+    ModelNames.idIfDifferent(failure.model, forReport)?.let { FailureRow(FailureField.MODEL_ID, it) },
+    FailureRow(FailureField.HTTP_STATUS, failure.httpStatus?.toString()),
+    FailureRow(FailureField.ERROR_CODE, failure.errorCode),
     // A Cloudflare ray id ("8f2a1c9e4b7d03a1-FRA") names the gateway's log line, not the provider's request.
-    (if (failure.requestId?.matches(CloudflareRay) == true) "Gateway id" else "Request id") to (failure.requestId ?: "Not sent"),
-    "Response id" to (failure.responseId ?: "None"),
-    "Time" to timeFormat(failure.at),
-    "Times in a row" to failure.occurrences.toString(),
+    FailureRow(if (failure.requestId?.matches(CloudflareRay) == true) FailureField.GATEWAY_ID else FailureField.REQUEST_ID, failure.requestId),
+    FailureRow(FailureField.RESPONSE_ID, failure.responseId),
+    FailureRow(FailureField.TIME, timeFormat(failure.at)),
+    FailureRow(FailureField.TIMES, failure.occurrences.toString()),
 )
 
-/** What Copy puts on the clipboard: the chat's message, the rows and the scrubbed payload. */
+/** What Copy puts on the clipboard: the chat's message, the rows and the scrubbed payload. English, for bug reports. */
 internal fun failureReport(failure: RunFailure, message: String, timeFormat: (Long) -> String = ::formatFailureTime): String = buildString {
     append("Locus model error\n").append(message).append("\n\n")
-    failureRows(failure, forReport = true, timeFormat = timeFormat).forEach { (label, value) -> append(label).append(": ").append(value).append('\n') }
+    failureRows(failure, forReport = true, timeFormat = timeFormat).forEach { row ->
+        val (label, value) = row.inReport()
+        append(label).append(": ").append(value).append('\n')
+    }
     failure.rawBody?.takeIf { it.isNotBlank() }?.let { append("\nProvider's response:\n").append(it).append('\n') }
 }
 

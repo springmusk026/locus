@@ -1,5 +1,7 @@
 package dev.locus.feature.chat
 
+import android.content.res.Resources
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import dev.locus.core.designsystem.onContainer
@@ -52,18 +54,21 @@ import dev.locus.core.model.Envelopes
 import dev.locus.core.model.Verification
 
 /** "1.2 s", "84 s", "3 min 5 s". */
-internal fun durationLabel(ms: Long): String = when {
-    ms < 10_000 -> "%.1f s".format(java.util.Locale.ROOT, ms / 1000.0)
-    ms < 60_000 -> "${ms / 1000} s"
-    else -> "${ms / 60_000} min ${(ms % 60_000) / 1000} s"
+internal fun durationLabel(resources: Resources, ms: Long): String = when {
+    ms < 10_000 -> resources.getString(R.string.chat_duration_tenths, ms / 1000.0)
+    ms < 60_000 -> resources.getString(R.string.chat_duration_seconds, ms / 1000)
+    else -> resources.getString(R.string.chat_duration_minutes, ms / 60_000, (ms % 60_000) / 1000)
 }
 
-/** The line under the title: the runner's tally, or how many tests failed, or the exit code. */
-internal fun verificationDetail(o: Verification.Outcome): String? = when {
+/**
+ * The line under the title: the runner's tally (its own words, from the command's output), or how many
+ * tests failed, or the exit code.
+ */
+internal fun verificationDetail(resources: Resources, o: Verification.Outcome): String? = when {
     o.summary != null -> o.summary
-    o.failureCount > 0 -> "${o.failureCount} failing ${if (o.failureCount == 1) "test" else "tests"}"
-    o.passed == false && o.exitCode != null -> "Exit code ${o.exitCode}"
-    o.verdict == Verification.Verdict.UNCERTAIN -> "Exit status not reliable: the command pipes or chains the check"
+    o.failureCount > 0 -> resources.getQuantityString(R.plurals.chat_checks_failing_tests, o.failureCount, o.failureCount)
+    o.passed == false && o.exitCode != null -> resources.getString(R.string.chat_checks_exit_code, o.exitCode)
+    o.verdict == Verification.Verdict.UNCERTAIN -> resources.getString(R.string.chat_checks_exit_unreliable)
     else -> null
 }
 
@@ -99,7 +104,8 @@ internal fun CheckGroupRow(group: CheckGroup, running: (ChatItem.ToolCall) -> Bo
     val latest = group.latest
     val state = runState(latest, running(latest.call))
     val tone = state.tone()
-    val label = checkGroupLabel(group, running(latest.call))
+    val resources = LocalResources.current
+    val label = checkGroupLabel(resources, group, running(latest.call))
     val showLabel = stringResource(if (group.runs.size > 1) R.string.chat_checks_show_runs else R.string.chat_checks_show_output)
     val o = latest.outcome
     Column(modifier.fillMaxWidth()) {
@@ -107,7 +113,7 @@ internal fun CheckGroupRow(group: CheckGroup, running: (ChatItem.ToolCall) -> Bo
             Modifier.fillMaxWidth().heightIn(min = Sizes.touchTarget)
                 .clickable(role = Role.Button, onClickLabel = showLabel) { open = true }
                 .padding(horizontal = Spacing.md)
-                .semantics { contentDescription = label + (o?.durationMs?.let { ", " + durationLabel(it) }.orEmpty()) },
+                .semantics { contentDescription = label + (o?.durationMs?.let { ", " + durationLabel(resources, it) }.orEmpty()) },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(Modifier.size(IconSize.medium), contentAlignment = Alignment.Center) {
@@ -128,14 +134,14 @@ internal fun CheckGroupRow(group: CheckGroup, running: (ChatItem.ToolCall) -> Bo
                 overflow = TextOverflow.Ellipsis,
             )
             if (group.runs.size > 1) RunDots(group.runs.map { runState(it, running(it.call)).tone() }, Modifier.padding(horizontal = Spacing.sm))
-            o?.durationMs?.let { SupportingText(durationLabel(it), style = LocusType.mono) }
+            o?.durationMs?.let { SupportingText(durationLabel(resources, it), style = LocusType.mono) }
         }
         // Only a run that didn't pass says more in the transcript, and only a few lines of it.
         if (o != null && state != RunState.PASSED) {
             val lines = problemLines(o)
             Column(Modifier.fillMaxWidth().padding(start = Spacing.md + IconSize.medium + Spacing.sm, end = Spacing.md, bottom = Spacing.xs)) {
                 // The reason in full: "Exit status not reliable: …" says why the result can't be trusted.
-                verificationDetail(o)?.let { SupportingText(it) }
+                verificationDetail(resources, o)?.let { SupportingText(it) }
                 if (lines.isNotEmpty()) {
                     Column(
                         Modifier.fillMaxWidth().padding(top = Spacing.xs)
@@ -171,6 +177,7 @@ private fun CheckRunsSheet(group: CheckGroup, label: String, running: (ChatItem.
 @Composable
 private fun RunEntry(run: CheckRun, number: Int, total: Int, latest: Boolean, running: Boolean) {
     var showOutput by rememberSaveable(run.call.key) { mutableStateOf(latest) }
+    val resources = LocalResources.current
     val state = runState(run, running)
     val o = run.outcome
     val title = when {
@@ -188,15 +195,15 @@ private fun RunEntry(run: CheckRun, number: Int, total: Int, latest: Boolean, ru
                     style = LocusType.cardTitle,
                     color = if (state == RunState.FAILED) state.tone().onContainer() else MaterialTheme.colorScheme.onSurface,
                 )
-                o?.durationMs?.let { SupportingText(durationLabel(it), style = LocusType.mono) }
+                o?.durationMs?.let { SupportingText(durationLabel(resources, it), style = LocusType.mono) }
             }
             SupportingText(runCommand(run.call), style = LocusType.mono, maxLines = 3)
         } else {
             // One run: the sheet's title and subtitle already say its result and command.
-            o?.durationMs?.let { SupportingText(stringResource(R.string.chat_checks_took, durationLabel(it))) }
+            o?.durationMs?.let { SupportingText(stringResource(R.string.chat_checks_took, durationLabel(resources, it))) }
         }
         o?.host?.let { SupportingText(stringResource(R.string.chat_checks_on_host, it)) }
-        o?.let { verificationDetail(it) }?.let { SupportingText(it) }
+        o?.let { verificationDetail(resources, it) }?.let { SupportingText(it) }
         val result = run.call.result
         if (result != null) {
             TextButton(onClick = { showOutput = !showOutput }, modifier = Modifier.offset(x = -Spacing.md)) { Text(stringResource(if (showOutput) R.string.chat_checks_hide_output else R.string.chat_checks_show_output)) }

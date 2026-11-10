@@ -138,7 +138,7 @@ class RunAnywayTest {
         assertNotNull(ModeNote.ranAnyway(note))
         assertEquals("", note.userText)
         assertEquals(1, done.items.filterIsInstance<ChatItem.User>().size)
-        assertTrue(done.items.filterIsInstance<ChatItem.Note>().any { it.text.startsWith("You ran the blocked call anyway") })
+        assertTrue(done.items.filterIsInstance<ChatItem.Note>().any { it.ranAnyway && it.text == ModeNote.ranAnyway(note) })
 
         // The third request (same run) carries it after the step's result, and starts with exactly the second's messages.
         val (_, before, after) = f.graph.bodies().map { Json.parseToJsonElement(it).jsonObject.getValue("messages").jsonArray }

@@ -11,6 +11,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import dev.locus.core.designsystem.LocusSheet
@@ -41,9 +42,10 @@ internal fun SendWarningDialog(
     onChooseModel: () -> Unit = onCancel,
 ) {
     val suggestion = warning.suggestionTitle
-    LocusSheet(title = warning.title, onDismiss = onCancel) {
+    val resources = LocalResources.current
+    LocusSheet(title = warning.title(resources), onDismiss = onCancel) {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            Text(warning.body, style = LocusType.rowSupporting)
+            Text(warning.body(resources), style = LocusType.rowSupporting)
             if (suggestion != null) SupportingText(stringResource(R.string.chat_sendwarning_cache_note))
             Column(Modifier.fillMaxWidth().padding(top = Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                 if (suggestion != null) {

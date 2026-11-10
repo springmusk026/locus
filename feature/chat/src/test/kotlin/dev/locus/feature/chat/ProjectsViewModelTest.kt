@@ -1,5 +1,6 @@
 package dev.locus.feature.chat
 
+import dev.locus.core.designsystem.UiText
 import dev.locus.core.model.AppSettings
 import dev.locus.core.model.MemoryScope
 import dev.locus.core.model.SshHost
@@ -68,12 +69,34 @@ class ProjectsViewModelTest {
         val g = graph()
         val vm = editor(g, null).loaded()
         vm.save { }.join()
-        assertNotNull(vm.state.value.error)
+        assertEquals(UiText.Res(R.string.chat_projecteditor_error_name), vm.state.value.error)
         vm.setName("X")
         vm.setFolder("../escape")
         vm.save { }.join()
-        assertNotNull(vm.state.value.error)
+        assertEquals(UiText.Res(R.string.chat_projecteditor_error_folder), vm.state.value.error)
         assertTrue(g.projects.allOnce().isEmpty())
+    }
+
+    @Test
+    fun `a folder another project already uses is refused in its own words`() = runTest {
+        val g = graph()
+        val first = editor(g, null).loaded()
+        first.setName("Garden")
+        first.save { }.join()
+        val second = editor(g, null).loaded()
+        second.setName("Garden again")
+        second.setFolder("projects/garden")
+        second.save { }.join()
+        assertEquals(UiText.Res(R.string.chat_projecteditor_error_taken), second.state.value.error)
+        assertEquals(1, g.projects.allOnce().size)
+    }
+
+    @Test
+    fun `a machine's folder problem is told apart from other failures`() {
+        assertTrue(saysNotWritable("~/locus is not writable by basanta."))
+        assertTrue(saysNotWritable("Folder NOT WRITABLE"))
+        assertTrue(!saysNotWritable("Connection refused"))
+        assertTrue(!saysNotWritable(null))
     }
 
     @Test
@@ -127,7 +150,7 @@ class ProjectsViewModelTest {
         val vm = editor(g, null).loaded()
         vm.openRemoteSheet()
         val state = vm.state.first { it.error != null }
-        assertEquals("Give the project a name.", state.error)
+        assertEquals(UiText.Res(R.string.chat_projecteditor_error_name), state.error)
         assertNull(state.remoteSheet)
         assertTrue(state.isNew && !state.savingForRemote)
         assertTrue(g.projects.allOnce().isEmpty())

@@ -13,6 +13,9 @@ import dev.locus.core.model.TaskOutcome
 import dev.locus.core.model.TaskRecord
 import dev.locus.core.model.TokenUsage
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.time.ZoneOffset
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -20,6 +23,8 @@ import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 /** Where task receipts sit in the transcript, what they link to, and how a chat export shows them. */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36])
 class ReceiptItemsTest {
     private fun msg(id: String, role: Role, at: Long, vararg parts: Part, usage: TokenUsage? = null) =
         Message(id, "c", role, parts.toList(), at, usage = usage, reply = if (role == Role.ASSISTANT) ReplyInfo("p", "claude-x") else null)
@@ -63,9 +68,9 @@ class ReceiptItemsTest {
         // A failed task keeps a status line.
         assertTrue(rows.any { it.key == "receipt:t2" })
         // One meta line: the task's time and cost, then the turn's tokens.
-        assertEquals("0s · cost unknown · 1.2k in · 70 out", replyMeta(reply.usage, null, reply.receipt))
-        assertEquals("8.7k in · 15 out", replyMeta(TurnUsage(8_700, 15, 8_700, 0), null, null))
-        assertEquals(null, replyMeta(null, null, null))
+        assertEquals("0s · cost unknown · 1.2k in · 70 out", replyMeta(testResources, reply.usage, null, reply.receipt))
+        assertEquals("8.7k in · 15 out", replyMeta(testResources, TurnUsage(8_700, 15, 8_700, 0), null, null))
+        assertEquals(null, replyMeta(testResources, null, null, null))
     }
 
     @Test
@@ -75,12 +80,37 @@ class ReceiptItemsTest {
         assertEquals("a1:c1", done.checkKey)
         assertTrue(items.any { it.key == done.changesKey && it is ChatItem.Changes })
         assertTrue(items.any { it.key == done.checkKey && it is ChatItem.Verification })
-        val links = approvalLinks(done.receipt)
+        val links = approvalLinks(testResources, done.receipt)
         assertEquals(listOf("1 asked", "1 you approved"), links.map { it.text })
         val approved = links[1].filter
+        // Activity names the filter in the screen's language.
+        assertEquals(listOf("Asked you", "You approved"), links.map { it.filter.label })
         assertEquals(ReceiptApprovals.APPROVED, approved.decisions)
         assertEquals(5L to 50L, approved.since to approved.until)
         assertEquals("c", approved.conversationId)
+    }
+
+    @Test
+    fun `a reply's meta line adds the cache share and an on-device reply's speed`() {
+        assertEquals("1.2k in · 70 out · 64% cached · GPU · ≈18 tok/s", replyMeta(testResources, TurnUsage(1_200, 70, 1_000, 640), "GPU · ≈18 tok/s", null))
+    }
+
+    @Test
+    fun `a failed task says why in words, whatever the provider said`() {
+        val failed = receipts.single { it.taskId == "t2" }
+        assertEquals("Failed: Quota exceeded", receiptOutcomeText(testResources, failed))
+        assertEquals(
+            "Failed: The provider was overloaded. Try again later, or switch model",
+            receiptOutcomeText(testResources, failed.copy(detail = "HTTP 529: Overloaded")),
+        )
+        assertEquals(
+            "The provider's rate limit was reached. Wait a minute and try again, or switch model.",
+            providerFailureInWords(testResources, "HTTP 429: slow down"),
+        )
+        // A quota is not a rate limit: it stays as the provider said it (minus any ids).
+        assertEquals("HTTP 429: You exceeded your quota", providerFailureInWords(testResources, "HTTP 429: You exceeded your quota (request id req_1)"))
+        // A task that did not fail keeps core/agent's outcome line.
+        assertEquals(TaskReceipts.outcomeLine(receipts.single { it.taskId == "t1" }), receiptOutcomeText(testResources, receipts.single { it.taskId == "t1" }))
     }
 
     @Test

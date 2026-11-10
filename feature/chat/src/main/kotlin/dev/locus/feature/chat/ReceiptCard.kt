@@ -1,5 +1,8 @@
 package dev.locus.feature.chat
 
+import android.content.res.Resources
+import androidx.annotation.PluralsRes
+import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -35,6 +39,7 @@ import androidx.compose.ui.draw.clip
 import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.KeyValueRow
 import dev.locus.core.designsystem.LocusChip
+import dev.locus.core.designsystem.compactCount
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusType
@@ -43,7 +48,6 @@ import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.color
-import dev.locus.core.designsystem.compactCountEnglish
 import dev.locus.core.model.ApprovalDecision
 import dev.locus.core.model.ReceiptApprovals
 import dev.locus.core.model.TaskActivityFilter
@@ -75,56 +79,69 @@ internal fun receiptTone(outcome: TaskOutcome): Tone = when (outcome) {
 internal fun receiptLineTone(r: TaskReceipt): Tone =
     if (r.outcome == TaskOutcome.DONE && r.checks.any { it.passed == false }) Tone.Caution else receiptTone(r.outcome)
 
-/** The receipt's Outcome row, with a provider's raw failure ("HTTP 529: Overloaded") said in words. */
-internal fun receiptOutcomeText(r: TaskReceipt): String {
+/**
+ * The receipt's Outcome row, with a provider's raw failure ("HTTP 529: Overloaded") said in words. The
+ * outcome's own label comes from core/agent ([TaskReceipts.outcomeLabel]).
+ */
+internal fun receiptOutcomeText(resources: Resources, r: TaskReceipt): String {
     val detail = r.detail?.lineSequence()?.firstOrNull { it.isNotBlank() }?.trim()
     return if (r.outcome == TaskOutcome.FAILED && detail != null) {
-        "${TaskReceipts.outcomeLabel(r)}: ${providerFailureInWords(detail).removeSuffix(".")}"
+        resources.getString(R.string.chat_receipt_outcome_failed, TaskReceipts.outcomeLabel(r), providerFailureInWords(resources, detail).removeSuffix("."))
     } else {
         TaskReceipts.outcomeLine(r)
     }
 }
 
-/** A provider's failure in words, with what to do: the status codes people meet most, else the message without ids. */
-internal fun providerFailureInWords(message: String): String = when {
+/**
+ * A provider's failure in words, with what to do: the status codes people meet most, else the message
+ * without ids. The codes are looked for in the provider's own (English) message.
+ */
+internal fun providerFailureInWords(resources: Resources, message: String): String = when {
     Regex("""\bHTTP 529\b|\boverloaded\b""", RegexOption.IGNORE_CASE).containsMatchIn(message) ->
-        "The provider was overloaded. Try again later, or switch model."
+        resources.getString(R.string.chat_receipt_failure_overloaded)
     Regex("""\bHTTP 429\b""").containsMatchIn(message) && !message.contains("quota", ignoreCase = true) ->
-        "The provider's rate limit was reached. Wait a minute and try again, or switch model."
-    else -> failureMessageInWords(message)
+        resources.getString(R.string.chat_receipt_failure_rate_limit)
+    else -> failureMessageInWords(resources, message)
 }
 
 /** One approval line of a receipt: what it says, and the Activity entries it opens. */
 internal data class ApprovalLink(val text: String, val filter: TaskActivityFilter)
 
 /** "3 asked", "2 you approved", "1 you declined", "1 blocked", each opening its entries in Activity; only those above zero. */
-internal fun approvalLinks(r: TaskReceipt): List<ApprovalLink> {
-    fun link(n: Int, text: String, label: String, decisions: Set<ApprovalDecision>) =
-        if (n > 0) ApprovalLink("$n $text", TaskActivityFilter(r.conversationId, r.startedAt, r.endedAt, decisions, label)) else null
+internal fun approvalLinks(resources: Resources, r: TaskReceipt): List<ApprovalLink> {
+    fun link(n: Int, @PluralsRes text: Int, @StringRes label: Int, decisions: Set<ApprovalDecision>) =
+        if (n > 0) {
+            ApprovalLink(
+                resources.getQuantityString(text, n, n),
+                TaskActivityFilter(r.conversationId, r.startedAt, r.endedAt, decisions, resources.getString(label)),
+            )
+        } else {
+            null
+        }
     val a = r.approvals
     return listOfNotNull(
-        link(a.asked, "asked", "Asked you", ReceiptApprovals.ASKED),
-        link(a.approved, "you approved", "You approved", ReceiptApprovals.APPROVED),
-        link(a.declined, "you declined", "You declined", ReceiptApprovals.DECLINED),
-        link(a.blocked, "blocked", "Blocked", ReceiptApprovals.BLOCKED),
+        link(a.asked, R.plurals.chat_receipt_approvals_asked, R.string.chat_receipt_filter_asked, ReceiptApprovals.ASKED),
+        link(a.approved, R.plurals.chat_receipt_approvals_approved, R.string.chat_receipt_filter_approved, ReceiptApprovals.APPROVED),
+        link(a.declined, R.plurals.chat_receipt_approvals_declined, R.string.chat_receipt_filter_declined, ReceiptApprovals.DECLINED),
+        link(a.blocked, R.plurals.chat_receipt_approvals_blocked, R.string.chat_receipt_filter_blocked, ReceiptApprovals.BLOCKED),
     )
 }
 
 /**
- * A reply's meta line: the finished task's time and cost ([receipt]), then this turn's tokens
- * ("8.7k in · 15 out · 64% cached") and an on-device reply's [speed]. One line instead of a line and a
- * receipt card; null when there's nothing to say.
+ * A reply's meta line: the finished task's time and cost ([receipt], from core/agent), then this turn's
+ * tokens ("8.7k in · 15 out · 64% cached") and an on-device reply's [speed]. One line instead of a line
+ * and a receipt card; null when there's nothing to say.
  */
-internal fun replyMeta(usage: TurnUsage?, speed: String?, receipt: TaskReceipt?): String? {
+internal fun replyMeta(resources: Resources, usage: TurnUsage?, speed: String?, receipt: TaskReceipt?): String? {
     val parts = buildList {
         receipt?.let { r ->
             add(TaskReceipts.duration(r))
             TaskReceipts.costLabel(r)?.let(::add)
         }
         usage?.let { u ->
-            add("${compactCountEnglish(u.lastInput.toLong())} in")
-            add("${compactCountEnglish(u.output)} out")
-            if (u.cacheRead > 0 && u.input > 0) add("${u.cacheRead * 100 / u.input}% cached")
+            add(resources.getString(R.string.chat_reply_meta_in, compactCount(resources, u.lastInput.toLong())))
+            add(resources.getString(R.string.chat_reply_meta_out, compactCount(resources, u.output)))
+            if (u.cacheRead > 0 && u.input > 0) add(resources.getString(R.string.chat_reply_meta_cached, u.cacheRead * 100 / u.input))
         }
         speed?.let(::add)
     }
@@ -181,11 +198,12 @@ internal fun ReceiptLine(item: ChatItem.Receipt, actions: ReceiptActions, modifi
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun ReceiptSheet(r: TaskReceipt, actions: ReceiptActions, onDismiss: () -> Unit) {
+    val resources = LocalResources.current
     val tone = receiptTone(r.outcome)
     val item = ChatItem.Receipt("receipt:${r.taskId}", r)
     LocusSheet(title = stringResource(R.string.chat_receipt_title), subtitle = TaskReceipts.summary(r), onDismiss = onDismiss) {
         Column(Modifier.fillMaxWidth()) {
-                Field(stringResource(R.string.chat_receipt_outcome), receiptOutcomeText(r), color = if (tone == Tone.Neutral) null else tone)
+                Field(stringResource(R.string.chat_receipt_outcome), receiptOutcomeText(resources, r), color = if (tone == Tone.Neutral) null else tone)
                 Field(stringResource(R.string.chat_receipt_time), TaskReceipts.duration(r) + if (r.steps > 0) " · " + pluralStringResource(R.plurals.chat_receipt_steps, r.steps, r.steps) else "")
                 TaskReceipts.modelsLabel(r)?.let { Field(stringResource(R.string.chat_receipt_models), it) }
                 if (r.tokens.requests > 0) Field(stringResource(R.string.chat_receipt_tokens), TaskReceipts.tokensLabel(r))
@@ -207,7 +225,7 @@ internal fun ReceiptSheet(r: TaskReceipt, actions: ReceiptActions, onDismiss: ()
                         onClick = item.checkKey?.let { key -> { onDismiss(); actions.showCard(key) } },
                     )
                 }
-                val links = approvalLinks(r)
+                val links = approvalLinks(resources, r)
                 if (links.isNotEmpty()) {
                     FieldRow(stringResource(R.string.chat_receipt_approvals)) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {

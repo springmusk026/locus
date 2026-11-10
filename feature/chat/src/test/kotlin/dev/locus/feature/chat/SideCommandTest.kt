@@ -34,10 +34,4 @@ class SideCommandTest {
         assertEquals(SideCommand.Ask("x"), sideCommandFor("/btw x", asideOn = false))
         assertEquals(SideCommand.Reopen, sideCommandFor("/btw", asideOn = true))
     }
-
-    @Test
-    fun `the card says the task keeps going only while it runs`() {
-        assertEquals("Not added to the chat. The task keeps going.", sideCaption(running = true))
-        assertEquals("Not added to the chat.", sideCaption(running = false))
-    }
 }

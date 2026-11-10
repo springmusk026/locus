@@ -1,5 +1,6 @@
 package dev.locus.feature.chat
 
+import dev.locus.core.designsystem.UiText
 import dev.locus.core.model.TaskBudget
 
 import androidx.lifecycle.ViewModel
@@ -73,7 +74,7 @@ sealed interface ChatItem {
         /** For an on-device reply: backend and speed, e.g. "GPU · ≈18 tok/s". Not saved; recent replies only. */
         val speed: String? = null,
         /** When a backup model answered: "Answered by gpt-5.2 · claude-opus-5-5 (Anthropic) couldn't answer". */
-        val fallbackNote: String? = null,
+        val fallbackNote: UiText? = null,
         /**
          * The receipt of a task that finished normally with this reply: its time and cost join the reply's
          * meta line, and tapping that line opens the receipt. UI only.
@@ -89,8 +90,16 @@ sealed interface ChatItem {
     /** The end of a turn that has no reply text (it stopped, failed or ended on a step): its branch controls. */
     data class TurnEnd(override val key: String, val turn: TurnBranch) : ChatItem
 
-    /** Narration between tool steps ("Let me look at…"): shown as a quiet step note, not a reply. */
-    data class Note(override val key: String, val text: String) : ChatItem
+    /**
+     * Narration between tool steps ("Let me look at…"): shown as a quiet step note, not a reply. The one
+     * note of ours is "You ran the blocked call anyway: …" ([ranAnyway]), whose [text] is the call it
+     * names; the screen says the sentence in its language ([shown]) and the export in English.
+     */
+    data class Note(override val key: String, val text: String, val ranAnyway: Boolean = false) : ChatItem {
+        /** What the screen shows for this note. */
+        fun shown(resources: android.content.res.Resources): String =
+            if (ranAnyway) resources.getString(R.string.chat_note_ran_anyway, text) else text
+    }
 
     /** Where older messages were summarised; the model only sees the summary from here on. */
     data class Checkpoint(override val key: String, val summary: String, val replaced: Int) : ChatItem
@@ -196,7 +205,7 @@ data class ChatControls(
     /** The task budget from Settings, used when the chat has none of its own. */
     val defaultBudget: TaskBudget = TaskBudget.OFF,
     /** Why the cost limit can't apply to this chat's model (no prices known), or null when it can. */
-    val costNote: String? = null,
+    val costNote: UiText? = null,
     /** The chat declares no tools: it started on a model that can't use them ([dev.locus.core.model.Conversation.chatOnly]). */
     val chatOnly: Boolean = false,
     /** Nothing has been sent yet, so [chatOnly] still follows the model picked. */
@@ -224,13 +233,17 @@ data class ChatControls(
  * Why a cost limit can't apply to [model] on [provider], or null when its prices are known: the
  * models.dev catalogue is off, hasn't loaded, or lists no price for it.
  */
-internal fun costNote(s: dev.locus.core.model.AppSettings, provider: dev.locus.core.model.ProviderConfig?, model: String, catalog: ModelCatalogIndex?): String? = when {
+internal fun costNote(s: dev.locus.core.model.AppSettings, provider: dev.locus.core.model.ProviderConfig?, model: String, catalog: ModelCatalogIndex?): UiText? = when {
     provider == null -> null
-    !s.modelCatalog -> "Cost needs model prices: turn on model details (models.dev) in Settings → Models."
-    catalog == null -> "Model prices haven't loaded yet; open the model list once to fetch them."
-    catalog.lookup(provider.baseUrl, provider.format, model)?.price == null -> "models.dev lists no price for $model, so cost can't be estimated."
+    !s.modelCatalog -> UiText.Res(R.string.chat_budget_cost_off)
+    catalog == null -> UiText.Res(R.string.chat_budget_cost_not_loaded)
+    catalog.lookup(provider.baseUrl, provider.format, model)?.price == null -> UiText.Res(R.string.chat_budget_cost_no_price, model)
     else -> null
 }
+
+/** The Settings page [costNote] sends the user to: only "turn on model details" has one. */
+internal fun costNoteDestination(note: UiText?): dev.locus.core.model.SettingsDestination? =
+    dev.locus.core.model.SettingsDestination.Models.takeIf { note == UiText.Res(R.string.chat_budget_cost_off) }
 
 /** A connector the tools menu can switch off for this chat. */
 data class ChatConnector(val id: String, val name: String, val mcp: Boolean)
@@ -375,7 +388,7 @@ class ChatViewModel @AssistedInject constructor(
     ) { chat, s, activity ->
         val projectId = chat?.projectId ?: return@combine null
         val linked = s.projectRemotes[projectId] ?: return@combine null
-        val alias = s.sshHosts.firstOrNull { it.id == linked.hostId }?.alias ?: "a removed machine"
+        val alias = s.sshHosts.firstOrNull { it.id == linked.hostId }?.alias?.let(UiText::Plain) ?: UiText.Res(R.string.chat_remote_removed_machine)
         ChatRemoteInfo(projectId, alias, linked.folder, activity[projectId])
     }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000), null)
 
@@ -389,7 +402,7 @@ class ChatViewModel @AssistedInject constructor(
     /** Moves this chat into [projectId] (null: out of projects). Only works before its first message. */
     fun moveToProject(projectId: String?) = viewModelScope.launch {
         if (!conversations.moveToProject(conversationId, projectId)) {
-            _notice.value = "This chat has already started, so it stays where it is. Start a new chat in the project instead."
+            _notice.value = UiText.Res(R.string.chat_project_already_started)
         }
     }
 
@@ -400,10 +413,10 @@ class ChatViewModel @AssistedInject constructor(
         onCreated(chat.id, "Continue from our earlier chat “$title” (id $conversationId): read it with chat_history_read first.")
     }
 
-    private val _notice = MutableStateFlow<String?>(null)
+    private val _notice = MutableStateFlow<UiText?>(null)
 
     /** A one-off note about a project change that couldn't be made. */
-    val projectNotice: StateFlow<String?> = _notice
+    val projectNotice: StateFlow<UiText?> = _notice
 
     fun dismissProjectNotice() { _notice.value = null }
 
@@ -1024,10 +1037,11 @@ internal fun currentTodos(messages: List<Message>): List<TodoItem>? {
 }
 
 /** The note under a reply a backup model wrote: which model answered, and which couldn't. */
-internal fun fallbackNote(message: Message): String? {
+internal fun fallbackNote(message: Message): UiText? {
     val reply = message.reply ?: return null
     val from = reply.fallbackFrom ?: return null
-    return "Answered by ${reply.model?.let(dev.locus.core.model.ModelNames::short) ?: "a backup model"} · $from couldn't answer"
+    val answered = reply.model?.let(dev.locus.core.model.ModelNames::short)?.let(UiText::Plain) ?: UiText.Res(R.string.chat_fallback_backup_model)
+    return UiText.Res(R.string.chat_fallback_note, answered, from)
 }
 
 internal fun turnItems(turn: List<Message>, results: Map<String, Part.ToolResult>): List<ChatItem> {
@@ -1037,7 +1051,7 @@ internal fun turnItems(turn: List<Message>, results: Map<String, Part.ToolResult
     val entries = buildList<ChatItem> {
         turn.forEach { message ->
             if (message.role == Role.USER) {
-                ModeNote.ranAnyway(message)?.let { add(ChatItem.Note("${message.id}:ran", "You ran the blocked call anyway: $it")) }
+                ModeNote.ranAnyway(message)?.let { add(ChatItem.Note("${message.id}:ran", it, ranAnyway = true)) }
                 return@forEach
             }
             message.reasoning?.let { r -> add(ChatItem.Thought("${message.id}:thought", r.content, r.durationMs, inSteps = message.toolCalls.isNotEmpty())) }
