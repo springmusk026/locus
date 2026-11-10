@@ -22,6 +22,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -89,7 +90,7 @@ fun CountBadge(count: Int, modifier: Modifier = Modifier) {
         modifier.size(ComposerSizes.badge).background(MaterialTheme.colorScheme.primary, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
-        Text(if (count > 9) "9+" else count.toString(), color = MaterialTheme.colorScheme.onPrimary, style = BadgeText)
+        Text(chipCount(LocalResources.current, count, max = 9), color = MaterialTheme.colorScheme.onPrimary, style = BadgeText)
     }
 }
 

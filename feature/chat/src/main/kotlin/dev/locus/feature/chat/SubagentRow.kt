@@ -4,6 +4,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import dev.locus.core.designsystem.UiText
 import dev.locus.core.designsystem.asString
+import dev.locus.core.designsystem.labelRes
 import dev.locus.core.ui.largeFont
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
@@ -145,7 +146,7 @@ internal fun SubagentRow(item: ChatItem.ToolCall) {
                 // meta at a large font, so the name keeps the width.
                 partial -> if (!actionsBelow) LocusChip(stringResource(R.string.chat_helper_partial), tone = Tone.Caution)
                 else -> Text(
-                    helper.status.label,
+                    stringResource(helper.status.labelRes),
                     style = LocusType.chip,
                     color = if (helper.status == SubagentStatus.FAILED) Locus.colors.critical else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -241,8 +242,9 @@ private fun SubagentTranscriptSheet(
     val messages by flow.collectAsState(initial = emptyList())
     val entries = remember(messages) { transcriptEntries(messages) }
     val partialResult = stringResource(R.string.chat_helper_partial)
+    val status = stringResource(helper.status.labelRes)
     val subtitle = buildString {
-        append(if (partialNote != null) partialResult else helper.status.label)
+        append(if (partialNote != null) partialResult else status)
         append(" · ${dev.locus.core.model.ModelNames.short(helper.model)}")
         if (helper.tokens > 0) append(" · ${compactCount(helper.tokens)} tokens")
         // What this helper cost, at models.dev prices; left out when no price is known.

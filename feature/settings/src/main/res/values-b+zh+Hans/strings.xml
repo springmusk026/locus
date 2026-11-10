@@ -1002,4 +1002,24 @@
     <string name="settings_ondevice_notice_unload_busy">正在回复。请在回复结束后再卸载。</string>
     <string name="settings_ondevice_notice_deleted">已删除。</string>
     <string name="settings_ondevice_notice_delete_busy">正在回复。请在回复结束后再删除。</string>
+
+    <string name="settings_ondevice_sort_popular">热门</string>
+    <string name="settings_ondevice_sort_trending">趋势</string>
+    <string name="settings_ondevice_engine_not_loaded">未加载</string>
+    <string name="settings_ondevice_engine_load_failed">无法加载：%1$s</string>
+    <string name="settings_ondevice_engine_running">正在 %1$s 上运行</string>
+    <string name="settings_ondevice_engine_running_gpu_failed">正在 %1$s 上运行（GPU 失败：%2$s）</string>
+    <string name="settings_ondevice_rate">%1$s tok/s</string>
+    <string name="settings_ondevice_rate_estimate">≈%1$s tok/s</string>
+    <string name="settings_ondevice_prefill">预填充 %1$s</string>
+    <string name="settings_ondevice_seconds">%1$s 秒</string>
+    <string name="settings_ondevice_loaded_in">加载用时 %1$s</string>
+    <string name="settings_ondevice_memory">约 %1$s GB 内存</string>
+    <string name="settings_ondevice_benchmark_ran">在 %1$s 上运行</string>
+    <string name="settings_ondevice_benchmark_ran_gpu_failed">在 %1$s 上运行（GPU 失败：%2$s）</string>
+    <string name="settings_ondevice_benchmark_load">加载 %1$s · 预填充 %2$s（%3$s）</string>
+    <string name="settings_ondevice_benchmark_decode">解码 %1$s（%2$s）</string>
+    <plurals name="settings_ondevice_benchmark_tokens">
+        <item quantity="other">%1$d 个令牌</item>
+    </plurals>
 </resources>

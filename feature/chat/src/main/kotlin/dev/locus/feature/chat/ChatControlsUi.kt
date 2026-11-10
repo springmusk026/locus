@@ -1,6 +1,9 @@
 package dev.locus.feature.chat
 
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
+import dev.locus.core.designsystem.descriptionRes
+import dev.locus.core.designsystem.labelRes
 import dev.locus.core.ui.largeFont
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.ContextRing
@@ -114,7 +117,7 @@ internal fun BudgetSheet(
         LocusCard(contentPadding = PaddingValues(0.dp)) {
             EffortRow(
                 stringResource(R.string.chat_budget_use_default),
-                stringResource(R.string.chat_budget_default_for_every, dev.locus.core.designsystem.TaskBudgetPresets.summary(controls.defaultBudget)),
+                stringResource(R.string.chat_budget_default_for_every, dev.locus.core.designsystem.TaskBudgetPresets.summary(LocalResources.current, controls.defaultBudget)),
                 selected = own == null,
             ) { onSet(null) }
             GroupDivider(inset = Spacing.md)
@@ -146,11 +149,11 @@ internal fun EffortSheet(provider: ChatProvider?, controls: ChatControls, onPick
         onDismiss = onDismiss,
     ) {
         LocusCard(contentPadding = PaddingValues(0.dp)) {
-            val note = provider?.defaultEffortNote?.ifBlank { null } ?: stringResource(R.string.chat_effort_provider_setting, (provider?.defaultEffort ?: Effort.HIGH).label)
+            val note = provider?.defaultEffortNote?.ifBlank { null } ?: stringResource(R.string.chat_effort_provider_setting, stringResource((provider?.defaultEffort ?: Effort.HIGH).labelRes))
             EffortRow(stringResource(R.string.chat_effort_provider_default), note, selected = !controls.effortOverridden) { onPick(null) }
             Effort.entries.forEach { e ->
                 GroupDivider(inset = Spacing.md)
-                EffortRow(e.label, e.description, selected = controls.effortOverridden && controls.effort == e) { onPick(e) }
+                EffortRow(stringResource(e.labelRes), stringResource(e.descriptionRes), selected = controls.effortOverridden && controls.effort == e) { onPick(e) }
             }
         }
         SectionNote(stringResource(R.string.chat_effort_note))
@@ -165,7 +168,7 @@ internal fun ModeSheet(controls: ChatControls, onPick: (ChatMode) -> Unit, onDis
         LocusCard(contentPadding = PaddingValues(0.dp)) {
             ChatMode.entries.forEachIndexed { i, m ->
                 if (i > 0) GroupDivider(inset = Spacing.md)
-                EffortRow(m.label, m.description, selected = controls.mode == m) { onPick(m) }
+                EffortRow(stringResource(m.labelRes), stringResource(m.descriptionRes), selected = controls.mode == m) { onPick(m) }
             }
         }
         SettingsLink(
@@ -222,7 +225,7 @@ private fun ColumnScope.ToolSwitches(controls: ChatControls, connectors: List<Ch
     CardGroup {
         ToolGroup.entries.forEachIndexed { i, g ->
             if (i > 0) GroupDivider()
-            SwitchRow(g.label, checked = g.key !in controls.disabledTools, onCheckedChange = { onSetEnabled(g.key, it) }, subtitle = g.description)
+            SwitchRow(stringResource(g.labelRes), checked = g.key !in controls.disabledTools, onCheckedChange = { onSetEnabled(g.key, it) }, subtitle = stringResource(g.descriptionRes))
         }
     }
     if (connectors.isNotEmpty()) {

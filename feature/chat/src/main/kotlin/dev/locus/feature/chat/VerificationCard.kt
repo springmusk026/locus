@@ -47,6 +47,7 @@ import dev.locus.core.designsystem.StatusDot
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.color
+import dev.locus.core.designsystem.titleRes
 import dev.locus.core.model.Envelopes
 import dev.locus.core.model.Verification
 
@@ -173,7 +174,7 @@ private fun RunEntry(run: CheckRun, number: Int, total: Int, latest: Boolean, ru
     val state = runState(run, running)
     val o = run.outcome
     val title = when {
-        o != null -> Verification.title(o)
+        o != null -> stringResource(o.titleRes())
         running -> stringResource(R.string.chat_checks_running)
         else -> stringResource(R.string.chat_checks_stopped)
     }

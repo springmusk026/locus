@@ -48,6 +48,7 @@ import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.SwitchRow
 import dev.locus.core.designsystem.TextArea
 import dev.locus.core.designsystem.TextAreaSize
+import dev.locus.core.designsystem.labelRes
 import dev.locus.core.model.SettingsDestination
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.Tone
@@ -127,7 +128,7 @@ fun ProjectEditorRoute(
             item(key = "memory-label") { SectionLabel(stringResource(R.string.chat_projecteditor_memory)) }
             item(key = "memory") {
                 Segmented(
-                    MemoryScope.entries.map { it.label },
+                    MemoryScope.entries.map { stringResource(it.labelRes) },
                     selected = state.memoryScope.ordinal,
                     onSelect = { viewModel.setMemoryScope(MemoryScope.entries[it]) },
                     modifier = Modifier.fillMaxWidth(),

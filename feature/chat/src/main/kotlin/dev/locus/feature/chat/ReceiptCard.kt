@@ -36,7 +36,6 @@ import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.KeyValueRow
 import dev.locus.core.designsystem.LocusChip
 import dev.locus.core.designsystem.LocusSheet
-import dev.locus.core.designsystem.compactCount
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.Sizes
@@ -44,6 +43,7 @@ import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.color
+import dev.locus.core.designsystem.compactCountEnglish
 import dev.locus.core.model.ApprovalDecision
 import dev.locus.core.model.ReceiptApprovals
 import dev.locus.core.model.TaskActivityFilter
@@ -122,8 +122,8 @@ internal fun replyMeta(usage: TurnUsage?, speed: String?, receipt: TaskReceipt?)
             TaskReceipts.costLabel(r)?.let(::add)
         }
         usage?.let { u ->
-            add("${compactCount(u.lastInput.toLong())} in")
-            add("${compactCount(u.output)} out")
+            add("${compactCountEnglish(u.lastInput.toLong())} in")
+            add("${compactCountEnglish(u.output)} out")
             if (u.cacheRead > 0 && u.input > 0) add("${u.cacheRead * 100 / u.input}% cached")
         }
         speed?.let(::add)

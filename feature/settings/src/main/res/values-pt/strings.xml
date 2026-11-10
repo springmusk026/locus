@@ -1028,4 +1028,26 @@
     <string name="settings_ondevice_notice_unload_busy">Está respondendo agora. Descarregue da memória quando terminar.</string>
     <string name="settings_ondevice_notice_deleted">Excluído.</string>
     <string name="settings_ondevice_notice_delete_busy">Está respondendo agora. Exclua quando terminar.</string>
+
+    <string name="settings_ondevice_sort_popular">Populares</string>
+    <string name="settings_ondevice_sort_trending">Em alta</string>
+    <string name="settings_ondevice_engine_not_loaded">Não carregado</string>
+    <string name="settings_ondevice_engine_load_failed">Não foi possível carregar: %1$s</string>
+    <string name="settings_ondevice_engine_running">Rodando na %1$s</string>
+    <string name="settings_ondevice_engine_running_gpu_failed">Rodando na %1$s (a GPU falhou: %2$s)</string>
+    <string name="settings_ondevice_rate">%1$s tok/s</string>
+    <string name="settings_ondevice_rate_estimate">≈%1$s tok/s</string>
+    <string name="settings_ondevice_prefill">leitura do prompt %1$s</string>
+    <string name="settings_ondevice_seconds">%1$s s</string>
+    <string name="settings_ondevice_loaded_in">Carregado em %1$s</string>
+    <string name="settings_ondevice_memory">≈%1$s GB de memória</string>
+    <string name="settings_ondevice_benchmark_ran">Rodou na %1$s</string>
+    <string name="settings_ondevice_benchmark_ran_gpu_failed">Rodou na %1$s (a GPU falhou: %2$s)</string>
+    <string name="settings_ondevice_benchmark_load">Carga %1$s · leitura do prompt %2$s (%3$s)</string>
+    <string name="settings_ondevice_benchmark_decode">Geração %1$s (%2$s)</string>
+    <plurals name="settings_ondevice_benchmark_tokens">
+        <item quantity="one">%1$d token</item>
+        <item quantity="many">%1$d tokens</item>
+        <item quantity="other">%1$d tokens</item>
+    </plurals>
 </resources>

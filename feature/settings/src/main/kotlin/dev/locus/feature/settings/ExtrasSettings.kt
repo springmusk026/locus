@@ -18,6 +18,7 @@ import dev.locus.core.designsystem.ProviderBadge
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.SupportingText
+import dev.locus.core.designsystem.labelRes
 import dev.locus.core.llm.RemoteModel
 import dev.locus.core.model.ApiFormat
 import dev.locus.core.model.HelperPrompt
@@ -102,7 +103,7 @@ internal fun ExtrasSettings(
                 HelperPrompt.entries.forEachIndexed { i, prompt ->
                     if (i > 0) GroupDivider(inset = Insets.iconRow)
                     ListRow(
-                        title = prompt.label,
+                        title = stringResource(prompt.labelRes),
                         subtitle = stringResource(if (prompt in state.helperPrompts) R.string.settings_extras_prompt_edited else R.string.settings_extras_prompt_default),
                         onClick = { editingPrompt = prompt },
                         leading = { IconTile(prompt.icon) },

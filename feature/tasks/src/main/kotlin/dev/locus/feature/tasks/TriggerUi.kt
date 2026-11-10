@@ -51,6 +51,8 @@ import dev.locus.core.designsystem.SwitchRow
 import dev.locus.core.designsystem.TextArea
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.color
+import dev.locus.core.designsystem.labelRes
+import dev.locus.core.designsystem.nounRes
 import dev.locus.core.designsystem.relativeTime
 import dev.locus.core.model.QuietHours
 import dev.locus.core.model.ScheduledTask
@@ -320,7 +322,7 @@ internal fun TestEventSheet(task: ScheduledTask, onDismiss: () -> Unit, onSend: 
     var text by remember { mutableStateOf(trigger.contains.ifBlank { "" }) }
     LocusSheet(
         title = stringResource(R.string.tasks_test_title),
-        subtitle = stringResource(R.string.tasks_test_subtitle, task.title, trigger.source.noun),
+        subtitle = stringResource(R.string.tasks_test_subtitle, task.title, stringResource(trigger.source.nounRes)),
         onDismiss = onDismiss,
         action = stringResource(R.string.tasks_test_send),
         onAction = { onSend(text) },
@@ -337,14 +339,17 @@ internal fun TestEventSheet(task: ScheduledTask, onDismiss: () -> Unit, onSend: 
 
 /** How an event in the history is shown: its tone and what happened. */
 @Composable
-internal fun eventLine(event: TriggerEventRecord): Pair<String, Tone> = when {
-    event.decision.ran && event.outcome == TaskRunOutcome.DONE -> stringResource(R.string.tasks_history_event_done, event.decision.label) to Tone.Live
-    event.decision.ran && event.outcome == TaskRunOutcome.FAILED -> stringResource(R.string.tasks_history_event_failed, event.decision.label) to Tone.Critical
-    event.decision.ran && event.outcome == TaskRunOutcome.STOPPED -> stringResource(R.string.tasks_history_event_stopped, event.decision.label) to Tone.Caution
-    event.decision.ran -> stringResource(if (event.conversationId != null) R.string.tasks_history_event_running else R.string.tasks_history_event_queued) to Tone.Brand
-    event.decision == TriggerDecision.FAILED -> event.decision.label to Tone.Critical
-    event.decision == TriggerDecision.NO_MATCH -> event.decision.label to Tone.Neutral
-    else -> event.decision.label to Tone.Caution
+internal fun eventLine(event: TriggerEventRecord): Pair<String, Tone> {
+    val decision = stringResource(event.decision.labelRes)
+    return when {
+        event.decision.ran && event.outcome == TaskRunOutcome.DONE -> stringResource(R.string.tasks_history_event_done, decision) to Tone.Live
+        event.decision.ran && event.outcome == TaskRunOutcome.FAILED -> stringResource(R.string.tasks_history_event_failed, decision) to Tone.Critical
+        event.decision.ran && event.outcome == TaskRunOutcome.STOPPED -> stringResource(R.string.tasks_history_event_stopped, decision) to Tone.Caution
+        event.decision.ran -> stringResource(if (event.conversationId != null) R.string.tasks_history_event_running else R.string.tasks_history_event_queued) to Tone.Brand
+        event.decision == TriggerDecision.FAILED -> decision to Tone.Critical
+        event.decision == TriggerDecision.NO_MATCH -> decision to Tone.Neutral
+        else -> decision to Tone.Caution
+    }
 }
 
 /** What a task's trigger received: each event, whether it ran and why not, newest first. */

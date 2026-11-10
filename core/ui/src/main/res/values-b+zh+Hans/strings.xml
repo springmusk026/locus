@@ -164,4 +164,22 @@
     <string name="ui_workflow_can_on_its_own">可自行%1$s。其他操作都会先询问。</string>
     <string name="ui_workflow_run_title">运行工作流</string>
     <string name="ui_workflow_none">暂无工作流。任务顺利完成后，打开它的回执并点按“保存为工作流”。</string>
+    <string name="ui_ssh_host_no_auth">%1$s · 无需认证</string>
+    <string name="ui_workflow_tool_list_files">列出文件</string>
+    <string name="ui_workflow_tool_read_files">读取文件</string>
+    <string name="ui_workflow_tool_view_images">查看图片</string>
+    <string name="ui_workflow_tool_write_files">写入文件</string>
+    <string name="ui_workflow_tool_edit_files">编辑文件</string>
+    <string name="ui_workflow_tool_delete_files">删除文件</string>
+    <string name="ui_workflow_tool_move_files">移动文件</string>
+    <string name="ui_workflow_tool_copy_files">复制文件</string>
+    <string name="ui_workflow_tool_make_folders">新建文件夹</string>
+    <string name="ui_workflow_tool_search_files">搜索文件</string>
+    <string name="ui_workflow_tool_send_files">向你发送文件</string>
+    <string name="ui_workflow_tool_run_commands">运行命令</string>
+    <string name="ui_workflow_tool_search_web">搜索网页</string>
+    <string name="ui_workflow_tool_read_web">阅读网页</string>
+    <string name="ui_workflow_tool_commit">提交更改</string>
+    <string name="ui_workflow_tool_look_at_changes">查看更改</string>
+    <string name="ui_workflow_tool_ask_questions">向你提问</string>
 </resources>

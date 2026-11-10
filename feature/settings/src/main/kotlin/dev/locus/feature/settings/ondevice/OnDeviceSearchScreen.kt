@@ -68,7 +68,7 @@ internal fun OnDeviceSearch(
             item {
                 // One choice of two: the segmented control, not filter chips.
                 Segmented(
-                    options = HfHub.Sort.entries.map { it.label },
+                    options = HfHub.Sort.entries.map { stringResource(it.labelRes) },
                     selected = state.sort.ordinal,
                     onSelect = { onSort(HfHub.Sort.entries[it]) },
                     modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm),

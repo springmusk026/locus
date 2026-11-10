@@ -85,4 +85,166 @@
     <string name="designsystem_budget_time">Time</string>
     <!-- The sentence before a link to a Settings page; %1$s is the start of the note. -->
     <string name="designsystem_budget_cost_hint">%1$s in</string>
+
+    <!-- How long ago (Time.kt). The longer forms ("5 minutes ago", "Yesterday") come from Android. -->
+    <string name="designsystem_time_just_now">Just now</string>
+    <!-- Compact forms for a small card's meta line; %1$d is the number of minutes, hours or days. -->
+    <string name="designsystem_time_minutes_ago_short">%1$dm ago</string>
+    <string name="designsystem_time_hours_ago_short">%1$dh ago</string>
+    <string name="designsystem_time_days_ago_short">%1$dd ago</string>
+    <!-- A short duration in a column of figures: %1$d milliseconds, %1$s seconds (a number such as 3.4), %1$d minutes and %2$02d seconds. -->
+    <string name="designsystem_duration_ms">%1$dms</string>
+    <string name="designsystem_duration_seconds">%1$ss</string>
+    <string name="designsystem_duration_minutes_seconds">%1$dm %2$02ds</string>
+    <!-- An amount of time: %1$d minutes, or whole hours. -->
+    <string name="designsystem_amount_minutes">%1$d min</string>
+    <string name="designsystem_amount_hours">%1$d h</string>
+
+    <!-- Compact counts: %1$s is a number such as 12.4 (thousands) or 1.2 (millions). -->
+    <string name="designsystem_count_thousands">%1$sk</string>
+    <string name="designsystem_count_millions">%1$sM</string>
+    <!-- A capped count: %1$d is the cap, as in 99+. -->
+    <string name="designsystem_count_over">%1$d+</string>
+    <!-- A token budget: %1$s is an amount such as 200k. -->
+    <string name="designsystem_budget_tokens_amount">%1$s tokens</string>
+
+    <!-- Settings pages, as the Settings hub names them: links read "Settings → Battery & heat". -->
+    <string name="designsystem_settings">Settings</string>
+    <string name="designsystem_settings_models">Models</string>
+    <string name="designsystem_settings_on_device_models">On-device models</string>
+    <string name="designsystem_settings_extras">Helper model &amp; extras</string>
+    <string name="designsystem_settings_network">Network</string>
+    <string name="designsystem_settings_agent">Agent</string>
+    <string name="designsystem_settings_permissions">Permissions</string>
+    <string name="designsystem_settings_battery">Battery &amp; heat</string>
+    <string name="designsystem_settings_voice">Voice</string>
+    <string name="designsystem_settings_automation">Automation</string>
+    <string name="designsystem_settings_phone">Phone</string>
+    <string name="designsystem_settings_integrations">Integrations</string>
+    <string name="designsystem_settings_ssh">SSH machines</string>
+    <string name="designsystem_settings_logins">Saved logins</string>
+    <string name="designsystem_settings_backup">Backup &amp; restore</string>
+    <string name="designsystem_settings_about">About &amp; privacy</string>
+    <string name="designsystem_settings_diagnostics">Diagnostics</string>
+    <string name="designsystem_settings_self_test">Self-test</string>
+    <string name="designsystem_settings_storage">Storage</string>
+    <!-- A button that opens a Settings page; %1$s is the page's name (above). -->
+    <string name="designsystem_settings_open">Open %1$s</string>
+
+    <!-- Chat modes, chosen in the composer. -->
+    <string name="designsystem_chat_mode_read_only">Read-only</string>
+    <string name="designsystem_chat_mode_read_only_description">Only reads and looks: files, the web, mail and history. Nothing is changed or sent.</string>
+    <string name="designsystem_chat_mode_workspace">Workspace</string>
+    <string name="designsystem_chat_mode_workspace_description">Changes files in the workspace and runs Linux, but sends, posts and deploys nothing.</string>
+    <string name="designsystem_chat_mode_full">Full</string>
+    <string name="designsystem_chat_mode_full_description">Everything your tool permissions allow.</string>
+
+    <!-- How hard the model thinks (the composer's Thinking sheet). -->
+    <string name="designsystem_effort_off">Off</string>
+    <string name="designsystem_effort_off_description">Fastest. Little or no reasoning.</string>
+    <string name="designsystem_effort_low">Low</string>
+    <string name="designsystem_effort_low_description">Quick answers and simple tasks.</string>
+    <string name="designsystem_effort_medium">Medium</string>
+    <string name="designsystem_effort_medium_description">Balanced speed and depth.</string>
+    <string name="designsystem_effort_high">High</string>
+    <string name="designsystem_effort_high_description">Thorough work on harder tasks.</string>
+    <string name="designsystem_effort_max">Max</string>
+    <string name="designsystem_effort_max_description">Deepest reasoning. Slowest and most tokens.</string>
+
+    <!-- Groups of tools a chat can switch off. -->
+    <string name="designsystem_tool_group_web">Web search</string>
+    <string name="designsystem_tool_group_web_description">Search and read the web, Wikipedia, weather</string>
+    <string name="designsystem_tool_group_browser">Browser</string>
+    <string name="designsystem_tool_group_browser_description">Open and use websites</string>
+    <string name="designsystem_tool_group_linux">Linux shell</string>
+    <string name="designsystem_tool_group_linux_description">Run commands and services on the phone</string>
+    <string name="designsystem_tool_group_ssh">SSH machines</string>
+    <string name="designsystem_tool_group_ssh_description">Run commands and copy files on your machines</string>
+    <string name="designsystem_tool_group_phone">Phone apps</string>
+    <string name="designsystem_tool_group_phone_description">Calendar, contacts, photos, alarms, messages and other apps</string>
+    <string name="designsystem_tool_group_email">Email</string>
+    <string name="designsystem_tool_group_email_description">Read and send mail</string>
+    <string name="designsystem_tool_group_github" translatable="false">GitHub</string>
+    <string name="designsystem_tool_group_github_description">Repos, issues and files</string>
+    <string name="designsystem_tool_group_memory">Memory and skills</string>
+    <string name="designsystem_tool_group_memory_description">Recall and save what it learns</string>
+
+    <!-- Which memory a project's chats see. -->
+    <string name="designsystem_memory_scope_project_and_general">Project and general</string>
+    <string name="designsystem_memory_scope_project_only">Project only</string>
+
+    <!-- Why background work is on hold. -->
+    <string name="designsystem_pause_hot">Paused: phone is hot</string>
+    <string name="designsystem_pause_battery_saver">Paused: battery saver</string>
+
+    <!-- The phone's temperature, as Android reports it. -->
+    <string name="designsystem_thermal_normal">Normal temperature</string>
+    <string name="designsystem_thermal_light">Slightly warm</string>
+    <string name="designsystem_thermal_moderate">Warm</string>
+    <string name="designsystem_thermal_severe">Hot</string>
+    <string name="designsystem_thermal_critical">Very hot</string>
+    <string name="designsystem_thermal_overheating">Overheating</string>
+
+    <!-- How often a scheduled task or workflow runs. -->
+    <string name="designsystem_schedule_hourly">Hourly</string>
+    <string name="designsystem_schedule_six_hours">Every 6 hours</string>
+    <!-- The same, short, in a segmented control. -->
+    <string name="designsystem_schedule_six_hours_short">6 hours</string>
+    <string name="designsystem_schedule_daily">Daily</string>
+    <string name="designsystem_schedule_weekly">Weekly</string>
+    <!-- A period set some other way (an automation, an older version). -->
+    <string name="designsystem_schedule_every_day">Every day</string>
+    <string name="designsystem_schedule_every_hour">Every hour</string>
+    <plurals name="designsystem_schedule_every_days">
+        <item quantity="one">Every %1$d day</item>
+        <item quantity="other">Every %1$d days</item>
+    </plurals>
+    <plurals name="designsystem_schedule_every_hours">
+        <item quantity="one">Every %1$d hour</item>
+        <item quantity="other">Every %1$d hours</item>
+    </plurals>
+    <string name="designsystem_schedule_every_minutes">Every %1$d min</string>
+
+    <!-- What one event of a task's trigger is called, inside "Goes through …'s filter as a %2$s". -->
+    <string name="designsystem_trigger_noun_calendar">calendar entry</string>
+    <string name="designsystem_trigger_noun_ntfy">ntfy message</string>
+    <string name="designsystem_trigger_noun_mail">mail</string>
+    <string name="designsystem_trigger_noun_app">event from another app</string>
+    <!-- What happened to an event a task's trigger received. -->
+    <string name="designsystem_trigger_decision_fired">Ran</string>
+    <string name="designsystem_trigger_decision_test">Test: ran</string>
+    <string name="designsystem_trigger_decision_no_match">Didn\'t match</string>
+    <string name="designsystem_trigger_decision_rate_limited">Rate-limited</string>
+    <string name="designsystem_trigger_decision_quiet_hours">Quiet hours</string>
+    <string name="designsystem_trigger_decision_disabled">Task paused</string>
+    <string name="designsystem_trigger_decision_busy">Already running</string>
+    <string name="designsystem_trigger_decision_not_allowed">App not allowed</string>
+    <string name="designsystem_trigger_decision_failed">Couldn\'t run</string>
+
+    <!-- The helper prompts a user can edit (Settings → Helper model & extras). -->
+    <string name="designsystem_helper_prompt_title">Chat title</string>
+    <string name="designsystem_helper_prompt_suggestions">Follow-up suggestions</string>
+    <string name="designsystem_helper_prompt_compaction">Summary of long chats</string>
+
+    <!-- Where a helper (sub-agent) got to. -->
+    <string name="designsystem_helper_status_running">Working</string>
+    <string name="designsystem_helper_status_completed">Done</string>
+    <string name="designsystem_helper_status_partial">Stopped early</string>
+    <string name="designsystem_helper_status_failed">Failed</string>
+    <string name="designsystem_helper_status_cancelled">Stopped</string>
+    <string name="designsystem_helper_status_interrupted">Interrupted</string>
+
+    <!-- How a test, build or check command went. -->
+    <string name="designsystem_check_tests_passed">Tests passed</string>
+    <string name="designsystem_check_tests_failed">Tests failed</string>
+    <string name="designsystem_check_tests_timed_out">Tests timed out</string>
+    <string name="designsystem_check_tests_finished">Tests finished</string>
+    <string name="designsystem_check_build_passed">Build passed</string>
+    <string name="designsystem_check_build_failed">Build failed</string>
+    <string name="designsystem_check_build_timed_out">Build timed out</string>
+    <string name="designsystem_check_build_finished">Build finished</string>
+    <string name="designsystem_check_check_passed">Check passed</string>
+    <string name="designsystem_check_check_failed">Check failed</string>
+    <string name="designsystem_check_check_timed_out">Check timed out</string>
+    <string name="designsystem_check_check_finished">Check finished</string>
 </resources>

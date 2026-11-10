@@ -25,6 +25,7 @@ import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.SwitchRow
 import dev.locus.core.designsystem.Tone
+import dev.locus.core.designsystem.labelRes
 import dev.locus.core.llm.DeviceConditions
 import dev.locus.core.model.DeviceState
 import dev.locus.core.model.NetworkKind
@@ -61,7 +62,7 @@ internal fun BatteryRoute(onBack: () -> Unit, viewModel: BatteryViewModel = hilt
 /** Heat, battery saver and low memory, each as a chip in its tone; empty when none applies. */
 @Composable
 internal fun conditionAlerts(now: DeviceState): List<Pair<String, Tone>> = listOfNotNull(
-    now.thermal.label.takeIf { now.hot }?.let { it to if (now.critical) Tone.Critical else Tone.Caution },
+    stringResource(now.thermal.labelRes).takeIf { now.hot }?.let { it to if (now.critical) Tone.Critical else Tone.Caution },
     (stringResource(R.string.settings_battery_alert_saver) to Tone.Caution).takeIf { now.powerSave },
     (stringResource(R.string.settings_battery_alert_memory) to Tone.Caution).takeIf { now.lowMemory },
 )
@@ -70,7 +71,7 @@ internal fun conditionAlerts(now: DeviceState): List<Pair<String, Tone>> = listO
 @Composable
 internal fun calmConditions(now: DeviceState): String = summaryJoin(
     listOfNotNull(
-        now.thermal.label.takeIf { !now.hot },
+        stringResource(now.thermal.labelRes).takeIf { !now.hot },
         now.batteryPercent?.let { stringResource(if (now.charging) R.string.settings_battery_level_charging else R.string.settings_battery_level, it) },
         stringResource(
             when (now.network) {
