@@ -110,12 +110,27 @@ class AgentService : LifecycleService() {
      * waiting question's answers, so the user can act without opening the app. Below Android 16, for a
      * scheduled task, or when the user turned Live Updates off for Locus, it stays the plain notification.
      */
+    /**
+     * On Android 17+, a Live Update's status line ("Waiting for your approval") is styled CAUTION while it
+     * waits for the user ([Notification.createSemanticStyleAnnotation]; the system picks the colour, and
+     * only for eligible, promoted notifications). Stripped of its style, [text] says the same.
+     */
+    private fun waitingStyled(status: AgentStatus, text: String): CharSequence {
+        if (Build.VERSION.SDK_INT < 37 || !status.needsUser) return text
+        return android.text.SpannableString(text).apply {
+            setSpan(
+                Notification.createSemanticStyleAnnotation(Notification.SEMANTIC_STYLE_CAUTION),
+                0, status.text.length.coerceAtMost(length), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+            )
+        }
+    }
+
     private fun statusNotification(appVisible: Boolean): Notification {
         val status = agentStatus(runner.states.value, runner.pendingQuestions)
         val builder = NotificationCompat.Builder(this, STATUS_CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_agent)
             .setContentTitle(status.title)
-            .setContentText(status.text)
+            .setContentText(waitingStyled(status, status.text))
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             // Separate groups stop launchers (Samsung's One UI in testing) from bundling the status and
@@ -129,7 +144,7 @@ class AgentService : LifecycleService() {
             // Eligible: ongoing, a title, standard or BigTextStyle, no custom views, not colorized,
             // not a group summary, and a channel above IMPORTANCE_MIN.
             builder.setRequestPromotedOngoing(true).setShortCriticalText(status.chip)
-            status.detail?.let { builder.setStyle(NotificationCompat.BigTextStyle().bigText(status.text + "\n" + it)) }
+            status.detail?.let { builder.setStyle(NotificationCompat.BigTextStyle().bigText(waitingStyled(status, status.text + "\n" + it))) }
         }
         // While the app is on screen its own cards take the answer. Approvals and questions have their own
         // notifications when this one isn't a Live Update; a budget pause has only this one.

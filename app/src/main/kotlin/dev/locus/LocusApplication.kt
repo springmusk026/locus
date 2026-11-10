@@ -2,6 +2,8 @@ package dev.locus
 
 import android.app.Application
 import android.content.Context
+import android.os.Build
+import android.os.StrictMode
 import android.util.Log
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
@@ -51,6 +53,11 @@ class LocusApplication : Application(), Configuration.Provider {
 
     override fun onCreate() {
         super.onCreate()
+        // Debug builds log a share that hands out URI access without an explicit grant: Android 18 stops
+        // granting it implicitly (docs/research/product-platform-2026.md, P3).
+        if (BuildConfig.DEBUG && Build.VERSION.SDK_INT >= 37) {
+            StrictMode.setVmPolicy(StrictMode.VmPolicy.Builder(StrictMode.getVmPolicy()).detectImplicitUriPermissionGrant().penaltyLog().build())
+        }
         LocusStartup.afterInjection(rescheduleTasks, backup, integrity, diagnostics, scope)
         // Pinned and recent chats as launcher and Direct Share shortcuts (docs/design/android-bridge.md).
         shortcuts.get().start()
