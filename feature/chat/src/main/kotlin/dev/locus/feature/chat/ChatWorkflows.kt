@@ -7,6 +7,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.locus.core.designsystem.UiText
+import dev.locus.core.designsystem.asString
 import dev.locus.core.agent.workflow.WorkflowInputException
 import dev.locus.core.data.repository.WorkflowRepository
 import dev.locus.core.model.Project
@@ -34,9 +36,10 @@ class WorkflowActions(
 
 /** Which workflow sheet is open in a chat. */
 sealed interface ChatWorkflowSheet {
-    data class Editor(val state: WorkflowDraftState) : ChatWorkflowSheet
+    /** [error] says why a save failed; the review sheet shows it from [WorkflowDraftState.Ready.error]. */
+    data class Editor(val state: WorkflowDraftState, val error: UiText? = null) : ChatWorkflowSheet
     data object Picker : ChatWorkflowSheet
-    data class Run(val saved: SavedWorkflow, val error: String? = null) : ChatWorkflowSheet
+    data class Run(val saved: SavedWorkflow, val error: UiText? = null) : ChatWorkflowSheet
 }
 
 /** Saving a chat's task as a workflow and running one in it (docs/design/workflows.md). */
@@ -76,7 +79,10 @@ class ChatWorkflowsViewModel @Inject constructor(private val repository: Workflo
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _sheet.value = ChatWorkflowSheet.Editor(ready.copy(workflow = workflow, error = e.message ?: "Couldn't save the workflow."))
+                _sheet.value = ChatWorkflowSheet.Editor(
+                    ready.copy(workflow = workflow, error = null),
+                    error = e.message?.let(UiText::Plain) ?: UiText.Res(R.string.chat_workflow_save_failed),
+                )
             }
         }
     }
@@ -94,11 +100,12 @@ class ChatWorkflowsViewModel @Inject constructor(private val repository: Workflo
         val rendered = try {
             repository.render(saved.workflow, values)
         } catch (e: WorkflowInputException) {
-            _sheet.value = ChatWorkflowSheet.Run(saved, e.message)
+            // The input's own message (core/agent), shown as it came.
+            _sheet.value = ChatWorkflowSheet.Run(saved, e.message?.let(UiText::Plain))
             return
         }
         if (!repository.run(conversationId, rendered)) {
-            _sheet.value = ChatWorkflowSheet.Run(saved, "This chat is still working on a task. Run it when that's done, or stop it first.")
+            _sheet.value = ChatWorkflowSheet.Run(saved, UiText.Res(R.string.chat_workflow_busy))
             return
         }
         _sheet.value = null
@@ -117,7 +124,7 @@ internal fun rememberChatWorkflows(conversationId: String, project: Project?, vi
     val all by viewModel.all.collectAsStateWithLifecycle()
     when (val s = sheet) {
         is ChatWorkflowSheet.Editor -> WorkflowEditorSheet(
-            state = s.state,
+            state = (s.state as? WorkflowDraftState.Ready)?.takeIf { s.error != null }?.copy(error = s.error?.asString()) ?: s.state,
             projectName = project?.name,
             onSave = { w, inProject, replacing -> viewModel.save(w, if (inProject) project?.id else null, replacing) },
             onDismiss = viewModel::dismiss,
@@ -130,7 +137,7 @@ internal fun rememberChatWorkflows(conversationId: String, project: Project?, vi
         )
         is ChatWorkflowSheet.Run -> WorkflowRunSheet(
             workflow = s.saved.workflow,
-            error = s.error,
+            error = s.error?.asString(),
             onRun = { values -> viewModel.run(conversationId, s.saved, values) },
             onDismiss = viewModel::dismiss,
         )

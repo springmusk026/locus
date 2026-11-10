@@ -1,6 +1,7 @@
 package dev.locus.feature.chat
 
 import android.content.Intent
+import android.content.res.Resources
 import android.net.Uri
 import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -51,6 +52,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -277,13 +279,7 @@ internal fun LocusComposer(
                 decorationBox = { inner ->
                     if (text.isEmpty()) {
                         SupportingText(
-                            when {
-                                asking -> stringResource(R.string.chat_composer_placeholder_aside)
-                                answering -> stringResource(R.string.chat_composer_placeholder_answer)
-                                running -> stringResource(R.string.chat_composer_placeholder_running)
-                                controls.planMode -> stringResource(R.string.chat_composer_placeholder_plan)
-                                else -> placeholder
-                            },
+                            composerPlaceholder(LocalResources.current, asking, answering, running, controls.planMode, idle = placeholder),
                             style = LocusType.body,
                         )
                     }
@@ -434,11 +430,11 @@ internal fun LocusComposer(
  * What the empty text box says. While the agent works, what's typed goes into the running task at its
  * next step (correct it, add something, change priorities, ask it to wrap up), so it says that.
  */
-internal fun composerPlaceholder(asking: Boolean, answering: Boolean, running: Boolean, planMode: Boolean, idle: String): String = when {
-    asking -> "Ask a side question…"
-    answering -> "Type your answer…"
-    running -> "Tell Locus while it works…"
-    planMode -> "Describe the task; Locus plans first"
+internal fun composerPlaceholder(resources: Resources, asking: Boolean, answering: Boolean, running: Boolean, planMode: Boolean, idle: String): String = when {
+    asking -> resources.getString(R.string.chat_composer_placeholder_aside)
+    answering -> resources.getString(R.string.chat_composer_placeholder_answer)
+    running -> resources.getString(R.string.chat_composer_placeholder_running)
+    planMode -> resources.getString(R.string.chat_composer_placeholder_plan)
     else -> idle
 }
 
@@ -558,7 +554,7 @@ private fun MoreSheet(
             SheetRow(
                 LocusIcons.Gauge,
                 stringResource(R.string.chat_composer_budget),
-                budgetSubtitle(controls),
+                budgetSubtitle(LocalResources.current, controls),
                 onClick = onBudget,
             ) { RowChevron() }
         }

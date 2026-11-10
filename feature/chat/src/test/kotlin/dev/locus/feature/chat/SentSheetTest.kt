@@ -5,7 +5,12 @@ import dev.locus.core.model.ApiFormat
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36])
 class SentSheetTest {
     private fun view(host: String?, format: ApiFormat, params: List<Pair<String, String>>, reported: Int?, model: String = "claude-opus-5-5") = SentView(
         format, "Anthropic", model, host, params, "sys", emptyList(), emptyList(),
@@ -14,7 +19,7 @@ class SentSheetTest {
 
     @Test
     fun `request rows name the endpoint and list settings once`() {
-        val rows = requestRows(view("api.anthropic.com", ApiFormat.ANTHROPIC_MESSAGES, listOf("model" to "claude-opus-5-5", "max_tokens" to "64000"), 12_345))
+        val rows = requestRows(testResources, view("api.anthropic.com", ApiFormat.ANTHROPIC_MESSAGES, listOf("model" to "claude-opus-5-5", "max_tokens" to "64000"), 12_345))
         assertEquals(listOf("Provider", "Model", "Endpoint", "Format", "max_tokens", "Prompt tokens"), rows.map { it.first })
         assertEquals("api.anthropic.com", rows[2].second)
         assertTrue(rows.last().second.startsWith("12"))
@@ -22,14 +27,14 @@ class SentSheetTest {
 
     @Test
     fun `on device has no host`() {
-        val rows = requestRows(view(null, ApiFormat.ON_DEVICE, emptyList(), null))
+        val rows = requestRows(testResources, view(null, ApiFormat.ON_DEVICE, emptyList(), null))
         assertEquals("On this phone", rows.first { it.first == "Endpoint" }.second)
         assertEquals("LiteRT-LM", rows.first { it.first == "Format" }.second)
     }
 
     @Test
     fun `a GGUF model is named, never by its gguf id`() {
-        val rows = requestRows(view(null, ApiFormat.ON_DEVICE, emptyList(), null, model = "gguf:gemma-3-1b-it-q8_0"))
+        val rows = requestRows(testResources, view(null, ApiFormat.ON_DEVICE, emptyList(), null, model = "gguf:gemma-3-1b-it-q8_0"))
         assertEquals("Gemma 3 1B it", rows.first { it.first == "Model" }.second)
         // No gguf: key on screen: the name is enough for a local file.
         assertTrue(rows.none { it.first == "Model id" })
@@ -40,8 +45,8 @@ class SentSheetTest {
     fun `the request card ends with the cache line when the reply reported usage`() {
         val v = view("api.anthropic.com", ApiFormat.ANTHROPIC_MESSAGES, emptyList(), 10_000)
             .copy(reportedUsage = dev.locus.core.model.TokenUsage(10_000, 5, cacheRead = 9_000, cacheWrite = 1_000), cacheLifetime = "1h")
-        val rows = requestRows(v)
+        val rows = requestRows(testResources, v)
         assertEquals("Cache" to "warm · 90% read · 1K written (1h)", rows.last())
-        assertTrue(requestRows(view("api.anthropic.com", ApiFormat.ANTHROPIC_MESSAGES, emptyList(), 10_000)).none { it.first == "Cache" })
+        assertTrue(requestRows(testResources, view("api.anthropic.com", ApiFormat.ANTHROPIC_MESSAGES, emptyList(), 10_000)).none { it.first == "Cache" })
     }
 }

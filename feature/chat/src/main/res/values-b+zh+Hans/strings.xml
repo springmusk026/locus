@@ -4,7 +4,9 @@
     <string name="chat_changes_show_files">显示文件</string>
     <string name="chat_changes_expanded">已展开</string>
     <string name="chat_changes_collapsed">已收起</string>
-    <string name="chat_changes_lines_added">新增 %1$s 行</string>
+    <plurals name="chat_changes_lines_added">
+        <item quantity="other">新增 %1$s 行</item>
+    </plurals>
     <string name="chat_changes_lines_removed">移除 %1$s 行</string>
     <string name="chat_changes_undo_all">全部撤销</string>
     <string name="chat_changes_blocked_file">差异仍会显示所有更改的行。你可以打开它手动还原该文件，或在此对话中让 Locus 改回去。</string>
@@ -608,7 +610,9 @@
     <string name="chat_remote_stays_what">git、依赖项、构建产物、.locusignore、超过 100 MB 的文件</string>
     <string name="chat_remote_after">之后，文件会在每条命令前后同步。构建输出保留在 %1$s 上。</string>
     <string name="chat_remote_copying">正在复制到 %1$s</string>
-    <string name="chat_remote_progress">%1$d / %2$d 个文件</string>
+    <plurals name="chat_remote_progress">
+        <item quantity="other">%1$d / %2$d 个文件</item>
+    </plurals>
     <string name="chat_remote_cancel">取消</string>
     <string name="chat_remote_files_copied">文件已复制</string>
     <string name="chat_remote_copying_note">复制完成前，命令会继续在这部手机上运行。取消会把已复制的文件留在 %1$s 上。</string>
@@ -774,4 +778,212 @@
     <string name="chat_voice_tap_done">说完了</string>
     <string name="chat_voice_tap_go_on">继续</string>
     <string name="chat_voice_tap_talk">说话</string>
+
+    <!-- Messages and labels built in code (ModelFit, ModelSheet) -->
+    <string name="chat_sendwarning_title">%1$s 无法处理这条消息</string>
+    <string name="chat_sendwarning_body_suggest">%1$s。发送很可能会失败。%2$s 可以处理。</string>
+    <string name="chat_sendwarning_body_choose">%1$s。发送很可能会失败。请选择能处理它的模型。</string>
+    <string name="chat_fit_need_tools">工具调用</string>
+    <string name="chat_fit_need_vision">视觉</string>
+    <string name="chat_fit_need_context">上下文窗口</string>
+    <string name="chat_fit_need_reasoning">推理</string>
+    <string name="chat_fit_need_structured">结构化输出</string>
+    <string name="chat_fit_lacks_tools">不支持工具调用</string>
+    <string name="chat_fit_lacks_vision">不支持视觉</string>
+    <string name="chat_fit_lacks_context">上下文太小</string>
+    <string name="chat_fit_lacks_context_window">上下文太小（%1$s，需要约 %2$s）</string>
+    <string name="chat_fit_lacks_reasoning">不支持推理</string>
+    <string name="chat_fit_lacks_structured">不支持结构化输出</string>
+    <string name="chat_fit_list_join">%1$s、%2$s</string>
+    <string name="chat_modelsheet_chip_tools">工具</string>
+    <string name="chat_modelsheet_chip_vision">视觉</string>
+    <string name="chat_modelsheet_chip_reasoning">推理</string>
+    <string name="chat_modelsheet_cant_use">此处无法使用：%1$s</string>
+    <string name="chat_modelsheet_not_confirmed">%1$s未确认</string>
+
+    <!-- ChangesCard: titles and summaries built in code -->
+    <plurals name="chat_changes_title">
+        <item quantity="other">已更改 %1$d 个文件</item>
+    </plurals>
+    <plurals name="chat_changes_title_undone">
+        <item quantity="other">已撤销对 %1$d 个文件的更改</item>
+    </plurals>
+    <string name="chat_changes_summary_new_folder">新文件夹</string>
+    <string name="chat_changes_summary_folder_deleted">文件夹已删除</string>
+    <string name="chat_changes_summary_folder">文件夹</string>
+    <string name="chat_changes_summary_new_binary">新二进制文件</string>
+    <string name="chat_changes_summary_binary_deleted">二进制文件已删除</string>
+    <string name="chat_changes_summary_binary_changed">二进制文件已更改</string>
+    <plurals name="chat_changes_summary_new_lines">
+        <item quantity="other">新增 · %1$s 行</item>
+    </plurals>
+    <string name="chat_changes_summary_new_empty">新增 · 空</string>
+    <plurals name="chat_changes_summary_deleted_lines">
+        <item quantity="other">已删除 · %1$s 行</item>
+    </plurals>
+    <string name="chat_changes_summary_deleted">已删除</string>
+    <string name="chat_changes_summary_none">没有行变化</string>
+    <plurals name="chat_changes_totals_new">
+        <item quantity="other">%1$s 个新文件</item>
+    </plurals>
+    <string name="chat_changes_totals_deleted">%1$s 个已删除</string>
+    <string name="chat_changes_edit_line">第 %1$d 次编辑 · %2$s</string>
+    <string name="chat_changes_edit_line_outside">在文件工具之外更改</string>
+    <string name="chat_changes_edit_line_binary">二进制</string>
+    <string name="chat_changes_edit_line_none">没有行变化</string>
+    <plurals name="chat_changes_edited_times">
+        <item quantity="other">已编辑 %1$d 次</item>
+    </plurals>
+    <string name="chat_changes_edit_label_outside">在文件工具之外更改（命令或你）</string>
+    <string name="chat_changes_edit_label_wrote">写入了文件</string>
+    <string name="chat_changes_edit_label_edited">已编辑</string>
+    <string name="chat_changes_edit_label_deleted">已删除</string>
+    <string name="chat_changes_edit_label_moved">已移动</string>
+    <string name="chat_changes_edit_label_copied">已复制</string>
+    <string name="chat_changes_edit_label_created">已创建</string>
+    <string name="chat_changes_edit_label_changed">已更改</string>
+
+    <!-- ChatControlsUi, VerificationCard, ChatScreen: lines built in code -->
+    <string name="chat_budget_subtitle_own">此对话 %1$s</string>
+    <string name="chat_budget_subtitle_default">默认：%1$s</string>
+    <string name="chat_budget_cost_off">估算费用需要模型价格：请在设置 → 模型中开启模型详情（models.dev）。</string>
+    <string name="chat_budget_cost_not_loaded">模型价格尚未加载；打开一次模型列表即可获取。</string>
+    <string name="chat_budget_cost_no_price">models.dev 没有列出 %1$s 的价格，因此无法估算费用。</string>
+    <string name="chat_checklist_progress">已完成 %1$d/%2$d</string>
+    <string name="chat_checklist_progress_current">已完成 %1$d/%2$d · %3$s</string>
+    <string name="chat_thought_label">已思考</string>
+    <string name="chat_thought_moment">思考了片刻</string>
+    <string name="chat_thought_seconds">思考了 %1$d 秒</string>
+    <string name="chat_thought_minutes">思考了 %1$d 分 %2$d 秒</string>
+    <string name="chat_duration_tenths">%1$.1f 秒</string>
+    <string name="chat_duration_seconds">%1$d 秒</string>
+    <string name="chat_duration_minutes">%1$d 分 %2$d 秒</string>
+    <plurals name="chat_checks_failing_tests">
+        <item quantity="other">%1$d 个测试失败</item>
+    </plurals>
+    <string name="chat_checks_exit_code">退出码 %1$d</string>
+    <string name="chat_checks_exit_unreliable">退出状态不可靠：该命令通过管道或链式执行了这项检查</string>
+    <string name="chat_sentence_join">%1$s%2$s</string>
+    <string name="chat_screen_waiting_answer">正在等待你的回答</string>
+    <string name="chat_screen_thinking">思考中</string>
+    <string name="chat_screen_budget_used">已用：%1$s。</string>
+    <string name="chat_screen_budget_continue_note">继续将再允许一次同样的额度。</string>
+    <string name="chat_screen_live_checklist">正在更新清单</string>
+    <string name="chat_screen_live_plan">正在撰写计划</string>
+    <string name="chat_note_ran_anyway">你仍然运行了被拦截的调用：%1$s</string>
+    <string name="chat_fallback_note">由 %1$s 回答 · %2$s 无法回答</string>
+    <string name="chat_fallback_backup_model">备用模型</string>
+    <string name="chat_project_already_started">此对话已经开始，因此保持原位。请改为在该项目中新建对话。</string>
+    <string name="chat_code_language_code">代码</string>
+    <string name="chat_code_language_text">文本</string>
+    <string name="chat_reply_meta_in">输入 %1$s</string>
+    <string name="chat_reply_meta_out">输出 %1$s</string>
+    <string name="chat_reply_meta_cached">缓存 %1$d%%</string>
+
+    <!-- FailureDetailsSheet, ReceiptCard, SentSheet -->
+    <string name="chat_failure_connection_dropped">回复结束前连接已断开。</string>
+    <string name="chat_failure_field_provider">提供商</string>
+    <string name="chat_failure_field_model">模型</string>
+    <string name="chat_failure_field_model_id">模型 ID</string>
+    <string name="chat_failure_field_http_status">HTTP 状态</string>
+    <string name="chat_failure_field_error_code">错误码</string>
+    <string name="chat_failure_field_request_id">请求 ID</string>
+    <string name="chat_failure_field_gateway_id">网关 ID</string>
+    <string name="chat_failure_field_response_id">响应 ID</string>
+    <string name="chat_failure_field_time">时间</string>
+    <string name="chat_failure_field_times">连续次数</string>
+    <string name="chat_failure_absent_http_status">无（数据流已开始）</string>
+    <string name="chat_failure_absent_error_code">未提供</string>
+    <string name="chat_failure_absent_request_id">未发送</string>
+    <string name="chat_failure_absent_response_id">无</string>
+    <string name="chat_receipt_outcome_failed">%1$s：%2$s</string>
+    <string name="chat_receipt_failure_overloaded">提供商负载过高。请稍后再试，或切换模型。</string>
+    <string name="chat_receipt_failure_rate_limit">已达到提供商的速率限制。请等待一分钟后重试，或切换模型。</string>
+    <plurals name="chat_receipt_approvals_asked">
+        <item quantity="other">询问 %1$d 次</item>
+    </plurals>
+    <plurals name="chat_receipt_approvals_approved">
+        <item quantity="other">你已批准 %1$d 次</item>
+    </plurals>
+    <plurals name="chat_receipt_approvals_declined">
+        <item quantity="other">你已拒绝 %1$d 次</item>
+    </plurals>
+    <plurals name="chat_receipt_approvals_blocked">
+        <item quantity="other">已拦截 %1$d 次</item>
+    </plurals>
+    <string name="chat_receipt_filter_asked">询问了你</string>
+    <string name="chat_receipt_filter_approved">你已批准</string>
+    <string name="chat_receipt_filter_declined">你已拒绝</string>
+    <string name="chat_receipt_filter_blocked">已拦截</string>
+    <string name="chat_sent_row_provider">提供商</string>
+    <string name="chat_sent_row_model">模型</string>
+    <string name="chat_sent_row_model_id">模型 ID</string>
+    <string name="chat_sent_row_endpoint">端点</string>
+    <string name="chat_sent_row_format">格式</string>
+    <string name="chat_sent_row_prompt_tokens">提示词令牌</string>
+    <string name="chat_sent_row_cache">缓存</string>
+    <string name="chat_sent_on_this_phone">在这部手机上</string>
+    <string name="chat_sent_format_chatgpt">Responses（ChatGPT 套餐）</string>
+    <string name="chat_sent_reported">已上报 %1$,d</string>
+
+    <!-- SubagentRow: the note on a helper that stopped early -->
+    <string name="chat_helper_note">%1$s 主智能体拿到了它已有的内容：最后一条回复、工具结果和它更改过的文件，均标为部分结果。智能体可以从这里继续。</string>
+    <string name="chat_helper_note_timeout">它在完成前达到了助手的时间上限（设置 → 智能体 → 助手）。</string>
+    <string name="chat_helper_note_cancelled">它在完成前被停止了。</string>
+    <string name="chat_helper_note_tokens">它在完成前用完了令牌额度。</string>
+    <string name="chat_helper_note_steps">它在完成前达到了步数上限。</string>
+    <string name="chat_helper_note_budget">助手完成前，任务已达到预算。</string>
+    <string name="chat_helper_note_early">它在完成前就停止了。</string>
+
+    <!-- RemoteUi, ProjectsViewModel, ChatWorkflows -->
+    <string name="chat_remote_removed_machine">一台已移除的机器</string>
+    <string name="chat_remote_error_reach">无法连接 %1$s：%2$s</string>
+    <string name="chat_remote_error_list">无法列出文件。</string>
+    <string name="chat_remote_error_link">关联失败：%1$s</string>
+    <string name="chat_remote_size_bytes">%1$d B</string>
+    <string name="chat_remote_size_kb">%1$d KB</string>
+    <string name="chat_remote_size_mb">%1$.1f MB</string>
+    <string name="chat_projects_default_model">你的默认模型</string>
+    <string name="chat_projecteditor_error_name">请给项目起个名字。</string>
+    <string name="chat_projecteditor_error_folder">请使用工作区内的文件夹，例如 projects/garden（不能含 .. 或隐藏文件夹）。</string>
+    <string name="chat_projecteditor_error_taken">已有另一个项目使用该文件夹。</string>
+    <string name="chat_workflow_save_failed">无法保存工作流。</string>
+    <string name="chat_workflow_busy">此对话仍在处理任务。请等它完成后再运行，或先停止任务。</string>
+    <!-- TranscriptRows: a check's label, per kind and state (the kind agrees in gender with its state) -->
+    <string name="chat_checks_tests_running">测试运行中</string>
+    <string name="chat_checks_tests_running_n">测试 · 运行中（第 %1$d 次）</string>
+    <string name="chat_checks_tests_passed">测试通过</string>
+    <string name="chat_checks_tests_passed_n">测试 · 第 %1$d 次运行（共 %1$d 次）通过</string>
+    <string name="chat_checks_tests_failed">测试失败</string>
+    <string name="chat_checks_tests_failed_n">测试 · 第 %1$d 次运行（共 %1$d 次）失败</string>
+    <string name="chat_checks_tests_finished">测试已结束</string>
+    <string name="chat_checks_tests_finished_n">测试 · 第 %1$d 次运行（共 %1$d 次）已结束</string>
+    <string name="chat_checks_tests_timedout">测试超时</string>
+    <string name="chat_checks_tests_timedout_n">测试 · 第 %1$d 次运行（共 %1$d 次）超时</string>
+    <string name="chat_checks_tests_stopped">测试已停止</string>
+    <string name="chat_checks_tests_stopped_n">测试 · 第 %1$d 次运行（共 %1$d 次）已停止</string>
+    <string name="chat_checks_build_running">构建运行中</string>
+    <string name="chat_checks_build_running_n">构建 · 运行中（第 %1$d 次）</string>
+    <string name="chat_checks_build_passed">构建通过</string>
+    <string name="chat_checks_build_passed_n">构建 · 第 %1$d 次运行（共 %1$d 次）通过</string>
+    <string name="chat_checks_build_failed">构建失败</string>
+    <string name="chat_checks_build_failed_n">构建 · 第 %1$d 次运行（共 %1$d 次）失败</string>
+    <string name="chat_checks_build_finished">构建已结束</string>
+    <string name="chat_checks_build_finished_n">构建 · 第 %1$d 次运行（共 %1$d 次）已结束</string>
+    <string name="chat_checks_build_timedout">构建超时</string>
+    <string name="chat_checks_build_timedout_n">构建 · 第 %1$d 次运行（共 %1$d 次）超时</string>
+    <string name="chat_checks_build_stopped">构建已停止</string>
+    <string name="chat_checks_build_stopped_n">构建 · 第 %1$d 次运行（共 %1$d 次）已停止</string>
+    <string name="chat_checks_check_running">检查运行中</string>
+    <string name="chat_checks_check_running_n">检查 · 运行中（第 %1$d 次）</string>
+    <string name="chat_checks_check_passed">检查通过</string>
+    <string name="chat_checks_check_passed_n">检查 · 第 %1$d 次运行（共 %1$d 次）通过</string>
+    <string name="chat_checks_check_failed">检查失败</string>
+    <string name="chat_checks_check_failed_n">检查 · 第 %1$d 次运行（共 %1$d 次）失败</string>
+    <string name="chat_checks_check_finished">检查已结束</string>
+    <string name="chat_checks_check_finished_n">检查 · 第 %1$d 次运行（共 %1$d 次）已结束</string>
+    <string name="chat_checks_check_timedout">检查超时</string>
+    <string name="chat_checks_check_timedout_n">检查 · 第 %1$d 次运行（共 %1$d 次）超时</string>
+    <string name="chat_checks_check_stopped">检查已停止</string>
+    <string name="chat_checks_check_stopped_n">检查 · 第 %1$d 次运行（共 %1$d 次）已停止</string>
 </resources>

@@ -27,6 +27,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.locus.core.designsystem.asString
 import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.CardGroup
@@ -89,7 +90,7 @@ fun ProjectEditorRoute(
             Modifier.fillMaxSize().imePadding(),
             contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = padding.calculateTopPadding() + Spacing.xs, bottom = padding.calculateBottomPadding() + Spacing.xxl),
         ) {
-            state.error?.let { error -> item(key = "error") { Banner(error, Tone.Critical, Modifier.padding(bottom = Spacing.sm)) } }
+            state.error?.let { error -> item(key = "error") { Banner(error.asString(), Tone.Critical, Modifier.padding(bottom = Spacing.sm)) } }
             item(key = "name") {
                 OutlinedTextField(
                     state.name, viewModel::setName, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.chat_projecteditor_name)) }, singleLine = true,

@@ -1,6 +1,7 @@
 package dev.locus.feature.chat
 
 import androidx.compose.animation.AnimatedVisibility
+import android.content.res.Resources
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -26,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import dev.locus.core.agent.SentBlock
@@ -83,7 +85,8 @@ private fun SentContent(view: SentView, onDismiss: () -> Unit) {
     val clipboard = androidx.compose.ui.platform.LocalClipboard.current
     val scope = rememberCoroutineScope()
     var copied by remember { mutableStateOf(false) }
-    val request = remember(view) { requestRows(view) }
+    val resources = LocalResources.current
+    val request = remember(view, resources) { requestRows(resources, view) }
     val systemChunks = remember(view) { SentView.chunks(view.system) }
     LocusSheet(
         title = stringResource(R.string.chat_sent_title),
@@ -104,7 +107,7 @@ private fun SentContent(view: SentView, onDismiss: () -> Unit) {
                     if (view.onDevice) {
                         stringResource(R.string.chat_sent_note_on_device)
                     } else {
-                        stringResource(R.string.chat_sent_note_hosted, formatLabel(view.format, view.model))
+                        stringResource(R.string.chat_sent_note_hosted, formatLabel(resources, view.format, view.model))
                     },
                 )
             }
@@ -234,24 +237,26 @@ private fun Code(text: String, modifier: Modifier = Modifier) {
 @Composable
 private fun estimate(tokens: Int): String? = if (tokens <= 0) null else stringResource(R.string.chat_sent_estimate, compactCount(tokens.toLong()))
 
-private fun formatLabel(format: ApiFormat, model: String) = when (format) {
+/** The API a request used, by its own name (the names aren't translated). */
+private fun formatLabel(resources: Resources, format: ApiFormat, model: String) = when (format) {
     ApiFormat.ANTHROPIC_MESSAGES -> "Anthropic Messages"
     ApiFormat.OPENAI_CHAT -> "Chat Completions"
     ApiFormat.OPENAI_RESPONSES -> "Responses"
-    ApiFormat.CHATGPT -> "Responses (ChatGPT plan)"
+    ApiFormat.CHATGPT -> resources.getString(R.string.chat_sent_format_chatgpt)
     ApiFormat.ON_DEVICE -> if (dev.locus.core.model.isGgufModel(model)) "llama.cpp (GGUF)" else "LiteRT-LM"
 }
 
 /** The request card's rows: who it went to, then every setting sent besides the content. */
-internal fun requestRows(view: SentView): List<Pair<String, String>> = buildList {
-    add("Provider" to view.provider)
+internal fun requestRows(resources: Resources, view: SentView): List<Pair<String, String>> = buildList {
+    add(resources.getString(R.string.chat_sent_row_provider) to view.provider)
     // The model by name; its exact id (what the request body carries) too when that reads differently.
-    add("Model" to ModelNames.short(view.model))
-    ModelNames.idIfDifferent(view.model)?.let { add("Model id" to it) }
-    add("Endpoint" to (view.host ?: "On this phone"))
-    add("Format" to formatLabel(view.format, view.model))
+    add(resources.getString(R.string.chat_sent_row_model) to ModelNames.short(view.model))
+    ModelNames.idIfDifferent(view.model)?.let { add(resources.getString(R.string.chat_sent_row_model_id) to it) }
+    add(resources.getString(R.string.chat_sent_row_endpoint) to (view.host ?: resources.getString(R.string.chat_sent_on_this_phone)))
+    add(resources.getString(R.string.chat_sent_row_format) to formatLabel(resources, view.format, view.model))
+    // The settings are the request's own parameter names (temperature, max_tokens…), as sent.
     view.params.filter { it.first != "model" }.forEach { (k, v) -> add(k to v.take(400)) }
-    view.reportedInputTokens?.let { add("Prompt tokens" to "%,d reported".format(it)) }
-    // Warm or cold, hit share and writes, from the reply's usage (docs/design/cost.md).
-    view.cache?.let { add("Cache" to it) }
+    view.reportedInputTokens?.let { add(resources.getString(R.string.chat_sent_row_prompt_tokens) to resources.getString(R.string.chat_sent_reported, it)) }
+    // Warm or cold, hit share and writes, from the reply's usage (docs/design/cost.md; core/agent's words).
+    view.cache?.let { add(resources.getString(R.string.chat_sent_row_cache) to it) }
 }

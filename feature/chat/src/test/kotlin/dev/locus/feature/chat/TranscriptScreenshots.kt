@@ -475,7 +475,7 @@ class TranscriptScreenshots : ScreenshotTest() {
     @Test
     fun sendWarningNoSuggestion() = snap("sheet-send-warning-no-suggestion", heightDp = 600) {
         SendWarningDialog(
-            SendWarning("deepseek-v4", "its context window (163.8k tokens) is smaller than this chat (212k tokens)", text = "Summarise everything above"),
+            SendWarning("deepseek-v4", dev.locus.core.llm.Fit(listOf(dev.locus.core.llm.Need.CONTEXT), emptyList(), window = 163_800, wanted = 212_000), text = "Summarise everything above"),
             onSwitch = {}, onSendAnyway = {}, onCancel = {},
         )
     }

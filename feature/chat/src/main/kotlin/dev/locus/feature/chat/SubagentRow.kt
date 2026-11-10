@@ -189,18 +189,19 @@ internal fun partialReason(stop: HelperStop?): UiText = UiText.Res(
 )
 
 /** The note at the top of a partial helper's transcript: why it stopped and what the main agent got. */
-internal fun partialNote(stop: HelperStop?): String {
-    val why = when (stop) {
-        HelperStop.TIMEOUT -> "It reached the helper time limit (Settings → Agent → Helpers) before finishing."
-        HelperStop.CANCELLED -> "It was stopped before finishing."
-        HelperStop.TOKEN_BUDGET -> "It used its token allowance before finishing."
-        HelperStop.STEP_LIMIT -> "It reached its step limit before finishing."
-        HelperStop.TASK_BUDGET -> "The task reached its budget before the helper finished."
-        null -> "It stopped before finishing."
-    }
-    return "$why The main agent got what it had: its last reply, its tool results and the files it changed, marked as partial. " +
-        "The agent can continue it from here."
-}
+internal fun partialNote(stop: HelperStop?): UiText = UiText.Res(
+    R.string.chat_helper_note,
+    UiText.Res(
+        when (stop) {
+            HelperStop.TIMEOUT -> R.string.chat_helper_note_timeout
+            HelperStop.CANCELLED -> R.string.chat_helper_note_cancelled
+            HelperStop.TOKEN_BUDGET -> R.string.chat_helper_note_tokens
+            HelperStop.STEP_LIMIT -> R.string.chat_helper_note_steps
+            HelperStop.TASK_BUDGET -> R.string.chat_helper_note_budget
+            null -> R.string.chat_helper_note_early
+        },
+    ),
+)
 
 @Composable
 private fun RefusedSpawn(item: ChatItem.ToolCall) {
@@ -233,7 +234,7 @@ private fun SubagentTranscriptSheet(
     helper: SubagentView,
     task: String,
     runner: SubagentRunner,
-    partialNote: String?,
+    partialNote: UiText?,
     onSteer: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -244,7 +245,7 @@ private fun SubagentTranscriptSheet(
     val subtitle = buildString {
         append(if (partialNote != null) partialResult else helper.status.label)
         append(" · ${dev.locus.core.model.ModelNames.short(helper.model)}")
-        if (helper.tokens > 0) append(" · ${compactCount(helper.tokens)} tokens")
+        if (helper.tokens > 0) append(" · " + stringResource(R.string.chat_helper_tokens, compactCount(helper.tokens)))
         // What this helper cost, at models.dev prices; left out when no price is known.
         helper.spend.label?.let { append(" · $it") }
     }
@@ -256,7 +257,7 @@ private fun SubagentTranscriptSheet(
             contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = Spacing.sm),
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            if (partialNote != null) item(key = "partial") { Banner(partialNote, Tone.Caution, title = stringResource(R.string.chat_helper_partial)) }
+            if (partialNote != null) item(key = "partial") { Banner(partialNote.asString(), Tone.Caution, title = stringResource(R.string.chat_helper_partial)) }
             if (entries.isEmpty() && task.isNotBlank()) item { TaskBlock(task, stringResource(R.string.chat_helper_task)) }
             items(entries, key = { it.key }) { entry ->
                 when (entry) {

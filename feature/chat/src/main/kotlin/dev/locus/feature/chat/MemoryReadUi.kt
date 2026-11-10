@@ -4,6 +4,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.heightIn
+import android.content.res.Resources
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import dev.locus.core.designsystem.LocusSheet
@@ -53,9 +55,6 @@ internal val LocalMemoryReads = compositionLocalOf { MemoryReadActions() }
 internal fun memoryReads(calls: List<ChatItem.ToolCall>): List<MemoryRef> =
     MemoryReads.inCalls(calls.map { MemoryReads.Call(it.name, it.argumentsJson, it.result?.content, it.result?.isError == true) })
 
-/** "Read 1 memory note", "Read 3 memory notes". */
-internal fun memoryReadSummary(count: Int): String = "Read $count memory ${if (count == 1) "note" else "notes"}"
-
 /**
  * A turn's memory reads as one quiet step: "Read 2 memory notes". A tap lists each topic with Forget
  * (confirmed in a sheet), so what the agent relied on stays one tap away without a row per topic in
@@ -97,7 +96,7 @@ internal fun MemoryReadList(reads: List<MemoryRef>) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 Icon(LocusIcons.Note, contentDescription = null, modifier = Modifier.size(IconSize.small), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(
-                    if (ref.general) stringResource(R.string.chat_memory_label_general, ref.topic.replace('-', ' ')) else ref.topic.replace('-', ' '),
+                    memoryReadLabel(LocalResources.current, ref),
                     Modifier.weight(1f),
                     style = LocusType.rowSupporting,
                     color = if (gone) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
@@ -133,4 +132,7 @@ internal fun MemoryReadList(reads: List<MemoryRef>) {
 }
 
 /** A topic as the card lists it: its name in words, and where it came from in a project chat. */
-internal fun memoryReadLabel(ref: MemoryRef): String = ref.topic.replace('-', ' ') + if (ref.general) " · general memory" else ""
+internal fun memoryReadLabel(resources: Resources, ref: MemoryRef): String {
+    val topic = ref.topic.replace('-', ' ')
+    return if (ref.general) resources.getString(R.string.chat_memory_label_general, topic) else topic
+}

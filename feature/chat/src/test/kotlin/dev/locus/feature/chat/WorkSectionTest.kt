@@ -10,12 +10,17 @@ import dev.locus.core.model.TodoItem
 import dev.locus.core.model.TodoStatus
 import dev.locus.core.model.Verification
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /** A turn's work is one section; repeated check runs are one row; the transcript's quieter pieces. */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36])
 class WorkSectionTest {
     private var t = 0L
     private fun msg(role: Role, vararg parts: Part) = Message("m${t++}", "c", role, parts.toList(), t)
@@ -58,8 +63,8 @@ class WorkSectionTest {
             listOf(RunState.FAILED, RunState.FAILED, RunState.PASSED, RunState.UNCLEAR, RunState.PASSED),
             tests.runs.map { runState(it, running = false) },
         )
-        assertEquals("Tests · passed on run 5 of 5", checkGroupLabel(tests, running = false))
-        assertEquals("Check passed", checkGroupLabel(groups[1], running = false))
+        assertEquals("Tests · passed on run 5 of 5", checkGroupLabel(testResources, tests, running = false))
+        assertEquals("Check passed", checkGroupLabel(testResources, groups[1], running = false))
         // The step list leaves check runs to their group.
         assertTrue(steps.filter { checkRunOf(it) == null }.none { it is ChatItem.Verification })
     }
@@ -72,27 +77,43 @@ class WorkSectionTest {
         val tests = checkGroups(steps).first()
         assertEquals(5, tests.runs.size)
         assertNull(tests.latest.outcome)
-        assertEquals("Tests · running (run 5)", checkGroupLabel(tests, running = true))
+        assertEquals("Tests · running (run 5)", checkGroupLabel(testResources, tests, running = true))
         // Stopped before it finished (no result, nothing running).
-        assertEquals("Tests · stopped on run 5 of 5", checkGroupLabel(tests, running = false))
+        assertEquals("Tests · stopped on run 5 of 5", checkGroupLabel(testResources, tests, running = false))
         // A plain command that hasn't finished stays a step.
         assertNull(checkRunOf(ChatItem.ToolCall("x", "run_command", """{"command":"ls"}""", null)))
     }
 
     @Test
+    fun `a check says its kind and state in words, for one run and for several`() {
+        fun group(kind: Verification.Kind, command: String, result: String, error: Boolean, runs: Int = 1) = CheckGroup(
+            kind,
+            (1..runs).map { n ->
+                val call = ChatItem.ToolCall("k$n", "run_command", """{"command":"$command"}""", Part.ToolResult("k$n", "run_command", result, isError = error))
+                CheckRun(call, Verification.ofRunCommand("""{"command":"$command"}""", result, isError = error))
+            },
+        )
+        val build = group(Verification.Kind.BUILD, "./gradlew build", "Exit code 1 (9.0 s).\nBUILD FAILED", error = true, runs = 2)
+        assertEquals("Build · failed on run 2 of 2", checkGroupLabel(testResources, build, running = false))
+        val passing = group(Verification.Kind.BUILD, "./gradlew build", "Exit code 0 (9.0 s).\nBUILD SUCCESSFUL", error = false)
+        assertEquals("Build passed", checkGroupLabel(testResources, passing, running = false))
+        val testsRunning = CheckGroup(Verification.Kind.TEST, listOf(CheckRun(ChatItem.ToolCall("k", "run_command", """{"command":"npm test"}""", null), null)))
+        assertEquals("Tests running", checkGroupLabel(testResources, testsRunning, running = true))
+        assertEquals("Tests stopped", checkGroupLabel(testResources, testsRunning, running = false))
+    }
+
+    @Test
     fun `a failed run says why in a line, and an untrusted pass says so`() {
         val failed = Verification.ofRunCommand("""{"command":"npm test"}""", "Exit code 1 (1.0 s).\nTests: 1 failed, 2 passed", isError = true)!!
-        assertEquals("1 failed, 2 passed", verificationDetail(failed))
+        assertEquals("1 failed, 2 passed", verificationDetail(testResources, failed))
         val piped = Verification.ofRunCommand("""{"command":"npm test | tail"}""", "Exit code 0 (1.0 s).\nok", isError = false)!!
-        assertEquals("Exit status not reliable: the command pipes or chains the check", verificationDetail(piped))
+        assertEquals("Exit status not reliable: the command pipes or chains the check", verificationDetail(testResources, piped))
     }
 
     @Test
     fun `memory reads, the checklist and the changes card read compactly`() {
-        assertEquals("Read 1 memory note", memoryReadSummary(1))
-        assertEquals("Read 3 memory notes", memoryReadSummary(3))
         val todos = listOf(TodoItem("Plan", TodoStatus.COMPLETED), TodoItem("Redesign the portfolio", TodoStatus.IN_PROGRESS), TodoItem("Ship", TodoStatus.PENDING))
-        assertEquals("1 of 3 done · Redesign the portfolio", checklistLine(todos))
+        assertEquals("1 of 3 done · Redesign the portfolio", checklistLine(testResources, todos))
         assertTrue(changesExpandedByDefault(1))
         assertTrue(changesExpandedByDefault(3))
         assertFalse(changesExpandedByDefault(4))
@@ -111,8 +132,8 @@ class WorkSectionTest {
         val files = listOf(change(1, 10, 2, edits = edits), change(2, 5, 5), change(3, 100, 100, undone = true))
         assertEquals(15 to 7, changesTotals(files))
         assertEquals(2, files[0].editCount)
-        assertEquals("Edited 2 times", editCountLabel(files[0]))
-        assertNull(editCountLabel(files[1]))
-        assertEquals("Changed outside the file tools (a command, or you)", editLabel(edits[1]))
+        assertEquals("Edited 2 times", editCountLabel(testResources, files[0]))
+        assertNull(editCountLabel(testResources, files[1]))
+        assertEquals("Changed outside the file tools (a command, or you)", editLabel(testResources, edits[1]))
     }
 }

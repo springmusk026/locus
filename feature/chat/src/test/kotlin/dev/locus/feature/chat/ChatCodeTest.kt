@@ -3,10 +3,15 @@ package dev.locus.feature.chat
 import dev.snipme.highlights.model.SyntaxLanguage
 import dev.snipme.highlights.model.SyntaxThemes
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36])
 class ChatCodeTest {
     @Test fun aliasesMapToHighlighterLanguages() {
         val cases = mapOf(
@@ -38,16 +43,16 @@ class ChatCodeTest {
     }
 
     @Test fun displayNames() {
-        assertEquals("Code", languageDisplayName(null))
-        assertEquals("JavaScript", languageDisplayName("js"))
-        assertEquals("C++", languageDisplayName("cc"))
-        assertEquals("bash", languageDisplayName("bash"))
-        assertEquals("JSON", languageDisplayName("json"))
-        assertEquals("Mermaid", languageDisplayName("Mermaid"))
-        assertEquals("Mermaid", languageDisplayName("mermaid"))
-        assertEquals("LaTeX", languageDisplayName("math"))
-        assertEquals("LaTeX", languageDisplayName("latex"))
-        assertEquals("LaTeX", languageDisplayName("tex"))
+        assertEquals("Code", languageDisplayName(testResources, null))
+        assertEquals("JavaScript", languageDisplayName(testResources, "js"))
+        assertEquals("C++", languageDisplayName(testResources, "cc"))
+        assertEquals("bash", languageDisplayName(testResources, "bash"))
+        assertEquals("JSON", languageDisplayName(testResources, "json"))
+        assertEquals("Mermaid", languageDisplayName(testResources, "Mermaid"))
+        assertEquals("Mermaid", languageDisplayName(testResources, "mermaid"))
+        assertEquals("LaTeX", languageDisplayName(testResources, "math"))
+        assertEquals("LaTeX", languageDisplayName(testResources, "latex"))
+        assertEquals("LaTeX", languageDisplayName(testResources, "tex"))
     }
 
     @Test fun highlightingKeepsTheTextAndAddsSpans() {

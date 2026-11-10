@@ -14,7 +14,12 @@ import dev.locus.core.model.Part
 import dev.locus.core.model.ProviderConfig
 import dev.locus.core.model.Role
 import dev.locus.core.model.TokenUsage
+import dev.locus.core.llm.Fit
+import dev.locus.core.llm.Need
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
@@ -22,6 +27,8 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /** What a chat needs from a model, the warning before sending, and how the picker marks models. */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36])
 class ModelFitTest {
     private val image = Part.Attachment("cat.png", "image/png", "/x/cat.png", "cat.png", 10)
     private fun msg(id: String, role: Role, vararg parts: Part, usage: TokenUsage? = null) = Message(id, "c", role, parts.toList(), 0, usage = usage)
@@ -82,13 +89,14 @@ class ModelFitTest {
             Triple(ref, "GPT-5.2 (OpenAI)", vision),
         )
         val warning = assertNotNull(sendWarning(needs, blind, "deepseek-chat", candidates, text = "what's this?"))
-        assertEquals("deepseek-chat can't take this message", warning.title)
-        assertEquals("no vision", warning.reason)
+        assertEquals("deepseek-chat can't take this message", warning.title(testResources))
+        assertEquals(listOf(Need.VISION), warning.fit.lacks)
+        assertEquals("no vision", fitReason(testResources, warning.fit))
         // Not the blind one, and not the one nobody knows about: the one known to see.
         assertEquals(ref, warning.suggestion)
         assertEquals("GPT-5.2 (OpenAI)", warning.suggestionTitle)
         assertEquals("what's this?", warning.text)
-        assertTrue("GPT-5.2 (OpenAI) can take it" in warning.body)
+        assertEquals("No vision. Sending would most likely fail. GPT-5.2 (OpenAI) can take it.", warning.body(testResources))
     }
 
     @Test
@@ -96,9 +104,9 @@ class ModelFitTest {
         val needs = ModelRequirements(tools = true, contextTokens = 300_000)
         val small = ModelCapabilities(tools = Support.YES, contextWindow = 128_000)
         val warning = assertNotNull(sendWarning(needs, small, "gpt-4o", listOf(Triple(ModelRef("x", "y"), "y (X)", ModelCapabilities.UNKNOWN))))
-        assertTrue(warning.reason.startsWith("context too small (128K"))
+        assertEquals("context too small (128K, needs ~308K)", fitReason(testResources, warning.fit))
         assertNull(warning.suggestion)
-        assertTrue("Choose a model that can take it" in warning.body)
+        assertEquals("Context too small (128K, needs ~308K). Sending would most likely fail. Choose a model that can take it.", warning.body(testResources))
     }
 
     @Test
@@ -115,10 +123,19 @@ class ModelFitTest {
             needs = ModelRequirements(tools = true, images = true),
         )
         val rows = sections.flatMap { it.rows }.associateBy { it.id }
-        assertEquals("Can't use here: no tool calling, no vision", cantUseLabel(rows.getValue("claude-2.1").fit))
-        assertNull(cantUseLabel(rows.getValue("claude-opus-5-5").fit))
+        assertEquals("Can't use here: no tool calling, no vision", cantUseLabel(testResources, rows.getValue("claude-2.1").fit))
+        assertNull(cantUseLabel(testResources, rows.getValue("claude-opus-5-5").fit))
         // A local model nobody knows anything about stays usable, with a note.
-        assertNull(cantUseLabel(rows.getValue("qwen").fit))
-        assertEquals("Tool calling, vision not confirmed", unconfirmedLabel(rows.getValue("qwen").fit))
+        assertNull(cantUseLabel(testResources, rows.getValue("qwen").fit))
+        assertEquals("Tool calling, vision not confirmed", unconfirmedLabel(testResources, rows.getValue("qwen").fit))
+    }
+
+    @Test
+    fun `a fit says each hard lack in words and a soft one not at all`() {
+        assertEquals("no vision", fitReason(testResources, Fit(listOf(Need.VISION), emptyList())))
+        assertEquals("no tool calling, no vision", fitReason(testResources, Fit(listOf(Need.TOOLS, Need.VISION), emptyList())))
+        assertEquals("context too small", fitReason(testResources, Fit(listOf(Need.CONTEXT), emptyList())))
+        assertNull(fitReason(testResources, Fit(listOf(Need.REASONING), emptyList())))
+        assertNull(fitReason(testResources, Fit.OK))
     }
 }

@@ -27,6 +27,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.locus.core.designsystem.asString
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.EmptyState
 import dev.locus.core.designsystem.GroupDivider
@@ -177,7 +178,7 @@ fun ProjectRoute(
                     GroupDivider(inset = Insets.iconRow)
                     ListRow(
                         title = stringResource(R.string.chat_project_screen_model),
-                        subtitle = row.modelLabel,
+                        subtitle = row.modelLabel.asString(),
                         leading = { IconTile(LocusIcons.Server) },
                     )
                 }

@@ -108,14 +108,14 @@ class ChangesFlowTest {
         val card = s.items.filterIsInstance<ChatItem.Changes>().single()
         // The card closes the turn, after the reply.
         assertEquals(card, s.items.last())
-        assertEquals("Changed 2 files", changesTitle(card.files))
+        assertEquals(2, card.files.count { !it.undone })
         val notes = card.files.single { it.path == "notes.md" }
         assertEquals(TrackedChange.Kind.MODIFIED, notes.kind)
         assertEquals(2 to 1, notes.added to notes.removed)
         assertTrue("-buy milk\n+buy oat milk\n+buy bread\n" in notes.diff.orEmpty(), notes.diff)
         val todo = card.files.single { it.path == "todo.md" }
         assertEquals(TrackedChange.Kind.CREATED, todo.kind)
-        assertEquals("New · 1 line", changeSummary(todo))
+        assertEquals(1 to 0, todo.added to todo.removed)
         // The turn is keyed by its first message after the user's.
         val history = f.graph.conversations.history(f.chat)
         assertEquals(history[1].id, card.turnId)
@@ -123,7 +123,7 @@ class ChangesFlowTest {
         assertFalse(f.vm.checkUndoTurn(card.turnId).changedSince)
         f.vm.undo(turnId = card.turnId)
         val undone = f.vm.state { st -> st.items.filterIsInstance<ChatItem.Changes>().singleOrNull()?.files?.all { it.undone } == true }
-        assertEquals("Undid the changes to 2 files", changesTitle(undone.items.filterIsInstance<ChatItem.Changes>().single().files))
+        assertEquals(2, undone.items.filterIsInstance<ChatItem.Changes>().single().files.count { it.undone })
         assertEquals("shopping:\nbuy milk\n", ws.resolve("notes.md").readText())
         assertFalse(ws.resolve("todo.md").exists())
         // Nothing is lost: what the agent wrote is in the trash.
