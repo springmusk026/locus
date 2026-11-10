@@ -7,6 +7,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import dev.locus.core.model.SettingsDestination
 import dev.locus.core.model.TaskBudget
 import java.util.Locale
 
@@ -32,11 +33,18 @@ object TaskBudgetPresets {
 
 /**
  * Edits a [TaskBudget]: tokens, estimated cost and time, each Off or a preset. The cost row is
- * disabled with [costNote] shown under it when prices for the model aren't known, with a link to the
- * Settings page it names.
+ * disabled with [costNote] shown under it when prices for the model aren't known, with a link to
+ * [costNoteDestination]: by default the Settings page [costNote] names in English, else the page a caller
+ * with translated text passes.
  */
 @Composable
-fun TaskBudgetEditor(budget: TaskBudget, onChange: (TaskBudget) -> Unit, costNote: String? = null, modifier: Modifier = Modifier) {
+fun TaskBudgetEditor(
+    budget: TaskBudget,
+    onChange: (TaskBudget) -> Unit,
+    costNote: String? = null,
+    modifier: Modifier = Modifier,
+    costNoteDestination: SettingsDestination? = SettingsDestination.inText(costNote),
+) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         BudgetRow(
             stringResource(R.string.designsystem_budget_tokens),
@@ -54,13 +62,13 @@ fun TaskBudgetEditor(budget: TaskBudget, onChange: (TaskBudget) -> Unit, costNot
         if (costNote != null) {
             // "… turn on model details (models.dev) in Settings → Models.": the sentence leads into a link to
             // that page, as SettingsLink's hint, instead of naming the path and then repeating it as a link.
-            val destination = dev.locus.core.model.SettingsDestination.inText(costNote)
+            // Other text (a translation that names the page its own way) shows whole, with the link under it.
             val lead = costNote.substringBefore(" in Settings →", missingDelimiterValue = "")
-            if (destination != null && lead.isNotEmpty()) {
-                SettingsLink(destination, hint = stringResource(R.string.designsystem_budget_cost_hint, lead))
+            if (costNoteDestination != null && lead.isNotEmpty()) {
+                SettingsLink(costNoteDestination, hint = stringResource(R.string.designsystem_budget_cost_hint, lead))
             } else {
                 Text(costNote, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                SettingsLinkIn(costNote)
+                SettingsLinkIn(costNote, destination = costNoteDestination)
             }
         }
         BudgetRow(

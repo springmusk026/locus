@@ -82,6 +82,10 @@ class DesignSystemTest {
         // A chat error that names a page gets a button; one that doesn't, doesn't.
         assertTrue(hasSettingsAction("OpenAI has no API key. Add it in Settings → Models."))
         assertTrue(!hasSettingsAction("The model didn't answer.") && !hasSettingsAction(null))
+        // Translated text names no English page; the page passed with it is what counts.
+        assertTrue(!hasSettingsAction("Añade una clave en Ajustes → Modelos."))
+        assertTrue(hasSettingsAction("Añade una clave en Ajustes → Modelos.", dev.locus.core.model.SettingsDestination.Models))
+        assertTrue(!hasSettingsAction("OpenAI has no API key. Add it in Settings → Models.", destination = null))
         // Every page's link text leads back to that page, so a message can't name a page the link doesn't open.
         dev.locus.core.model.SettingsDestination.entries.forEach {
             assertEquals(it, dev.locus.core.model.SettingsDestination.inText(settingsPath(it)), it.name)

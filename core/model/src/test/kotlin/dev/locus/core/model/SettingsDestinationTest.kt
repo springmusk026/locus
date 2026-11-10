@@ -22,6 +22,14 @@ class SettingsDestinationTest {
     }
 
     @Test
+    fun `only English text is read, so translated text passes its page`() {
+        // The design-system links take an explicit destination for these (docs/design/localization.md).
+        opensNothing("Locus espera mientras el teléfono está caliente (en Ajustes → Batería y calor).")
+        opensNothing("Adicione uma chave em Configurações → Modelos.")
+        opensNothing("在设置 → 模型中添加密钥。")
+    }
+
+    @Test
     fun `older names and sub-pages resolve`() {
         opens(SettingsDestination.Models, "Mistral needs an API key. Add one in Settings → Providers.")
         opens(SettingsDestination.Diagnostics, "The reset didn't open new keys. Details are in Settings → About & privacy → Diagnostics.")
