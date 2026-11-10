@@ -1476,6 +1476,10 @@ private fun ToolCallRow(item: ChatItem.ToolCall, running: Boolean) {
                 maxLines = if (expanded) Int.MAX_VALUE else 2,
             )
         }
+        // The images a tool showed the model (view_image), as it saw them.
+        item.result?.images?.takeIf { it.isNotEmpty() }?.let { images ->
+            ToolImages(images, Modifier.padding(start = IconSize.large + Spacing.sm, top = Spacing.xs))
+        }
         AnimatedVisibility(expanded) {
             Column(Modifier.padding(top = Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                 CodeBlock(stringResource(R.string.chat_screen_input), prettyJson(item.argumentsJson))

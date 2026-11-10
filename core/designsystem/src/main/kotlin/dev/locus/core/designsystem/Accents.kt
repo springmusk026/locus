@@ -47,6 +47,7 @@ fun accentFor(toolName: String): Pair<Accent, ImageVector> = when {
     toolName.startsWith("memory_") || toolName.startsWith("skill_") || toolName.startsWith("chat_history_") -> Accent.Memory to LocusIcons.Library
     toolName == dev.locus.core.model.DeviceIntegrations.CALENDAR_READ -> Accent.Device to LocusIcons.Clock
     toolName == dev.locus.core.model.DeviceIntegrations.PHOTOS_PICK -> Accent.Device to LocusIcons.Image
+    toolName == dev.locus.core.model.ViewImages.TOOL -> Accent.Files to LocusIcons.Image
     toolName.startsWith("device_") || toolName == "notify_me" || dev.locus.core.model.DeviceIntegrations.isIntegration(toolName) -> Accent.Device to LocusIcons.Phone
     toolName.startsWith("agent_") || toolName == "todo_write" || toolName == "plan_propose" || toolName == "ask_user" || toolName == "task_budget" -> Accent.Agent to LocusIcons.Sparkle
     toolName.startsWith("email_") -> Accent.Connector to LocusIcons.Plug

@@ -31,6 +31,7 @@ import dev.locus.core.designsystem.GridImage
 import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.ImageGallery
 import dev.locus.core.designsystem.ImageGrid
+import dev.locus.core.designsystem.ImageGridCompactSize
 import dev.locus.core.designsystem.InlineSpinner
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.Spacing
@@ -74,6 +75,36 @@ internal fun SentAttachments(attachments: List<Part.Attachment>, modifier: Modif
             FullImage(images[i])
         }
     }
+}
+
+/**
+ * The images a tool showed the model (view_image), small inside its step row: Locus's own copies, so
+ * they show what the model saw even if the workspace file changed since. A tap opens them full screen.
+ */
+@Composable
+internal fun ToolImages(images: List<Part.Attachment>, modifier: Modifier = Modifier) {
+    if (images.isEmpty()) return
+    val resources = LocalResources.current
+    var open by rememberSaveable { mutableStateOf<Int?>(null) }
+    val grid = images.mapIndexed { i, a ->
+        key(a.path) {
+            val thumb = rememberAttachmentThumbnail(a)
+            GridImage(thumb.bitmap, missing = thumb.missing, label = toolImageLabel(i, images.size, a).asString())
+        }
+    }
+    ImageGrid(grid, onOpen = { open = it }, modifier = modifier, size = ImageGridCompactSize)
+    open?.let { start ->
+        ImageGallery(images.size, start, label = { toolImageLabel(it, images.size, images[it]).asString(resources) }, onDismiss = { open = null }) { i ->
+            FullImage(images[i])
+        }
+    }
+}
+
+/** "Image 1 of 2, chart.png, 1568×980": what TalkBack says for an image a tool looked at. */
+internal fun toolImageLabel(index: Int, count: Int, a: Part.Attachment): UiText {
+    val name = dev.locus.core.llm.toolImageLabel(a)
+    return if (count == 1) UiText.Res(dev.locus.core.designsystem.R.string.designsystem_image_named, name)
+    else UiText.Res(dev.locus.core.designsystem.R.string.designsystem_image_named_of, index + 1, count, name)
 }
 
 /** "Photo 1 of 2, IMG_1400.jpg": what TalkBack says for a picture in a message. */
