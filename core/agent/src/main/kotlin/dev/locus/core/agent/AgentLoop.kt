@@ -267,7 +267,7 @@ sealed interface Outcome {
     data class ToolLoopStopped(val loop: ToolLoop) : Outcome
 
     /** The task reached [limit] of its budget and the user (or, for a helper, the rule) said stop. */
-    data class BudgetStopped(val limit: BudgetLimit, val message: String) : Outcome
+    data class BudgetStopped(val limit: BudgetLimit, val message: String, val reached: BudgetReached? = null) : Outcome
     /**
      * The run stopped on an error: [message] for the chat, and the provider failure behind it when it was
      * one ([error], with its code, ids and scrubbed body for the details sheet), from [providerId]'s [model].
@@ -277,6 +277,8 @@ sealed interface Outcome {
         val error: dev.locus.core.llm.LlmException? = null,
         val providerId: String? = null,
         val model: String? = null,
+        /** When the chat no longer fit the model: [message] as data, for the chat to word in the user's language. */
+        val overflow: ContextOverflowText? = null,
     ) : Outcome
 }
 
@@ -545,7 +547,7 @@ class AgentLoop(
                     val limit = b.exceeded() ?: break
                     val goOn = config.budgetGate?.onLimit(b, limit) == true
                     if (!goOn) {
-                        emit(AgentEvent.Finished(Outcome.BudgetStopped(limit, b.stopMessage(limit))))
+                        emit(AgentEvent.Finished(Outcome.BudgetStopped(limit, b.stopMessage(limit), b.reached(limit, paused = false))))
                         return@flow
                     }
                     b.extend(limit)
@@ -578,8 +580,9 @@ class AgentLoop(
                             continue
                         }
                     }
-                    val message = if (overflow) overflowMessage(e, serving.label, summarised) else e.message ?: e.toString()
-                    emit(AgentEvent.Finished(Outcome.Failed(message, e.llmFailure(), serving.servedBy.first, serving.servedBy.second)))
+                    val overflowText = if (overflow) overflowText(e, serving.label, summarised) else null
+                    val message = overflowText?.english ?: e.message ?: e.toString()
+                    emit(AgentEvent.Finished(Outcome.Failed(message, e.llmFailure(), serving.servedBy.first, serving.servedBy.second, overflowText)))
                     return@flow
                 }
             }
@@ -867,15 +870,7 @@ class AgentLoop(
     }
 
     /** Why a run ended on a context-overflow error, and what the user can do about it. */
-    private fun overflowMessage(e: Exception, model: String, summarised: Boolean): String {
-        val what = if (summarised) {
-            "This task no longer fits in $model's context window, even after summarising the earlier messages."
-        } else {
-            "This task no longer fits in $model's context window."
-        }
-        return "$what Start a new chat for the rest (the agent there can read this one with chat_history_read), or switch to a model " +
-            "with a larger window.\n\nThe provider said: ${e.message.orEmpty().take(500)}"
-    }
+    private fun overflowText(e: Exception, model: String, summarised: Boolean) = ContextOverflowText(model, summarised, e.message.orEmpty().take(500))
 
     /** How long a model turn took, on the attempt that succeeded (see [ReplyInfo]). */
     private class Timing(val firstTokenMs: Long?, val totalMs: Long)

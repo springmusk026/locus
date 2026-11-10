@@ -92,7 +92,11 @@ class ReceiptItemsTest {
 
     @Test
     fun `a reply's meta line adds the cache share and an on-device reply's speed`() {
-        assertEquals("1.2k in · 70 out · 64% cached · GPU · ≈18 tok/s", replyMeta(testResources, TurnUsage(1_200, 70, 1_000, 640), "GPU · ≈18 tok/s", null))
+        val speed = dev.locus.core.ondevice.TurnSpeed(dev.locus.core.ondevice.Accelerator.GPU, null, null, 40, 18.2, measured = false)
+        assertEquals("1.2k in · 70 out · 64% cached · GPU · ≈18 tok/s", replyMeta(testResources, TurnUsage(1_200, 70, 1_000, 640), speed, null))
+        // With a prefill speed too, as core/ondevice words it.
+        val both = speed.copy(prefillPerSecond = 240.0)
+        assertEquals(dev.locus.core.ondevice.OnDeviceFormat.turnLine(both), speedLine(testResources, both))
     }
 
     @Test

@@ -29,6 +29,10 @@ data class RunFailure(
     val contextWindow: Int? = null,
     /** The transcript point it failed at (the last message's id), to tell a repeat from a new failure. */
     val transcriptMark: String? = null,
+    /** The provider's error as data, when Locus wrote its message ([LlmException.text]): the chat words it in the user's language. */
+    val text: dev.locus.core.llm.LlmErrorText? = null,
+    /** The chat no longer fit the model: the run's message as data. */
+    val overflow: ContextOverflowText? = null,
 ) {
     /** The same failure came back after Try again, on the same transcript. */
     val repeated: Boolean get() = occurrences >= 2
@@ -91,6 +95,7 @@ data class RunFailure(
             rawBody: String?,
             contextTokens: Int? = null,
             contextWindow: Int? = null,
+            overflow: ContextOverflowText? = null,
         ): RunFailure {
             val kind = error?.kind ?: LlmFailure.OTHER
             val first = RunFailure(
@@ -106,6 +111,8 @@ data class RunFailure(
                 contextTokens = contextTokens,
                 contextWindow = contextWindow,
                 transcriptMark = transcriptMark,
+                text = error?.text,
+                overflow = overflow,
             )
             val occurrences = if (previous != null && previous.signature == first.signature && previous.transcriptMark == transcriptMark) previous.occurrences + 1 else 1
             return first.copy(occurrences = occurrences, cause = causeOf(kind, error?.errorCode, message, occurrences >= 2))

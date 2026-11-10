@@ -210,6 +210,7 @@ internal class ScrubbingChatModel(private val inner: ChatModel, private val secr
                 errorCode = llm?.errorCode,
                 requestId = llm?.requestId,
                 responseId = llm?.responseId,
+                text = llm?.text?.let { t -> t.copy(values = t.values.map { scrubSecrets(it, secrets) }) },
             )
         }
         throw e

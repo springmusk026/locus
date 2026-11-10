@@ -47,18 +47,20 @@ internal fun httpError(provider: String, status: Int, body: String, retryAfterMs
     // Anthropic answers a spend limit the user set with a 400 whose message names it (platform.claude.com/docs/en/api/errors).
     val usageLimit = status == 400 && error?.string("message")?.startsWith("You have reached your specified API usage limits") == true
     if (status == 429 && codes.any { it in BILLING_LIMIT_CODES } || status == 402 || "billing_error" in codes || usageLimit) {
-        val detail = error?.string("message")?.takeIf { it.isNotBlank() } ?: codes.firstOrNull() ?: "out of credit"
+        val detail = error?.string("message")?.takeIf { it.isNotBlank() } ?: codes.firstOrNull()
+        val text = if (detail != null) LlmErrorText(LlmErrorText.Kind.BILLING, listOf(provider, detail)) else LlmErrorText(LlmErrorText.Kind.BILLING_NO_DETAIL, listOf(provider))
         return LlmException(
-            "$provider: $detail\nThis is a billing or spend limit, not a rate limit, so Locus won't retry. " +
-                "Add credits or raise the limit in your $provider account, then try again.",
+            text.english,
             status,
             retryable = false,
             kind = LlmFailure.QUOTA,
+            text = text,
         )
     }
     if (status == 429 && dailyQuota(error)) {
-        val detail = error?.string("message")?.takeIf { it.isNotBlank() } ?: "daily quota reached"
-        return LlmException("$provider: $detail\nThis is a daily quota, so retrying now won't help.", status, retryable = false, kind = LlmFailure.QUOTA, retryAfterMs = wait)
+        val detail = error?.string("message")?.takeIf { it.isNotBlank() }
+        val text = if (detail != null) LlmErrorText(LlmErrorText.Kind.DAILY_QUOTA, listOf(provider, detail)) else LlmErrorText(LlmErrorText.Kind.DAILY_QUOTA_NO_DETAIL, listOf(provider))
+        return LlmException(text.english, status, retryable = false, kind = LlmFailure.QUOTA, retryAfterMs = wait, text = text)
     }
     // A prompt too long for the window: a 4xx (Anthropic and OpenAI 400, Cloudflare 413) whose code,
     // OpenRouter's `metadata.error_type`, or text says so (see [ContextOverflow]). Ollama's body is
@@ -79,13 +81,15 @@ internal fun httpError(provider: String, status: Int, body: String, retryAfterMs
     }
     // The provider's own message when it gave one; otherwise the status in plain words. A gateway's HTML
     // page or a long dump never reaches the chat; the whole body stays on the exception for Diagnostics.
+    val text = ProviderErrorText.messageText(provider, status, body)
     return LlmException(
-        ProviderErrorText.message(provider, status, body),
+        text.english,
         status,
         isRetryableStatus(status) || status == 498,
         kind = kind,
         retryAfterMs = wait,
         rawBody = body.takeIf { it.isNotBlank() },
+        text = text,
     )
 }
 

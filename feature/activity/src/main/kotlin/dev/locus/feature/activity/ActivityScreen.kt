@@ -76,9 +76,9 @@ import dev.locus.core.designsystem.accentFor
 import dev.locus.core.designsystem.cardSegment
 import dev.locus.core.designsystem.color
 import dev.locus.core.designsystem.durationLabel
+import dev.locus.core.designsystem.localizedToolLabel
 import dev.locus.core.model.ApprovalDecision
 import dev.locus.core.model.AuditEntry
-import dev.locus.core.model.toolLabel
 import java.text.DateFormat
 import java.util.Date
 import org.json.JSONArray
@@ -382,7 +382,7 @@ private fun RunHeader(run: Run, expanded: Boolean, inChat: Boolean, modifier: Mo
         if (!expanded) {
             val e = run.latest
             SupportingText(
-                stringResource(R.string.activity_run_last, toolLabel(e.toolName, e.argumentsJson, done = !e.isError && !e.refused)),
+                stringResource(R.string.activity_run_last, localizedToolLabel(e.toolName, e.argumentsJson, done = !e.isError && !e.refused)),
                 Modifier.padding(top = Spacing.xs),
                 style = LocusType.rowSupporting,
                 maxLines = 1,
@@ -406,7 +406,7 @@ private fun CallRow(entry: AuditEntry, modifier: Modifier, onClick: () -> Unit) 
         val (accent, icon) = accentFor(entry.toolName)
         AccentTile(accent, icon, size = IconSize.medium)
         Text(
-            toolLabel(entry.toolName, entry.argumentsJson, done = !entry.isError && !entry.refused),
+            localizedToolLabel(entry.toolName, entry.argumentsJson, done = !entry.isError && !entry.refused),
             Modifier.weight(1f).padding(horizontal = Spacing.sm),
             style = LocusType.rowSupporting,
             maxLines = 1,
@@ -425,7 +425,7 @@ private fun CallRow(entry: AuditEntry, modifier: Modifier, onClick: () -> Unit) 
 private fun DetailSheet(entry: AuditEntry, chat: RunChat, onDismiss: () -> Unit, onOpenChat: (() -> Unit)?) {
     val when_ = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.MEDIUM).format(Date(entry.startedAt))
     LocusSheet(
-        title = toolLabel(entry.toolName, entry.argumentsJson, done = !entry.isError && !entry.refused),
+        title = localizedToolLabel(entry.toolName, entry.argumentsJson, done = !entry.isError && !entry.refused),
         onDismiss = onDismiss,
         subtitle = stringResource(R.string.activity_detail_subtitle, when_, durationLabel(entry.finishedAt - entry.startedAt).trim()),
         action = if (onOpenChat != null) stringResource(R.string.activity_detail_open_chat) else null,

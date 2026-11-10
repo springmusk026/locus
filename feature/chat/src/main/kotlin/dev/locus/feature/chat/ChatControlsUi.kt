@@ -108,8 +108,8 @@ internal fun BudgetSheet(
         if (meter != null) {
             SectionLabel(stringResource(R.string.chat_budget_this_task))
             LocusCard {
-                Text(stringResource(R.string.chat_budget_used, dev.locus.core.agent.BudgetText.used(meter)), style = LocusType.rowTitle)
-                dev.locus.core.agent.BudgetText.limits(meter)?.let {
+                Text(stringResource(R.string.chat_budget_used, budgetUsed(LocalResources.current, meter)), style = LocusType.rowTitle)
+                budgetLimits(LocalResources.current, meter)?.let {
                     SupportingText(stringResource(R.string.chat_budget_limits, it))
                 }
             }

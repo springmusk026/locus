@@ -134,17 +134,17 @@ class RunBudget(
     }
 
     /** "Paused: reached the 200k-token budget for this task." */
-    fun pauseMessage(limit: BudgetLimit): String = "Paused: reached the ${describe(limit)} budget for this task."
+    fun pauseMessage(limit: BudgetLimit): String = reached(limit, paused = true).english
 
     /** "Stopped: reached the 200k-token budget for this task." */
-    fun stopMessage(limit: BudgetLimit): String = "Stopped: reached the ${describe(limit)} budget for this task."
+    fun stopMessage(limit: BudgetLimit): String = reached(limit, paused = false).english
+
+    /** [pauseMessage] or [stopMessage] as data, for the chat to word in the user's language. */
+    fun reached(limit: BudgetLimit, paused: Boolean): BudgetReached =
+        BudgetReached(limit, paused, tokens = budget.tokens ?: 0, costUsd = budget.costUsd ?: 0.0, minutes = budget.minutes ?: 0)
 
     /** "200k-token", "$2.00", "30-minute": the size of one increment of [limit]. */
-    fun describe(limit: BudgetLimit): String = when (limit) {
-        BudgetLimit.TOKENS -> "${compactTokens(budget.tokens ?: 0)}-token"
-        BudgetLimit.COST -> "${usd(budget.costUsd ?: 0.0)} cost"
-        BudgetLimit.TIME -> "${budget.minutes ?: 0}-minute"
-    }
+    fun describe(limit: BudgetLimit): String = reached(limit, paused = false).size
 
     companion object {
         const val MINUTE = 60_000L
@@ -163,6 +163,22 @@ class RunBudget(
             else -> String.format(java.util.Locale.US, "$%.2f", amount)
         }
     }
+}
+
+/**
+ * A task reached [limit] of its budget and [paused] (else stopped): one increment of the budget's own
+ * size, [tokens], [costUsd] or [minutes]. [english] is the chat's notice and the Activity entry's words.
+ */
+data class BudgetReached(val limit: BudgetLimit, val paused: Boolean, val tokens: Long, val costUsd: Double, val minutes: Int) {
+    /** "200k-token", "$2.00 cost", "30-minute". */
+    val size: String get() = when (limit) {
+        BudgetLimit.TOKENS -> "${RunBudget.compactTokens(tokens)}-token"
+        BudgetLimit.COST -> "${RunBudget.usd(costUsd)} cost"
+        BudgetLimit.TIME -> "$minutes-minute"
+    }
+
+    /** "Paused: reached the 200k-token budget for this task.", or "Stopped: …". */
+    val english: String get() = "${if (paused) "Paused" else "Stopped"}: reached the $size budget for this task."
 }
 
 /** Asks the user what to do when a task reached a limit; true to continue (one more increment), false to stop. */

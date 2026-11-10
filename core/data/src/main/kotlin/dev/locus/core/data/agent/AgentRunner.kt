@@ -77,6 +77,10 @@ data class RunState(
      */
     val failure: dev.locus.core.agent.RunFailure? = null,
     val notice: String? = null,
+    /** [progress], [notice] and [error] as data when the runner wrote them ([RunNote]), for the chat to word in the user's language. */
+    val progressNote: RunNote? = null,
+    val noticeNote: RunNote? = null,
+    val errorNote: RunNote? = null,
     /** The last run stopped before finishing (app closed or killed); it can be continued. */
     val interrupted: Boolean = false,
     /** Follow-ups the user might send next, from the helper model; cleared when a run starts. */
@@ -155,8 +159,8 @@ internal enum class BackgroundStart(val title: String, val notice: String) {
     QUEUED("Your message is waiting", "Locus couldn't send your queued message while it was in the background. Continue?"),
 }
 
-/** A task paused at a budget limit: "Paused: reached the 200k-token budget for this task." */
-data class BudgetPause(val limit: BudgetLimit, val message: String)
+/** A task paused at a budget limit: "Paused: reached the 200k-token budget for this task." ([reached] as data). */
+data class BudgetPause(val limit: BudgetLimit, val message: String, val reached: dev.locus.core.agent.BudgetReached? = null)
 
 /** A call the safety reviewer blocked; "Run anyway" runs exactly this call. */
 data class ReviewerBlock(
@@ -227,6 +231,7 @@ class AgentRunner @Inject constructor(
             rawBody = error.rawBody?.let { access.scrubForDisplay(it) },
             contextTokens = history.lastOrNull { it.usage != null }?.usage?.context,
             contextWindow = provider.contextWindow,
+            overflow = outcome.overflow,
         )
         lastFailures[conversationId] = failure
         return failure
@@ -659,8 +664,7 @@ class AgentRunner @Inject constructor(
             it.copy(
                 error = null, failure = null, suggestions = emptyList(), reviewerBlocks = emptyList(),
                 interrupted = recovery.unfinished,
-                notice = "This branch stopped before the agent finished. Continue where it left off?".takeIf { recovery.unfinished },
-            )
+            ).withNotice(RunNote.BranchUnfinished.takeIf { recovery.unfinished })
         }
     }
 
@@ -684,7 +688,7 @@ class AgentRunner @Inject constructor(
         start(conversationId, task = false) {
             runCatching { compact(conversationId) }.onFailure { e ->
                 if (e is kotlinx.coroutines.CancellationException) throw e
-                update(conversationId) { it.copy(progress = "", error = "Couldn't summarise the chat: ${e.message}") }
+                update(conversationId) { it.withProgress(null).withError(RunNote.CompactNowFailed(e.message)) }
             }
         }
     }
@@ -700,7 +704,7 @@ class AgentRunner @Inject constructor(
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
-            update(conversationId) { it.copy(progress = "", notice = compactionFailedNotice(e.message)) }
+            update(conversationId) { it.withProgress(null).withNotice(RunNote.CompactionFailed(e.message)) }
         }
     }
 
@@ -722,7 +726,7 @@ class AgentRunner @Inject constructor(
         val provider = current.provider(conversation.providerId)?.let { chatProvider(it, conversation) } ?: return
         val history = modelContext(conversations.history(conversationId))
         if (history.size < 4) return
-        update(conversationId) { it.copy(progress = "Summarising earlier messages") }
+        update(conversationId) { it.withProgress(RunNote.Summarising) }
         val model = if (provider.format == ApiFormat.ON_DEVICE) onDevice.chatModel(provider.model) else access.chatModel(provider)
         val startedAt = System.currentTimeMillis()
         val chatTools = tools.forChat(conversation)
@@ -734,7 +738,7 @@ class AgentRunner @Inject constructor(
         conversations.append(
             Message(UUID.randomUUID().toString(), conversationId, Role.USER, listOf(dev.locus.core.agent.Compaction.checkpoint(summary, history, provider.contextWindow)), System.currentTimeMillis()),
         )
-        update(conversationId) { it.copy(progress = "", notice = "Summarised ${history.size} earlier messages to free up context.") }
+        update(conversationId) { it.withProgress(null).withNotice(RunNote.Compacted(history.size)) }
     }
 
     /**
@@ -861,7 +865,7 @@ class AgentRunner @Inject constructor(
             // The job never started, so its cleanup never runs: the slot is freed here, after the state
             // (freed first, a newer run could take the chat and then be shown as stopped).
             job.cancel()
-            update(conversationId) { it.copy(running = false, interrupted = true, notice = auto.notice) }
+            update(conversationId) { it.copy(running = false, interrupted = true).withNotice(RunNote.BackgroundRefused(helper = auto == BackgroundStart.HELPER)) }
             finishRecord(conversationId, record, TaskEnd(dev.locus.core.model.TaskOutcome.STOPPED, "Android didn't let Locus start in the background"))
             jobs.remove(conversationId, job)
             runCatching { onBackgroundStartRefused(conversationId, auto.title, "Tap to continue.") }
@@ -975,7 +979,7 @@ class AgentRunner @Inject constructor(
     private suspend fun askBudget(conversationId: String, budget: RunBudget, limit: BudgetLimit): Boolean {
         val answer = CompletableDeferred<Boolean>()
         budgetAnswers[conversationId] = answer
-        update(conversationId) { it.copy(budgetPause = BudgetPause(limit, budget.pauseMessage(limit)), budget = budget.meter(), activeTool = null, progress = "") }
+        update(conversationId) { it.copy(budgetPause = BudgetPause(limit, budget.pauseMessage(limit), budget.reached(limit, paused = true)), budget = budget.meter(), activeTool = null, progress = "") }
         val goOn = try {
             budget.waitingForUser { withTimeoutOrNull(30.minutes) { answer.await() } ?: false }
         } finally {
@@ -1063,7 +1067,7 @@ class AgentRunner @Inject constructor(
         val tool = tools.forChat(conversations.get(conversationId))[block.toolName]
         val args = runCatching { kotlinx.serialization.json.Json.parseToJsonElement(block.argumentsJson) as kotlinx.serialization.json.JsonObject }.getOrNull()
         if (tool == null || args == null) {
-            update(conversationId) { it.copy(notice = "Couldn't run it: that tool is no longer available.") }
+            update(conversationId) { it.withNotice(RunNote.ToolGone) }
             return null
         }
         val c = conversations.get(conversationId)
@@ -1174,7 +1178,7 @@ class AgentRunner @Inject constructor(
                 conversations.append(Message(UUID.randomUUID().toString(), conversation.id, Role.TOOL, recovery.missingResults, System.currentTimeMillis()))
             }
             if (recovery.unfinished) {
-                update(conversation.id) { it.copy(interrupted = true, notice = "This task stopped when Locus was closed. Continue where it left off?") }
+                update(conversation.id) { it.copy(interrupted = true).withNotice(RunNote.ClosedMidTask) }
             }
         }
     }
@@ -1237,8 +1241,8 @@ class AgentRunner @Inject constructor(
         val readOnly = background || current.telegramRemote.lockedChat(conversationId)
         val base = current.provider(conversation.providerId)
         if (base == null) {
-            taskEnds[conversationId] = TaskEnd(dev.locus.core.model.TaskOutcome.FAILED, "Add a model provider in Settings → Models first.")
-            update(conversationId) { it.copy(error = "Add a model provider in Settings → Models first.") }
+            taskEnds[conversationId] = TaskEnd(dev.locus.core.model.TaskOutcome.FAILED, RunNote.NoProvider.english)
+            update(conversationId) { it.withError(RunNote.NoProvider) }
             return
         }
         val provider = chatProvider(base, conversation)
@@ -1401,16 +1405,16 @@ class AgentRunner @Inject constructor(
                         }
                         is AgentEvent.Retrying, is AgentEvent.FellBack, is AgentEvent.Compacting -> {
                             val progress = when (event) {
-                                is AgentEvent.Retrying -> retryProgress(event)
-                                is AgentEvent.FellBack -> fallbackProgress(event)
-                                is AgentEvent.Compacting -> if (event.overflow) "Context full, summarising earlier messages…" else "Summarising earlier messages…"
-                                else -> ""
+                                is AgentEvent.Retrying -> retryNote(event)
+                                is AgentEvent.FellBack -> fallbackNote(event)
+                                is AgentEvent.Compacting -> RunNote.Compacting(event.overflow)
+                                else -> null
                             }
                             thinkingSince = null
                             thoughtDone = false
                             resetting {
                                 stream.reset()
-                                update(conversationId) { it.copy(streamingText = "", progress = progress, reasoning = "", thinkingSince = null, thoughtMs = null) }
+                                update(conversationId) { it.copy(streamingText = "", reasoning = "", thinkingSince = null, thoughtMs = null).withProgress(progress) }
                             }
                         }
                         is AgentEvent.MessageAppended -> {
@@ -1451,9 +1455,9 @@ class AgentRunner @Inject constructor(
                                 }
                                 is AgentEvent.Compacted -> {
                                     usage.record(dev.locus.core.model.UsageSource.COMPACTION, conversationId, event.providerId, event.model, event.usage, event.durationMs)
-                                    update(conversationId) { it.copy(progress = "", notice = "Summarised ${event.replaced} earlier messages to free up context.") }
+                                    update(conversationId) { it.withProgress(null).withNotice(RunNote.Compacted(event.replaced)) }
                                 }
-                                is AgentEvent.CompactionFailed -> update(conversationId) { it.copy(progress = "", notice = compactionFailedNotice(event.reason)) }
+                                is AgentEvent.CompactionFailed -> update(conversationId) { it.withProgress(null).withNotice(RunNote.CompactionFailed(event.reason)) }
                                 is AgentEvent.Finished -> {
                                     // A model failure gets its details and what to try next (docs/design/provider-failures.md).
                                     val failure = (event.outcome as? Outcome.Failed)?.let { runFailure(conversationId, it, provider) }
@@ -1469,9 +1473,11 @@ class AgentRunner @Inject constructor(
                                                 ).joinToString("\n\n"),
                                                 failure = failure,
                                             )
-                                            is Outcome.Refused -> it.copy(notice = "The model declined this request${outcome.detail?.let { d -> " ($d)" }.orEmpty()}.")
-                                            is Outcome.StepLimitReached -> it.copy(notice = "Stopped after ${outcome.steps} steps. Send a message to continue.")
-                                            is Outcome.BudgetStopped -> it.copy(notice = "${outcome.message} Send a message to go on.")
+                                            is Outcome.Refused -> it.withNotice(RunNote.Refused(outcome.detail))
+                                            is Outcome.StepLimitReached -> it.withNotice(RunNote.StepLimit(outcome.steps))
+                                            is Outcome.BudgetStopped -> outcome.reached?.takeIf { r -> r.english == outcome.message }
+                                                ?.let { r -> it.withNotice(RunNote.BudgetStopped(r)) }
+                                                ?: it.copy(notice = "${outcome.message} Send a message to go on.")
                                             is Outcome.ToolLoopStopped -> it.copy(notice = outcome.loop.message)
                                         }
                                     }
@@ -1578,7 +1584,7 @@ class AgentRunner @Inject constructor(
         }
         if (saved > 0) {
             library.refresh()
-            update(conversation.id) { it.copy(notice = if (saved == 1) "Saved 1 lesson to memory." else "Saved $saved lessons to memory.") }
+            update(conversation.id) { it.withNotice(RunNote.LessonsSaved(saved)) }
         }
     }
 
@@ -1683,19 +1689,18 @@ internal fun compactionFailedNotice(reason: String?): String =
         "If the chat no longer fits the model, the next reply may fail: try “Summarise the conversation” again, or start a new chat."
 
 /** The progress line while a step waits to retry: why, and how long when the provider asked for a wait. */
-internal fun retryProgress(event: AgentEvent.Retrying): String {
-    val dropped = event.reason.startsWith(dev.locus.core.agent.AgentLoop.CONNECTION_DROPPED)
-    val wait = if (event.waitMs >= 5_000) " in ${(event.waitMs + 999) / 1000} s" else ""
-    return "${if (dropped) "Connection dropped" else "Provider busy"}, retrying$wait (${event.attempt})…"
-}
+internal fun retryProgress(event: AgentEvent.Retrying): String = retryNote(event).english
+
+internal fun retryNote(event: AgentEvent.Retrying): RunNote.Retrying = RunNote.Retrying(
+    dropped = event.reason.startsWith(dev.locus.core.agent.AgentLoop.CONNECTION_DROPPED),
+    waitSeconds = if (event.waitMs >= 5_000) (event.waitMs + 999) / 1000 else null,
+    attempt = event.attempt,
+)
 
 /**
  * The progress line while a step moves to a backup model: who couldn't answer, who's next, the backups
  * passed over because they can't serve this chat, and what couldn't be confirmed about the new one.
  */
-internal fun fallbackProgress(event: AgentEvent.FellBack): String = buildString {
-    append("${event.from} couldn't answer, switching to ${event.to}")
-    if (event.skipped.isNotEmpty()) append(" (skipped ${event.skipped.joinToString("; ")})")
-    append("…")
-    event.unconfirmed?.let { append(" Not confirmed: $it.") }
-}
+internal fun fallbackProgress(event: AgentEvent.FellBack): String = fallbackNote(event).english
+
+internal fun fallbackNote(event: AgentEvent.FellBack): RunNote.FellBack = RunNote.FellBack(event.from, event.to, event.skipped, event.unconfirmed)

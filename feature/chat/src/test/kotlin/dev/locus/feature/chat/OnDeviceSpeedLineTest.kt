@@ -13,7 +13,8 @@ class OnDeviceSpeedLineTest {
     @Test fun matchingReplyGetsTheSpeedLine() {
         val items = listOf<ChatItem>(ChatItem.Assistant("a", "Hello there.\n"), ChatItem.Assistant("b", "Other"))
         val out = items.withSpeeds(mapOf("Hello there." to speed))
-        assertEquals("GPU · ≈18 tok/s", (out[0] as ChatItem.Assistant).speed)
+        assertEquals(speed, (out[0] as ChatItem.Assistant).speed)
+        assertEquals("GPU · ≈18 tok/s", dev.locus.core.ondevice.OnDeviceFormat.turnLine(speed))
         assertNull((out[1] as ChatItem.Assistant).speed)
     }
 

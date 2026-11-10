@@ -45,7 +45,8 @@ class ChatScreenTextTest {
         val plan = ChatUiState(run = RunState(running = true, activeTool = dev.locus.core.model.AgentControlTools.PLAN_PROPOSE))
         assertEquals(UiText.Res(R.string.chat_screen_live_plan) to Tone.Live, liveStatus(plan, thinking = false, hasText = false))
         val reading = ChatUiState(run = RunState(running = true, activeTool = "read_file"))
-        assertEquals(UiText.Plain(dev.locus.core.model.toolActivity("read_file")) to Tone.Live, liveStatus(reading, thinking = false, hasText = false))
+        assertEquals(dev.locus.core.designsystem.toolActivityText("read_file") to Tone.Live, liveStatus(reading, thinking = false, hasText = false))
+        assertEquals(dev.locus.core.model.toolActivity("read_file"), liveStatus(reading, thinking = false, hasText = false)!!.first.asString(testResources))
         // The agent's own progress line is shown as it came.
         val progress = ChatUiState(run = RunState(running = true, progress = "Fetching page 2\nFetching page 3"))
         assertEquals(UiText.Plain("Fetching page 3") to Tone.Live, liveStatus(progress, thinking = false, hasText = false))

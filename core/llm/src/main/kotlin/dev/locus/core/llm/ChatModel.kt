@@ -139,20 +139,25 @@ class LlmException(
     val requestId: String? = null,
     /** The id of the response that failed (`resp_…`), when the stream had started one. */
     val responseId: String? = null,
+    /**
+     * The message as data, when Locus wrote it ([LlmErrorText]): the chat words it in the user's language.
+     * Its [LlmErrorText.english] is the [message], or the start of it when more was added.
+     */
+    val text: LlmErrorText? = null,
 ) : Exception(message, cause) {
     /**
      * This failure with another [message] (and [cause]), everything else kept: what decides retries and
      * fallback, and what Diagnostics and the error's details sheet show.
      */
     fun withMessage(message: String, cause: Throwable? = this.cause, retryAfterMs: Long? = this.retryAfterMs, rawBody: String? = this.rawBody): LlmException =
-        LlmException(message, httpStatus, retryable, cause, kind, retryAfterMs, rawBody, errorCode, requestId, responseId)
+        LlmException(message, httpStatus, retryable, cause, kind, retryAfterMs, rawBody, errorCode, requestId, responseId, text)
 
     /** This failure with the request's ids filled in where it had none. */
     fun withIds(requestId: String?, responseId: String? = null): LlmException =
         if ((requestId == null || this.requestId != null) && (responseId == null || this.responseId != null)) {
             this
         } else {
-            LlmException(message.orEmpty(), httpStatus, retryable, cause, kind, retryAfterMs, rawBody, errorCode, this.requestId ?: requestId, this.responseId ?: responseId)
+            LlmException(message.orEmpty(), httpStatus, retryable, cause, kind, retryAfterMs, rawBody, errorCode, this.requestId ?: requestId, this.responseId ?: responseId, text)
         }
 }
 

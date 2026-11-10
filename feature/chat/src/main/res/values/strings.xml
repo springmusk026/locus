@@ -1,5 +1,196 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- RunTextUi.kt: provider errors, run notices and progress, budget, receipts and speeds from core (LlmErrorText, RunNote, BudgetReached, TaskReceipt) -->
+    <string name="chat_error_provider_words">%1$s returned HTTP %2$s: %3$s</string>
+    <string name="chat_error_bad_request">%1$s couldn\'t accept the request (HTTP 400).</string>
+    <string name="chat_error_key_refused">%1$s didn\'t accept the API key (HTTP 401). Check it in Settings → Models.</string>
+    <string name="chat_error_forbidden">%1$s refused the request (HTTP 403). The key may not have access to this model. Check it in Settings → Models.</string>
+    <string name="chat_error_not_found">%1$s couldn\'t find the model or the address (HTTP 404). Check the base URL and model in Settings → Models.</string>
+    <string name="chat_error_timed_out">The request to %1$s timed out (HTTP 408). Try again.</string>
+    <string name="chat_error_too_large">The request was too large for %1$s (HTTP 413). Try a shorter message or fewer attachments.</string>
+    <string name="chat_error_rate_limited">%1$s is limiting how often requests can be made (HTTP 429). Wait a moment and try again.</string>
+    <string name="chat_error_internal">%1$s had an internal error (HTTP 500). This is usually temporary. Try again.</string>
+    <string name="chat_error_bad_gateway">%1$s\'s gateway got no valid answer from the model server (HTTP 502). This is usually temporary. Try again.</string>
+    <string name="chat_error_unavailable">%1$s is unavailable or overloaded right now (HTTP 503). This is usually temporary. Try again in a moment.</string>
+    <string name="chat_error_gateway_timeout">%1$s\'s gateway timed out (HTTP 504). This is usually temporary. Try again.</string>
+    <string name="chat_error_gateway_unreachable">%1$s\'s gateway couldn\'t reach the model server (HTTP %2$s). This is usually temporary. Try again.</string>
+    <string name="chat_error_gateway_connect_timeout">%1$s\'s gateway timed out connecting to the model server (HTTP 522). This is usually temporary. Try again.</string>
+    <string name="chat_error_gateway_model_timeout">%1$s\'s gateway timed out waiting for the model (HTTP 524). This is usually temporary. Try again.</string>
+    <string name="chat_error_overloaded">%1$s is overloaded right now (HTTP 529). Try again in a moment.</string>
+    <string name="chat_error_server_error">%1$s had a server error (HTTP %2$s). This is usually temporary. Try again.</string>
+    <string name="chat_error_status_title">%1$s returned HTTP %2$s (%3$s).</string>
+    <string name="chat_error_status">%1$s returned HTTP %2$s.</string>
+    <string name="chat_error_billing">%1$s: %2$s\nThis is a billing or spend limit, not a rate limit, so Locus won\'t retry. Add credits or raise the limit in your %1$s account, then try again.</string>
+    <string name="chat_error_out_of_credit">out of credit</string>
+    <string name="chat_error_daily_quota">%1$s: %2$s\nThis is a daily quota, so retrying now won\'t help.</string>
+    <string name="chat_error_daily_quota_reached">daily quota reached</string>
+    <string name="chat_error_chatgpt_limit">You\'ve reached your ChatGPT usage limit for Locus. Review it or raise the limit in ChatGPT Settings → Usage (%1$s).</string>
+    <string name="chat_error_chatgpt_resets">It resets at %1$s.</string>
+    <string name="chat_error_chatgpt_not_included">This ChatGPT plan doesn\'t include use in other apps like Locus. Check the plan in ChatGPT, or pick another model.</string>
+    <string name="chat_error_chatgpt_out_of_credit">ChatGPT: out of credit for this plan</string>
+    <string name="chat_error_chatgpt_usage_unavailable">ChatGPT couldn\'t check your plan\'s usage right now. Try again in a moment.</string>
+    <string name="chat_error_chatgpt_not_eligible">This ChatGPT account or workspace can\'t use its plan in other apps. ChatGPT plan use needs Plus or Pro.</string>
+    <string name="chat_error_chatgpt_unsupported">ChatGPT\'s plan doesn\'t support part of this request</string>
+    <string name="chat_error_chatgpt_unsupported_param">ChatGPT\'s plan doesn\'t support part of this request (%1$s)</string>
+    <string name="chat_error_chatgpt_unsupported_message">ChatGPT\'s plan doesn\'t support part of this request: %1$s</string>
+    <string name="chat_error_chatgpt_unsupported_param_message">ChatGPT\'s plan doesn\'t support part of this request (%1$s): %2$s</string>
+    <string name="chat_error_chatgpt_sign_in_refused">ChatGPT didn\'t accept this sign-in. Sign in again in Settings → Models.</string>
+    <string name="chat_error_chatgpt_sign_in_refused_detail">ChatGPT didn\'t accept this sign-in. Sign in again in Settings → Models. (%1$s)</string>
+    <string name="chat_error_chatgpt_route_not_supported">ChatGPT doesn\'t allow this request type with a plan sign-in.</string>
+    <string name="chat_error_chatgpt_overloaded">ChatGPT is overloaded right now.</string>
+    <string name="chat_error_chatgpt_overloaded_message">ChatGPT is overloaded right now: %1$s</string>
+    <string name="chat_error_chatgpt_server_error">ChatGPT: the server had an error.</string>
+    <string name="chat_error_chatgpt_too_many_requests">ChatGPT: too many requests for now.</string>
+    <string name="chat_error_response_failed_code">%1$s: the response failed with “%2$s”.</string>
+    <string name="chat_error_chatgpt_refused_detail">ChatGPT refused the request: %1$s</string>
+    <string name="chat_error_chatgpt_refused">ChatGPT refused the request (HTTP 403).</string>
+    <string name="chat_error_chatgpt_plan_unavailable_detail">ChatGPT plan use is unavailable right now: %1$s</string>
+    <string name="chat_error_chatgpt_plan_unavailable">ChatGPT plan use is unavailable right now (HTTP 503). Try again in a moment.</string>
+    <string name="chat_error_unexplained">%1$s ended the response with an error and gave no reason.</string>
+    <string name="chat_error_unexplained_with_id">%1$s ended the response with an error and gave no reason (request id %2$s).</string>
+    <string name="chat_error_overflow">This task no longer fits in %1$s\'s context window.</string>
+    <string name="chat_error_overflow_after_summary">This task no longer fits in %1$s\'s context window, even after summarising the earlier messages.</string>
+    <string name="chat_error_overflow_next">Start a new chat for the rest (the agent there can read this one with chat_history_read), or switch to a model with a larger window.</string>
+    <string name="chat_error_overflow_provider_said">The provider said: %1$s</string>
+    <string name="chat_failure_advice_twice">twice</string>
+    <string name="chat_failure_advice_repeat">This failed the same way %1$s, so it\'s probably something in this chat\'s request rather than a passing glitch.</string>
+    <string name="chat_failure_advice_repeat_large">This failed the same way %1$s, so it\'s probably something in this chat\'s request rather than a passing glitch: the chat is large (about %2$s tokens).</string>
+    <string name="chat_failure_advice_compact_or_switch">Summarising the chat replaces the long history with a short summary; another model may also take it.</string>
+    <string name="chat_failure_advice_switch">Another model may take it.</string>
+    <string name="chat_failure_advice_details">Details has what the provider sent.</string>
+    <string name="chat_failure_advice_usage_limit">Another model can carry on with this chat while the limit lasts.</string>
+    <string name="chat_failure_advice_transient_repeat">It failed the same way again; the provider seems to be having trouble. Another model may answer meanwhile.</string>
+    <string name="chat_run_summarising">Summarising earlier messages</string>
+    <string name="chat_run_compacting">Summarising earlier messages…</string>
+    <string name="chat_run_compacting_overflow">Context full, summarising earlier messages…</string>
+    <string name="chat_run_compaction_failed">Couldn\'t summarise earlier messages (%1$s). If the chat no longer fits the model, the next reply may fail: try “Summarise the conversation” again, or start a new chat.</string>
+    <string name="chat_run_unknown_error">unknown error</string>
+    <string name="chat_run_compact_now_failed">Couldn\'t summarise the chat: %1$s</string>
+    <string name="chat_run_retrying_busy">Provider busy, retrying (%1$d)…</string>
+    <string name="chat_run_retrying_dropped">Connection dropped, retrying (%1$d)…</string>
+    <string name="chat_run_retrying_busy_wait">Provider busy, retrying in %1$d s (%2$d)…</string>
+    <string name="chat_run_retrying_dropped_wait">Connection dropped, retrying in %1$d s (%2$d)…</string>
+    <string name="chat_run_fell_back">%1$s couldn\'t answer, switching to %2$s…</string>
+    <string name="chat_run_fell_back_skipped">%1$s couldn\'t answer, switching to %2$s (skipped %3$s)…</string>
+    <string name="chat_run_not_confirmed">Not confirmed: %1$s.</string>
+    <string name="chat_run_refused">The model declined this request.</string>
+    <string name="chat_run_refused_detail">The model declined this request (%1$s).</string>
+    <string name="chat_run_budget_go_on">Send a message to go on.</string>
+    <string name="chat_run_branch_unfinished">This branch stopped before the agent finished. Continue where it left off?</string>
+    <string name="chat_run_closed_mid_task">This task stopped when Locus was closed. Continue where it left off?</string>
+    <string name="chat_run_background_helper">A helper finished while Locus was in the background. Continue with its report?</string>
+    <string name="chat_run_background_queued">Locus couldn\'t send your queued message while it was in the background. Continue?</string>
+    <string name="chat_run_tool_gone">Couldn\'t run it: that tool is no longer available.</string>
+    <string name="chat_run_no_provider">Add a model provider in Settings → Models first.</string>
+    <string name="chat_budget_paused_reached">Paused: reached the %1$s budget for this task.</string>
+    <string name="chat_budget_stopped_reached">Stopped: reached the %1$s budget for this task.</string>
+    <string name="chat_budget_reached">Reached the %1$s budget for this task.</string>
+    <string name="chat_budget_size_tokens">%1$s-token</string>
+    <string name="chat_budget_size_cost">%1$s cost</string>
+    <string name="chat_budget_spoken_tokens">%1$s of %2$s tokens used</string>
+    <string name="chat_budget_spoken_used">%1$s of %2$s used</string>
+    <string name="chat_budget_tokens_count">%1$s tokens</string>
+    <string name="chat_budget_about">about %1$s</string>
+    <string name="chat_budget_about_or_more">about %1$s or more</string>
+    <string name="chat_task_time_seconds">%1$ds</string>
+    <string name="chat_task_time_minutes_seconds">%1$dm %2$02ds</string>
+    <string name="chat_task_time_hours_minutes">%1$dh %2$02dm</string>
+    <string name="chat_task_time_minutes">%1$dm</string>
+    <string name="chat_receipt_outcome_done">Done</string>
+    <string name="chat_receipt_outcome_stopped_by_you">Stopped by you</string>
+    <string name="chat_receipt_outcome_stopped">Stopped</string>
+    <string name="chat_receipt_outcome_budget">Paused at budget</string>
+    <string name="chat_receipt_outcome_failed_label">Failed</string>
+    <string name="chat_receipt_outcome_refused">Model declined</string>
+    <string name="chat_receipt_outcome_step_limit">Step limit reached</string>
+    <string name="chat_receipt_outcome_interrupted">Interrupted</string>
+    <string name="chat_receipt_cost_unknown_short">cost unknown</string>
+    <string name="chat_receipt_tests_failed">tests failed</string>
+    <string name="chat_receipt_tests_timed_out">tests timed out</string>
+    <string name="chat_receipt_tests_finished">tests finished</string>
+    <string name="chat_receipt_tests_passed">tests passed</string>
+    <string name="chat_receipt_build_failed">build failed</string>
+    <string name="chat_receipt_build_timed_out">build timed out</string>
+    <string name="chat_receipt_build_finished">build finished</string>
+    <string name="chat_receipt_build_passed">build passed</string>
+    <string name="chat_receipt_checks_failed">checks failed</string>
+    <string name="chat_receipt_checks_timed_out">checks timed out</string>
+    <string name="chat_receipt_checks_finished">checks finished</string>
+    <string name="chat_receipt_checks_passed">checks passed</string>
+    <string name="chat_receipt_model_backup">%1$s (backup for %2$s)</string>
+    <string name="chat_receipt_model_helper">%1$s (helper)</string>
+    <string name="chat_receipt_model_reviewer">%1$s (reviewer)</string>
+    <string name="chat_receipt_model_summary">%1$s (summary)</string>
+    <string name="chat_receipt_helper_cost_model">%1$s: %2$s on %3$s</string>
+    <string name="chat_receipt_helper_cost">%1$s: %2$s</string>
+    <string name="chat_receipt_helper_model">%1$s on %2$s</string>
+    <string name="chat_receipt_source_web_search">web search</string>
+    <string name="chat_receipt_source_web_pages">web pages</string>
+    <string name="chat_receipt_source_wikipedia">Wikipedia</string>
+    <string name="chat_receipt_source_connectors">connectors</string>
+    <string name="chat_receipt_source_email">email</string>
+    <string name="chat_receipt_source_github">GitHub</string>
+    <string name="chat_receipt_source_command_output">command output</string>
+    <string name="chat_receipt_source_remote_machines">remote machines</string>
+    <string name="chat_receipt_source_helper_reports">helpers\' reports</string>
+    <string name="chat_reply_meta_prefill">prefill %1$s</string>
+    <plurals name="chat_failure_advice_times">
+        <item quantity="one">%1$d time</item>
+        <item quantity="other">%1$d times</item>
+    </plurals>
+    <plurals name="chat_run_compacted">
+        <item quantity="one">Summarised %1$d earlier messages to free up context.</item>
+        <item quantity="other">Summarised %1$d earlier messages to free up context.</item>
+    </plurals>
+    <plurals name="chat_run_step_limit">
+        <item quantity="one">Stopped after %1$d steps. Send a message to continue.</item>
+        <item quantity="other">Stopped after %1$d steps. Send a message to continue.</item>
+    </plurals>
+    <plurals name="chat_run_lessons_saved">
+        <item quantity="one">Saved %1$d lesson to memory.</item>
+        <item quantity="other">Saved %1$d lessons to memory.</item>
+    </plurals>
+    <plurals name="chat_budget_size_minutes">
+        <item quantity="one">%1$d-minute</item>
+        <item quantity="other">%1$d-minute</item>
+    </plurals>
+    <plurals name="chat_receipt_checks_passed_count">
+        <item quantity="one">%1$d passed</item>
+        <item quantity="other">%1$d passed</item>
+    </plurals>
+    <plurals name="chat_receipt_checks_unclear_count">
+        <item quantity="one">%1$d unclear</item>
+        <item quantity="other">%1$d unclear</item>
+    </plurals>
+    <plurals name="chat_receipt_checks_failed_count">
+        <item quantity="one">%1$d failed</item>
+        <item quantity="other">%1$d failed</item>
+    </plurals>
+    <plurals name="chat_receipt_checks_timed_out_count">
+        <item quantity="one">%1$d timed out</item>
+        <item quantity="other">%1$d timed out</item>
+    </plurals>
+    <plurals name="chat_receipt_completion_items">
+        <item quantity="one">Locus asked it to finish %1$d open item</item>
+        <item quantity="other">Locus asked it to finish %1$d open items</item>
+    </plurals>
+    <plurals name="chat_receipt_summary_files">
+        <item quantity="one">%1$d file</item>
+        <item quantity="other">%1$d files</item>
+    </plurals>
+    <plurals name="chat_receipt_summary_workflow_checks">
+        <item quantity="one">%1$d of %2$d checks passed</item>
+        <item quantity="other">%1$d of %2$d checks passed</item>
+    </plurals>
+    <plurals name="chat_receipt_summary_approvals">
+        <item quantity="one">%1$d approval</item>
+        <item quantity="other">%1$d approvals</item>
+    </plurals>
+    <plurals name="chat_receipt_summary_blocked">
+        <item quantity="one">%1$d blocked</item>
+        <item quantity="other">%1$d blocked</item>
+    </plurals>
+
     <!-- ChangesCard -->
     <string name="chat_changes_hide_files">Hide files</string>
     <string name="chat_changes_show_files">Show files</string>

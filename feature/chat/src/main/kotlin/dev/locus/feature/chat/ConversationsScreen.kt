@@ -114,7 +114,7 @@ import dev.locus.core.designsystem.Shelf
 import dev.locus.core.designsystem.ShelfAddCard
 import dev.locus.core.designsystem.ShelfCard
 import dev.locus.core.model.Role
-import dev.locus.core.model.toolActivity
+import dev.locus.core.designsystem.localizedToolActivity
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -519,7 +519,7 @@ private fun ActiveChatCard(row: ConversationRow, onClick: () -> Unit, modifier: 
                 WrappingStatusLine(
                     when {
                         row.needsApproval -> stringResource(R.string.chat_home_waiting_approval)
-                        row.activeTool != null -> toolActivity(row.activeTool)
+                        row.activeTool != null -> localizedToolActivity(row.activeTool)
                         else -> stringResource(R.string.chat_home_thinking)
                     },
                     tone,
