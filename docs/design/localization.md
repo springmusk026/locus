@@ -39,6 +39,7 @@ Changing the language recreates the open screens. Settings → Language lists "S
 - **`translatable="false"`** for anything that isn't words: the brand (Locus), product and provider names, URLs, commands, file names, model ids, units Locus doesn't translate.
 - **Language names** in the picker are written in their own language, not translated.
 - **Text that names a Settings page** ("… in Settings → Battery & heat") passes that page to the link or button shown with it: `SettingsLinkIn(text, destination = SettingsDestination.Battery)`, `SettingsActionFor(text, destination = …)`, `hasSettingsAction(text, destination = …)`, `TaskBudgetEditor(…, costNoteDestination = …)`. Without one they find the page by reading the English "Settings → …" in the text; only English messages from `core/agent`, `core/data` and other untranslated sources still rely on that. Translators don't need to keep the English wording, the word "Settings" or the arrow: the link opens the right page whatever the sentence says.
+- **Labels from core modules** (an enum's `label`, a formatter's English) stay English in core, where the model, exports and logs read them. Screens show a mapping in an Android module instead, whose English says the same words: `ChatMode.labelRes`, `ThermalLevel.labelRes`, `scheduleLabel(minutes)`, `settingsPath(resources, page)` (core/designsystem `ModelText.kt`, `Links.kt`), `backendText(…)` for on-device engine lines (feature/settings `OnDeviceText.kt`). A test checks each mapping against the core English. Formatters that screens call (`relativeTime`, `shortRelativeTime`, `durationLabel`, `compactCount`, `chipCount`, `meterPercent`, `sshHostSubtitle`, `workflowToolName`) take `Resources`, or read the composition's resources in their `@Composable` form.
 
 ## What stays English
 
@@ -85,7 +86,7 @@ Tests: core/linux and core/data check which resource and arguments each case get
 
 ## Still English
 
-- **Text from the engine not covered above**: tool names and activity lines, relative times ("3 minutes ago"), schedule and trigger labels and other core/model labels, errors from the agent and providers, and exception messages core/data throws for the user (`LibraryRepository`'s "needs an https:// address", `ProviderAccess.missing`, `ServiceAddress` checks, Linux repair failures), which screens show as they are.
+- **Text from the engine not covered above**: exception messages core/data throws for the user (`LibraryRepository`'s "needs an https:// address", `ProviderAccess.missing`, `ServiceAddress` checks, Linux repair failures), which screens show as they are.
 - **Catalogue names that are words** stay English because they are saved or match logos: provider preset names ("On this phone (Gemma 4, offline)", "Custom") and MCP template names ("Files", "Knowledge graph").
 - **View-model messages and helpers that tests compare in English** in chat, settings and tasks (notes in each extraction PR). They move with their tests.
 - **The voice-mode spoken layer** in chat.

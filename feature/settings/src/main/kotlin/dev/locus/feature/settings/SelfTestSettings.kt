@@ -93,6 +93,7 @@ internal data class SelfTestUiState(
     val providerCount: Int? = null,
     val finishedAt: Long? = null,
     val resetting: Boolean = false,
+    /** The system's own message. */
     val error: String? = null,
 ) {
     val done: Int get() = rows.count { it.result != null }

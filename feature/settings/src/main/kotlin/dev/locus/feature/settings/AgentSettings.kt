@@ -13,6 +13,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.IconTile
@@ -25,6 +26,7 @@ import dev.locus.core.designsystem.RowChevron
 import dev.locus.core.designsystem.Segmented
 import dev.locus.core.designsystem.SwitchRow
 import dev.locus.core.designsystem.TextArea
+import dev.locus.core.designsystem.helperTimeLimitLabel
 import dev.locus.core.model.HelperTimeLimit
 
 /** Who the agent is and how it should work with you. */
@@ -61,7 +63,7 @@ internal fun AgentSettings(
                 dev.locus.core.designsystem.TaskBudgetEditor(
                     state.taskBudget,
                     onChange = onSetTaskBudget,
-                    costNote = "Cost needs model prices: turn on model details (models.dev) in Settings → Models.".takeIf { !state.modelCatalog },
+                    costNote = stringResource(R.string.settings_agent_cost_note).takeIf { !state.modelCatalog },
                     costNoteDestination = dev.locus.core.model.SettingsDestination.Models,
                 )
             }
@@ -89,7 +91,7 @@ internal fun AgentSettings(
             val choices = HelperTimeLimit.CHOICES
             LocusCard {
                 Segmented(
-                    options = choices.map(HelperTimeLimit::label),
+                    options = choices.map { helperTimeLimitLabel(LocalResources.current, it) },
                     selected = choices.indexOf(HelperTimeLimit.normalized(state.helperTimeoutMinutes)).coerceAtLeast(0),
                     onSelect = { onSetHelperTimeout(choices[it]) },
                     modifier = Modifier.fillMaxWidth(),

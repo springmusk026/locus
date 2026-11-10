@@ -64,7 +64,8 @@ import dev.locus.core.llm.Fit as ContextFit
 import dev.locus.core.ondevice.DeviceMemory
 import dev.locus.core.ondevice.EngineStatus
 import dev.locus.core.ondevice.MemoryGate
-import dev.locus.core.ondevice.OnDeviceFormat
+import dev.locus.core.designsystem.UiText
+import dev.locus.core.designsystem.asString
 
 /** One model: what it is, its files, and what can be done with it. Its own route (`OnDeviceModelRoute`). */
 @Composable
@@ -167,8 +168,8 @@ internal fun OnDeviceModelDetail(state: DetailUiState, onBack: () -> Unit, actio
             }
             problem != null -> {
                 ErrorState(
-                    title = problem.title ?: stringResource(R.string.settings_ondevice_detail_error),
-                    message = listOfNotNull(problem.message, problem.advice).joinToString("\n\n"),
+                    title = problem.titleRes?.let { stringResource(it) } ?: stringResource(R.string.settings_ondevice_detail_error),
+                    message = listOfNotNull(problem.message.asString(), problem.adviceRes?.let { stringResource(it) }).joinToString("\n\n"),
                     onRetry = actions.retry,
                     modifier = Modifier.padding(padding),
                     tone = if (problem.kind == Problem.Kind.Other) Tone.Critical else Tone.Caution,
@@ -190,7 +191,7 @@ internal fun OnDeviceModelDetail(state: DetailUiState, onBack: () -> Unit, actio
                     Banner(
                         text = fitSentence(state.fit, state.installed?.ramBytes ?: state.selectedOption?.ramBytes, state.memory),
                         tone = if (state.fit == Fit.TooLarge) Tone.Critical else Tone.Caution,
-                        title = state.fit.label,
+                        title = stringResource(state.fit.labelRes),
                         modifier = Modifier.padding(top = Spacing.md),
                     )
                 }
@@ -236,7 +237,7 @@ internal fun OnDeviceModelDetail(state: DetailUiState, onBack: () -> Unit, actio
     if (confirmDelete) {
         ConfirmSheet(
             title = stringResource(R.string.settings_ondevice_detail_delete_title, info?.name.toString()),
-            message = stringResource(R.string.settings_ondevice_detail_delete_message, state.installed?.sizeBytes?.let(::gb).toString()),
+            message = stringResource(R.string.settings_ondevice_detail_delete_message, state.installed?.sizeBytes?.let { gb(it) }.toString()),
             confirmLabel = stringResource(R.string.settings_ondevice_detail_delete),
             tone = Tone.Critical,
             onConfirm = { confirmDelete = false; actions.delete() },
@@ -272,15 +273,23 @@ private fun Files(state: DetailUiState, onSelect: (String) -> Unit) {
         state.options.filter { it.usable }.forEachIndexed { i, o ->
             if (i > 0) GroupDivider(inset = Insets.iconRow)
             val chosen = o.path == state.selected
-            val spoken = listOfNotNull(o.quant ?: o.fileName, gb(o.sizeBytes), o.fit.spoken, if (o.recommended) stringResource(R.string.settings_ondevice_detail_spoken_recommended) else null, o.problem).joinToString(", ")
+            val title = o.quant ?: o.kind?.asString() ?: o.fileName
+            val problem = o.problem?.asString()
+            val spoken = listOfNotNull(
+                title,
+                gb(o.sizeBytes),
+                stringResource(o.fit.spokenRes),
+                if (o.recommended) stringResource(R.string.settings_ondevice_detail_spoken_recommended) else null,
+                problem,
+            ).joinToString(stringResource(R.string.settings_ondevice_spoken_separator))
             ListRow(
-                title = o.quant ?: o.fileName,
+                title = title,
                 subtitle = summaryJoin(
                     listOfNotNull(
                         gb(o.sizeBytes),
                         o.ramBytes?.let { stringResource(R.string.settings_ondevice_detail_file_memory, MemoryGate.gb(it / MemoryGate.GIB)) },
                         if (o.recommended) stringResource(R.string.settings_ondevice_detail_recommended) else null,
-                        o.problem,
+                        problem,
                     ),
                 ),
                 subtitleMaxLines = 3,
@@ -304,7 +313,7 @@ private fun Files(state: DetailUiState, onSelect: (String) -> Unit) {
         }
         state.optionsProblem?.let {
             GroupDivider(inset = Insets.iconRow)
-            ListRow(title = stringResource(R.string.settings_ondevice_detail_listing_failed), subtitle = it.message, subtitleMaxLines = 3, leading = { IconTile(LocusIcons.Alert) })
+            ListRow(title = stringResource(R.string.settings_ondevice_detail_listing_failed), subtitle = it.message.asString(), subtitleMaxLines = 3, leading = { IconTile(LocusIcons.Alert) })
         }
         if (state.options.none { it.usable } && !state.optionsLoading) ListRow(title = stringResource(R.string.settings_ondevice_detail_no_file), leading = { IconTile(LocusIcons.Layers) })
     }
@@ -390,12 +399,13 @@ private fun EngineFacts(state: DetailUiState, m: InstalledInfo) {
     val engine = state.engine
     val mine = engine.modelId == m.modelId
     CardGroup {
-        KeyValueRow(stringResource(R.string.settings_ondevice_detail_engine), OnDeviceFormat.backendLine(engine, m.modelId))
+        val resources = LocalResources.current
+        KeyValueRow(stringResource(R.string.settings_ondevice_detail_engine), backendText(resources, engine, m.modelId))
         if (mine) {
-            OnDeviceFormat.loadedLine(engine)?.let { KeyValueRow(stringResource(R.string.settings_ondevice_detail_loaded), it) }
-            engine.lastTurn?.let { turn -> OnDeviceFormat.turnLine(turn)?.let { KeyValueRow(stringResource(R.string.settings_ondevice_detail_last_reply), it) } }
+            loadedText(resources, engine)?.let { KeyValueRow(stringResource(R.string.settings_ondevice_detail_loaded), it) }
+            engine.lastTurn?.let { turn -> turnText(resources, turn)?.let { KeyValueRow(stringResource(R.string.settings_ondevice_detail_last_reply), it) } }
         }
-        engine.benchmark?.takeIf { it.modelId == m.modelId }?.let { r -> KeyValueRow(stringResource(R.string.settings_ondevice_detail_benchmark_label), OnDeviceFormat.benchmark(r).joinToString("\n"), mono = true, valueMaxLines = 6) }
+        engine.benchmark?.takeIf { it.modelId == m.modelId }?.let { r -> KeyValueRow(stringResource(R.string.settings_ondevice_detail_benchmark_label), benchmarkText(resources, r).joinToString("\n"), mono = true, valueMaxLines = 6) }
     }
 }
 
@@ -409,7 +419,7 @@ private fun Facts(info: ModelInfo, state: DetailUiState) {
     val copied = stringResource(R.string.settings_ondevice_detail_sha_copied)
     val m = state.installed
     CardGroup {
-        KeyValueRow(stringResource(R.string.settings_ondevice_detail_publisher), info.publisher)
+        KeyValueRow(stringResource(R.string.settings_ondevice_detail_publisher), info.publisher.asString())
         KeyValueRow(stringResource(R.string.settings_ondevice_offer_licence), dev.locus.core.ondevice.gguf.Licences.name(info.license) ?: stringResource(R.string.settings_ondevice_detail_licence_unknown))
         info.params?.let { KeyValueRow(stringResource(R.string.settings_ondevice_offer_parameters), it) }
         (m?.contextTokens ?: info.contextTokens)?.let { ctx ->
@@ -451,7 +461,7 @@ private fun Facts(info: ModelInfo, state: DetailUiState) {
                 )
             }
         }
-        (m?.source ?: info.source)?.let { KeyValueRow(stringResource(R.string.settings_ondevice_detail_source), it, mono = true) }
+        (m?.source ?: info.source?.asString())?.let { KeyValueRow(stringResource(R.string.settings_ondevice_detail_source), it, mono = true) }
         // One row anatomy per card: the model card is a value that opens, like the SHA-256 above.
         info.licenseUrl?.let { url -> KeyValueRow(stringResource(R.string.settings_ondevice_detail_model_card), url.removePrefix("https://"), onClick = { runCatching { uri.openUri(url) } }) }
     }
@@ -459,11 +469,11 @@ private fun Facts(info: ModelInfo, state: DetailUiState) {
 
 private val previewState = DetailUiState(
     loading = false,
-    info = ModelInfo("Qwen3.5 2B", "unsloth", "A good first model: tool calling, long context.", Engine.LlamaCpp, "Apache 2.0", "https://huggingface.co/Qwen/Qwen3.5-2B", "2B", 262_144, true, "unsloth/Qwen3.5-2B-GGUF at f6d5376"),
+    info = ModelInfo("Qwen3.5 2B", UiText.Plain("unsloth"), "A good first model: tool calling, long context.", Engine.LlamaCpp, "Apache 2.0", "https://huggingface.co/Qwen/Qwen3.5-2B", "2B", 262_144, true, UiText.Res(R.string.settings_ondevice_detail_source_at, "unsloth/Qwen3.5-2B-GGUF", "f6d5376")),
     options = listOf(
         QuantOption("a", "Qwen3.5-2B-Q4_K_M.gguf", "Q4_K_M", 1_280_835_840, 1_900_000_000, Fit.Fits, "aa", null, recommended = true),
         QuantOption("b", "Qwen3.5-2B-Q8_0.gguf", "Q8_0", 2_010_000_000, 2_600_000_000, Fit.Tight, "bb", null),
-        QuantOption("c", "mmproj-F16.gguf", "Vision projector", 670_000_000, null, Fit.Unknown, "cc", "This is a vision projector (mmproj), not a model."),
+        QuantOption("c", "mmproj-F16.gguf", null, 670_000_000, null, Fit.Unknown, "cc", UiText.Plain("This is a vision projector (mmproj), not a model."), kind = UiText.Res(R.string.settings_ondevice_kind_projector)),
     ),
     selected = "a",
     memory = DeviceMemory(6L shl 30, null, 3L shl 30, false),
@@ -499,8 +509,8 @@ private fun GatedPreview() {
         OnDeviceModelDetail(
             DetailUiState(
                 loading = false,
-                problem = Problem("meta-llama/Llama-3.2-1B-Instruct is gated.", Problem.Kind.Gated),
-                info = ModelInfo("Llama-3.2-1B-Instruct", "meta-llama", null, Engine.LlamaCpp, "llama3.2", null, null, null, null, null),
+                problem = Problem(UiText.Plain("meta-llama/Llama-3.2-1B-Instruct is gated."), Problem.Kind.Gated),
+                info = ModelInfo("Llama-3.2-1B-Instruct", UiText.Plain("meta-llama"), null, Engine.LlamaCpp, "llama3.2", null, null, null, null, null),
             ),
             {},
             DetailActions(),

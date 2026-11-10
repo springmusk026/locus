@@ -59,6 +59,7 @@ import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Rule
 import org.junit.Test
+import dev.locus.core.designsystem.UiText
 
 /** Every Settings page, sheet and state (docs/design/design-system.md, "Review gate"). */
 class SettingsScreenshots : ScreenshotTest() {
@@ -202,7 +203,7 @@ class SettingsScreenshots : ScreenshotTest() {
 
     @Test
     fun savedLoginsLocked() = snap("settings-saved-logins-locked") {
-        SavedLoginsSettings(SavedLoginsState(loading = false, problem = "Saved logins can't be opened right now: Saved keys aren't open."), onBack = {}, onSave = { _, _ -> }, onDelete = {})
+        SavedLoginsSettings(SavedLoginsState(loading = false, problem = UiText.Res(R.string.settings_logins_problem, "Saved keys aren't open.")), onBack = {}, onSave = { _, _ -> }, onDelete = {})
     }
 
     @Test
@@ -238,7 +239,7 @@ class SettingsScreenshots : ScreenshotTest() {
     @Test
     fun networkImportFailed() = snap("settings-network-import-failed") {
         NetworkSettings(
-            NetworkUiState(message = "That file isn't a PEM or DER certificate." to true),
+            NetworkUiState(message = UiText.Plain("That file isn't a PEM or DER certificate.") to true),
             onBack = {}, onImport = {}, onDismissMessage = {}, onSetProxy = { _, _ -> }, onSetTrustedByAll = { _, _ -> }, onRemove = {},
         )
     }
@@ -335,15 +336,15 @@ class SettingsScreenshots : ScreenshotTest() {
     @Test
     fun backupRunning() = snap(
         "settings-backup-running",
-        content = backup(BackupUiState(estimate = BackupEstimate(48_300_000, 1_240_000_000), includeWorkspace = true, backupProgress = BackupProgress("Backing up", 512_000_000, 1_288_300_000))),
+        content = backup(BackupUiState(estimate = BackupEstimate(48_300_000, 1_240_000_000), includeWorkspace = true, backupProgress = BackupProgress(UiText.Res(R.string.settings_backup_progress_backing_up), 512_000_000, 1_288_300_000))),
     )
 
-    @Test fun backupDone() = snap("settings-backup-done", content = backup(BackupUiState(estimate = BackupEstimate(48_300_000, 0), result = "Backup saved: 46.1 MB before compression." to false)))
+    @Test fun backupDone() = snap("settings-backup-done", content = backup(BackupUiState(estimate = BackupEstimate(48_300_000, 0), result = BackupResult(UiText.Res(R.string.settings_backup_saved, "46.1 MB"), failed = false))))
 
     @Test
     fun backupFailed() = snap(
         "settings-backup-failed",
-        content = backup(BackupUiState(estimate = BackupEstimate(48_300_000, 0), result = backupFailure(java.io.IOException("write failed: ENOSPC (No space left on device)")) to true)),
+        content = backup(BackupUiState(estimate = BackupEstimate(48_300_000, 0), result = backupFailure(java.io.IOException("write failed: ENOSPC (No space left on device)")))),
     )
 
     @Test fun backupRunActive() = snap("settings-backup-run-active", content = backup(BackupUiState(estimate = BackupEstimate(48_300_000, 0), runActive = true)))
@@ -418,7 +419,7 @@ class SettingsScreenshots : ScreenshotTest() {
 
     @Test fun storageReport() = snap("settings-storage", heightDp = 1200, content = storage(StorageUiState(report = storageReport, measuring = false)))
     @Test fun storageMeasuring() = snap("settings-storage-measuring", content = storage(StorageUiState()))
-    @Test fun storageError() = snap("settings-storage-error", content = storage(StorageUiState(measuring = false, error = "Permission denied: /data/user/0/dev.locus/files/linux")))
+    @Test fun storageError() = snap("settings-storage-error", content = storage(StorageUiState(measuring = false, error = UiText.Plain("Permission denied: /data/user/0/dev.locus/files/linux"))))
     @Test fun storageBusy() = snap("settings-storage-clearing", heightDp = 1200, content = storage(StorageUiState(report = storageReport, measuring = true, busy = StorageAction.ClearCaches)))
 
     // ---- About and its Updates section
@@ -602,9 +603,9 @@ class SettingsScreenshots : ScreenshotTest() {
     )
 
     @Test fun restorePassword() = snap("settings-restore-password", heightDp = 600, content = restore(RestoreStep.Password(backupUri)))
-    @Test fun restoreWrongPassword() = snap("settings-restore-wrong-password", heightDp = 600, content = restore(RestoreStep.Password(backupUri, "That password doesn't open this backup.")))
-    @Test fun restoreNotABackup() = snap("settings-restore-not-a-backup", heightDp = 500, content = restore(RestoreStep.Password(backupUri, "This isn't a Locus backup file.", unreadable = true)))
-    @Test fun restoreVerifying() = snap("settings-restore-verifying", heightDp = 500, content = restore(RestoreStep.Verifying(BackupProgress("Checking the backup", 402_000_000, 1_291_700_000))))
+    @Test fun restoreWrongPassword() = snap("settings-restore-wrong-password", heightDp = 600, content = restore(RestoreStep.Password(backupUri, UiText.Res(R.string.settings_backup_error_wrong_password))))
+    @Test fun restoreNotABackup() = snap("settings-restore-not-a-backup", heightDp = 500, content = restore(RestoreStep.Password(backupUri, UiText.Res(R.string.settings_backup_error_not_a_backup), unreadable = true)))
+    @Test fun restoreVerifying() = snap("settings-restore-verifying", heightDp = 500, content = restore(RestoreStep.Verifying(BackupProgress(UiText.Res(R.string.settings_backup_progress_checking), 402_000_000, 1_291_700_000))))
     @Test fun restorePreview() = snap("settings-restore-preview", heightDp = 1100, content = restore(RestoreStep.Preview(manifest)))
     @Test fun restorePreviewRunActive() = snap("settings-restore-preview-run-active", heightDp = 1200, content = restore(RestoreStep.Preview(manifest.copy(sections = manifest.sections.take(3))), runActive = true))
 
@@ -614,7 +615,7 @@ class SettingsScreenshots : ScreenshotTest() {
         content = restore(
             RestoreStep.Preview(
                 manifest,
-                "There isn't enough free space on this phone to restore this backup. Free some space, then try again.",
+                UiText.Res(R.string.settings_backup_error_no_space),
                 noSpace = SpaceNeeded(neededBytes = 1_420_000_000, freeBytes = 610_000_000),
             ),
         ),

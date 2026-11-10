@@ -1,5 +1,8 @@
 package dev.locus.feature.chat
 
+import android.content.res.Resources
+import dev.locus.core.model.Verification
+
 /** A transcript row: one item, or a run of a turn's work (tool calls and the narration between them). */
 sealed interface TranscriptRow {
     val key: String
@@ -113,22 +116,38 @@ internal fun runState(run: CheckRun, running: Boolean): RunState = when (run.out
  * "Build · failed on run 2 of 2", "Tests · finished on run 3 of 3" (exit status unclear),
  * "Tests · running (run 4)" when there were several.
  */
-internal fun checkGroupLabel(group: CheckGroup, running: Boolean): String {
-    val what = when (group.kind) {
-        dev.locus.core.model.Verification.Kind.TEST -> "Tests"
-        dev.locus.core.model.Verification.Kind.BUILD -> "Build"
-        dev.locus.core.model.Verification.Kind.CHECK -> "Check"
+internal fun checkGroupLabel(resources: Resources, group: CheckGroup, running: Boolean): String {
+    val runs = group.runs.size
+    val res = checkLabelRes(group.kind, runState(group.latest, running), many = runs > 1)
+    return if (runs > 1) resources.getString(res, runs) else resources.getString(res)
+}
+
+/** One string per kind and state, since the kind's noun decides the gender of the state in other languages. */
+private fun checkLabelRes(kind: Verification.Kind, state: RunState, many: Boolean): Int = when (kind) {
+    Verification.Kind.TEST -> when (state) {
+        RunState.RUNNING -> if (many) R.string.chat_checks_tests_running_n else R.string.chat_checks_tests_running
+        RunState.PASSED -> if (many) R.string.chat_checks_tests_passed_n else R.string.chat_checks_tests_passed
+        RunState.FAILED -> if (many) R.string.chat_checks_tests_failed_n else R.string.chat_checks_tests_failed
+        RunState.UNCLEAR -> if (many) R.string.chat_checks_tests_finished_n else R.string.chat_checks_tests_finished
+        RunState.TIMED_OUT -> if (many) R.string.chat_checks_tests_timedout_n else R.string.chat_checks_tests_timedout
+        RunState.STOPPED -> if (many) R.string.chat_checks_tests_stopped_n else R.string.chat_checks_tests_stopped
     }
-    val n = group.runs.size
-    val word = when (runState(group.latest, running)) {
-        RunState.PASSED -> "passed"
-        RunState.FAILED -> "failed"
-        RunState.UNCLEAR -> "finished"
-        RunState.TIMED_OUT -> "timed out"
-        RunState.RUNNING -> return if (n == 1) "$what running" else "$what · running (run $n)"
-        RunState.STOPPED -> "stopped"
+    Verification.Kind.BUILD -> when (state) {
+        RunState.RUNNING -> if (many) R.string.chat_checks_build_running_n else R.string.chat_checks_build_running
+        RunState.PASSED -> if (many) R.string.chat_checks_build_passed_n else R.string.chat_checks_build_passed
+        RunState.FAILED -> if (many) R.string.chat_checks_build_failed_n else R.string.chat_checks_build_failed
+        RunState.UNCLEAR -> if (many) R.string.chat_checks_build_finished_n else R.string.chat_checks_build_finished
+        RunState.TIMED_OUT -> if (many) R.string.chat_checks_build_timedout_n else R.string.chat_checks_build_timedout
+        RunState.STOPPED -> if (many) R.string.chat_checks_build_stopped_n else R.string.chat_checks_build_stopped
     }
-    return if (n == 1) "$what $word" else "$what · $word on run $n of $n"
+    Verification.Kind.CHECK -> when (state) {
+        RunState.RUNNING -> if (many) R.string.chat_checks_check_running_n else R.string.chat_checks_check_running
+        RunState.PASSED -> if (many) R.string.chat_checks_check_passed_n else R.string.chat_checks_check_passed
+        RunState.FAILED -> if (many) R.string.chat_checks_check_failed_n else R.string.chat_checks_check_failed
+        RunState.UNCLEAR -> if (many) R.string.chat_checks_check_finished_n else R.string.chat_checks_check_finished
+        RunState.TIMED_OUT -> if (many) R.string.chat_checks_check_timedout_n else R.string.chat_checks_check_timedout
+        RunState.STOPPED -> if (many) R.string.chat_checks_check_stopped_n else R.string.chat_checks_check_stopped
+    }
 }
 
 /**

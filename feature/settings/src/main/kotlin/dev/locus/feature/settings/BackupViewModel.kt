@@ -19,16 +19,25 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.io.IOException
 import javax.inject.Inject
+import android.content.res.Resources
+import dev.locus.core.designsystem.UiText
+import dev.locus.core.model.SettingsDestination
+import java.math.RoundingMode
+import java.text.NumberFormat
+import java.util.Locale
 
 /** Long work in progress: what it is, and bytes done of the total (total 0 while unknown). */
-data class BackupProgress(val label: String, val done: Long = 0, val total: Long = 0)
+data class BackupProgress(val label: UiText, val done: Long = 0, val total: Long = 0)
+
+/** A backup's outcome: what to say, whether it failed, and the Settings page that helps, if one does. */
+data class BackupResult(val text: UiText, val failed: Boolean, val link: SettingsDestination? = null)
 
 /** Where a restore is. Each step after [Idle] shows in one sheet. */
 sealed interface RestoreStep {
     data object Idle : RestoreStep
     data class Password(
         val uri: Uri,
-        val error: String? = null,
+        val error: UiText? = null,
         /** The file can't be a backup at all; there's no point asking for a password. */
         val unreadable: Boolean = false,
         /** The phone hasn't room to unpack it: how much it needs. The error then says it in words. */
@@ -37,7 +46,7 @@ sealed interface RestoreStep {
     data class Verifying(val progress: BackupProgress) : RestoreStep
     data class Preview(
         val manifest: BackupManifest,
-        val error: String? = null,
+        val error: UiText? = null,
         /** Not enough room to restore: Restore stays off until there is. */
         val noSpace: SpaceNeeded? = null,
     ) : RestoreStep
@@ -51,9 +60,15 @@ data class SpaceNeeded(val neededBytes: Long, val freeBytes: Long) {
 }
 
 /** What the restore sheet says about [need]: how much it needs, what's free, and how much to free. */
-internal fun noSpaceText(need: SpaceNeeded): String =
-    "Not enough free space to restore this backup. It needs about ${formatBytes(need.neededBytes)} and " +
-        "${formatBytes(need.freeBytes)} is free: free up at least ${formatBytes(need.shortBytes)}, then try again."
+internal fun noSpaceText(res: Resources, need: SpaceNeeded): String {
+    val locale = res.configuration.locales[0]
+    return res.getString(
+        R.string.settings_backup_no_space_text,
+        formatBytes(need.neededBytes, locale),
+        formatBytes(need.freeBytes, locale),
+        formatBytes(need.shortBytes, locale),
+    )
+}
 
 private fun Exception.spaceNeeded(): SpaceNeeded? {
     val e = this as? BackupException ?: return null
@@ -70,7 +85,7 @@ data class BackupUiState(
     val includeVault: Boolean = false,
     val backupProgress: BackupProgress? = null,
     /** The last backup's outcome: a message and whether it failed. */
-    val result: Pair<String, Boolean>? = null,
+    val result: BackupResult? = null,
     val restore: RestoreStep = RestoreStep.Idle,
     val runActive: Boolean = false,
 )
@@ -107,16 +122,22 @@ class BackupViewModel @Inject constructor(private val manager: BackupManager) : 
         if (target == null) return password.fill('\u0000')
         val options = BackupOptions(includeWorkspace = state.value.includeWorkspace, includeVault = state.value.includeVault)
         job = viewModelScope.launch {
-            _state.update { it.copy(backupProgress = BackupProgress("Backing up"), result = null) }
+            _state.update { it.copy(backupProgress = BackupProgress(UiText.Res(R.string.settings_backup_progress_backing_up)), result = null) }
             val outcome = try {
                 val manifest = manager.backup(target, password, options) { done, total ->
-                    _state.update { it.copy(backupProgress = BackupProgress("Backing up", done, total)) }
+                    _state.update { it.copy(backupProgress = BackupProgress(UiText.Res(R.string.settings_backup_progress_backing_up), done, total)) }
                 }
-                "Backup saved: ${formatBytes(manifest.sections.sumOf { it.bytes })} before compression${if (options.includeVault) ", with keys" else ""}." to false
+                BackupResult(
+                    UiText.Res(
+                        if (options.includeVault) R.string.settings_backup_saved_with_keys else R.string.settings_backup_saved,
+                        formatBytes(manifest.sections.sumOf { it.bytes }),
+                    ),
+                    failed = false,
+                )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                backupFailure(e) to true
+                backupFailure(e)
             } finally {
                 password.fill('\u0000')
             }
@@ -126,7 +147,7 @@ class BackupViewModel @Inject constructor(private val manager: BackupManager) : 
 
     fun cancelBackup() {
         job?.cancel()
-        _state.update { it.copy(backupProgress = null, result = "Backup cancelled. Delete the partial file." to true) }
+        _state.update { it.copy(backupProgress = null, result = BackupResult(UiText.Res(R.string.settings_backup_cancelled), failed = true)) }
     }
 
     /** The user picked a file to restore. */
@@ -147,11 +168,11 @@ class BackupViewModel @Inject constructor(private val manager: BackupManager) : 
         val step = state.value.restore as? RestoreStep.Password ?: return
         val chars = password.toCharArray()
         job = viewModelScope.launch {
-            _state.update { it.copy(restore = RestoreStep.Verifying(BackupProgress("Checking the backup"))) }
+            _state.update { it.copy(restore = RestoreStep.Verifying(BackupProgress(UiText.Res(R.string.settings_backup_progress_checking)))) }
             val next = try {
                 RestoreStep.Preview(
                     manager.verify(step.uri, chars) { done, total ->
-                        _state.update { s -> if (s.restore is RestoreStep.Verifying) s.copy(restore = RestoreStep.Verifying(BackupProgress("Checking the backup", done, total))) else s }
+                        _state.update { s -> if (s.restore is RestoreStep.Verifying) s.copy(restore = RestoreStep.Verifying(BackupProgress(UiText.Res(R.string.settings_backup_progress_checking), done, total))) else s }
                     },
                 )
             } catch (e: CancellationException) {
@@ -188,16 +209,21 @@ class BackupViewModel @Inject constructor(private val manager: BackupManager) : 
         if (state.value.restore !is RestoreStep.Restoring) manager.discardVerified()
     }
 
-    private fun message(e: Exception): String = when ((e as? BackupException)?.error) {
-        BackupError.NotABackup -> "This isn't a Locus backup file."
-        BackupError.WrongPassword -> "That password doesn't open this backup."
-        BackupError.Damaged -> "This file is damaged or was changed after it was made, so Locus won't restore it."
-        BackupError.DatabaseDamaged -> "The database inside this backup (chats, tasks and projects) is damaged, so Locus won't restore it. Nothing on this phone has changed. Try an older backup."
-        BackupError.NewerFormat -> "This backup was made by a newer version of Locus. Update Locus, then try again."
-        BackupError.NewerSchema -> "This backup's data is from a newer version of Locus. Update Locus, then try again."
-        BackupError.RunActive -> "A task is running. Stop it first, then restore."
-        BackupError.NoSpace -> "There isn't enough free space on this phone to restore this backup. Free some space, then try again."
-        null -> if (e is IOException) "Couldn't read the file: ${e.message ?: "unknown error"}" else e.message ?: e.javaClass.simpleName
+    private fun message(e: Exception): UiText = when ((e as? BackupException)?.error) {
+        BackupError.NotABackup -> UiText.Res(R.string.settings_backup_error_not_a_backup)
+        BackupError.WrongPassword -> UiText.Res(R.string.settings_backup_error_wrong_password)
+        BackupError.Damaged -> UiText.Res(R.string.settings_backup_error_damaged)
+        BackupError.DatabaseDamaged -> UiText.Res(R.string.settings_backup_error_database_damaged)
+        BackupError.NewerFormat -> UiText.Res(R.string.settings_backup_error_newer_format)
+        BackupError.NewerSchema -> UiText.Res(R.string.settings_backup_error_newer_schema)
+        BackupError.RunActive -> UiText.Res(R.string.settings_backup_error_run_active)
+        BackupError.NoSpace -> UiText.Res(R.string.settings_backup_error_no_space)
+        // The system's own reason, as it gave it.
+        null -> if (e is IOException) {
+            UiText.Res(R.string.settings_backup_error_read, e.message?.let(UiText::Plain) ?: UiText.Res(R.string.settings_backup_error_unknown))
+        } else {
+            UiText.Plain(e.message ?: e.javaClass.simpleName)
+        }
     }
 }
 
@@ -205,19 +231,20 @@ class BackupViewModel @Inject constructor(private val manager: BackupManager) : 
  * Why a backup failed, in words, with what to do: free space (and where to see what Locus uses), or
  * try again. The file it was writing is incomplete either way.
  */
-internal fun backupFailure(e: Throwable): String {
+internal fun backupFailure(e: Throwable): BackupResult {
+    // The system's messages are English whatever the language: "No space left on device" (ENOSPC).
     val text = generateSequence(e) { it.cause }.mapNotNull { it.message }.joinToString(" ")
     val noSpace = "No space left" in text || "ENOSPC" in text
     return if (noSpace) {
-        "Backup failed: the phone ran out of space. Free some space, then back up again; Settings → About & privacy → Diagnostics → Storage shows what Locus uses. " +
-            "Delete the incomplete file where you saved it."
+        // "… Settings → About & privacy → Diagnostics → Storage shows what Locus uses": a button there.
+        BackupResult(UiText.Res(R.string.settings_backup_failed_no_space), failed = true, link = SettingsDestination.Storage)
     } else {
-        "Backup failed: Locus couldn't write the file. Try again, or save it in another folder. Delete the incomplete file where you saved it."
+        BackupResult(UiText.Res(R.string.settings_backup_failed_write), failed = true)
     }
 }
 
-/** 1536 → "1.5 KB", 734003200 → "700 MB". */
-internal fun formatBytes(bytes: Long): String {
+/** 1536 → "1.5 KB", 734003200 → "700 MB", with [locale]'s decimal separator. */
+internal fun formatBytes(bytes: Long, locale: Locale = Locale.getDefault()): String {
     val units = listOf("B", "KB", "MB", "GB", "TB")
     var value = bytes.toDouble()
     var unit = 0
@@ -225,5 +252,12 @@ internal fun formatBytes(bytes: Long): String {
         value /= 1024
         unit++
     }
-    return if (unit == 0 || value >= 100) "${value.toLong()} ${units[unit]}" else "%.1f %s".format(java.util.Locale.ROOT, value, units[unit]).replace(".0 ", " ")
+    if (unit == 0 || value >= 100) return "${value.toLong()} ${units[unit]}"
+    val number = NumberFormat.getNumberInstance(locale).apply {
+        minimumFractionDigits = 0
+        maximumFractionDigits = 1
+        roundingMode = RoundingMode.HALF_UP
+        isGroupingUsed = false
+    }
+    return "${number.format(value)} ${units[unit]}"
 }

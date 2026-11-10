@@ -1,6 +1,10 @@
 package dev.locus.feature.chat
 
+import android.content.res.Resources
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
+import dev.locus.core.designsystem.descriptionRes
+import dev.locus.core.designsystem.labelRes
 import dev.locus.core.ui.largeFont
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.ContextRing
@@ -9,6 +13,7 @@ import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.SettingsLink
 import dev.locus.core.designsystem.SettingsLinkIn
+import dev.locus.core.designsystem.asString
 import dev.locus.core.designsystem.Sizes
 import dev.locus.core.designsystem.Stroke
 import dev.locus.core.designsystem.SupportingText
@@ -77,13 +82,13 @@ import kotlinx.coroutines.delay
 /** Which composer sheet is open. */
 internal enum class ControlSheet { Model, Effort, Mode, Tools, More, Budget, Temporary }
 
-/** "Off", "200k tokens · 30 min (this chat)", "Default: 200k tokens". */
-internal fun budgetSubtitle(controls: ChatControls): String {
+/** "Off", "200k tokens · 30 min for this chat", "Default: 200k tokens". The limits' words come from core/designsystem. */
+internal fun budgetSubtitle(resources: Resources, controls: ChatControls): String {
     val own = controls.ownBudget
     return when {
-        own != null -> "${dev.locus.core.designsystem.TaskBudgetPresets.summary(own)} for this chat"
-        controls.defaultBudget.isOff -> "Off"
-        else -> "Default: ${dev.locus.core.designsystem.TaskBudgetPresets.summary(controls.defaultBudget)}"
+        own != null -> resources.getString(R.string.chat_budget_subtitle_own, dev.locus.core.designsystem.TaskBudgetPresets.summary(own))
+        controls.defaultBudget.isOff -> resources.getString(R.string.chat_composer_off)
+        else -> resources.getString(R.string.chat_budget_subtitle_default, dev.locus.core.designsystem.TaskBudgetPresets.summary(controls.defaultBudget))
     }
 }
 
@@ -100,6 +105,7 @@ internal fun BudgetSheet(
     meter: dev.locus.core.agent.BudgetMeter? = null,
 ) {
     val own = controls.ownBudget
+    val costNote = controls.costNote?.asString()
     LocusSheet(title = stringResource(R.string.chat_budget_title), subtitle = stringResource(R.string.chat_budget_subtitle), onDismiss = onDismiss) {
         if (meter != null) {
             SectionLabel(stringResource(R.string.chat_budget_this_task))
@@ -114,7 +120,7 @@ internal fun BudgetSheet(
         LocusCard(contentPadding = PaddingValues(0.dp)) {
             EffortRow(
                 stringResource(R.string.chat_budget_use_default),
-                stringResource(R.string.chat_budget_default_for_every, dev.locus.core.designsystem.TaskBudgetPresets.summary(controls.defaultBudget)),
+                stringResource(R.string.chat_budget_default_for_every, dev.locus.core.designsystem.TaskBudgetPresets.summary(LocalResources.current, controls.defaultBudget)),
                 selected = own == null,
             ) { onSet(null) }
             GroupDivider(inset = Spacing.md)
@@ -125,11 +131,15 @@ internal fun BudgetSheet(
         SettingsLink(SettingsDestination.Agent, hint = stringResource(R.string.chat_budget_change_default))
         if (own != null) {
             LocusCard {
-                dev.locus.core.designsystem.TaskBudgetEditor(own, onChange = { onSet(it) }, costNote = controls.costNote)
+                dev.locus.core.designsystem.TaskBudgetEditor(
+                    own, onChange = { onSet(it) },
+                    costNote = costNote,
+                    costNoteDestination = costNoteDestination(controls.costNote),
+                )
             }
-        } else if (controls.costNote != null && controls.defaultBudget.costUsd != null) {
-            SectionNote(controls.costNote)
-            SettingsLinkIn(controls.costNote)
+        } else if (costNote != null && controls.defaultBudget.costUsd != null) {
+            SectionNote(costNote)
+            SettingsLinkIn(costNote, destination = costNoteDestination(controls.costNote))
         }
         SectionNote(stringResource(R.string.chat_budget_limit_note))
         SectionNote(stringResource(R.string.chat_budget_tokens_note))
@@ -146,11 +156,11 @@ internal fun EffortSheet(provider: ChatProvider?, controls: ChatControls, onPick
         onDismiss = onDismiss,
     ) {
         LocusCard(contentPadding = PaddingValues(0.dp)) {
-            val note = provider?.defaultEffortNote?.ifBlank { null } ?: stringResource(R.string.chat_effort_provider_setting, (provider?.defaultEffort ?: Effort.HIGH).label)
+            val note = provider?.defaultEffortNote?.ifBlank { null } ?: stringResource(R.string.chat_effort_provider_setting, stringResource((provider?.defaultEffort ?: Effort.HIGH).labelRes))
             EffortRow(stringResource(R.string.chat_effort_provider_default), note, selected = !controls.effortOverridden) { onPick(null) }
             Effort.entries.forEach { e ->
                 GroupDivider(inset = Spacing.md)
-                EffortRow(e.label, e.description, selected = controls.effortOverridden && controls.effort == e) { onPick(e) }
+                EffortRow(stringResource(e.labelRes), stringResource(e.descriptionRes), selected = controls.effortOverridden && controls.effort == e) { onPick(e) }
             }
         }
         SectionNote(stringResource(R.string.chat_effort_note))
@@ -165,7 +175,7 @@ internal fun ModeSheet(controls: ChatControls, onPick: (ChatMode) -> Unit, onDis
         LocusCard(contentPadding = PaddingValues(0.dp)) {
             ChatMode.entries.forEachIndexed { i, m ->
                 if (i > 0) GroupDivider(inset = Spacing.md)
-                EffortRow(m.label, m.description, selected = controls.mode == m) { onPick(m) }
+                EffortRow(stringResource(m.labelRes), stringResource(m.descriptionRes), selected = controls.mode == m) { onPick(m) }
             }
         }
         SettingsLink(
@@ -222,7 +232,7 @@ private fun ColumnScope.ToolSwitches(controls: ChatControls, connectors: List<Ch
     CardGroup {
         ToolGroup.entries.forEachIndexed { i, g ->
             if (i > 0) GroupDivider()
-            SwitchRow(g.label, checked = g.key !in controls.disabledTools, onCheckedChange = { onSetEnabled(g.key, it) }, subtitle = g.description)
+            SwitchRow(stringResource(g.labelRes), checked = g.key !in controls.disabledTools, onCheckedChange = { onSetEnabled(g.key, it) }, subtitle = stringResource(g.descriptionRes))
         }
     }
     if (connectors.isNotEmpty()) {
@@ -287,10 +297,14 @@ internal fun PlanCard(item: ChatItem.Plan, actionable: Boolean, onApprove: () ->
 }
 
 /** The checklist's one-line summary: "1 of 4 done · Redesign the portfolio". */
-internal fun checklistLine(todos: List<TodoItem>): String {
+internal fun checklistLine(resources: Resources, todos: List<TodoItem>): String {
     val done = todos.count { it.status == TodoStatus.COMPLETED }
     val current = todos.firstOrNull { it.status == TodoStatus.IN_PROGRESS } ?: todos.firstOrNull { it.status == TodoStatus.PENDING }
-    return "$done of ${todos.size} done" + (current?.let { " · ${it.shown}" } ?: "")
+    return if (current == null) {
+        resources.getString(R.string.chat_checklist_progress, done, todos.size)
+    } else {
+        resources.getString(R.string.chat_checklist_progress_current, done, todos.size, current.shown)
+    }
 }
 
 /**
@@ -302,7 +316,9 @@ internal fun ChecklistStrip(todos: List<TodoItem>, running: Boolean, modifier: M
     var open by rememberSaveable { mutableStateOf(false) }
     val done = todos.count { it.status == TodoStatus.COMPLETED }
     val current = todos.firstOrNull { it.status == TodoStatus.IN_PROGRESS } ?: todos.firstOrNull { it.status == TodoStatus.PENDING }
-    val checklistDescription = stringResource(R.string.chat_checklist_description, checklistLine(todos))
+    val resources = LocalResources.current
+    val checklistLine = checklistLine(resources, todos)
+    val checklistDescription = stringResource(R.string.chat_checklist_description, checklistLine)
     val expandedDescription = stringResource(if (open) R.string.chat_changes_expanded else R.string.chat_changes_collapsed)
     Column(modifier.fillMaxWidth().animateContentSize()) {
         if (open) {
@@ -322,7 +338,7 @@ internal fun ChecklistStrip(todos: List<TodoItem>, running: Boolean, modifier: M
         ) {
             ProgressRing(done, todos.size)
             Text(
-                checklistLine(todos),
+                checklistLine,
                 Modifier.weight(1f).padding(start = Spacing.sm, top = Spacing.xs, bottom = Spacing.xs),
                 style = LocusType.rowSupporting,
                 // Two lines, so the step being worked on is still named at a large font.
@@ -390,7 +406,7 @@ internal fun ThoughtRow(item: ChatItem.Thought, modifier: Modifier = Modifier) {
         ) {
             Icon(ChatGlyphs.Thought, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(IconSize.small))
             SupportingText(
-                thoughtLabel(item.durationMs),
+                thoughtLabel(LocalResources.current, item.durationMs),
                 Modifier.padding(start = Spacing.xs),
                 style = LocusType.chip,
             )
@@ -416,13 +432,14 @@ private fun ExpandChevron(open: Boolean) {
 /** Reasoning text lines up with the label above it: past the icon and its gap. */
 private val ThoughtIndent = IconSize.small + Spacing.xs
 
-internal fun thoughtLabel(durationMs: Long): String {
+/** "Thought", "Thought for a moment", "Thought for 12s", "Thought for 2m 5s". */
+internal fun thoughtLabel(resources: Resources, durationMs: Long): String {
     val s = (durationMs / 1000).toInt()
     return when {
-        durationMs <= 0 -> "Thought"
-        s < 1 -> "Thought for a moment"
-        s < 60 -> "Thought for ${s}s"
-        else -> "Thought for ${s / 60}m ${s % 60}s"
+        durationMs <= 0 -> resources.getString(R.string.chat_thought_label)
+        s < 1 -> resources.getString(R.string.chat_thought_moment)
+        s < 60 -> resources.getString(R.string.chat_thought_seconds, s)
+        else -> resources.getString(R.string.chat_thought_minutes, s / 60, s % 60)
     }
 }
 
@@ -444,7 +461,7 @@ internal fun LiveThinking(reasoning: () -> String, since: Long, thoughtMs: Long?
             delay(1_000)
         }
     }
-    val label = if (thinking) stringResource(R.string.chat_thought_thinking, ((now - since).coerceAtLeast(0) / 1000)) else thoughtLabel(thoughtMs ?: 0)
+    val label = if (thinking) stringResource(R.string.chat_thought_thinking, ((now - since).coerceAtLeast(0) / 1000)) else thoughtLabel(LocalResources.current, thoughtMs ?: 0)
     Column(Modifier.fillMaxWidth()) {
         Row(
             Modifier.clip(MaterialTheme.shapes.small).clickable(onClickLabel = stringResource(if (open) R.string.chat_thought_hide else R.string.chat_thought_show)) { userChoice = !open }

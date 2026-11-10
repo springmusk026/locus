@@ -1,5 +1,6 @@
 package dev.locus.core.markdown.artifact
 
+import android.content.res.Resources
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material3.TextButton
 import android.content.ActivityNotFoundException
@@ -204,7 +205,7 @@ fun ArtifactCard(artifact: Artifact, modifier: Modifier = Modifier, canSave: Boo
                     showSource -> SourceText(artifact.content, Modifier.fillMaxSize())
                     // The way forward is a labelled button, the same as the </> action below.
                     !fits -> Column(Modifier.fillMaxSize().padding(Spacing.lg), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                        SupportingText(stringResource(R.string.markdown_artifact_too_large, readable(artifact.bytes.toLong()), readable(MAX_ARTIFACT_BYTES.toLong())), style = LocusType.rowSupporting)
+                        SupportingText(stringResource(R.string.markdown_artifact_too_large, readable(resources, artifact.bytes.toLong()), readable(resources, MAX_ARTIFACT_BYTES.toLong())), style = LocusType.rowSupporting)
                         TextButton(onClick = { showSource = true }) { Text(stringResource(R.string.markdown_artifact_view_source)) }
                     }
                     crashed -> Note(stringResource(R.string.markdown_artifact_stopped_tap), Modifier.clickable(onClickLabel = stringResource(R.string.markdown_artifact_run), onClick = claim))
@@ -408,10 +409,11 @@ private suspend fun png(bitmap: Bitmap): ByteArray = withContext(Dispatchers.Def
     ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
 }
 
-private fun readable(bytes: Long): String = when {
-    bytes < 1024 -> "$bytes B"
-    bytes < 1024 * 1024 -> "%.0f KB".format(java.util.Locale.ROOT, bytes / 1024.0)
-    else -> "%.1f MB".format(java.util.Locale.ROOT, bytes / (1024.0 * 1024))
+/** "512 B", "38 KB", "1.5 MB", with the number and unit as the app's language writes them. */
+internal fun readable(resources: Resources, bytes: Long): String = when {
+    bytes < 1024 -> resources.getString(R.string.markdown_size_bytes, bytes.toString())
+    bytes < 1024 * 1024 -> resources.getString(R.string.markdown_size_kb, "%.0f".format(bytes / 1024.0))
+    else -> resources.getString(R.string.markdown_size_mb, "%.1f".format(bytes / (1024.0 * 1024)))
 }
 
 // design-exception: the inline preview's fixed height, so a message doesn't resize as its page loads

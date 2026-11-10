@@ -1003,4 +1003,193 @@
     <string name="settings_ondevice_notice_unload_busy">正在回复。请在回复结束后再卸载。</string>
     <string name="settings_ondevice_notice_deleted">已删除。</string>
     <string name="settings_ondevice_notice_delete_busy">正在回复。请在回复结束后再删除。</string>
+
+    <string name="settings_ondevice_sort_popular">热门</string>
+    <string name="settings_ondevice_sort_trending">趋势</string>
+    <string name="settings_ondevice_engine_not_loaded">未加载</string>
+    <string name="settings_ondevice_engine_load_failed">无法加载：%1$s</string>
+    <string name="settings_ondevice_engine_running">正在 %1$s 上运行</string>
+    <string name="settings_ondevice_engine_running_gpu_failed">正在 %1$s 上运行（GPU 失败：%2$s）</string>
+    <string name="settings_ondevice_rate">%1$s tok/s</string>
+    <string name="settings_ondevice_rate_estimate">≈%1$s tok/s</string>
+    <string name="settings_ondevice_prefill">预填充 %1$s</string>
+    <string name="settings_ondevice_seconds">%1$s 秒</string>
+    <string name="settings_ondevice_loaded_in">加载用时 %1$s</string>
+    <string name="settings_ondevice_memory">约 %1$s GB 内存</string>
+    <string name="settings_ondevice_benchmark_ran">在 %1$s 上运行</string>
+    <string name="settings_ondevice_benchmark_ran_gpu_failed">在 %1$s 上运行（GPU 失败：%2$s）</string>
+    <string name="settings_ondevice_benchmark_load">加载 %1$s · 预填充 %2$s（%3$s）</string>
+    <string name="settings_ondevice_benchmark_decode">解码 %1$s（%2$s）</string>
+    <plurals name="settings_ondevice_benchmark_tokens">
+        <item quantity="other">%1$d 个令牌</item>
+    </plurals>
+    <!-- Settings → Network: summaries and import messages -->
+    <string name="settings_network_import_already">该证书已导入。</string>
+    <string name="settings_network_import_one">已导入。在提供商的网络设置中勾选它，即可在该提供商处信任它。</string>
+    <plurals name="settings_network_import_many">
+        <item quantity="other">已导入 %1$d 个证书。在提供商的网络设置中勾选它们，即可在该提供商处信任它们。</item>
+    </plurals>
+    <string name="settings_network_import_read_failed">无法读取该文件。</string>
+    <string name="settings_network_cert_use_all">所有提供商均信任</string>
+    <string name="settings_network_cert_use_none">尚无提供商使用</string>
+    <string name="settings_network_cert_use_named">%1$s 信任</string>
+    <plurals name="settings_network_cert_use_count">
+        <item quantity="other">%1$d 个提供商信任</item>
+    </plurals>
+    <string name="settings_network_hub_proxy">%1$s 代理</string>
+    <string name="settings_network_hub_direct">直连</string>
+    <plurals name="settings_network_certificates_count">
+        <item quantity="other">%1$d 个证书</item>
+    </plurals>
+    <plurals name="settings_network_hub_all_providers">
+        <item quantity="other">%1$d 个用于所有提供商</item>
+    </plurals>
+    <plurals name="settings_pnet_summary_headers">
+        <item quantity="other">%1$d 个请求头</item>
+    </plurals>
+    <string name="settings_pnet_summary_default_proxy">默认代理</string>
+    <string name="settings_pnet_summary_custom_proxy">代理 %1$s</string>
+
+    <!-- Settings → Permissions: remembered rules and the reviewer -->
+    <string name="settings_permissions_remembered_your_calendar">你的日历</string>
+    <string name="settings_permissions_remembered_calendar_change">更改%1$s中的日程</string>
+    <string name="settings_permissions_remembered_calendar_add">向%1$s添加日程</string>
+    <string name="settings_permissions_remembered_this_chat">仅此对话</string>
+    <string name="settings_permissions_remembered_always">始终</string>
+    <string name="settings_permissions_remembered_ends_today">始终 · 今天结束</string>
+    <plurals name="settings_permissions_remembered_days_left">
+        <item quantity="other">始终 · 还剩 %1$d 天</item>
+    </plurals>
+    <string name="settings_permissions_remembered_in_project">%1$s · 在其项目中</string>
+    <string name="settings_permissions_reviewer_hint_off">设为“询问”的操作总会询问你。</string>
+    <string name="settings_permissions_reviewer_hint_asks">检查设为“询问”的操作：明显没问题的直接运行，明显有问题的予以阻止，其余的询问你。使用%1$s。</string>
+    <string name="settings_permissions_reviewer_hint_all">还会检查已允许且会做出更改的操作；未通过的会交给你决定。使用%1$s。</string>
+    <string name="settings_permissions_reviewer_own_model">每个对话自己的模型（在“设置 → 辅助模型与附加功能”中设置辅助模型可更快）</string>
+
+    <!-- Settings → Backup & restore: progress, outcomes and errors -->
+    <string name="settings_backup_progress_backing_up">正在备份</string>
+    <string name="settings_backup_progress_checking">正在检查备份</string>
+    <string name="settings_backup_saved">备份已保存：压缩前 %1$s。</string>
+    <string name="settings_backup_saved_with_keys">备份已保存：压缩前 %1$s，包含密钥。</string>
+    <string name="settings_backup_cancelled">备份已取消。请删除不完整的文件。</string>
+    <string name="settings_backup_error_not_a_backup">这不是 Locus 备份文件。</string>
+    <string name="settings_backup_error_wrong_password">该密码无法打开此备份。</string>
+    <string name="settings_backup_error_damaged">此文件已损坏或在创建后被更改，因此 Locus 不会恢复它。</string>
+    <string name="settings_backup_error_database_damaged">此备份中的数据库（对话、任务和项目）已损坏，因此 Locus 不会恢复它。此手机上的内容没有任何改变。请尝试更早的备份。</string>
+    <string name="settings_backup_error_newer_format">此备份由更新版本的 Locus 创建。请更新 Locus 后重试。</string>
+    <string name="settings_backup_error_newer_schema">此备份中的数据来自更新版本的 Locus。请更新 Locus 后重试。</string>
+    <string name="settings_backup_error_run_active">有任务正在运行。请先停止它，再进行恢复。</string>
+    <string name="settings_backup_error_no_space">此手机上没有足够的可用空间来恢复此备份。请释放一些空间后重试。</string>
+    <string name="settings_backup_error_read">无法读取文件：%1$s</string>
+    <string name="settings_backup_error_unknown">未知错误</string>
+    <string name="settings_backup_failed_no_space">备份失败：手机空间不足。请释放一些空间后再备份；“设置 → 关于与隐私 → 诊断 → 存储空间”会显示 Locus 占用的空间。请到保存位置删除不完整的文件。</string>
+    <string name="settings_backup_failed_write">备份失败：Locus 无法写入文件。请重试，或保存到其他文件夹。请到保存位置删除不完整的文件。</string>
+    <string name="settings_backup_no_space_text">可用空间不足，无法恢复此备份。它需要约 %1$s，而可用空间为 %2$s：请至少释放 %3$s 后重试。</string>
+    <plurals name="settings_backup_section_entries">
+        <item quantity="other">%1$d 个条目</item>
+    </plurals>
+    <plurals name="settings_backup_section_files">
+        <item quantity="other">%1$d 个文件</item>
+    </plurals>
+    <string name="settings_backup_restore_warning">%1$s%2$s%3$s%4$s</string>
+    <string name="settings_backup_restore_warning_replaces">这会用备份中的内容替换此手机上的对话、活动、设置、记忆、技能和助手。</string>
+    <string name="settings_backup_restore_warning_workspace">工作区也会被替换。</string>
+    <string name="settings_backup_restore_warning_workspace_kept">你的工作区文件保持不变。</string>
+    <string name="settings_backup_restore_warning_keys">已保存的密钥会被替换为备份中的密钥。</string>
+    <string name="settings_backup_restore_warning_keys_kept">此手机上已保存的密钥会保留；请补充缺少的密钥。</string>
+    <string name="settings_backup_restore_warning_restarts">随后 Locus 会重新启动。</string>
+
+    <!-- Settings → About & privacy → Updates: status lines and problems -->
+    <string name="settings_updates_status_checked">%1$s检查过</string>
+    <string name="settings_updates_status_checked_start">%1$s检查过</string>
+    <string name="settings_updates_status_checking">正在检查 GitHub…</string>
+    <string name="settings_updates_status_no_release">尚未发布任何版本</string>
+    <string name="settings_updates_status_up_to_date">已是最新版本（%1$s）</string>
+    <string name="settings_updates_status_skipped">已跳过 %1$s</string>
+    <string name="settings_updates_status_beta_available">Beta 版 %1$s 可用</string>
+    <string name="settings_updates_status_available">%1$s 可用</string>
+    <string name="settings_updates_status_updating">正在更新到 %1$s</string>
+    <string name="settings_updates_status_not_checked">尚未检查</string>
+    <string name="settings_updates_status_waiting_wifi">等待 Wi-Fi 后检查</string>
+    <string name="settings_updates_note_disabled">此版本不检查更新。更新来自你安装 Locus 的渠道（F-Droid 或 IzzyOnDroid）。</string>
+    <string name="settings_updates_note_debug">调试版本：更新来自你自己的构建。“立即检查”仍会显示最新版本。</string>
+    <string name="settings_updates_note_store">从 %1$s 安装，它会让 Locus 保持最新。</string>
+    <string name="settings_updates_problem_no_network">无法连接 GitHub。请检查网络连接后重试。</string>
+    <string name="settings_updates_problem_rate_limited">GitHub 限制未登录时一个网络的请求频率，而此网络请求过于频繁。请在 %1$s 之后重试。</string>
+    <string name="settings_updates_problem_unreadable">无法读取 GitHub 的响应。请稍后重试。</string>
+    <string name="settings_updates_problem_server">GitHub 返回了错误（HTTP %1$d）。请稍后重试。</string>
+    <string name="settings_updates_problem_no_apk">此版本没有适用于此手机的 APK（%1$s）。请查看发布页面。</string>
+    <string name="settings_updates_problem_unknown_abi">未知 ABI</string>
+    <string name="settings_updates_problem_no_checksum">此版本未发布可供 Locus 校验 APK 的 SHA-256 校验和，因此 Locus 不会安装它。你可以自行从发布页面下载。</string>
+    <string name="settings_updates_problem_checksum_mismatch">下载内容与此版本的 SHA-256 校验和不匹配，因此 Locus 已将其删除。请重试；如果再次发生，请在 GitHub 上报告。</string>
+    <string name="settings_updates_problem_signature_mismatch">此 APK 的签名密钥与此手机上的 Locus 不同，因此 Android 不会将其作为更新安装。如需切换，请在“设置 → 备份与恢复”中创建备份，卸载 Locus，安装新的 APK，然后恢复备份。</string>
+    <string name="settings_updates_problem_bad_apk">下载的不是更新版本的 Locus，因此 Locus 已将其删除。</string>
+    <string name="settings_updates_problem_install_not_allowed">Android 需要你允许 Locus 安装应用。请为 Locus 开启“允许来自此来源的应用”，然后返回这里。</string>
+    <string name="settings_updates_problem_install_cancelled">更新已在 Android 安装程序中取消。已验证的下载内容会保留。</string>
+    <string name="settings_updates_problem_storage">可用空间不足，无法更新。请释放一些空间后重试。</string>
+    <string name="settings_updates_problem_install_failed">Android 无法安装此更新。</string>
+    <string name="settings_updates_problem_install_failed_reason">Android 无法安装此更新：%1$s</string>
+    <string name="settings_updates_progress_of">%1$s / %2$s MB</string>
+    <string name="settings_updates_progress">%1$s MB</string>
+
+    <!-- Settings → Integrations: the built-in tools or the vendor's MCP server -->
+    <string name="settings_integrations_mcpfirst_the_server">MCP 服务器</string>
+    <string name="settings_integrations_mcpfirst_using">新对话使用 MCP 服务器</string>
+    <string name="settings_integrations_mcpfirst_kept">新对话使用内置工具</string>
+    <string name="settings_integrations_mcpfirst_failing">MCP 服务器无法正常工作</string>
+    <string name="settings_integrations_mcpfirst_body_using">新对话不再使用内置的 %1$s 工具，而是使用“%2$s”。已有的对话保留开始时的工具。</string>
+    <string name="settings_integrations_mcpfirst_body_using_keeps">新对话不再使用内置的 %1$s 工具，而是使用“%2$s”。%3$s已有的对话保留开始时的工具。</string>
+    <plurals name="settings_integrations_mcpfirst_body_kept">
+        <item quantity="other">%1$s 会保留，因为它从你的工作区上传文件。</item>
+    </plurals>
+    <string name="settings_integrations_mcpfirst_body_kept_builtin">“%1$s”也已连接，但按照你的选择，新对话使用内置的 %2$s 工具。</string>
+    <string name="settings_integrations_mcpfirst_body_failed">“%1$s”失败：%2$s。在它恢复之前，新对话使用内置的 %3$s 工具。</string>
+    <string name="settings_integrations_mcpfirst_body_not_ready">“%1$s”暂时无法使用。在它恢复之前，新对话使用内置的 %2$s 工具。</string>
+
+    <!-- Settings: agent cost note, saved logins and self-test messages -->
+    <string name="settings_agent_cost_note">费用需要模型价格：请在“设置 → 模型”中开启模型详情（models.dev）。</string>
+    <string name="settings_logins_problem">目前无法打开已保存的登录：%1$s。</string>
+    <string name="settings_logins_problem_locked">保管库已锁定</string>
+    <string name="settings_logins_save_failed">无法保存登录信息。</string>
+
+    <!-- Settings → Models → On-device models: fit, states, problems and file kinds -->
+    <string name="settings_ondevice_fitchip_fits">适合此手机</string>
+    <string name="settings_ondevice_fitchip_fits_spoken">适合此手机</string>
+    <string name="settings_ondevice_fitchip_tight">勉强可用</string>
+    <string name="settings_ondevice_fitchip_tight_spoken">对此手机来说勉强可用</string>
+    <string name="settings_ondevice_fitchip_too_large">太大</string>
+    <string name="settings_ondevice_fitchip_too_large_spoken">对此手机来说太大</string>
+    <string name="settings_ondevice_fitchip_unknown">适配情况未知</string>
+    <string name="settings_ondevice_fitchip_unknown_spoken">适配情况未知</string>
+    <string name="settings_ondevice_status_waiting_wifi">等待 Wi-Fi</string>
+    <string name="settings_ondevice_status_waiting">等待开始</string>
+    <string name="settings_ondevice_status_paused">已暂停</string>
+    <string name="settings_ondevice_spoken_tools">支持工具</string>
+    <string name="settings_ondevice_spoken_chat_only">仅对话</string>
+    <string name="settings_ondevice_spoken_separator">，</string>
+    <string name="settings_ondevice_spoken_default">%1$s，默认</string>
+    <string name="settings_ondevice_problem_offline">离线</string>
+    <string name="settings_ondevice_problem_rate_limited">请求过多</string>
+    <string name="settings_ondevice_problem_gated">需要登录 Hugging Face</string>
+    <string name="settings_ondevice_problem_gated_advice">Locus 无需账号即可下载。请搜索其他发布者提供的同一模型（unsloth、bartowski、ggml-org 通常有不受限的副本），或在电脑上下载文件后导入。</string>
+    <string name="settings_ondevice_problem_other">出了点问题：%1$s</string>
+    <string name="settings_ondevice_url_warning_http">仅支持 https:// 地址：普通 http 下载可能在传输途中被篡改。</string>
+    <string name="settings_ondevice_url_warning_full">请粘贴以 https:// 开头的完整地址。</string>
+    <string name="settings_ondevice_url_warning_spaces">地址不能包含空格。</string>
+    <string name="settings_ondevice_finished_existing">%1$s 已在此手机上</string>
+    <string name="settings_ondevice_finished_verified">%1$s 已安装并验证</string>
+    <string name="settings_ondevice_finished_unverified">%1$s 已从未验证的来源安装</string>
+    <string name="settings_ondevice_state_idle">空闲</string>
+    <string name="settings_ondevice_state_loading">加载中</string>
+    <string name="settings_ondevice_state_replying">回复中</string>
+    <string name="settings_ondevice_state_loaded">已加载</string>
+    <string name="settings_ondevice_state_crashed">上次内存不足</string>
+    <string name="settings_ondevice_detail_gone">此模型已不在手机上。</string>
+    <string name="settings_ondevice_detail_no_checksum">Hugging Face 未发布此文件的校验和。</string>
+    <string name="settings_ondevice_detail_imported">导入的文件</string>
+    <string name="settings_ondevice_detail_source_at">%1$s @ %2$s</string>
+    <string name="settings_ondevice_kind_split">第 %1$d 部分，共 %2$d 部分</string>
+    <string name="settings_ondevice_kind_projector">视觉投影器</string>
+    <string name="settings_ondevice_kind_draft">草稿头</string>
+    <string name="settings_ondevice_kind_other">不是模型</string>
 </resources>

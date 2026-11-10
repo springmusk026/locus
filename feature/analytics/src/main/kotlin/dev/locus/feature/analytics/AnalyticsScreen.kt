@@ -250,8 +250,8 @@ private fun SpeedRow(report: AnalyticsReport, modifier: Modifier = Modifier) {
     LocusCard(modifier) {
         FigureRow {
             Figure(stringResource(R.string.analytics_speed_requests), compactCount(report.requests.toLong()), Modifier.weight(1f))
-            Figure(stringResource(R.string.analytics_speed_median), report.replyMedianMs?.let(::durationLabel) ?: "–", Modifier.weight(1f))
-            Figure(stringResource(R.string.analytics_speed_slowest), report.replyP95Ms?.let(::durationLabel) ?: "–", Modifier.weight(1f))
+            Figure(stringResource(R.string.analytics_speed_median), report.replyMedianMs?.let { durationLabel(it) } ?: "–", Modifier.weight(1f))
+            Figure(stringResource(R.string.analytics_speed_slowest), report.replyP95Ms?.let { durationLabel(it) } ?: "–", Modifier.weight(1f))
         }
         report.firstTokenMedianMs?.let { median ->
             SupportingText(

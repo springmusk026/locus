@@ -324,11 +324,11 @@ fun WorkflowRunSheet(
                 workflow.steps.forEachIndexed { i, s -> Text(stringResource(R.string.ui_workflow_plan_step, i + 1, s), style = LocusType.supporting) }
             }
             if (workflow.approvals.isNotEmpty()) {
-                SectionNote(stringResource(R.string.ui_workflow_asks_before, workflow.approvals.map(::workflowToolName).distinct().joinToString()))
+                SectionNote(stringResource(R.string.ui_workflow_asks_before, workflow.approvals.map { workflowToolName(it) }.distinct().joinToString()))
             }
             if (workflow.tools.isNotEmpty()) {
                 SectionNote(
-                    workflow.tools.filter { it !in workflow.approvals }.map(::workflowToolName).distinct()
+                    workflow.tools.filter { it !in workflow.approvals }.map { workflowToolName(it) }.distinct()
                         .let { own -> if (own.isEmpty()) stringResource(R.string.ui_workflow_only_reads) else stringResource(R.string.ui_workflow_can_on_its_own, own.joinToString()) },
                 )
             }

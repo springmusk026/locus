@@ -28,6 +28,7 @@ import dev.locus.core.designsystem.TextArea
 import dev.locus.core.designsystem.TextAreaSize
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.color
+import dev.locus.core.designsystem.labelRes
 import dev.locus.core.model.HelperPrompt
 import dev.locus.core.model.HelperPrompts
 
@@ -64,7 +65,7 @@ internal fun HelperPromptSheet(
     var text by rememberSaveable(prompt, saved) { mutableStateOf(current) }
     val check = HelperPrompts.check(prompt, text)
     LocusSheet(
-        title = prompt.label,
+        title = stringResource(prompt.labelRes),
         subtitle = prompt.explanation(),
         onDismiss = onDismiss,
         action = stringResource(R.string.settings_helper_prompt_save),

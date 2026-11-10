@@ -53,6 +53,7 @@ import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.UiText
+import dev.locus.core.designsystem.asString
 import dev.locus.core.designsystem.meterFraction
 import dev.locus.core.designsystem.meterPercent
 import dev.locus.core.designsystem.relativeTime
@@ -79,7 +80,8 @@ internal enum class StorageAction { ClearCaches, EmptyTrash }
 internal data class StorageUiState(
     val report: StorageReport? = null,
     val measuring: Boolean = true,
-    val error: String? = null,
+    /** The system's own message, shown inside our words ([storageErrorMessage]). */
+    val error: UiText? = null,
     val busy: StorageAction? = null,
     val message: StorageMessage? = null,
 )
@@ -107,7 +109,7 @@ internal class StorageViewModel @Inject constructor(private val storage: Storage
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _state.update { it.copy(measuring = false, error = e.message ?: e::class.java.simpleName) }
+                _state.update { it.copy(measuring = false, error = UiText.Plain(e.message ?: e::class.java.simpleName)) }
             }
         }
     }
@@ -318,7 +320,7 @@ private const val LARGE_FONT = 1.3f
 
 /** What couldn't be measured, in words, with the system's own message kept as the details line. */
 @Composable
-internal fun storageErrorMessage(error: String): String = stringResource(R.string.settings_storage_error_message, error)
+internal fun storageErrorMessage(error: UiText): String = stringResource(R.string.settings_storage_error_message, error.asString())
 
 private fun StorageArea.icon() = when (this) {
     StorageArea.Database -> LocusIcons.Chats

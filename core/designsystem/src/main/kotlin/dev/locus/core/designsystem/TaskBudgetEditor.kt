@@ -1,11 +1,13 @@
 package dev.locus.core.designsystem
 
+import android.content.res.Resources
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import dev.locus.core.model.SettingsDestination
 import dev.locus.core.model.TaskBudget
@@ -17,17 +19,40 @@ object TaskBudgetPresets {
     val dollars: List<Double> = listOf(0.25, 0.5, 1.0, 2.0, 5.0, 10.0)
     val minutes: List<Int> = listOf(5, 15, 30, 60, 120)
 
+    /** "200k", "1M": English, for text that isn't shown in the app's language. */
     fun tokens(n: Long): String = if (n >= 1_000_000 && n % 1_000_000 == 0L) "${n / 1_000_000}M" else if (n >= 1_000) "${n / 1_000}k" else "$n"
+
+    /** [tokens] in the app's language. */
+    fun tokens(resources: Resources, n: Long): String = when {
+        n >= 1_000_000 && n % 1_000_000 == 0L -> resources.getString(R.string.designsystem_count_millions, "${n / 1_000_000}")
+        n >= 1_000 -> resources.getString(R.string.designsystem_count_thousands, "${n / 1_000}")
+        else -> "$n"
+    }
 
     fun dollars(d: Double): String = if (d < 1) String.format(Locale.US, "$%.2f", d) else if (d % 1.0 == 0.0) "$${d.toLong()}" else String.format(Locale.US, "$%.2f", d)
 
+    /** "30 min", "2 h": English, for text that isn't shown in the app's language. */
     fun minutes(m: Int): String = if (m >= 60 && m % 60 == 0) "${m / 60} h" else "$m min"
 
-    /** "Off", or "200k tokens · $2 · 30 min". */
+    /** [minutes] in the app's language. */
+    fun minutes(resources: Resources, m: Int): String = minutesLabel(resources, m)
+
+    /** "Off", or "200k tokens · $2 · 30 min", in English; screens use the other [summary]. */
     fun summary(b: TaskBudget): String = if (b.isOff) {
         "Off"
     } else {
         listOfNotNull(b.tokens?.let { "${tokens(it)} tokens" }, b.costUsd?.let(::dollars), b.minutes?.let(::minutes)).joinToString(" · ")
+    }
+
+    /** "Off", or "200k tokens · $2 · 30 min", in the app's language. */
+    fun summary(resources: Resources, b: TaskBudget): String = if (b.isOff) {
+        resources.getString(R.string.common_off)
+    } else {
+        listOfNotNull(
+            b.tokens?.let { resources.getString(R.string.designsystem_budget_tokens_amount, tokens(resources, it)) },
+            b.costUsd?.let(::dollars),
+            b.minutes?.let { minutes(resources, it) },
+        ).joinToString(" · ")
     }
 }
 
@@ -45,12 +70,13 @@ fun TaskBudgetEditor(
     modifier: Modifier = Modifier,
     costNoteDestination: SettingsDestination? = SettingsDestination.inText(costNote),
 ) {
+    val resources = LocalResources.current
     Column(modifier, verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         BudgetRow(
             stringResource(R.string.designsystem_budget_tokens),
             (TaskBudgetPresets.tokens + listOfNotNull(budget.tokens)).distinct().sorted(),
             budget.tokens,
-            TaskBudgetPresets::tokens,
+            { TaskBudgetPresets.tokens(resources, it) },
         ) { onChange(budget.copy(tokens = it)) }
         BudgetRow(
             stringResource(R.string.designsystem_budget_cost),
@@ -75,7 +101,7 @@ fun TaskBudgetEditor(
             stringResource(R.string.designsystem_budget_time),
             (TaskBudgetPresets.minutes + listOfNotNull(budget.minutes)).distinct().sorted(),
             budget.minutes,
-            TaskBudgetPresets::minutes,
+            { TaskBudgetPresets.minutes(resources, it) },
         ) { onChange(budget.copy(minutes = it)) }
     }
 }

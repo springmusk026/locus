@@ -1,5 +1,6 @@
 package dev.locus.feature.chat
 
+import android.content.res.Resources
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -21,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -107,7 +109,7 @@ internal fun LocusCodeCard(code: String, language: String?, style: TextStyle, st
         Column {
             Row(Modifier.fillMaxWidth().padding(start = Spacing.md, end = Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
                 SupportingText(
-                    languageDisplayName(language),
+                    languageDisplayName(LocalResources.current, language),
                     modifier = Modifier.weight(1f),
                     style = LocusType.mono,
                 )
@@ -238,9 +240,12 @@ internal fun syntaxLanguageFor(fence: String?): SyntaxLanguage? {
     }
 }
 
-/** What the card's header calls the language: a proper name for known ones, else the tag as written. */
-internal fun languageDisplayName(fence: String?): String {
-    val word = fenceWord(fence) ?: return "Code"
+/**
+ * What the card's header calls the language: a proper name for known ones (not translated), else the tag
+ * as written. Only "Code" (no tag) and "Text" are words of ours.
+ */
+internal fun languageDisplayName(resources: Resources, fence: String?): String {
+    val word = fenceWord(fence) ?: return resources.getString(R.string.chat_code_language_code)
     return when (syntaxLanguageFor(word)) {
         SyntaxLanguage.JAVASCRIPT -> "JavaScript"
         SyntaxLanguage.TYPESCRIPT -> "TypeScript"
@@ -269,7 +274,7 @@ internal fun languageDisplayName(fence: String?): String {
             "toml" -> "TOML"
             "md", "markdown" -> "Markdown"
             "diff", "patch" -> "Diff"
-            "text", "txt", "plaintext" -> "Text"
+            "text", "txt", "plaintext" -> resources.getString(R.string.chat_code_language_text)
             "mermaid" -> "Mermaid"
             "math", "latex", "tex" -> "LaTeX"
             else -> fence!!.trim().split(' ', '\t', '{', ',').first()

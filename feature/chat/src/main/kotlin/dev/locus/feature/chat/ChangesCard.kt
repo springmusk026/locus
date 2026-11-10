@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.draw.rotate
+import android.content.res.Resources
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -77,10 +79,10 @@ class ChangeActions(
 )
 
 /** "Changed 3 files" / "Changed 1 file", counting what still stands. */
-internal fun changesTitle(files: List<TrackedChange>): String {
+internal fun changesTitle(resources: Resources, files: List<TrackedChange>): String {
     val standing = files.count { !it.undone }
-    if (standing == 0) return if (files.size == 1) "Undid the change to 1 file" else "Undid the changes to ${files.size} files"
-    return "Changed $standing ${if (standing == 1) "file" else "files"}"
+    if (standing == 0) return resources.getQuantityString(R.plurals.chat_changes_title_undone, files.size, files.size)
+    return resources.getQuantityString(R.plurals.chat_changes_title, standing, standing)
 }
 
 /** A line count grouped as the phone's language groups digits: "12,601" in English, "12.601" in German. */
@@ -92,27 +94,40 @@ internal fun lineCounts(added: Int, removed: Int, locale: java.util.Locale = jav
     listOfNotNull("+${formatCount(added, locale)}".takeIf { added > 0 }, "−${formatCount(removed, locale)}".takeIf { removed > 0 })
         .joinToString(" ").ifEmpty { null }
 
-private fun linesLabel(n: Int): String = if (n == 1) "1 line" else "${formatCount(n)} lines"
-
 /**
  * What a row says about its change. A file the turn created reads "New · 121 lines" and one it deleted
  * "Deleted · 40 lines", never "+121 −0": the net diff of a new file only adds. A changed file shows the
- * counts that aren't zero ("+12 −3", "+12"). Folders and binary files have no lines to count.
+ * counts that aren't zero ("+12 −3", "+12"). Folders and binary files have no lines to count. The chat
+ * export says the same in English whatever the screen's language ([exportChangeSummary]).
  */
-internal fun changeSummary(change: TrackedChange): String = when {
-    change.isDirectory -> when (change.kind) {
-        TrackedChange.Kind.CREATED -> "New folder"
-        TrackedChange.Kind.DELETED -> "Folder deleted"
-        TrackedChange.Kind.MODIFIED -> "Folder"
-    }
-    change.binary -> when (change.kind) {
-        TrackedChange.Kind.CREATED -> "New binary file"
-        TrackedChange.Kind.DELETED -> "Binary file deleted"
-        TrackedChange.Kind.MODIFIED -> "Binary file changed"
-    }
-    change.kind == TrackedChange.Kind.CREATED -> if (change.added > 0) "New · ${linesLabel(change.added)}" else "New · empty"
-    change.kind == TrackedChange.Kind.DELETED -> if (change.removed > 0) "Deleted · ${linesLabel(change.removed)}" else "Deleted"
-    else -> lineCounts(change.added, change.removed) ?: "No line changes"
+internal fun changeSummary(resources: Resources, change: TrackedChange): String = when {
+    change.isDirectory -> resources.getString(
+        when (change.kind) {
+            TrackedChange.Kind.CREATED -> R.string.chat_changes_summary_new_folder
+            TrackedChange.Kind.DELETED -> R.string.chat_changes_summary_folder_deleted
+            TrackedChange.Kind.MODIFIED -> R.string.chat_changes_summary_folder
+        },
+    )
+    change.binary -> resources.getString(
+        when (change.kind) {
+            TrackedChange.Kind.CREATED -> R.string.chat_changes_summary_new_binary
+            TrackedChange.Kind.DELETED -> R.string.chat_changes_summary_binary_deleted
+            TrackedChange.Kind.MODIFIED -> R.string.chat_changes_summary_binary_changed
+        },
+    )
+    change.kind == TrackedChange.Kind.CREATED ->
+        if (change.added > 0) {
+            resources.getQuantityString(R.plurals.chat_changes_summary_new_lines, change.added, formatCount(change.added))
+        } else {
+            resources.getString(R.string.chat_changes_summary_new_empty)
+        }
+    change.kind == TrackedChange.Kind.DELETED ->
+        if (change.removed > 0) {
+            resources.getQuantityString(R.plurals.chat_changes_summary_deleted_lines, change.removed, formatCount(change.removed))
+        } else {
+            resources.getString(R.string.chat_changes_summary_deleted)
+        }
+    else -> lineCounts(change.added, change.removed) ?: resources.getString(R.string.chat_changes_summary_none)
 }
 
 /** Whether [changeSummary] is line counts (drawn in the diff colours) rather than words (drawn as a label). */
@@ -123,13 +138,13 @@ internal fun summaryIsCounts(change: TrackedChange): Boolean =
  * The summary's phrases after the line counts: how many files are new or deleted (["1 new file",
  * "1 deleted"]), counting what still stands; empty when none are. Each is drawn as one unbreakable unit.
  */
-internal fun changesTotalsParts(files: List<TrackedChange>): List<String> {
+internal fun changesTotalsParts(resources: Resources, files: List<TrackedChange>): List<String> {
     val standing = files.filter { !it.undone }
     val created = standing.count { it.kind == TrackedChange.Kind.CREATED }
     val deleted = standing.count { it.kind == TrackedChange.Kind.DELETED }
     return listOfNotNull(
-        created.takeIf { it > 0 }?.let { if (it == 1) "1 new file" else "${formatCount(it)} new files" },
-        deleted.takeIf { it > 0 }?.let { "${formatCount(it)} deleted" },
+        created.takeIf { it > 0 }?.let { resources.getQuantityString(R.plurals.chat_changes_totals_new, it, formatCount(it)) },
+        deleted.takeIf { it > 0 }?.let { resources.getString(R.string.chat_changes_totals_deleted, formatCount(it)) },
     )
 }
 
@@ -138,14 +153,19 @@ internal fun changesTotalsParts(files: List<TrackedChange>): List<String> {
  * "Edit 2 · +11 −14". Tool edits are numbered; a change found between them (a command, the user) is
  * "Changed outside the file tools", since it has no counts of its own.
  */
-internal fun editLines(change: TrackedChange): List<String> {
+internal fun editLines(resources: Resources, change: TrackedChange): List<String> {
     var n = 0
     return change.edits.map { edit ->
         if (edit.outside) {
-            "Changed outside the file tools"
+            resources.getString(R.string.chat_changes_edit_line_outside)
         } else {
             n++
-            "Edit $n · " + if (edit.binary) "binary" else (lineCounts(edit.added, edit.removed) ?: "no line changes")
+            val counts = if (edit.binary) {
+                resources.getString(R.string.chat_changes_edit_line_binary)
+            } else {
+                lineCounts(edit.added, edit.removed) ?: resources.getString(R.string.chat_changes_edit_line_none)
+            }
+            resources.getString(R.string.chat_changes_edit_line, n, counts)
         }
     }
 }
@@ -160,7 +180,8 @@ internal fun changesTotals(files: List<TrackedChange>): Pair<Int, Int> =
     files.filter { !it.undone }.let { standing -> standing.sumOf { it.added } to standing.sumOf { it.removed } }
 
 /** "Edited 4 times"; null for a file changed once. */
-internal fun editCountLabel(change: TrackedChange): String? = change.editCount.takeIf { it > 1 }?.let { "Edited $it times" }
+internal fun editCountLabel(resources: Resources, change: TrackedChange): String? =
+    change.editCount.takeIf { it > 1 }?.let { resources.getQuantityString(R.plurals.chat_changes_edited_times, it, it) }
 
 /**
  * The files a turn changed, under the turn: a summary row ("Changed 11 files · +865 −282", Undo all)
@@ -177,11 +198,12 @@ internal fun ChangesCard(item: ChatItem.Changes, actions: ChangeActions, modifie
     val scope = rememberCoroutineScope()
     val standing = item.files.filter { !it.undone && it.canUndo }
     val (added, removed) = changesTotals(item.files)
-    val title = changesTitle(item.files)
-    val totalsParts = changesTotalsParts(item.files)
+    val resources = LocalResources.current
+    val title = changesTitle(resources, item.files)
+    val totalsParts = changesTotalsParts(resources, item.files)
     val hideShowFiles = stringResource(if (expanded) R.string.chat_changes_hide_files else R.string.chat_changes_show_files)
     val expandedDescription = stringResource(if (expanded) R.string.chat_changes_expanded else R.string.chat_changes_collapsed)
-    val addedDescription = stringResource(R.string.chat_changes_lines_added, formatCount(added))
+    val addedDescription = pluralStringResource(R.plurals.chat_changes_lines_added, added, formatCount(added))
     val removedDescription = stringResource(R.string.chat_changes_lines_removed, formatCount(removed))
 
     // A still render (preview, screenshot) shows the settled card, not the first frame of its growth.
@@ -271,13 +293,14 @@ private class Confirm(val id: Long?, val what: String, val check: UndoCheck, val
 
 @Composable
 private fun ChangeRow(change: TrackedChange, onClick: () -> Unit) {
-    val edited = editCountLabel(change)
+    val resources = LocalResources.current
+    val edited = editCountLabel(resources, change)
     val time = change.updatedAt.takeIf { it > 0 }?.let { relativeTime(it) }
-    val summary = changeSummary(change)
+    val summary = changeSummary(resources, change)
     val lastChanged = time?.let { stringResource(R.string.chat_changes_last_changed, it) }
     val undoneDescription = stringResource(R.string.chat_changes_undone_description)
     // Each edit when there was more than one, so repeated edits show without opening the file.
-    val edits = if (change.edits.size > 1 && !change.undone) editLines(change) else emptyList()
+    val edits = if (change.edits.size > 1 && !change.undone) editLines(resources, change) else emptyList()
     Row(
         Modifier.fillMaxWidth().clickable(onClickLabel = stringResource(R.string.chat_changes_show_diff), onClick = onClick).padding(horizontal = Spacing.md, vertical = Spacing.sm)
             .semantics {
@@ -348,18 +371,20 @@ private fun diffBody(diff: String?): List<String> =
     diff?.lines()?.dropLastWhile { it.isEmpty() }.orEmpty().filterNot { it.startsWith("--- ") || it.startsWith("+++ ") }
 
 /** "write_file" → "Wrote the file", a command → "Changed by a command or you". */
-internal fun editLabel(edit: dev.locus.core.data.repository.FileEdit): String = when {
-    edit.outside -> "Changed outside the file tools (a command, or you)"
-    else -> when (edit.toolName) {
-        "write_file" -> "Wrote the file"
-        "edit_file", "multi_edit" -> "Edited"
-        "delete_path" -> "Deleted"
-        "move_path" -> "Moved"
-        "copy_path" -> "Copied"
-        "make_directory" -> "Created"
-        else -> "Changed"
-    }
-}
+internal fun editLabel(resources: Resources, edit: dev.locus.core.data.repository.FileEdit): String = resources.getString(
+    when {
+        edit.outside -> R.string.chat_changes_edit_label_outside
+        else -> when (edit.toolName) {
+            "write_file" -> R.string.chat_changes_edit_label_wrote
+            "edit_file", "multi_edit" -> R.string.chat_changes_edit_label_edited
+            "delete_path" -> R.string.chat_changes_edit_label_deleted
+            "move_path" -> R.string.chat_changes_edit_label_moved
+            "copy_path" -> R.string.chat_changes_edit_label_copied
+            "make_directory" -> R.string.chat_changes_edit_label_created
+            else -> R.string.chat_changes_edit_label_changed
+        }
+    },
+)
 
 /**
  * The change as a unified diff (the net change for the turn), then each edit to the file in this turn
@@ -375,9 +400,10 @@ private fun DiffSheet(change: TrackedChange, actions: ChangeActions, onDismiss: 
         value = !change.undone && runCatching { actions.check(change.id).changedSince }.getOrDefault(false)
     }
     val clock = remember { java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT) }
+    val resources = LocalResources.current
     LocusSheet(
         title = change.path.substringAfterLast('/'),
-        subtitle = listOfNotNull(change.path.substringBeforeLast('/', "").ifEmpty { null }, changeSummary(change), editCountLabel(change)).joinToString(" · "),
+        subtitle = listOfNotNull(change.path.substringBeforeLast('/', "").ifEmpty { null }, changeSummary(resources, change), editCountLabel(resources, change)).joinToString(" · "),
         action = if (!change.undone && change.canUndo) stringResource(R.string.chat_changes_undo) else null,
         onAction = onUndo,
         onDismiss = onDismiss,
@@ -439,7 +465,7 @@ private fun DiffSheet(change: TrackedChange, actions: ChangeActions, onDismiss: 
                         ) {
                             SupportingText(clock.format(java.util.Date(edit.at)), Modifier.padding(end = Spacing.sm), style = LocusType.mono)
                             Column(Modifier.weight(1f)) {
-                                Text(editLabel(edit), style = LocusType.rowSupporting, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                Text(editLabel(resources, edit), style = LocusType.rowSupporting, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                 // Mono for the line counts only; a sentence reads in the supporting role.
                                 val counts = !edit.outside && !edit.binary
                                 SupportingText(

@@ -23,14 +23,19 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import dev.locus.core.designsystem.UiText
+import dev.locus.feature.settings.R
 
 /** A download that just finished: [existing] when the file was already on the phone. */
 data class Finished(val name: String, val modelId: String, val existing: Boolean, val verified: Boolean) {
-    val message: String get() = when {
-        existing -> "$name is already on this phone"
-        verified -> "$name installed and verified"
-        else -> "$name installed from an unverified source"
-    }
+    val message: UiText get() = UiText.Res(
+        when {
+            existing -> R.string.settings_ondevice_finished_existing
+            verified -> R.string.settings_ondevice_finished_verified
+            else -> R.string.settings_ondevice_finished_unverified
+        },
+        name,
+    )
 }
 
 data class LibraryUiState(
@@ -151,17 +156,19 @@ class OnDeviceLibraryViewModel @Inject constructor(private val actions: OnDevice
             filters: DiscoverFilters,
             defaultModel: String?,
         ): LibraryUiState {
-            fun stateOf(id: String) = when {
-                engine.modelId != id -> "Idle"
-                engine.loading -> "Loading"
-                engine.busy -> "Replying"
-                engine.loaded -> "Loaded"
-                else -> "Idle"
-            }
+            fun stateOf(id: String) = UiText.Res(
+                when {
+                    engine.modelId != id -> R.string.settings_ondevice_state_idle
+                    engine.loading -> R.string.settings_ondevice_state_loading
+                    engine.busy -> R.string.settings_ondevice_state_replying
+                    engine.loaded -> R.string.settings_ondevice_state_loaded
+                    else -> R.string.settings_ondevice_state_idle
+                },
+            )
             val installed = liteRt.filter { states[it.id] == ModelState.Ready }.map { m ->
                 InstalledItem(ModelKey.LiteRt(m.id), m.id, m.name, Engine.LiteRt, m.sizeBytes, tools = m.callsTools, stateOf(m.id), liteRtFit(MemoryGate.check(m.minRamGb, memory), memory), m.id == defaultModel)
             } + gguf.map { m ->
-                InstalledItem(ModelKey.Installed(m.id), m.id, m.name, Engine.LlamaCpp, m.sizeBytes, m.callsTools, if (m.loadCrashed) "Ran out of memory last time" else stateOf(m.id), ggufFit(m.ramBytes, memory), m.id == defaultModel)
+                InstalledItem(ModelKey.Installed(m.id), m.id, m.name, Engine.LlamaCpp, m.sizeBytes, m.callsTools, if (m.loadCrashed) UiText.Res(R.string.settings_ondevice_state_crashed) else stateOf(m.id), ggufFit(m.ramBytes, memory), m.id == defaultModel)
             }
             val active = liteRt.mapNotNull { m ->
                 liteRtDownloadUi(states[m.id] ?: ModelState.NotDownloaded, partial[m.id] ?: 0, m.sizeBytes)?.let { ActiveDownload(ModelKey.LiteRt(m.id), m.id, m.name, Engine.LiteRt, it) }

@@ -6,6 +6,7 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.locus.core.designsystem.UiText
 import dev.locus.core.data.repository.ConversationRepository
 import dev.locus.core.data.repository.LibraryRepository
 import dev.locus.core.data.repository.ProjectRepository
@@ -28,7 +29,8 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /** A project in the list: how many chats it has and when one was last active. */
-data class ProjectRow(val project: Project, val chats: Int, val lastActive: Long?, val modelLabel: String = "Your default model")
+/** [modelLabel] names the model the project uses, or says it uses the default one. */
+data class ProjectRow(val project: Project, val chats: Int, val lastActive: Long?, val modelLabel: UiText = UiText.Res(R.string.chat_projects_default_model))
 
 /** The Projects screen: every project with its chats, and creating one. See docs/design/projects.md. */
 @HiltViewModel
@@ -41,7 +43,7 @@ class ProjectsViewModel @Inject constructor(
         list.map { p ->
             val mine = chats.filter { it.projectId == p.id && it.id !in empty }
             val provider = s.providers.firstOrNull { it.id == p.providerId }
-            val label = if (provider == null) "Your default model" else "${provider.name} · ${dev.locus.core.model.ModelNames.short(p.model ?: provider.model)}"
+            val label = if (provider == null) UiText.Res(R.string.chat_projects_default_model) else UiText.Plain("${provider.name} · ${dev.locus.core.model.ModelNames.short(p.model ?: provider.model)}")
             ProjectRow(p, mine.size, mine.maxOfOrNull { it.updatedAt }, label)
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
@@ -90,10 +92,11 @@ data class ProjectEditorState(
     val connectors: List<ProjectConnectorRow> = emptyList(),
     /** Null: every connector is allowed. */
     val allowedConnectors: Set<String>? = null,
-    val error: String? = null,
+    val error: UiText? = null,
     val saved: Boolean = false,
     /** The machine the project runs on (docs/design/remote-execution.md), or null for the phone. */
-    val remoteAlias: String? = null,
+    /** The machine's name, or ours when it was since removed. */
+    val remoteAlias: UiText? = null,
     val remoteFolder: String? = null,
     /** Machines it could run on: those with a confirmed host key. */
     val remoteHosts: List<RemoteHostRow> = emptyList(),
@@ -158,7 +161,7 @@ class ProjectEditorViewModel @AssistedInject constructor(
                 val linked = current?.let { s.projectRemotes[it] }
                 _state.update { st ->
                     st.copy(
-                        remoteAlias = linked?.let { r -> s.sshHosts.firstOrNull { it.id == r.hostId }?.alias ?: "a removed machine" },
+                        remoteAlias = linked?.let { r -> s.sshHosts.firstOrNull { it.id == r.hostId }?.alias?.let(UiText::Plain) ?: UiText.Res(R.string.chat_remote_removed_machine) },
                         remoteFolder = linked?.folder,
                         remoteHosts = s.sshHosts.filter { it.fingerprint.isNotBlank() }.map { RemoteHostRow(it.id, it.alias, "${it.user}@${it.host}:${it.port}") },
                     )
@@ -212,26 +215,30 @@ class ProjectEditorViewModel @AssistedInject constructor(
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
-            RemoteSheetStep.Folder(host.id, host.alias, "~/locus/" + folder.substringAfterLast('/'), loading = false, error = "Couldn't reach ${host.alias}: ${e.message}")
+            RemoteSheetStep.Folder(
+                host.id, host.alias, "~/locus/" + folder.substringAfterLast('/'), loading = false,
+                error = UiText.Res(R.string.chat_remote_error_reach, host.alias, e.message.orEmpty()),
+                notWritable = saysNotWritable(e.message),
+            )
         }
         if (_state.value.remoteSheet is RemoteSheetStep.Folder) setSheet(step)
     }
 
     fun setRemoteFolder(value: String) {
         val step = _state.value.remoteSheet as? RemoteSheetStep.Folder ?: return
-        setSheet(step.copy(folder = value, error = null))
+        setSheet(step.copy(folder = value, error = null, notWritable = false))
     }
 
     fun previewRemote() = viewModelScope.launch {
         val step = _state.value.remoteSheet as? RemoteSheetStep.Folder ?: return@launch
-        setSheet(step.copy(loading = true, error = null))
+        setSheet(step.copy(loading = true, error = null, notWritable = false))
         try {
             val preview = remote.preview(_state.value.folder, step.hostId, step.folder)
             setSheet(RemoteSheetStep.Preview(step.hostId, preview))
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
-            setSheet(step.copy(loading = false, error = e.message ?: "Couldn't list the files."))
+            setSheet(step.copy(loading = false, error = e.message?.let(UiText::Plain) ?: UiText.Res(R.string.chat_remote_error_list), notWritable = saysNotWritable(e.message)))
         }
     }
 
@@ -269,7 +276,13 @@ class ProjectEditorViewModel @AssistedInject constructor(
             throw e
         } catch (e: Exception) {
             job.ensureActive() // cancelled, and the copy wrapped it in its own error: the sheet stays closed
-            setSheet(RemoteSheetStep.Folder(step.hostId, alias, step.preview.folder, loading = false, error = "Linking failed: ${e.message}"))
+            setSheet(
+                RemoteSheetStep.Folder(
+                    step.hostId, alias, step.preview.folder, loading = false,
+                    error = UiText.Res(R.string.chat_remote_error_link, e.message.orEmpty()),
+                    notWritable = saysNotWritable(e.message),
+                ),
+            )
         }
     }
 
@@ -298,7 +311,7 @@ class ProjectEditorViewModel @AssistedInject constructor(
         _state.update { it.copy(error = null).change() }
     }
 
-    private fun fail(message: String) {
+    private fun fail(message: UiText) {
         _state.update { it.copy(error = message) }
     }
 
@@ -311,13 +324,13 @@ class ProjectEditorViewModel @AssistedInject constructor(
     private suspend fun persist(): String? {
         val st = _state.value
         val name = st.name.trim()
-        if (name.isEmpty()) return null.also { fail("Give the project a name.") }
+        if (name.isEmpty()) return null.also { fail(UiText.Res(R.string.chat_projecteditor_error_name)) }
         val created = st.project == null
         val base = st.project ?: run {
             val folder = st.folder.trim().ifEmpty { ProjectPolicy.defaultFolder(name) }
-            if (ProjectPolicy.cleanFolder(folder) == null) return null.also { fail("Use a folder inside the workspace, like projects/garden (no .. or hidden folders).") }
+            if (ProjectPolicy.cleanFolder(folder) == null) return null.also { fail(UiText.Res(R.string.chat_projecteditor_error_folder)) }
             projects.create(name, folder, st.instructions, st.memoryScope)
-                ?: return null.also { fail("Another project already uses that folder.") }
+                ?: return null.also { fail(UiText.Res(R.string.chat_projecteditor_error_taken)) }
         }
         val updated = base.copy(
             name = name, providerId = st.providerId, model = st.model.takeIf { st.providerId != null },

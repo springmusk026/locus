@@ -50,6 +50,9 @@ import dev.locus.core.model.ToolPolicy
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.SwitchRow
+import android.content.res.Resources
+import androidx.compose.ui.platform.LocalResources
+import dev.locus.core.model.SettingsDestination
 
 /** Per-tool permissions, grouped by kind of tool. */
 @Composable
@@ -104,8 +107,8 @@ private fun RememberedCard(rules: List<RememberedApproval>, onRevoke: (String) -
             if (i > 0) GroupDivider(inset = Insets.iconRow)
             val (accent, icon) = accentFor(rule.tool)
             ListRow(
-                title = rememberedTitle(rule),
-                subtitle = rememberedSubtitle(rule, System.currentTimeMillis()),
+                title = rememberedTitle(LocalResources.current, rule),
+                subtitle = rememberedSubtitle(LocalResources.current, rule, System.currentTimeMillis()),
                 titleMaxLines = 2,
                 leading = { AccentTile(accent, icon, size = IconSize.tile) },
                 trailing = { TextButton(onClick = { onRevoke(rule.id) }) { Text(stringResource(R.string.settings_permissions_revoke)) } },
@@ -118,13 +121,15 @@ private fun RememberedCard(rules: List<RememberedApproval>, onRevoke: (String) -
  * What a remembered rule lets Locus do, in the tool's own words (toolLabel): "Run ./gradlew test …"
  * with the command in the code font, "Write files in src/main/", "Open github.com".
  */
-internal fun rememberedTitle(rule: RememberedApproval): AnnotatedString {
-    val text = rememberedTitleText(rule)
+internal fun rememberedTitle(res: Resources, rule: RememberedApproval): AnnotatedString {
+    val text = rememberedTitleText(res, rule)
     // toolLabel marks the command with backticks; only a command's, since a folder or site could hold one.
     return if (rule.kind == ApprovalScopeKind.COMMAND) codeSpans(text) else AnnotatedString(text)
 }
 
-private fun rememberedTitleText(rule: RememberedApproval): String {
+// The tool's verb comes from toolLabel (core/agent, English); the words put into it stay English with
+// it, so a title doesn't mix languages. A calendar rule's title is ours, from resources.
+private fun rememberedTitleText(res: Resources, rule: RememberedApproval): String {
     fun label(vararg args: Pair<String, String>): String =
         toolLabel(rule.tool, JsonObject(args.associate { (k, v) -> k to JsonPrimitive(v) }).toString(), done = false)
     return when (rule.kind) {
@@ -143,8 +148,11 @@ private fun rememberedTitleText(rule: RememberedApproval): String {
         ApprovalScopeKind.RECIPIENT -> label("to" to rule.value, "number" to rule.value)
         // "12:Personal": the calendar's name after its id.
         ApprovalScopeKind.CALENDAR -> {
-            val name = rule.value.substringAfter(':', "").ifEmpty { "your calendar" }
-            if (rule.tool == dev.locus.core.model.DeviceIntegrations.CALENDAR_UPDATE) "Change events in $name" else "Add events to $name"
+            val name = rule.value.substringAfter(':', "").ifEmpty { res.getString(R.string.settings_permissions_remembered_your_calendar) }
+            res.getString(
+                if (rule.tool == dev.locus.core.model.DeviceIntegrations.CALENDAR_UPDATE) R.string.settings_permissions_remembered_calendar_change else R.string.settings_permissions_remembered_calendar_add,
+                name,
+            )
         }
     }
 }
@@ -152,17 +160,21 @@ private fun rememberedTitleText(rule: RememberedApproval): String {
 private const val FOLDER_SLOT = "\u0000"
 
 /** Where and how long it applies: "This chat only", "Always · 12 days left", plus "in its project" when made in one. */
-internal fun rememberedSubtitle(rule: RememberedApproval, now: Long): String {
+internal fun rememberedSubtitle(res: Resources, rule: RememberedApproval, now: Long): String {
     val expires = rule.expiresAt
     val span = when {
-        rule.conversationId != null -> "This chat only"
-        expires == null -> "Always"
+        rule.conversationId != null -> res.getString(R.string.settings_permissions_remembered_this_chat)
+        expires == null -> res.getString(R.string.settings_permissions_remembered_always)
         else -> {
             val days = (expires - now) / (24L * 60 * 60 * 1000)
-            if (days < 1) "Always · ends today" else "Always · $days ${if (days == 1L) "day" else "days"} left"
+            if (days < 1) {
+                res.getString(R.string.settings_permissions_remembered_ends_today)
+            } else {
+                res.getQuantityString(R.plurals.settings_permissions_remembered_days_left, days.toInt(), days.toInt())
+            }
         }
     }
-    return if (rule.projectId != null) "$span · in its project" else span
+    return if (rule.projectId != null) res.getString(R.string.settings_permissions_remembered_in_project, span) else span
 }
 
 @Composable
@@ -183,12 +195,13 @@ private fun ReviewerCard(state: SettingsUiState, onSetMode: (ReviewerMode) -> Un
                 onSelect = { onSetMode(ReviewerMode.entries[it]) },
                 modifier = Modifier.fillMaxWidth(),
             )
-            val reviewerHint = reviewerModeHint(state.reviewerMode, reviewerModelLabel(state))
+            val resources = LocalResources.current
+            val reviewerHint = reviewerModeHint(resources, state.reviewerMode, reviewerModelLabel(resources, state))
             SupportingText(
                 reviewerHint,
             )
             // "… set a helper model in Settings → Helper model & extras": a link there.
-            SettingsLinkIn(reviewerHint)
+            SettingsLinkIn(reviewerHint, destination = SettingsDestination.Extras.takeIf { state.reviewerMode != ReviewerMode.OFF && reviewerHelper(state) == null })
         }
         if (state.reviewerMode != ReviewerMode.OFF) {
             GroupDivider(inset = Spacing.lg)
@@ -203,17 +216,19 @@ private fun ReviewerCard(state: SettingsUiState, onSetMode: (ReviewerMode) -> Un
     }
 }
 
-private fun reviewerModeHint(mode: ReviewerMode, model: String) = when (mode) {
-    ReviewerMode.OFF -> "Actions set to Ask always ask you."
-    ReviewerMode.REVIEW_ASKS -> "Checks actions set to Ask: runs the clearly fine ones, blocks the clearly wrong ones, asks you about the rest. Uses $model."
-    ReviewerMode.REVIEW_ALL_BUT_READS -> "Also checks allowed actions that change something; any it doesn't clear come to you. Uses $model."
+private fun reviewerModeHint(res: Resources, mode: ReviewerMode, model: String): String = when (mode) {
+    ReviewerMode.OFF -> res.getString(R.string.settings_permissions_reviewer_hint_off)
+    ReviewerMode.REVIEW_ASKS -> res.getString(R.string.settings_permissions_reviewer_hint_asks, model)
+    ReviewerMode.REVIEW_ALL_BUT_READS -> res.getString(R.string.settings_permissions_reviewer_hint_all, model)
 }
 
+/** The helper model's provider, or null when there is none and each chat's own model reviews. */
+private fun reviewerHelper(state: SettingsUiState) = state.providers.firstOrNull { it.config.id == state.helperProviderId }?.config
+
 /** The model that does the reviewing: the helper model, or each chat's own. */
-internal fun reviewerModelLabel(state: SettingsUiState): String {
-    val helper = state.providers.firstOrNull { it.config.id == state.helperProviderId }?.config
-        ?: return "each chat's own model (set a helper model in Settings → Helper model & extras for a faster one)"
-    return "${helper.name} · ${dev.locus.core.model.ModelNames.short(state.helperModel.ifBlank { helper.model })}"
+internal fun reviewerModelLabel(res: Resources, state: SettingsUiState): String {
+    val helper = reviewerHelper(state) ?: return res.getString(R.string.settings_permissions_reviewer_own_model)
+    return res.getString(R.string.settings_summary_join, helper.name, dev.locus.core.model.ModelNames.short(state.helperModel.ifBlank { helper.model }))
 }
 
 @Composable

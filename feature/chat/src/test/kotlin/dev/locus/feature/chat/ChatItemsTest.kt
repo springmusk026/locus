@@ -5,11 +5,17 @@ import dev.locus.core.model.Message
 import dev.locus.core.model.Part
 import dev.locus.core.model.ProposedPlan
 import dev.locus.core.model.Role
+import dev.locus.core.designsystem.UiText
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36])
 class ChatItemsTest {
     private fun msg(id: String, role: Role, vararg parts: Part) = Message(id, "c", role, parts.toList(), 0)
 
@@ -49,7 +55,10 @@ class ChatItemsTest {
         assertEquals(listOf(true, false), thoughts.map { it.inSteps })
         assertTrue(items.none { it is ChatItem.ToolCall && it.name == AgentControlTools.TODO_WRITE })
         assertEquals("Done.", (items.last() as ChatItem.Assistant).text)
-        assertEquals("Thought for 12s", thoughtLabel(12_400))
+        assertEquals("Thought for 12s", thoughtLabel(testResources, 12_400))
+        assertEquals("Thought", thoughtLabel(testResources, 0))
+        assertEquals("Thought for a moment", thoughtLabel(testResources, 400))
+        assertEquals("Thought for 2m 5s", thoughtLabel(testResources, 125_000))
     }
 
     @Test
@@ -121,12 +130,11 @@ class ChatItemsTest {
 
     @Test
     fun `while the agent works the composer says the message goes into the task`() {
-        assertEquals("Tell Locus while it works…", composerPlaceholder(asking = false, answering = false, running = true, planMode = false, idle = "Message Locus"))
-        assertEquals("Type your answer…", composerPlaceholder(asking = false, answering = true, running = true, planMode = false, idle = "Message Locus"))
-        assertEquals("Ask a side question…", composerPlaceholder(asking = true, answering = false, running = true, planMode = false, idle = "Message Locus"))
-        assertEquals("Message Locus", composerPlaceholder(asking = false, answering = false, running = false, planMode = false, idle = "Message Locus"))
-        assertEquals("Locus reads this after the current step", queuedLabel(running = true))
-        assertEquals("Not sent yet", queuedLabel(running = false))
+        assertEquals("Tell Locus while it works…", composerPlaceholder(testResources, asking = false, answering = false, running = true, planMode = false, idle = "Message Locus"))
+        assertEquals("Type your answer…", composerPlaceholder(testResources, asking = false, answering = true, running = true, planMode = false, idle = "Message Locus"))
+        assertEquals("Ask a side question…", composerPlaceholder(testResources, asking = true, answering = false, running = true, planMode = false, idle = "Message Locus"))
+        assertEquals("Describe the task; Locus plans first", composerPlaceholder(testResources, asking = false, answering = false, running = false, planMode = true, idle = "Message Locus"))
+        assertEquals("Message Locus", composerPlaceholder(testResources, asking = false, answering = false, running = false, planMode = false, idle = "Message Locus"))
     }
 
     @Test
@@ -135,7 +143,14 @@ class ChatItemsTest {
             reply = dev.locus.core.model.ReplyInfo("o", "gpt-x", fallbackFrom = "claude-x (Anthropic)"),
         )
         val own = msg("a2", Role.ASSISTANT, Part.Text("Hi")).copy(reply = dev.locus.core.model.ReplyInfo("a", "claude-x"))
-        assertEquals("Answered by gpt-x · claude-x (Anthropic) couldn't answer", (turnItems(listOf(backup), emptyMap()).single() as ChatItem.Assistant).fallbackNote)
+        assertEquals(
+            UiText.Res(R.string.chat_fallback_note, UiText.Plain("gpt-x"), "claude-x (Anthropic)"),
+            (turnItems(listOf(backup), emptyMap()).single() as ChatItem.Assistant).fallbackNote,
+        )
+        assertEquals("Answered by gpt-x · claude-x (Anthropic) couldn't answer", (turnItems(listOf(backup), emptyMap()).single() as ChatItem.Assistant).fallbackNote?.asString(testResources))
+        // Without a name for the model that answered, the note still says it was a backup.
+        val unnamed = backup.copy(reply = backup.reply?.copy(model = null))
+        assertEquals("Answered by a backup model · claude-x (Anthropic) couldn't answer", (turnItems(listOf(unnamed), emptyMap()).single() as ChatItem.Assistant).fallbackNote?.asString(testResources))
         assertNull((turnItems(listOf(own), emptyMap()).single() as ChatItem.Assistant).fallbackNote)
     }
 }

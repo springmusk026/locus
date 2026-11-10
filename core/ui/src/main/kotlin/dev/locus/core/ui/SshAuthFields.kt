@@ -1,10 +1,13 @@
 package dev.locus.core.ui
 
+import android.content.res.Resources
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import dev.locus.core.designsystem.LocusType
@@ -75,8 +78,15 @@ fun SshAuthFields(
 }
 
 /** "user@host:port", plus a warning when the machine logs in without authentication. */
-fun sshHostSubtitle(host: SshHost): String =
-    "${host.user}@${host.host}:${host.port}" + if (host.authMethod == SshAuth.NONE) " · no authentication" else ""
+fun sshHostSubtitle(resources: Resources, host: SshHost): String =
+    "${host.user}@${host.host}:${host.port}".let { address ->
+        if (host.authMethod == SshAuth.NONE) resources.getString(R.string.ui_ssh_host_no_auth, address) else address
+    }
+
+/** [sshHostSubtitle] in the composition's resources. */
+@Composable
+@ReadOnlyComposable
+fun sshHostSubtitle(host: SshHost): String = sshHostSubtitle(LocalResources.current, host)
 
 /**
  * Whether the editor must ask for a new key or password before saving: always for a new machine, and when

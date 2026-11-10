@@ -12,23 +12,33 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import android.content.Context
+import android.content.res.Resources
+import androidx.test.core.app.ApplicationProvider
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36])
 class NetworkSettingsTest {
+    private val res: Resources get() = ApplicationProvider.getApplicationContext<Context>().resources
+
     private val cert = TrustedCertificate("c1", "pem", "Corp CA", "AB:CD", notAfter = 0)
 
     @Test
     fun `summaries name the proxy and count certificates`() {
         val defaults = NetworkDefaults(proxy = ProxyConfig(ProxyType.SOCKS5, "s", 1080), certificates = listOf(cert))
-        assertEquals("No proxy", networkSummary(ProviderNetwork(), NetworkDefaults()))
-        assertEquals("Default proxy", networkSummary(ProviderNetwork(), defaults))
+        assertEquals("No proxy", networkSummary(res, ProviderNetwork(), NetworkDefaults()))
+        assertEquals("Default proxy", networkSummary(res, ProviderNetwork(), defaults))
         assertEquals(
             "2 headers · No proxy · 1 certificate",
-            networkSummary(ProviderNetwork(headerNames = listOf("A", "B"), proxyMode = ProxyMode.DIRECT, certificateIds = listOf("c1")), defaults),
+            networkSummary(res, ProviderNetwork(headerNames = listOf("A", "B"), proxyMode = ProxyMode.DIRECT, certificateIds = listOf("c1")), defaults),
         )
-        assertEquals("SOCKS5 proxy · 1 certificate", networkHubSummary(defaults))
-        assertEquals("Direct", networkHubSummary(NetworkDefaults()))
-        assertEquals("Not used by any provider yet", certificateUse(cert, emptyList()))
-        assertEquals("Trusted by every provider", certificateUse(cert.copy(allProviders = true), listOf("A")))
+        assertEquals("SOCKS5 proxy · 1 certificate", networkHubSummary(res, defaults))
+        assertEquals("Direct", networkHubSummary(res, NetworkDefaults()))
+        assertEquals("Not used by any provider yet", certificateUse(res, cert, emptyList()))
+        assertEquals("Trusted by every provider", certificateUse(res, cert.copy(allProviders = true), listOf("A")))
     }
 
     @Test

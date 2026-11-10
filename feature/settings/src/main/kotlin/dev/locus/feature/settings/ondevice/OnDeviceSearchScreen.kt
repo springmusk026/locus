@@ -68,7 +68,7 @@ internal fun OnDeviceSearch(
             item {
                 // One choice of two: the segmented control, not filter chips.
                 Segmented(
-                    options = HfHub.Sort.entries.map { it.label },
+                    options = HfHub.Sort.entries.map { stringResource(it.labelRes) },
                     selected = state.sort.ordinal,
                     onSelect = { onSort(HfHub.Sort.entries[it]) },
                     modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm),
@@ -89,7 +89,7 @@ internal fun OnDeviceSearch(
                             trailing = { InlineSpinner(contentDescription = stringResource(R.string.settings_ondevice_search_spinner)) },
                         )
                     }
-                    is SearchResults.Failed -> ProblemBanner(r.problem, title = r.problem.title ?: stringResource(R.string.settings_ondevice_search_failed), onRetry = onSearch, modifier = Modifier.padding(top = Spacing.md))
+                    is SearchResults.Failed -> ProblemBanner(r.problem, title = r.problem.titleRes?.let { stringResource(it) } ?: stringResource(R.string.settings_ondevice_search_failed), onRetry = onSearch, modifier = Modifier.padding(top = Spacing.md))
                     is SearchResults.Results -> if (r.repos.isEmpty()) {
                         CardGroup(Modifier.padding(top = Spacing.md)) {
                             ListRow(

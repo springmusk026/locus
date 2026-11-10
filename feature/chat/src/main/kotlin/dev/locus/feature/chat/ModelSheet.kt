@@ -1,5 +1,6 @@
 package dev.locus.feature.chat
 
+import android.content.res.Resources
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -25,7 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -179,7 +180,7 @@ private fun ProviderCard(
             Column(Modifier.weight(1f).padding(start = Spacing.md)) {
                 Text(provider.name, style = LocusType.rowTitle, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 // Two lines: the default and the model count are both worth reading.
-                SupportingText(providerStatusText(section.list, provider.model), maxLines = 2)
+                SupportingText(providerStatus(LocalResources.current, section.list, provider.model), maxLines = 2)
             }
             if (isCurrent) StatusDot(Tone.Brand)
             // The row says Show or Hide models to TalkBack (onClickLabel); the chevron shows which way it goes.
@@ -209,22 +210,15 @@ internal fun chatOnlyNote(controls: ChatControls, anyChatOnly: Boolean): UiText?
     else -> null
 }
 
-@Composable
-private fun providerStatusText(list: ModelList?, default: String): String {
+/**
+ * The provider card's line: "Default: Claude Opus 5.5 · 3 models". The listed name where there is one
+ * (an on-device default is a "gguf:…" key, not a name); the model count only once the list has loaded.
+ */
+internal fun providerStatus(resources: Resources, list: ModelList?, default: String): String {
     val shown = (list as? ModelList.Loaded)?.models?.firstOrNull { it.id == default }?.takeIf { it.detail != null }?.displayName ?: default
-    val base = stringResource(R.string.chat_modelsheet_default_is, shown.ifBlank { stringResource(R.string.chat_modelsheet_not_set) })
+    val base = resources.getString(R.string.chat_modelsheet_default_is, shown.ifBlank { resources.getString(R.string.chat_modelsheet_not_set) })
     return when (list) {
-        is ModelList.Loaded -> pluralStringResource(R.plurals.chat_modelsheet_status_models, list.models.size, base, list.models.size)
-        else -> base
-    }
-}
-
-internal fun providerStatus(list: ModelList?, default: String): String {
-    // The listed name where there is one: an on-device default is a "gguf:…" key, not a name.
-    val shown = (list as? ModelList.Loaded)?.models?.firstOrNull { it.id == default }?.takeIf { it.detail != null }?.displayName ?: default
-    val base = "Default: ${shown.ifBlank { "not set" }}"
-    return when (list) {
-        is ModelList.Loaded -> "$base · ${list.models.size} model${if (list.models.size == 1) "" else "s"}"
+        is ModelList.Loaded -> resources.getQuantityString(R.plurals.chat_modelsheet_status_models, list.models.size, base, list.models.size)
         else -> base
     }
 }
@@ -232,6 +226,7 @@ internal fun providerStatus(list: ModelList?, default: String): String {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PickerModelRow(row: PickerRow, showProvider: Boolean, onPick: () -> Unit, onToggleFavorite: () -> Unit) {
+    val resources = LocalResources.current
     val inUse = stringResource(R.string.chat_modelsheet_in_use)
     val subtitle = listOfNotNull(
         row.detail ?: row.id.takeIf { it != row.title },
@@ -239,13 +234,13 @@ private fun PickerModelRow(row: PickerRow, showProvider: Boolean, onPick: () -> 
         stringResource(R.string.chat_modelsheet_default).takeIf { row.isDefault },
         stringResource(R.string.chat_modelsheet_in_use_unlisted).takeIf { row.inUseOnly },
         // Unknown never disqualifies a model, but the sheet says what couldn't be checked for this chat.
-        unconfirmedLabel(row.fit),
+        unconfirmedLabel(resources, row.fit),
     ).joinToString(" · ").ifEmpty { null }
     // The chat's model says so in its chips, not with a check in the trailing column, so the name
     // and detail keep the row's width beside the star (at 200% font too).
     val chips = listOfNotNull((inUse to Tone.Brand).takeIf { row.selected }) +
-        capabilityChips(row.caps).map { it to Tone.Neutral } +
-        listOfNotNull(chatOnlyChip(row.caps, row.fit)?.let { it to Tone.Caution }, cantUseLabel(row.fit)?.let { it to Tone.Caution })
+        capabilityChips(resources, row.caps).map { it to Tone.Neutral } +
+        listOfNotNull(chatOnlyChip(row.caps, row.fit)?.let { it to Tone.Caution }, cantUseLabel(resources, row.fit)?.let { it to Tone.Caution })
     ListRow(
         title = row.title,
         subtitle = subtitle,

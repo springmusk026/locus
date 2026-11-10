@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import dev.locus.core.designsystem.UiText
 import dev.locus.core.agent.BudgetMeter
 import dev.locus.core.agent.LikelyCause
 import dev.locus.core.agent.RunFailure
@@ -299,7 +300,7 @@ class SheetScreenshots : ScreenshotTest() {
     @Test
     fun sendWarning() = snap("sheet-send-warning", heightDp = 600) {
         SendWarningDialog(
-            SendWarning("deepseek-v4", "it can't read images", ModelRef("a", "claude-sonnet-5-5"), "Claude Sonnet 5.5", text = "What plant is this?"),
+            SendWarning("deepseek-v4", dev.locus.core.llm.Fit(listOf(dev.locus.core.llm.Need.VISION), emptyList()), ModelRef("a", "claude-sonnet-5-5"), "Claude Sonnet 5.5", text = "What plant is this?"),
             onSwitch = {}, onSendAnyway = {}, onCancel = {},
         )
     }
@@ -333,14 +334,14 @@ class SheetScreenshots : ScreenshotTest() {
 
     @Test
     fun chatRemote() = snap("sheet-chat-remote", heightDp = 600) {
-        ChatRemoteSheet(ChatRemoteInfo("p1", "build-server", "~/locus/garden-app", RemoteActivity.RUNNING), onDismiss = {}, onOpenProject = {})
+        ChatRemoteSheet(ChatRemoteInfo("p1", UiText.Plain("build-server"), "~/locus/garden-app", RemoteActivity.RUNNING), onDismiss = {}, onOpenProject = {})
     }
 
     private val hosts = listOf(RemoteHostRow("h1", "build-server", "basanta@192.168.1.40"), RemoteHostRow("h2", "mac-mini", "basanta@mac-mini.local"))
 
     @Test
     fun remoteChoose() = snap("sheet-remote-choose", heightDp = 700) {
-        RemoteBackendSheet(RemoteSheetStep.Choose, currentAlias = "build-server", hosts = hosts, onDismiss = {}, onChoosePhone = {}, onChooseHost = {}, onFolder = {}, onPreview = {}, onLink = {}, onUnlink = {})
+        RemoteBackendSheet(RemoteSheetStep.Choose, currentAlias = UiText.Plain("build-server"), hosts = hosts, onDismiss = {}, onChoosePhone = {}, onChooseHost = {}, onFolder = {}, onPreview = {}, onLink = {}, onUnlink = {})
     }
 
     @Test
@@ -351,7 +352,7 @@ class SheetScreenshots : ScreenshotTest() {
     @Test
     fun remoteFolder() = snap("sheet-remote-folder", heightDp = 800) {
         RemoteBackendSheet(
-            RemoteSheetStep.Folder("h1", "build-server", "~/locus/garden-app", loading = false, error = "~/locus is not writable by basanta."),
+            RemoteSheetStep.Folder("h1", "build-server", "~/locus/garden-app", loading = false, error = UiText.Plain("~/locus is not writable by basanta."), notWritable = true),
             currentAlias = null, hosts = hosts, onDismiss = {}, onChoosePhone = {}, onChooseHost = {}, onFolder = {}, onPreview = {}, onLink = {}, onUnlink = {},
         )
     }
@@ -379,7 +380,7 @@ class SheetScreenshots : ScreenshotTest() {
 
     @Test
     fun remoteUnlink() = snap("sheet-remote-unlink", heightDp = 500) {
-        RemoteBackendSheet(RemoteSheetStep.Unlink("build-server"), currentAlias = "build-server", hosts = hosts, onDismiss = {}, onChoosePhone = {}, onChooseHost = {}, onFolder = {}, onPreview = {}, onLink = {}, onUnlink = {})
+        RemoteBackendSheet(RemoteSheetStep.Unlink(UiText.Plain("build-server")), currentAlias = UiText.Plain("build-server"), hosts = hosts, onDismiss = {}, onChoosePhone = {}, onChooseHost = {}, onFolder = {}, onPreview = {}, onLink = {}, onUnlink = {})
     }
 
     // The composer on its own, and the chat's smaller cards.
@@ -413,7 +414,7 @@ class SheetScreenshots : ScreenshotTest() {
             SentFileCard(ChatItem.SentFile("f2", "notes/old-plan.md", null, null))
             ThoughtRow(ChatItem.Thought("th1", "The failing assertion compares cents to euros; the mock returns 1999 but the test expects 19.99.", 8_200, inSteps = false))
             PausedChip(PauseReason.POWER_SAVE, onRunAnyway = {})
-            RemoteChip(ChatRemoteInfo("p1", "build-server", "~/locus/garden-app", RemoteActivity.SYNCING), onClick = {})
+            RemoteChip(ChatRemoteInfo("p1", UiText.Plain("build-server"), "~/locus/garden-app", RemoteActivity.SYNCING), onClick = {})
             ProjectChip("garden-app", onClick = {})
         }
     }

@@ -448,4 +448,24 @@
     <string name="ui_email_check_unreachable">Couldn\'t connect to %1$s. Check the port, and that the phone is online.</string>
     <string name="ui_email_check_other">%1$s said: %2$s</string>
     <string name="ui_email_check_failed">the connection failed.</string>
+    <!-- An SSH machine's line in a list: %1$s is user@host:port. -->
+    <string name="ui_ssh_host_no_auth">%1$s · no authentication</string>
+    <!-- What a tool lets a workflow do, as a verb phrase that fits “Can %1$s on its own” (ui_workflow_can_on_its_own). -->
+    <string name="ui_workflow_tool_list_files">list files</string>
+    <string name="ui_workflow_tool_read_files">read files</string>
+    <string name="ui_workflow_tool_view_images">look at images</string>
+    <string name="ui_workflow_tool_write_files">write files</string>
+    <string name="ui_workflow_tool_edit_files">edit files</string>
+    <string name="ui_workflow_tool_delete_files">delete files</string>
+    <string name="ui_workflow_tool_move_files">move files</string>
+    <string name="ui_workflow_tool_copy_files">copy files</string>
+    <string name="ui_workflow_tool_make_folders">make folders</string>
+    <string name="ui_workflow_tool_search_files">search files</string>
+    <string name="ui_workflow_tool_send_files">send you files</string>
+    <string name="ui_workflow_tool_run_commands">run commands</string>
+    <string name="ui_workflow_tool_search_web">search the web</string>
+    <string name="ui_workflow_tool_read_web">read web pages</string>
+    <string name="ui_workflow_tool_commit">commit changes</string>
+    <string name="ui_workflow_tool_look_at_changes">look at changes</string>
+    <string name="ui_workflow_tool_ask_questions">ask you questions</string>
 </resources>

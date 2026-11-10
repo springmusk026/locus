@@ -58,4 +58,145 @@
     <string name="designsystem_budget_cost">预估费用</string>
     <string name="designsystem_budget_time">时间</string>
     <string name="designsystem_budget_cost_hint">输入 %1$s</string>
+
+    <string name="designsystem_time_just_now">刚刚</string>
+    <string name="designsystem_time_minutes_ago_short">%1$d 分钟前</string>
+    <string name="designsystem_time_hours_ago_short">%1$d 小时前</string>
+    <string name="designsystem_time_days_ago_short">%1$d 天前</string>
+    <string name="designsystem_duration_ms">%1$d 毫秒</string>
+    <string name="designsystem_duration_seconds">%1$s 秒</string>
+    <string name="designsystem_duration_minutes_seconds">%1$d 分 %2$02d 秒</string>
+    <string name="designsystem_amount_minutes">%1$d 分钟</string>
+    <string name="designsystem_amount_hours">%1$d 小时</string>
+
+    <string name="designsystem_count_thousands">%1$sk</string>
+    <string name="designsystem_count_millions">%1$sM</string>
+    <string name="designsystem_count_over">%1$d+</string>
+    <string name="designsystem_budget_tokens_amount">%1$s 令牌</string>
+
+    <string name="designsystem_settings">设置</string>
+    <string name="designsystem_settings_models">模型</string>
+    <string name="designsystem_settings_on_device_models">设备端模型</string>
+    <string name="designsystem_settings_extras">辅助模型与附加功能</string>
+    <string name="designsystem_settings_network">网络</string>
+    <string name="designsystem_settings_agent">智能体</string>
+    <string name="designsystem_settings_permissions">权限</string>
+    <string name="designsystem_settings_battery">电池与发热</string>
+    <string name="designsystem_settings_voice">语音</string>
+    <string name="designsystem_settings_automation">自动化</string>
+    <string name="designsystem_settings_phone">手机</string>
+    <string name="designsystem_settings_integrations">集成</string>
+    <string name="designsystem_settings_ssh">SSH 主机</string>
+    <string name="designsystem_settings_logins">已保存的登录</string>
+    <string name="designsystem_settings_backup">备份与恢复</string>
+    <string name="designsystem_settings_about">关于与隐私</string>
+    <string name="designsystem_settings_diagnostics">诊断</string>
+    <string name="designsystem_settings_self_test">自检</string>
+    <string name="designsystem_settings_storage">存储空间</string>
+    <string name="designsystem_settings_open">打开%1$s</string>
+
+    <string name="designsystem_chat_mode_read_only">只读</string>
+    <string name="designsystem_chat_mode_read_only_description">只读取和查看：文件、网页、邮件和历史记录。不更改也不发送任何内容。</string>
+    <string name="designsystem_chat_mode_workspace">工作区</string>
+    <string name="designsystem_chat_mode_workspace_description">可更改工作区中的文件并运行 Linux，但不发送、不发布、不部署任何内容。</string>
+    <string name="designsystem_chat_mode_full">完全</string>
+    <string name="designsystem_chat_mode_full_description">工具权限允许的一切。</string>
+
+    <string name="designsystem_effort_off">关闭</string>
+    <string name="designsystem_effort_off_description">最快。几乎不推理。</string>
+    <string name="designsystem_effort_low">低</string>
+    <string name="designsystem_effort_low_description">快速回答和简单任务。</string>
+    <string name="designsystem_effort_medium">中</string>
+    <string name="designsystem_effort_medium_description">兼顾速度与深度。</string>
+    <string name="designsystem_effort_high">高</string>
+    <string name="designsystem_effort_high_description">更难的任务，做得更细致。</string>
+    <string name="designsystem_effort_max">最高</string>
+    <string name="designsystem_effort_max_description">最深入的推理。最慢，令牌最多。</string>
+
+    <string name="designsystem_tool_group_web">网页搜索</string>
+    <string name="designsystem_tool_group_web_description">搜索和阅读网页、维基百科、天气</string>
+    <string name="designsystem_tool_group_browser">浏览器</string>
+    <string name="designsystem_tool_group_browser_description">打开并使用网站</string>
+    <string name="designsystem_tool_group_linux">Linux 命令行</string>
+    <string name="designsystem_tool_group_linux_description">在手机上运行命令和服务</string>
+    <string name="designsystem_tool_group_ssh">SSH 主机</string>
+    <string name="designsystem_tool_group_ssh_description">在你的主机上运行命令和复制文件</string>
+    <string name="designsystem_tool_group_phone">手机应用</string>
+    <string name="designsystem_tool_group_phone_description">日历、联系人、照片、闹钟、短信和其他应用</string>
+    <string name="designsystem_tool_group_email">邮件</string>
+    <string name="designsystem_tool_group_email_description">读取和发送邮件</string>
+    <string name="designsystem_tool_group_github_description">仓库、议题和文件</string>
+    <string name="designsystem_tool_group_memory">记忆和技能</string>
+    <string name="designsystem_tool_group_memory_description">回忆并保存学到的内容</string>
+
+    <string name="designsystem_memory_scope_project_and_general">项目和通用</string>
+    <string name="designsystem_memory_scope_project_only">仅项目</string>
+
+    <string name="designsystem_pause_hot">已暂停：手机发烫</string>
+    <string name="designsystem_pause_battery_saver">已暂停：省电模式</string>
+
+    <string name="designsystem_thermal_normal">温度正常</string>
+    <string name="designsystem_thermal_light">略微发热</string>
+    <string name="designsystem_thermal_moderate">发热</string>
+    <string name="designsystem_thermal_severe">很烫</string>
+    <string name="designsystem_thermal_critical">非常烫</string>
+    <string name="designsystem_thermal_overheating">过热</string>
+
+    <string name="designsystem_schedule_hourly">每小时</string>
+    <string name="designsystem_schedule_six_hours">每 6 小时</string>
+    <string name="designsystem_schedule_six_hours_short">6 小时</string>
+    <string name="designsystem_schedule_daily">每天</string>
+    <string name="designsystem_schedule_weekly">每周</string>
+    <string name="designsystem_schedule_every_day">每天</string>
+    <string name="designsystem_schedule_every_hour">每小时</string>
+    <plurals name="designsystem_schedule_every_days">
+        <item quantity="other">每 %1$d 天</item>
+    </plurals>
+    <plurals name="designsystem_schedule_every_hours">
+        <item quantity="other">每 %1$d 小时</item>
+    </plurals>
+    <string name="designsystem_schedule_every_minutes">每 %1$d 分钟</string>
+
+    <string name="designsystem_trigger_decision_fired">已运行</string>
+    <string name="designsystem_trigger_decision_test">测试：已运行</string>
+    <string name="designsystem_trigger_decision_no_match">不匹配</string>
+    <string name="designsystem_trigger_decision_rate_limited">受频率限制</string>
+    <string name="designsystem_trigger_decision_quiet_hours">免打扰时段</string>
+    <string name="designsystem_trigger_decision_disabled">任务已暂停</string>
+    <string name="designsystem_trigger_decision_busy">已在运行</string>
+    <string name="designsystem_trigger_decision_not_allowed">应用不在允许列表中</string>
+    <string name="designsystem_trigger_decision_failed">无法运行</string>
+    <string name="designsystem_trigger_decision_fired_inline">已运行</string>
+    <string name="designsystem_trigger_decision_test_inline">测试：已运行</string>
+    <string name="designsystem_trigger_decision_no_match_inline">不匹配</string>
+    <string name="designsystem_trigger_decision_rate_limited_inline">受频率限制</string>
+    <string name="designsystem_trigger_decision_quiet_hours_inline">免打扰时段</string>
+    <string name="designsystem_trigger_decision_disabled_inline">任务已暂停</string>
+    <string name="designsystem_trigger_decision_busy_inline">已在运行</string>
+    <string name="designsystem_trigger_decision_not_allowed_inline">应用不在允许列表中</string>
+    <string name="designsystem_trigger_decision_failed_inline">无法运行</string>
+
+    <string name="designsystem_helper_prompt_title">对话标题</string>
+    <string name="designsystem_helper_prompt_suggestions">后续建议</string>
+    <string name="designsystem_helper_prompt_compaction">长对话摘要</string>
+
+    <string name="designsystem_helper_status_running">工作中</string>
+    <string name="designsystem_helper_status_completed">完成</string>
+    <string name="designsystem_helper_status_partial">提前停止</string>
+    <string name="designsystem_helper_status_failed">失败</string>
+    <string name="designsystem_helper_status_cancelled">已停止</string>
+    <string name="designsystem_helper_status_interrupted">已中断</string>
+
+    <string name="designsystem_check_tests_passed">测试通过</string>
+    <string name="designsystem_check_tests_failed">测试失败</string>
+    <string name="designsystem_check_tests_timed_out">测试超时</string>
+    <string name="designsystem_check_tests_finished">测试已结束</string>
+    <string name="designsystem_check_build_passed">构建成功</string>
+    <string name="designsystem_check_build_failed">构建失败</string>
+    <string name="designsystem_check_build_timed_out">构建超时</string>
+    <string name="designsystem_check_build_finished">构建已结束</string>
+    <string name="designsystem_check_check_passed">检查通过</string>
+    <string name="designsystem_check_check_failed">检查失败</string>
+    <string name="designsystem_check_check_timed_out">检查超时</string>
+    <string name="designsystem_check_check_finished">检查已结束</string>
 </resources>

@@ -50,13 +50,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.UUID
 import javax.inject.Inject
+import dev.locus.core.designsystem.UiText
+import dev.locus.core.designsystem.asString
 
 /** What the Saved logins page shows. Secrets are in [logins] only to be edited; the list never shows them. */
 internal data class SavedLoginsState(
     val loading: Boolean = true,
     val logins: List<SiteLogin> = emptyList(),
     /** Why the logins can't be read (the vault is locked or unusable); null when they can. */
-    val problem: String? = null,
+    val problem: UiText? = null,
 )
 
 @HiltViewModel
@@ -70,12 +72,16 @@ internal class SavedLoginsViewModel @Inject constructor(private val store: SiteL
 
     private suspend fun reload() {
         _state.value = runCatching { SavedLoginsState(loading = false, logins = store.all()) }
-            .getOrElse { SavedLoginsState(loading = false, problem = "Saved logins can't be opened right now: ${it.message ?: "the vault is locked"}.") }
+            .getOrElse {
+                // The vault's own reason, from core, as it gave it.
+                val reason = it.message?.let(UiText::Plain) ?: UiText.Res(R.string.settings_logins_problem_locked)
+                SavedLoginsState(loading = false, problem = UiText.Res(R.string.settings_logins_problem, reason))
+            }
     }
 
     /** Saves [login]; [onDone] gets null, or what to fix. */
-    fun save(login: SiteLogin, onDone: (String?) -> Unit) = viewModelScope.launch {
-        onDone(runCatching { store.upsert(login) }.exceptionOrNull()?.let { it.message ?: "Couldn't save the login." })
+    fun save(login: SiteLogin, onDone: (UiText?) -> Unit) = viewModelScope.launch {
+        onDone(runCatching { store.upsert(login) }.exceptionOrNull()?.let { e -> e.message?.let(UiText::Plain) ?: UiText.Res(R.string.settings_logins_save_failed) })
     }
 
     fun delete(id: String) = viewModelScope.launch { runCatching { store.delete(id) } }
@@ -95,7 +101,7 @@ internal fun SavedLoginsRoute(onBack: () -> Unit, viewModel: SavedLoginsViewMode
 internal fun SavedLoginsSettings(
     state: SavedLoginsState,
     onBack: () -> Unit,
-    onSave: (SiteLogin, (String?) -> Unit) -> Unit,
+    onSave: (SiteLogin, (UiText?) -> Unit) -> Unit,
     onDelete: (String) -> Unit,
     /** The login open in the editor at first; for screenshots. */
     initialEditing: SiteLogin? = null,
@@ -104,7 +110,7 @@ internal fun SavedLoginsSettings(
     var editing by remember { mutableStateOf(initialEditing) }
 
     SettingsPageScaffold(stringResource(R.string.settings_logins_title), onBack) {
-        state.problem?.let { problem -> item { Banner(problem, Tone.Critical, NotePadding) } }
+        state.problem?.let { problem -> item { Banner(problem.asString(), Tone.Critical, NotePadding) } }
         if (state.problem == null && !state.loading) {
             item { SectionLabel(stringResource(R.string.settings_logins_section), SectionPadding) }
             item {
@@ -155,7 +161,7 @@ internal fun loginSubtitle(login: SiteLogin): String = listOfNotNull(
 private fun LoginEditor(
     initial: SiteLogin,
     isNew: Boolean,
-    onSave: (SiteLogin, (String?) -> Unit) -> Unit,
+    onSave: (SiteLogin, (UiText?) -> Unit) -> Unit,
     onDelete: () -> Unit,
     onDone: () -> Unit,
 ) {
@@ -166,7 +172,7 @@ private fun LoginEditor(
     var totp by rememberSaveable { mutableStateOf("") }
     var removeTotp by rememberSaveable { mutableStateOf(false) }
     var label by rememberSaveable { mutableStateOf(initial.label) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf<UiText?>(null) }
     var saving by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     val origin = SiteOrigin.of(site.trim().let { if ("://" in it || it.isEmpty()) it else "https://$it" })
@@ -239,7 +245,7 @@ private fun LoginEditor(
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             modifier = Modifier.fillMaxWidth(),
         )
-        error?.let { Text(it, color = Locus.colors.critical, style = LocusType.supporting) }
+        error?.let { Text(it.asString(), color = Locus.colors.critical, style = LocusType.supporting) }
         if (!isNew) {
             if (confirmDelete) {
                 Banner(stringResource(R.string.settings_logins_delete_message, initial.title), Tone.Critical, title = stringResource(R.string.settings_logins_delete_title)) {

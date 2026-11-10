@@ -396,4 +396,22 @@
     <string name="ui_email_check_unreachable">No se pudo conectar con %1$s. Revisa el puerto y que el teléfono tenga conexión.</string>
     <string name="ui_email_check_other">%1$s respondió: %2$s</string>
     <string name="ui_email_check_failed">la conexión falló.</string>
+    <string name="ui_ssh_host_no_auth">%1$s · sin autenticación</string>
+    <string name="ui_workflow_tool_list_files">listar archivos</string>
+    <string name="ui_workflow_tool_read_files">leer archivos</string>
+    <string name="ui_workflow_tool_view_images">ver imágenes</string>
+    <string name="ui_workflow_tool_write_files">escribir archivos</string>
+    <string name="ui_workflow_tool_edit_files">editar archivos</string>
+    <string name="ui_workflow_tool_delete_files">eliminar archivos</string>
+    <string name="ui_workflow_tool_move_files">mover archivos</string>
+    <string name="ui_workflow_tool_copy_files">copiar archivos</string>
+    <string name="ui_workflow_tool_make_folders">crear carpetas</string>
+    <string name="ui_workflow_tool_search_files">buscar archivos</string>
+    <string name="ui_workflow_tool_send_files">enviarte archivos</string>
+    <string name="ui_workflow_tool_run_commands">ejecutar comandos</string>
+    <string name="ui_workflow_tool_search_web">buscar en la web</string>
+    <string name="ui_workflow_tool_read_web">leer páginas web</string>
+    <string name="ui_workflow_tool_commit">hacer commit de cambios</string>
+    <string name="ui_workflow_tool_look_at_changes">ver los cambios</string>
+    <string name="ui_workflow_tool_ask_questions">hacerte preguntas</string>
 </resources>

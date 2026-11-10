@@ -164,4 +164,39 @@
     <string name="tasks_failure_test_event">No se pudo enviar el evento de prueba.</string>
     <string name="tasks_failure_check_source">No se pudo comprobar el origen.</string>
     <string name="tasks_failure_start">No se pudo iniciar la tarea.</string>
+
+    <!-- Status lines and messages made outside the composables (UiText). -->
+    <string name="tasks_trigger_quiet_problem">Las horas de silencio necesitan dos horas, como 22:00 y 07:00.</string>
+    <string name="tasks_trigger_noun_calendar">calendario</string>
+    <string name="tasks_trigger_noun_ntfy">ntfy</string>
+    <string name="tasks_trigger_noun_mail">correo</string>
+    <string name="tasks_trigger_noun_app">otra app</string>
+    <string name="tasks_status_paused">%1$s · en pausa</string>
+    <string name="tasks_status_no_access">%1$s · sin acceso</string>
+    <string name="tasks_status_not_set_up">%1$s · sin configurar</string>
+    <string name="tasks_status_offline">%1$s · sin conexión</string>
+    <string name="tasks_status_check_failed">%1$s · comprobación con error</string>
+    <string name="tasks_status_last_failed">%1$s · última ejecución con error</string>
+    <string name="tasks_status_last_stopped">%1$s · última ejecución detenida</string>
+    <string name="tasks_status_last_failed_at">%1$s · última ejecución con error %2$s</string>
+    <string name="tasks_status_last_stopped_at">%1$s · última ejecución detenida %2$s</string>
+    <string name="tasks_status_ran">%1$s · ejecutada %2$s</string>
+    <string name="tasks_status_not_run">%1$s · aún no se ha ejecutado</string>
+    <string name="tasks_status_waiting">%1$s · esperando un evento</string>
+    <string name="tasks_status_checked">%1$s · comprobado %2$s</string>
+    <string name="tasks_status_not_checked">%1$s · aún sin comprobar</string>
+    <string name="tasks_row_last_run_failed">Última ejecución con error</string>
+    <string name="tasks_row_last_run_stopped">Última ejecución detenida</string>
+    <string name="tasks_run_line_queued">En cola: empieza cuando haya conexión</string>
+    <string name="tasks_run_line_event_queued">Ejecución por evento en cola</string>
+    <string name="tasks_run_line_running">Ejecutándose ahora</string>
+    <string name="tasks_run_line_event_running">Ejecutándose por un evento</string>
+    <string name="tasks_run_finished_done">“%1$s” se ejecutó.</string>
+    <string name="tasks_run_finished_skipped">“%1$s” ya se estaba ejecutando, así que no se volvió a ejecutar.</string>
+    <string name="tasks_run_finished_failed">“%1$s” no terminó.</string>
+    <string name="tasks_test_unmatched">La prueba no coincidió con “%1$s”.</string>
+    <string name="tasks_test_unmatched_reason">La prueba no coincidió con “%1$s”: %2$s.</string>
+    <string name="tasks_test_matched">La prueba coincidió: “%1$s” está empezando.</string>
+    <string name="tasks_test_matched_failed">La prueba coincidió, pero Locus no pudo iniciar la ejecución.</string>
+    <string name="tasks_test_recorded">La prueba se registró: %1$s.</string>
 </resources>

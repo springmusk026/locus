@@ -27,6 +27,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.locus.core.designsystem.asString
 import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.CardGroup
@@ -48,6 +49,7 @@ import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.SwitchRow
 import dev.locus.core.designsystem.TextArea
 import dev.locus.core.designsystem.TextAreaSize
+import dev.locus.core.designsystem.labelRes
 import dev.locus.core.model.SettingsDestination
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.Tone
@@ -89,7 +91,7 @@ fun ProjectEditorRoute(
             Modifier.fillMaxSize().imePadding(),
             contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = padding.calculateTopPadding() + Spacing.xs, bottom = padding.calculateBottomPadding() + Spacing.xxl),
         ) {
-            state.error?.let { error -> item(key = "error") { Banner(error, Tone.Critical, Modifier.padding(bottom = Spacing.sm)) } }
+            state.error?.let { error -> item(key = "error") { Banner(error.asString(), Tone.Critical, Modifier.padding(bottom = Spacing.sm)) } }
             item(key = "name") {
                 OutlinedTextField(
                     state.name, viewModel::setName, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.chat_projecteditor_name)) }, singleLine = true,
@@ -127,7 +129,7 @@ fun ProjectEditorRoute(
             item(key = "memory-label") { SectionLabel(stringResource(R.string.chat_projecteditor_memory)) }
             item(key = "memory") {
                 Segmented(
-                    MemoryScope.entries.map { it.label },
+                    MemoryScope.entries.map { stringResource(it.labelRes) },
                     selected = state.memoryScope.ordinal,
                     onSelect = { viewModel.setMemoryScope(MemoryScope.entries[it]) },
                     modifier = Modifier.fillMaxWidth(),

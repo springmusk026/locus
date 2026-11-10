@@ -15,9 +15,19 @@ import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import android.content.Context
+import android.content.res.Resources
+import androidx.test.core.app.ApplicationProvider
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /** The on-device screens' decisions: routes, the fit verdict, filters, download states and spoken rows. */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36])
 class OnDeviceUiTest {
+    private val res: Resources get() = ApplicationProvider.getApplicationContext<Context>().resources
+
     private val gib = 1024L * 1024 * 1024
     private fun phone(gb: Long) = DeviceMemory(gb * gib, null, gb * gib / 2, false)
 
@@ -91,12 +101,19 @@ class OnDeviceUiTest {
         assertNull(liteRtDownloadUi(ModelState.NotDownloaded, 0, 10))
         assertNull(liteRtDownloadUi(ModelState.Ready, 0, 10))
         assertTrue(liteRtDownloadUi(ModelState.Failed("broke"), 0, 10) is DownloadUi.Failed)
+
+        assertEquals("2.6\u00A0GB\nWaiting for Wi-Fi", statusLines(res, DownloadUi.Waiting(0, 2_588_147_712, wifiOnly = true)))
+        assertEquals("Waiting to start", statusLines(res, DownloadUi.Waiting(0, null, wifiOnly = false)))
+        assertTrue(statusLines(res, DownloadUi.Paused(30, 100)).endsWith("\nPaused"))
+        assertEquals("1.3\u00A0GB", gb(1_280_835_840, java.util.Locale.US))
+        assertEquals("1,3\u00A0GB", gb(1_280_835_840, java.util.Locale.forLanguageTag("pt-BR")))
     }
 
     @Test
     fun aRowIsReadAsOneItem() {
-        assertEquals("Qwen3.5 2B, 1.3 GB, fits this phone, supports tools, Get", spokenRow("Qwen3.5 2B", 1_280_835_840, Fit.Fits, true, "Get"))
-        assertEquals("SmolLM2, chat only", spokenRow("SmolLM2", null, null, false, null))
+        assertEquals("Qwen3.5 2B, 1.3 GB, fits this phone, supports tools, Get", spokenRow(res, "Qwen3.5 2B", 1_280_835_840, Fit.Fits, true, "Get"))
+        assertEquals("SmolLM2, chat only", spokenRow(res, "SmolLM2", null, null, false, null))
+        assertEquals("Qwen3.5 2B, too large for this phone", spokenRow(res, "Qwen3.5 2B", null, Fit.TooLarge, null, null))
     }
 
     @Test
@@ -110,14 +127,18 @@ class OnDeviceUiTest {
     fun pastedUrlsAreCheckedAsTyped() {
         assertNull(urlWarning(""))
         assertNull(urlWarning("https://huggingface.co/a/b/resolve/main/x.gguf"))
-        assertTrue(urlWarning("http://example.com/x.gguf")!!.contains("https"))
+        assertTrue(res.getString(urlWarning("http://example.com/x.gguf")!!).contains("https"))
         assertTrue(urlWarning("example.com/x.gguf") != null)
     }
 
     @Test
     fun problemsSayWhatToDo() {
         assertEquals(Problem.Kind.Gated, Problem.of(HfError.Gated("meta-llama/x")).kind)
-        assertTrue(Problem.of(HfError.Gated("meta-llama/x")).advice!!.contains("import"))
+        assertTrue(res.getString(Problem.of(HfError.Gated("meta-llama/x")).adviceRes!!).contains("import"))
+        assertEquals("Needs a Hugging Face login", res.getString(Problem.of(HfError.Gated("meta-llama/x")).titleRes!!))
+        assertEquals("Something went wrong: boom", Problem.of(IllegalStateException("boom")).message.asString(res))
+        assertEquals("Qwen3.5 0.8B is already on this phone", Finished("Qwen3.5 0.8B", "gguf:m", existing = true, verified = true).message.asString(res))
+        assertEquals("Qwen3.5 0.8B installed and verified", Finished("Qwen3.5 0.8B", "gguf:m", existing = false, verified = true).message.asString(res))
         assertEquals(Problem.Kind.RateLimited, Problem.of(HfError.RateLimited(30)).kind)
         assertEquals(Problem.Kind.Offline, Problem.of(HfError.Offline("No connection")).kind)
         assertEquals(Problem.Kind.Offline, Problem.of(DownloadException("No connection to huggingface.co.")).kind)
