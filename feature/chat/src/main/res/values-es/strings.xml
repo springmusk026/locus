@@ -4,7 +4,11 @@
     <string name="chat_changes_show_files">Mostrar archivos</string>
     <string name="chat_changes_expanded">Expandido</string>
     <string name="chat_changes_collapsed">Contraído</string>
-    <string name="chat_changes_lines_added">%1$s líneas agregadas</string>
+    <plurals name="chat_changes_lines_added">
+        <item quantity="one">%1$s línea agregada</item>
+        <item quantity="many">%1$s líneas agregadas</item>
+        <item quantity="other">%1$s líneas agregadas</item>
+    </plurals>
     <string name="chat_changes_lines_removed">%1$s quitadas</string>
     <string name="chat_changes_undo_all">Deshacer todo</string>
     <string name="chat_changes_blocked_file">El diff sigue mostrando cada línea que cambió. Ábrelo para restaurar el archivo a mano, o pídele a Locus en este chat que lo revierta.</string>
@@ -644,7 +648,11 @@
     <string name="chat_remote_stays_what">git, dependencias, compilaciones, .locusignore, archivos de más de 100 MB</string>
     <string name="chat_remote_after">Después, los archivos se sincronizan antes y después de cada comando. Los resultados de compilación se quedan en %1$s.</string>
     <string name="chat_remote_copying">Copiando a %1$s</string>
-    <string name="chat_remote_progress">%1$d de %2$d archivos</string>
+    <plurals name="chat_remote_progress">
+        <item quantity="one">%1$d de %2$d archivo</item>
+        <item quantity="many">%1$d de %2$d archivos</item>
+        <item quantity="other">%1$d de %2$d archivos</item>
+    </plurals>
     <string name="chat_remote_cancel">Cancelar</string>
     <string name="chat_remote_files_copied">Archivos copiados</string>
     <string name="chat_remote_copying_note">Los comandos siguen ejecutándose en este teléfono hasta que termine la copia. Cancelar deja en %1$s los archivos ya copiados.</string>
@@ -816,4 +824,234 @@
     <string name="chat_voice_tap_done">Terminé de hablar</string>
     <string name="chat_voice_tap_go_on">Continuar</string>
     <string name="chat_voice_tap_talk">Hablar</string>
+
+    <!-- Messages and labels built in code (ModelFit, ModelSheet) -->
+    <string name="chat_sendwarning_title">%1$s no puede procesar este mensaje</string>
+    <string name="chat_sendwarning_body_suggest">%1$s. Es muy probable que el envío falle. %2$s sí puede procesarlo.</string>
+    <string name="chat_sendwarning_body_choose">%1$s. Es muy probable que el envío falle. Elige un modelo que pueda procesarlo.</string>
+    <string name="chat_fit_need_tools">llamadas a herramientas</string>
+    <string name="chat_fit_need_vision">visión</string>
+    <string name="chat_fit_need_context">ventana de contexto</string>
+    <string name="chat_fit_need_reasoning">razonamiento</string>
+    <string name="chat_fit_need_structured">salida estructurada</string>
+    <string name="chat_fit_lacks_tools">sin llamadas a herramientas</string>
+    <string name="chat_fit_lacks_vision">sin visión</string>
+    <string name="chat_fit_lacks_context">contexto demasiado pequeño</string>
+    <string name="chat_fit_lacks_context_window">contexto demasiado pequeño (%1$s, necesita ~%2$s)</string>
+    <string name="chat_fit_lacks_reasoning">no razona</string>
+    <string name="chat_fit_lacks_structured">sin salida estructurada</string>
+    <string name="chat_fit_list_join">%1$s, %2$s</string>
+    <string name="chat_modelsheet_chip_tools">Herramientas</string>
+    <string name="chat_modelsheet_chip_vision">Visión</string>
+    <string name="chat_modelsheet_chip_reasoning">Razonamiento</string>
+    <string name="chat_modelsheet_cant_use">No se puede usar aquí: %1$s</string>
+    <string name="chat_modelsheet_not_confirmed">%1$s: sin confirmar</string>
+
+    <!-- ChangesCard: titles and summaries built in code -->
+    <plurals name="chat_changes_title">
+        <item quantity="one">Se cambió %1$d archivo</item>
+        <item quantity="many">Se cambiaron %1$d archivos</item>
+        <item quantity="other">Se cambiaron %1$d archivos</item>
+    </plurals>
+    <plurals name="chat_changes_title_undone">
+        <item quantity="one">Se deshizo el cambio en %1$d archivo</item>
+        <item quantity="many">Se deshicieron los cambios en %1$d archivos</item>
+        <item quantity="other">Se deshicieron los cambios en %1$d archivos</item>
+    </plurals>
+    <string name="chat_changes_summary_new_folder">Carpeta nueva</string>
+    <string name="chat_changes_summary_folder_deleted">Carpeta eliminada</string>
+    <string name="chat_changes_summary_folder">Carpeta</string>
+    <string name="chat_changes_summary_new_binary">Archivo binario nuevo</string>
+    <string name="chat_changes_summary_binary_deleted">Archivo binario eliminado</string>
+    <string name="chat_changes_summary_binary_changed">Archivo binario cambiado</string>
+    <plurals name="chat_changes_summary_new_lines">
+        <item quantity="one">Nuevo · %1$s línea</item>
+        <item quantity="many">Nuevo · %1$s líneas</item>
+        <item quantity="other">Nuevo · %1$s líneas</item>
+    </plurals>
+    <string name="chat_changes_summary_new_empty">Nuevo · vacío</string>
+    <plurals name="chat_changes_summary_deleted_lines">
+        <item quantity="one">Eliminado · %1$s línea</item>
+        <item quantity="many">Eliminado · %1$s líneas</item>
+        <item quantity="other">Eliminado · %1$s líneas</item>
+    </plurals>
+    <string name="chat_changes_summary_deleted">Eliminado</string>
+    <string name="chat_changes_summary_none">Sin cambios de líneas</string>
+    <plurals name="chat_changes_totals_new">
+        <item quantity="one">%1$s archivo nuevo</item>
+        <item quantity="many">%1$s archivos nuevos</item>
+        <item quantity="other">%1$s archivos nuevos</item>
+    </plurals>
+    <string name="chat_changes_totals_deleted">%1$s eliminados</string>
+    <string name="chat_changes_edit_line">Edición %1$d · %2$s</string>
+    <string name="chat_changes_edit_line_outside">Cambiado fuera de las herramientas de archivos</string>
+    <string name="chat_changes_edit_line_binary">binario</string>
+    <string name="chat_changes_edit_line_none">sin cambios de líneas</string>
+    <plurals name="chat_changes_edited_times">
+        <item quantity="one">Editado %1$d vez</item>
+        <item quantity="many">Editado %1$d veces</item>
+        <item quantity="other">Editado %1$d veces</item>
+    </plurals>
+    <string name="chat_changes_edit_label_outside">Cambiado fuera de las herramientas de archivos (un comando o tú)</string>
+    <string name="chat_changes_edit_label_wrote">Escribió el archivo</string>
+    <string name="chat_changes_edit_label_edited">Editó</string>
+    <string name="chat_changes_edit_label_deleted">Eliminó</string>
+    <string name="chat_changes_edit_label_moved">Movió</string>
+    <string name="chat_changes_edit_label_copied">Copió</string>
+    <string name="chat_changes_edit_label_created">Creó</string>
+    <string name="chat_changes_edit_label_changed">Cambió</string>
+
+    <!-- ChatControlsUi, VerificationCard, ChatScreen: lines built in code -->
+    <string name="chat_budget_subtitle_own">%1$s en este chat</string>
+    <string name="chat_budget_subtitle_default">Predeterminado: %1$s</string>
+    <string name="chat_budget_cost_off">Para calcular el costo se necesitan los precios de los modelos: activa los detalles de modelos (models.dev) en Ajustes → Modelos.</string>
+    <string name="chat_budget_cost_not_loaded">Los precios de los modelos aún no se cargaron; abre la lista de modelos una vez para obtenerlos.</string>
+    <string name="chat_budget_cost_no_price">models.dev no tiene precio para %1$s, así que no se puede estimar el costo.</string>
+    <string name="chat_checklist_progress">%1$d de %2$d hechas</string>
+    <string name="chat_checklist_progress_current">%1$d de %2$d hechas · %3$s</string>
+    <string name="chat_thought_label">Pensó</string>
+    <string name="chat_thought_moment">Pensó un momento</string>
+    <string name="chat_thought_seconds">Pensó durante %1$d s</string>
+    <string name="chat_thought_minutes">Pensó durante %1$d min %2$d s</string>
+    <string name="chat_duration_tenths">%1$.1f s</string>
+    <string name="chat_duration_seconds">%1$d s</string>
+    <string name="chat_duration_minutes">%1$d min %2$d s</string>
+    <plurals name="chat_checks_failing_tests">
+        <item quantity="one">%1$d prueba con error</item>
+        <item quantity="many">%1$d pruebas con error</item>
+        <item quantity="other">%1$d pruebas con error</item>
+    </plurals>
+    <string name="chat_checks_exit_code">Código de salida %1$d</string>
+    <string name="chat_checks_exit_unreliable">El estado de salida no es fiable: el comando encadena o canaliza la verificación</string>
+    <string name="chat_sentence_join">%1$s %2$s</string>
+    <string name="chat_screen_waiting_answer">Esperando tu respuesta</string>
+    <string name="chat_screen_thinking">Pensando</string>
+    <string name="chat_screen_budget_used">Usado: %1$s.</string>
+    <string name="chat_screen_budget_continue_note">Continuar permite una más de lo mismo.</string>
+    <string name="chat_screen_live_checklist">Actualizando la lista</string>
+    <string name="chat_screen_live_plan">Escribiendo el plan</string>
+    <string name="chat_note_ran_anyway">Ejecutaste de todos modos la llamada bloqueada: %1$s</string>
+    <string name="chat_fallback_note">Respondió %1$s · %2$s no pudo responder</string>
+    <string name="chat_fallback_backup_model">un modelo de respaldo</string>
+    <string name="chat_project_already_started">Este chat ya empezó, así que se queda donde está. Mejor empieza un chat nuevo en el proyecto.</string>
+    <string name="chat_code_language_code">Código</string>
+    <string name="chat_code_language_text">Texto</string>
+    <string name="chat_reply_meta_in">%1$s de entrada</string>
+    <string name="chat_reply_meta_out">%1$s de salida</string>
+    <string name="chat_reply_meta_cached">%1$d%% en caché</string>
+
+    <!-- FailureDetailsSheet, ReceiptCard, SentSheet -->
+    <string name="chat_failure_connection_dropped">Se cortó la conexión antes de que terminara la respuesta.</string>
+    <string name="chat_failure_field_provider">Proveedor</string>
+    <string name="chat_failure_field_model">Modelo</string>
+    <string name="chat_failure_field_model_id">ID del modelo</string>
+    <string name="chat_failure_field_http_status">Estado HTTP</string>
+    <string name="chat_failure_field_error_code">Código de error</string>
+    <string name="chat_failure_field_request_id">ID de solicitud</string>
+    <string name="chat_failure_field_gateway_id">ID de la puerta de enlace</string>
+    <string name="chat_failure_field_response_id">ID de respuesta</string>
+    <string name="chat_failure_field_time">Hora</string>
+    <string name="chat_failure_field_times">Veces seguidas</string>
+    <string name="chat_failure_absent_http_status">Ninguno (la transmisión ya había empezado)</string>
+    <string name="chat_failure_absent_error_code">No se indicó</string>
+    <string name="chat_failure_absent_request_id">No se envió</string>
+    <string name="chat_failure_absent_response_id">Ninguno</string>
+    <string name="chat_receipt_outcome_failed">%1$s: %2$s</string>
+    <string name="chat_receipt_failure_overloaded">El proveedor estaba sobrecargado. Inténtalo más tarde o cambia de modelo.</string>
+    <string name="chat_receipt_failure_rate_limit">Se alcanzó el límite de solicitudes del proveedor. Espera un minuto e inténtalo de nuevo, o cambia de modelo.</string>
+    <plurals name="chat_receipt_approvals_asked">
+        <item quantity="one">%1$d consulta</item>
+        <item quantity="many">%1$d consultas</item>
+        <item quantity="other">%1$d consultas</item>
+    </plurals>
+    <plurals name="chat_receipt_approvals_approved">
+        <item quantity="one">%1$d aprobada por ti</item>
+        <item quantity="many">%1$d aprobadas por ti</item>
+        <item quantity="other">%1$d aprobadas por ti</item>
+    </plurals>
+    <plurals name="chat_receipt_approvals_declined">
+        <item quantity="one">%1$d rechazada por ti</item>
+        <item quantity="many">%1$d rechazadas por ti</item>
+        <item quantity="other">%1$d rechazadas por ti</item>
+    </plurals>
+    <plurals name="chat_receipt_approvals_blocked">
+        <item quantity="one">%1$d bloqueada</item>
+        <item quantity="many">%1$d bloqueadas</item>
+        <item quantity="other">%1$d bloqueadas</item>
+    </plurals>
+    <string name="chat_receipt_filter_asked">Te consultó</string>
+    <string name="chat_receipt_filter_approved">Aprobaste</string>
+    <string name="chat_receipt_filter_declined">Rechazaste</string>
+    <string name="chat_receipt_filter_blocked">Bloqueadas</string>
+    <string name="chat_sent_row_provider">Proveedor</string>
+    <string name="chat_sent_row_model">Modelo</string>
+    <string name="chat_sent_row_model_id">ID del modelo</string>
+    <string name="chat_sent_row_endpoint">Endpoint</string>
+    <string name="chat_sent_row_format">Formato</string>
+    <string name="chat_sent_row_prompt_tokens">Tokens del prompt</string>
+    <string name="chat_sent_row_cache">Caché</string>
+    <string name="chat_sent_on_this_phone">En este teléfono</string>
+    <string name="chat_sent_format_chatgpt">Responses (plan de ChatGPT)</string>
+    <string name="chat_sent_reported">%1$,d informados</string>
+
+    <!-- SubagentRow: the note on a helper that stopped early -->
+    <string name="chat_helper_note">%1$s El agente principal recibió lo que tenía: su última respuesta, los resultados de sus herramientas y los archivos que cambió, marcados como parciales. El agente puede continuar desde aquí.</string>
+    <string name="chat_helper_note_timeout">Llegó al límite de tiempo de los ayudantes (Ajustes → Agente → Ayudantes) antes de terminar.</string>
+    <string name="chat_helper_note_cancelled">Se detuvo antes de terminar.</string>
+    <string name="chat_helper_note_tokens">Agotó su cupo de tokens antes de terminar.</string>
+    <string name="chat_helper_note_steps">Llegó a su límite de pasos antes de terminar.</string>
+    <string name="chat_helper_note_budget">La tarea llegó a su presupuesto antes de que el ayudante terminara.</string>
+    <string name="chat_helper_note_early">Se detuvo antes de terminar.</string>
+
+    <!-- RemoteUi, ProjectsViewModel, ChatWorkflows -->
+    <string name="chat_remote_removed_machine">una máquina eliminada</string>
+    <string name="chat_remote_error_reach">No se pudo conectar con %1$s: %2$s</string>
+    <string name="chat_remote_error_list">No se pudieron listar los archivos.</string>
+    <string name="chat_remote_error_link">Falló la vinculación: %1$s</string>
+    <string name="chat_remote_size_bytes">%1$d B</string>
+    <string name="chat_remote_size_kb">%1$d KB</string>
+    <string name="chat_remote_size_mb">%1$.1f MB</string>
+    <string name="chat_projects_default_model">Tu modelo predeterminado</string>
+    <string name="chat_projecteditor_error_name">Ponle un nombre al proyecto.</string>
+    <string name="chat_projecteditor_error_folder">Usa una carpeta dentro del espacio de trabajo, como projects/garden (sin .. ni carpetas ocultas).</string>
+    <string name="chat_projecteditor_error_taken">Otro proyecto ya usa esa carpeta.</string>
+    <string name="chat_workflow_save_failed">No se pudo guardar el flujo de trabajo.</string>
+    <string name="chat_workflow_busy">Este chat sigue trabajando en una tarea. Ejecútalo cuando termine o detén la tarea primero.</string>
+    <!-- TranscriptRows: a check's label, per kind and state (the kind agrees in gender with its state) -->
+    <string name="chat_checks_tests_running">Pruebas en curso</string>
+    <string name="chat_checks_tests_running_n">Pruebas · en curso (ejecución %1$d)</string>
+    <string name="chat_checks_tests_passed">Pruebas superadas</string>
+    <string name="chat_checks_tests_passed_n">Pruebas · superadas en la ejecución %1$d de %1$d</string>
+    <string name="chat_checks_tests_failed">Pruebas con error</string>
+    <string name="chat_checks_tests_failed_n">Pruebas · con error en la ejecución %1$d de %1$d</string>
+    <string name="chat_checks_tests_finished">Pruebas terminadas</string>
+    <string name="chat_checks_tests_finished_n">Pruebas · terminadas en la ejecución %1$d de %1$d</string>
+    <string name="chat_checks_tests_timedout">Tiempo agotado en las pruebas</string>
+    <string name="chat_checks_tests_timedout_n">Pruebas · tiempo agotado en la ejecución %1$d de %1$d</string>
+    <string name="chat_checks_tests_stopped">Pruebas detenidas</string>
+    <string name="chat_checks_tests_stopped_n">Pruebas · detenidas en la ejecución %1$d de %1$d</string>
+    <string name="chat_checks_build_running">Compilación en curso</string>
+    <string name="chat_checks_build_running_n">Compilación · en curso (ejecución %1$d)</string>
+    <string name="chat_checks_build_passed">Compilación superada</string>
+    <string name="chat_checks_build_passed_n">Compilación · superada en la ejecución %1$d de %1$d</string>
+    <string name="chat_checks_build_failed">Compilación con error</string>
+    <string name="chat_checks_build_failed_n">Compilación · con error en la ejecución %1$d de %1$d</string>
+    <string name="chat_checks_build_finished">Compilación terminada</string>
+    <string name="chat_checks_build_finished_n">Compilación · terminada en la ejecución %1$d de %1$d</string>
+    <string name="chat_checks_build_timedout">Tiempo agotado en la compilación</string>
+    <string name="chat_checks_build_timedout_n">Compilación · tiempo agotado en la ejecución %1$d de %1$d</string>
+    <string name="chat_checks_build_stopped">Compilación detenida</string>
+    <string name="chat_checks_build_stopped_n">Compilación · detenida en la ejecución %1$d de %1$d</string>
+    <string name="chat_checks_check_running">Verificación en curso</string>
+    <string name="chat_checks_check_running_n">Verificación · en curso (ejecución %1$d)</string>
+    <string name="chat_checks_check_passed">Verificación superada</string>
+    <string name="chat_checks_check_passed_n">Verificación · superada en la ejecución %1$d de %1$d</string>
+    <string name="chat_checks_check_failed">Verificación con error</string>
+    <string name="chat_checks_check_failed_n">Verificación · con error en la ejecución %1$d de %1$d</string>
+    <string name="chat_checks_check_finished">Verificación terminada</string>
+    <string name="chat_checks_check_finished_n">Verificación · terminada en la ejecución %1$d de %1$d</string>
+    <string name="chat_checks_check_timedout">Tiempo agotado en la verificación</string>
+    <string name="chat_checks_check_timedout_n">Verificación · tiempo agotado en la ejecución %1$d de %1$d</string>
+    <string name="chat_checks_check_stopped">Verificación detenida</string>
+    <string name="chat_checks_check_stopped_n">Verificación · detenida en la ejecución %1$d de %1$d</string>
 </resources>

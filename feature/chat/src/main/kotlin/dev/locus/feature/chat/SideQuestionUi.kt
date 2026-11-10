@@ -62,10 +62,6 @@ internal sealed interface SideCommand {
 internal fun sideCommandFor(text: String, asideOn: Boolean): SideCommand? =
     SideCommand.parse(text) ?: if (asideOn && text.isNotBlank()) SideCommand.Ask(text.trim()) else null
 
-/** The side question card's caption, in English: what happens to the question. The card reads it from resources. */
-internal fun sideCaption(running: Boolean): String =
-    if (running) "Not added to the chat. The task keeps going." else "Not added to the chat."
-
 /**
  * The side question card above the composer: the question, its answer (streaming in), and a dimmed
  * line for each earlier one. Dismissible; nothing here is part of the chat.

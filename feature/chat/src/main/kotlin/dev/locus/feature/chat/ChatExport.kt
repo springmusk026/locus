@@ -1,5 +1,6 @@
 package dev.locus.feature.chat
 
+import dev.locus.core.data.repository.TrackedChange
 import dev.locus.core.model.toolLabel
 import java.time.Instant
 import java.time.ZoneId
@@ -63,7 +64,7 @@ internal object ChatExport {
                 }
                 is ChatItem.Note -> {
                     speak("Locus")
-                    step(oneLine(item.text))
+                    step(oneLine(if (item.ranAnyway) "You ran the blocked call anyway: ${item.text}" else item.text))
                 }
                 is ChatItem.Plan -> {
                     speak("Locus")
@@ -83,7 +84,7 @@ internal object ChatExport {
                 }
                 is ChatItem.Changes -> {
                     speak("Locus")
-                    item.files.forEach { f -> step("Changed " + code(f.path) + " (" + changeSummary(f) + if (f.undone) ", undone)" else ")") }
+                    item.files.forEach { f -> step("Changed " + code(f.path) + " (" + changeSummaryEnglish(f) + if (f.undone) ", undone)" else ")") }
                 }
                 is ChatItem.Receipt -> {
                     speaker = null
@@ -127,6 +128,29 @@ internal object ChatExport {
     private fun oneLine(text: String): String = text.trim().replace(NEWLINES, " ").let { if (it.length > 200) it.take(199).trimEnd() + "…" else it }
 
     private fun code(name: String) = "`" + name.replace("`", "'") + "`"
+
+    /**
+     * A changed file as the export says it: always English, whatever language the screen shows
+     * ([changeSummary] is the screen's). "New · 121 lines", "Deleted", "+12 −3".
+     */
+    internal fun changeSummaryEnglish(change: TrackedChange): String {
+        fun lines(n: Int) = if (n == 1) "1 line" else "${formatCount(n)} lines"
+        return when {
+            change.isDirectory -> when (change.kind) {
+                TrackedChange.Kind.CREATED -> "New folder"
+                TrackedChange.Kind.DELETED -> "Folder deleted"
+                TrackedChange.Kind.MODIFIED -> "Folder"
+            }
+            change.binary -> when (change.kind) {
+                TrackedChange.Kind.CREATED -> "New binary file"
+                TrackedChange.Kind.DELETED -> "Binary file deleted"
+                TrackedChange.Kind.MODIFIED -> "Binary file changed"
+            }
+            change.kind == TrackedChange.Kind.CREATED -> if (change.added > 0) "New · ${lines(change.added)}" else "New · empty"
+            change.kind == TrackedChange.Kind.DELETED -> if (change.removed > 0) "Deleted · ${lines(change.removed)}" else "Deleted"
+            else -> lineCounts(change.added, change.removed) ?: "No line changes"
+        }
+    }
 
     private val DATE = DateTimeFormatter.ofPattern("d MMMM yyyy, HH:mm", Locale.ENGLISH)
     private val FILE_DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.ENGLISH)

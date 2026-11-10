@@ -10,9 +10,14 @@ import dev.locus.core.model.ApiFormat
 import dev.locus.core.model.ModelRef
 import dev.locus.core.model.ProviderConfig
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36])
 class ModelPickerTest {
     private val anthropic = chatProvider(ProviderConfig("a", "Anthropic", ApiFormat.ANTHROPIC_MESSAGES, "https://api.anthropic.com", "claude-opus-5-5"))
     private val router = chatProvider(ProviderConfig("r", "OpenRouter", ApiFormat.OPENAI_CHAT, "https://openrouter.ai/api/v1", "openai/gpt-5"))
@@ -121,7 +126,7 @@ class ModelPickerTest {
         assertEquals("Claude Opus 5.5", opus.title)
         // The provider's window wins over the catalogue's.
         assertEquals(ModelCapabilities(Support.YES, Support.YES, Support.YES, Support.UNKNOWN, 1_000_000, CacheStyle.EXPLICIT), opus.caps)
-        assertEquals(listOf("1M", "Tools", "Vision", "Reasoning"), capabilityChips(opus.caps))
+        assertEquals(listOf("1M", "Tools", "Vision", "Reasoning"), capabilityChips(testResources, opus.caps))
         val gemini = rows.getValue(ModelRef("r", "google/gemini-3-pro"))
         assertEquals("Gemini 3 Pro", gemini.title)
         // The catalogue doesn't say whether it reasons; the built-in rule for Gemini 3 does.
@@ -154,8 +159,8 @@ class ModelPickerTest {
             .flatMap { it.rows }.first()
         assertEquals("Qwen3.5 0.8B", row.title)
         assertEquals("Q4_K_M · 0.5 GB · llama.cpp", row.detail)
-        assertEquals("Default: Qwen3.5 0.8B · 1 model", providerStatus(list, "gguf:qwen3.5-0.8b-q4_k_m"))
+        assertEquals("Default: Qwen3.5 0.8B · 1 model", providerStatus(testResources, list, "gguf:qwen3.5-0.8b-q4_k_m"))
         // A cloud provider's default stays its id, as before.
-        assertEquals("Default: claude-opus-5-5 · 3 models", providerStatus(lists.getValue("a"), "claude-opus-5-5"))
+        assertEquals("Default: claude-opus-5-5 · 3 models", providerStatus(testResources, lists.getValue("a"), "claude-opus-5-5"))
     }
 }

@@ -29,8 +29,10 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import dev.locus.core.designsystem.BottomDock
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.relocation.BringIntoViewRequester
+import android.content.res.Resources
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.semantics.semantics
 import dev.locus.core.designsystem.AccentTileStack
 import dev.locus.core.designsystem.ChatSizes
@@ -125,6 +127,8 @@ import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.StatusDot
 import dev.locus.core.designsystem.StatusLine
+import dev.locus.core.designsystem.UiText
+import dev.locus.core.designsystem.asString
 import dev.locus.core.designsystem.TerminalColors
 import dev.locus.core.designsystem.rememberCopyFeedback
 import dev.locus.core.designsystem.Tone
@@ -224,7 +228,7 @@ fun ChatRoute(
     }
     val workflows = rememberChatWorkflows(conversationId, project.current, hiltViewModel<ChatWorkflowsViewModel>(key = "workflows-$conversationId"))
     projectNotice?.let { note ->
-        dev.locus.core.designsystem.LocusSheet(title = stringResource(R.string.chat_screen_not_moved), subtitle = note, onDismiss = viewModel::dismissProjectNotice) {}
+        dev.locus.core.designsystem.LocusSheet(title = stringResource(R.string.chat_screen_not_moved), subtitle = note.asString(), onDismiss = viewModel::dismissProjectNotice) {}
     }
     // Read only inside the live bubble (through the lambda), so deltas don't recompose this screen.
     val streaming = viewModel.streamingText.collectAsStateWithLifecycle()
@@ -826,7 +830,7 @@ internal fun ChatScreen(
                     if (canResume && unsent > 0) {
                         // One banner for both: Continue runs the chat again and sends the queued messages with it.
                         Banner(
-                            (state.run.error ?: stringResource(R.string.chat_screen_stopped)) + " " + pluralStringResource(R.plurals.chat_screen_queued_not_sent, unsent, unsent),
+                            stoppedWithQueuedText(LocalResources.current, state.run.error, unsent),
                             if (state.run.error != null) Tone.Critical else Tone.Brand,
                             bannerModifier,
                             actionsBelow = true,
@@ -1082,7 +1086,7 @@ private fun StepsGroup(steps: List<ChatItem>, activeTool: String?) {
             when (step) {
                 // A helper (sub-agent) is a nested row with its own live state and transcript.
                 is ChatItem.ToolCall -> if (step.name == dev.locus.core.model.SubagentTools.SPAWN || step.name == dev.locus.core.model.SubagentTools.SEND) SubagentRow(step) else ToolCallRow(step, running = running(step))
-                is ChatItem.Note -> StepNote(step.text)
+                is ChatItem.Note -> StepNote(step.shown(LocalResources.current))
                 is ChatItem.Thought -> ThoughtRow(step, Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs))
                 else -> Unit
             }
@@ -1131,7 +1135,7 @@ private fun StepsGroup(steps: List<ChatItem>, activeTool: String?) {
                 )
             }
             if (!expanded && latestNote != null) {
-                SupportingText(latestNote.text.asNote(), Modifier.padding(start = Spacing.md, end = Spacing.md, bottom = Spacing.sm), maxLines = 2)
+                SupportingText(latestNote.shown(LocalResources.current).asNote(), Modifier.padding(start = Spacing.md, end = Spacing.md, bottom = Spacing.sm), maxLines = 2)
             }
             AnimatedVisibility(expanded) { Column { StepList(shown) } }
         } else {
@@ -1329,7 +1333,7 @@ private fun AssistantText(
     receiptActions: ReceiptActions = ReceiptActions(),
     speed: String? = null,
     /** A backup model wrote this reply: says which, under the reply. */
-    fallbackNote: String? = null,
+    fallbackNote: UiText? = null,
     turn: TurnBranch? = null,
     branchEnabled: Boolean = true,
     onRegenerate: (String) -> Unit = {},
@@ -1354,7 +1358,7 @@ private fun AssistantText(
     // One meta line: the finished task's time and cost, then what this turn cost (the last request's
     // prompt, everything the turn wrote, the share from cache). On-device replies show the backend and
     // speed instead (or as well). With a receipt it opens the run's details.
-    val meta = replyMeta(usage, speed, receipt)
+    val meta = replyMeta(LocalResources.current, usage, speed, receipt)
     val metaBelow = largeFont()
     val metaText: @Composable (String, Modifier) -> Unit = { line, modifier ->
         Text(
@@ -1375,7 +1379,7 @@ private fun AssistantText(
     Column {
         AssistantMarkdown(text)
         fallbackNote?.let {
-            SupportingText(it, Modifier.padding(top = Spacing.xs), style = LocusType.mono, maxLines = 2)
+            SupportingText(it.asString(), Modifier.padding(top = Spacing.xs), style = LocusType.mono, maxLines = 2)
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             CompactIconButton(
@@ -1508,23 +1512,24 @@ private fun LiveTurn(state: ChatUiState, streamed: () -> String, reasoning: () -
         // Its own scope: only this reads the text, so a delta recomposes just the bubble.
         LiveText(streamed)
         val hasText by remember { derivedStateOf { streamed().isNotEmpty() } }
-        liveStatus(state, thinking, hasText)?.let { (text, tone) -> StatusLine(text, tone) }
+        liveStatus(state, thinking, hasText)?.let { (text, tone) -> StatusLine(text.asString(), tone) }
     }
 }
 
 /** The live line under the turn in progress, or null when there's nothing to add. */
-internal fun liveStatus(state: ChatUiState, thinking: Boolean, hasText: Boolean): Pair<String, Tone>? = when {
+internal fun liveStatus(state: ChatUiState, thinking: Boolean, hasText: Boolean): Pair<UiText, Tone>? = when {
     !state.run.running -> null
     // The budget card above the composer says it, with Stop and Continue.
     state.run.budgetPause != null -> null
     // The approval card above the composer says it, with the buttons.
     state.pendingApproval != null -> null
-    state.pendingQuestion != null -> "Waiting for your answer" to Tone.Caution
+    state.pendingQuestion != null -> UiText.Res(R.string.chat_screen_waiting_answer) to Tone.Caution
     state.run.activeTool != null -> liveActivity(state.run.activeTool.orEmpty()) to Tone.Live
-    state.run.progress.isNotBlank() -> state.run.progress.trim().lines().last() to Tone.Live
+    // The agent's own progress line (core/agent text), shown as it came.
+    state.run.progress.isNotBlank() -> UiText.Plain(state.run.progress.trim().lines().last()) to Tone.Live
     // The thinking block already says it's thinking.
     thinking -> null
-    !hasText -> "Thinking" to Tone.Live
+    !hasText -> UiText.Res(R.string.chat_screen_thinking) to Tone.Live
     else -> null
 }
 
@@ -1561,7 +1566,7 @@ private fun MessagesBanner(
     val model = failure?.takeIf { error != null }
     // The advice (a repeat, a usage limit) goes under the error itself.
     // The request id is in Details, not the sentence; a dropped connection is said in words.
-    val text = listOfNotNull(if (error != null) failureMessageInWords(shown) else shown, model?.advice).joinToString("\n\n")
+    val text = listOfNotNull(if (error != null) failureMessageInWords(LocalResources.current, shown) else shown, model?.advice).joinToString("\n\n")
     Banner(text, if (error != null) Tone.Critical else Tone.Neutral, modifier, actionsBelow = model != null || hasSettingsAction(error), onDismiss = onDismiss) {
         if (model == null) {
             SettingsActionFor(error) // "… Add it in Settings → Models." gets "Open Models"
@@ -1583,17 +1588,14 @@ private fun MessagesBanner(
     }
 }
 
-/** Under a queued message: when the agent will read it. */
-internal fun queuedLabel(running: Boolean): String =
-    if (running) "Locus reads this after the current step" else "Not sent yet"
-
-/** "2 queued messages weren't sent." */
-internal fun queuedNotSentText(count: Int): String =
-    if (count == 1) "1 queued message wasn't sent." else "$count queued messages weren't sent."
-
-/** The one banner when a run stopped (an error, or Locus closed) with messages still queued. */
-internal fun stoppedWithQueuedText(error: String?, queued: Int): String =
-    "${error ?: "Locus stopped."} ${queuedNotSentText(queued)}"
+/**
+ * The one banner when a run stopped (an error, or Locus closed) with messages still queued: "Locus
+ * stopped. 2 queued messages weren't sent." The [error] is the run's own (core/agent) text.
+ */
+internal fun stoppedWithQueuedText(resources: Resources, error: String?, queued: Int): String =
+    resources.joinSentences(
+        listOf(error ?: resources.getString(R.string.chat_screen_stopped), resources.getQuantityString(R.plurals.chat_screen_queued_not_sent, queued, queued)),
+    )
 
 private val prettyPrinter = Json { prettyPrint = true }
 
@@ -1617,7 +1619,7 @@ private fun BudgetMeterChip(meter: dev.locus.core.agent.BudgetMeter, paused: Boo
 /** "Paused at the task budget": which limit, what's been used, with Stop and Continue under it. */
 @Composable
 private fun BudgetPauseCard(pause: dev.locus.core.data.agent.BudgetPause, meter: dev.locus.core.agent.BudgetMeter?, onAnswer: (Boolean) -> Unit, modifier: Modifier) {
-    Banner(budgetPauseText(pause.message, meter), Tone.Caution, modifier, title = stringResource(R.string.chat_screen_budget_paused), actionsBelow = true) {
+    Banner(budgetPauseText(LocalResources.current, pause.message, meter), Tone.Caution, modifier, title = stringResource(R.string.chat_screen_budget_paused), actionsBelow = true) {
         TextButton(onClick = { onAnswer(false) }) { Text(stringResource(R.string.chat_screen_stop)) }
         Button(onClick = { onAnswer(true) }) { Text(stringResource(R.string.chat_screen_continue)) }
     }
@@ -1625,12 +1627,13 @@ private fun BudgetPauseCard(pause: dev.locus.core.data.agent.BudgetPause, meter:
 
 /**
  * "Reached the 200k-token budget for this task. Used …. Continue allows one more of the same." The
- * runner's "Paused: " prefix is dropped, since the card's title already says it paused.
+ * runner's "Paused: " prefix is dropped, since the card's title already says it paused. The reached
+ * limit and the use so far are core/agent's own words ([dev.locus.core.agent.BudgetText]).
  */
-internal fun budgetPauseText(message: String, meter: dev.locus.core.agent.BudgetMeter?): String {
+internal fun budgetPauseText(resources: Resources, message: String, meter: dev.locus.core.agent.BudgetMeter?): String {
     val reached = message.removePrefix("Paused: ").replaceFirstChar { it.uppercase() }
-    val used = meter?.let { "Used ${dev.locus.core.agent.BudgetText.used(it)}." }
-    return listOfNotNull(reached, used, "Continue allows one more of the same.").joinToString(" ")
+    val used = meter?.let { resources.getString(R.string.chat_screen_budget_used, dev.locus.core.agent.BudgetText.used(it)) }
+    return resources.joinSentences(listOfNotNull(reached, used, resources.getString(R.string.chat_screen_budget_continue_note)))
 }
 
 /** Context use in the header: a ring and the count. Tap for the breakdown. */
@@ -1795,11 +1798,14 @@ private fun JumpToLatest(onClick: () -> Unit) {
     FloatingIconButton(LocusIcons.Send, stringResource(R.string.chat_screen_jump), onClick = onClick, rotation = 180f)
 }
 
-/** What the live line says while a tool runs; the checklist and plan tools aren't "working with files". */
-private fun liveActivity(tool: String): String = when (tool) {
-    dev.locus.core.model.AgentControlTools.TODO_WRITE -> "Updating the checklist"
-    dev.locus.core.model.AgentControlTools.PLAN_PROPOSE -> "Writing the plan"
-    else -> toolActivity(tool)
+/**
+ * What the live line says while a tool runs; the checklist and plan tools aren't "working with files".
+ * Any other tool is named by core/model ([toolActivity]).
+ */
+private fun liveActivity(tool: String): UiText = when (tool) {
+    dev.locus.core.model.AgentControlTools.TODO_WRITE -> UiText.Res(R.string.chat_screen_live_checklist)
+    dev.locus.core.model.AgentControlTools.PLAN_PROPOSE -> UiText.Res(R.string.chat_screen_live_plan)
+    else -> UiText.Plain(toolActivity(tool))
 }
 
 private val TERMINAL_TOOLS = setOf("run_command", "ssh_exec", "ssh_job_start", "ssh_job_status", "ssh_job_stop", "linux_service_start", "linux_service_stop", "linux_service_list", "linux_service_log", "git_inspect", "git_commit")
