@@ -60,6 +60,7 @@ import dev.locus.core.designsystem.SwitchRow
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.relativeTime
 import dev.locus.core.markdown.documentTypography
+import dev.locus.core.model.SettingsDestination
 
 /**
  * Settings → About & privacy → Updates (docs/design/updates.md): the opt-in daily check, Check now
@@ -296,7 +297,7 @@ private fun ProblemBanner(state: UpdateState.Failed, actions: UpdateActions) {
                         context.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${context.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                     }
                 }) { Text("Open setting") }
-                UpdateProblem.SignatureMismatch -> SettingsActionFor(message)
+                UpdateProblem.SignatureMismatch -> SettingsActionFor(message, destination = SettingsDestination.Backup)
                 UpdateProblem.InstallCancelled -> TextButton(onClick = actions.install) { Text("Install again") }
                 UpdateProblem.NoNetwork, UpdateProblem.ChecksumMismatch, UpdateProblem.Storage, is UpdateProblem.Server, is UpdateProblem.InstallFailed ->
                     TextButton(onClick = actions.retry) { Text("Try again") }
