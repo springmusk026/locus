@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.locus.core.data.connectors.ServiceSetupException
 import dev.locus.core.data.mcp.McpTemplate
 import dev.locus.core.agent.home.Connector
 import dev.locus.core.data.connectors.ConnectionCheck
@@ -15,6 +16,8 @@ import dev.locus.core.agent.home.SkillReview
 import dev.locus.core.data.repository.LibraryRepository
 import dev.locus.core.data.repository.SkillClash
 import dev.locus.core.designsystem.UiText
+import dev.locus.core.linux.EngineText
+import dev.locus.core.ui.toUiText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -242,8 +245,8 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                // ConnectionCheck is core's and holds plain text: an empty message is shown as our "The test failed."
-                ConnectionCheck.Failed(e.message.orEmpty())
+                // A reason core words for the user, else the exception's own; an empty one is shown as our "The test failed."
+                ConnectionCheck.Failed((e as? ServiceSetupException)?.text ?: EngineText.Plain(e.message.orEmpty()))
             }
             _setup.value = ServiceSetup(result = result)
         }
@@ -259,7 +262,8 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _setup.value = _setup.value.copy(adding = false, error = e.message?.let(UiText::Plain) ?: UiText.Res(R.string.library_service_add_failed_body))
+                val error = (e as? ServiceSetupException)?.text?.toUiText() ?: e.message?.let(UiText::Plain) ?: UiText.Res(R.string.library_service_add_failed_body)
+                _setup.value = _setup.value.copy(adding = false, error = error)
             }
         }
     }

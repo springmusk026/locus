@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="linux_fix_repair">Reparar</string>
+    <string name="linux_fix_reinstall">Reinstalar</string>
+    <string name="linux_fix_clean_caches">Limpiar cachés</string>
+    <string name="linux_fix_phantom_help">Cómo solucionarlo</string>
+    <string name="linux_fix_restart">Reiniciar</string>
+    <string name="linux_fix_start">Iniciar</string>
+    <string name="linux_fix_reset_dns">Restablecer DNS</string>
+    <string name="linux_fix_open_terminal">Abrir terminal</string>
+
+    <string name="linux_health_headline_ok">Linux funciona</string>
+    <plurals name="linux_health_headline_more_problems">
+        <item quantity="one">%1$s y %2$d problema más</item>
+        <item quantity="many">%1$s y %2$d problemas más</item>
+        <item quantity="other">%1$s y %2$d problemas más</item>
+    </plurals>
+    <plurals name="linux_health_headline_more_warnings">
+        <item quantity="one">%1$s y %2$d aviso más</item>
+        <item quantity="many">%1$s y %2$d avisos más</item>
+        <item quantity="other">%1$s y %2$d avisos más</item>
+    </plurals>
+    <string name="linux_health_two_sentences">%1$s %2$s</string>
+    <string name="linux_health_runtime_title">Falta el entorno de ejecución de Linux</string>
+    <string name="linux_health_runtime_missing_proot">Esta copia de Locus no puede ejecutar su entorno de Linux (falta proot). Reinstala Locus desde el mismo origen.</string>
+    <string name="linux_health_runtime_missing_loader">Esta copia de Locus no puede ejecutar su entorno de Linux (falta el cargador de proot). Reinstala Locus desde el mismo origen.</string>
+    <string name="linux_health_runtime_not_executable">Esta copia de Locus no puede ejecutar su entorno de Linux (proot no se puede ejecutar). Reinstala Locus desde el mismo origen.</string>
+    <string name="linux_health_roundtrip_timeout_title">Linux no responde</string>
+    <string name="linux_health_roundtrip_timeout_detail">Un comando de prueba no terminó en %1$d s. Reparar reescribe los ajustes de Linux sin tocar tus paquetes.</string>
+    <string name="linux_health_roundtrip_failed_title">Linux no puede ejecutar comandos</string>
+    <string name="linux_health_roundtrip_failed_detail">Un comando de prueba falló. Reparar reescribe los ajustes de Linux sin tocar tus paquetes.</string>
+    <string name="linux_health_roundtrip_failed_detail_output">Un comando de prueba falló: %1$s. Reparar reescribe los ajustes de Linux sin tocar tus paquetes.</string>
+    <string name="linux_health_roundtrip_slow_title">Los comandos tardan en empezar</string>
+    <string name="linux_health_roundtrip_slow_detail">Un comando de prueba tardó %1$.1f s. Puede que el teléfono esté ocupado, caliente o en ahorro de batería.</string>
+    <string name="linux_health_roundtrip_ok_title">Ejecuta comandos</string>
+    <string name="linux_health_roundtrip_ok_detail">Un comando de prueba tardó %1$d ms.</string>
+    <string name="linux_health_files_damaged_title">Los archivos del sistema de Linux están dañados</string>
+    <string name="linux_health_files_damaged_missing">A Linux le faltan %1$s. Solo una reinstalación los recupera; los archivos de tu espacio de trabajo se conservan.</string>
+    <string name="linux_health_files_damaged_missing_and_db">A Linux le faltan %1$s y no se puede leer la base de datos de paquetes. Solo una reinstalación los recupera; los archivos de tu espacio de trabajo se conservan.</string>
+    <string name="linux_health_files_damaged_db">No se puede leer la base de datos de paquetes de Linux. Solo una reinstalación la recupera; los archivos de tu espacio de trabajo se conservan.</string>
+    <string name="linux_health_files_more">%1$s y %2$d más</string>
+    <string name="linux_health_files_ok_title">Archivos del sistema intactos</string>
+    <string name="linux_health_files_ok_detail">Los archivos clave y la base de datos de paquetes están en su sitio.</string>
+    <string name="linux_health_storage_full_title">El almacenamiento del teléfono está casi lleno</string>
+    <string name="linux_health_storage_full_detail">%1$s libres. Instalar paquetes fallará.</string>
+    <string name="linux_health_storage_full_detail_caches">%1$s libres. Instalar paquetes fallará. Las cachés de Linux ocupan %2$s.</string>
+    <string name="linux_health_storage_low_title">Queda poco almacenamiento en el teléfono</string>
+    <string name="linux_health_storage_low_detail">%1$s libres. Puede que los paquetes grandes (compiladores, Java, Node) no quepan.</string>
+    <string name="linux_health_storage_low_detail_caches">%1$s libres. Puede que los paquetes grandes (compiladores, Java, Node) no quepan. Las cachés de Linux ocupan %2$s.</string>
+    <string name="linux_health_caches_title">Las cachés ocupan %1$s</string>
+    <string name="linux_health_caches_detail">Las cachés de paquetes y descargas se pueden eliminar; se vuelven a descargar cuando hace falta.</string>
+    <string name="linux_health_storage_ok_title">Almacenamiento suficiente</string>
+    <string name="linux_health_storage_ok_detail">Linux ocupa %1$s; quedan %2$s libres en el teléfono.</string>
+    <string name="linux_health_memory_low_title">Al teléfono le queda poca memoria</string>
+    <string name="linux_health_memory_low_detail">%1$s disponibles. Android puede detener programas de Linux, sobre todo mientras Locus está en segundo plano.</string>
+    <string name="linux_health_memory_ok_title">Memoria suficiente</string>
+    <string name="linux_health_memory_ok_detail">%1$s de %2$s disponibles; los programas de Linux usan %3$s.</string>
+    <string name="linux_health_phantom_off_title">El límite en segundo plano está desactivado</string>
+    <string name="linux_health_phantom_off_detail">Las restricciones de procesos secundarios están desactivadas, así que Android no detendrá Linux por ese motivo.</string>
+    <string name="linux_health_phantom_warning_title">Android puede detener Linux en segundo plano</string>
+    <string name="linux_health_phantom_warning_detail">Android 12 o posterior detiene los procesos extra de las apps (ahora hay %1$d en ejecución para Locus). Puedes desactivarlo.</string>
+    <string name="linux_health_phantom_killed_command">Android detuvo un comando mientras Locus estaba en segundo plano.</string>
+    <string name="linux_health_phantom_killed_service">Android detuvo el servicio %1$s mientras Locus estaba en segundo plano.</string>
+    <string name="linux_health_phantom_killed_terminal">Android detuvo una terminal mientras Locus estaba en segundo plano.</string>
+    <string name="linux_health_phantom_killed_other">Android detuvo %1$s mientras Locus estaba en segundo plano.</string>
+    <string name="linux_health_phantom_on_title">El límite en segundo plano está activado</string>
+    <string name="linux_health_phantom_on_detail">Android 12 o posterior puede detener programas de Linux mientras Locus está en segundo plano.</string>
+    <string name="linux_health_phantom_on_detail_unknown">Android 12 o posterior puede detener programas de Linux mientras Locus está en segundo plano (este teléfono no deja que Locus compruebe el ajuste).</string>
+    <string name="linux_health_dns_config_title">No hay ningún servidor DNS</string>
+    <string name="linux_health_dns_config_detail">El archivo /etc/resolv.conf de Linux no indica ningún servidor de nombres, así que no puede conectarse a internet.</string>
+    <string name="linux_health_network_dns_title">Linux no puede resolver nombres</string>
+    <string name="linux_health_network_dns_detail">El DNS falló dentro de Linux. Si el teléfono tiene conexión, restablece los servidores DNS de Linux.</string>
+    <string name="linux_health_network_https_title">No se puede acceder al mirror de Alpine</string>
+    <string name="linux_health_network_https_detail">Los nombres se resuelven, pero dl-cdn.alpinelinux.org no respondió por HTTPS. Puede bloquearlo una VPN, un portal cautivo o un firewall.</string>
+    <string name="linux_health_network_ok_title">Internet funciona</string>
+    <string name="linux_health_network_ok_detail">DNS y HTTPS al mirror de Alpine en %1$d ms.</string>
+    <string name="linux_health_upgrades_none_title">Paquetes al día</string>
+    <string name="linux_health_upgrades_none_detail">No hay versiones más nuevas en los repositorios de Alpine %1$s.</string>
+    <plurals name="linux_health_upgrades_title">
+        <item quantity="one">%1$d actualización disponible</item>
+        <item quantity="many">%1$d actualizaciones disponibles</item>
+        <item quantity="other">%1$d actualizaciones disponibles</item>
+    </plurals>
+    <string name="linux_health_upgrades_detail">Ejecuta `apk upgrade` en la terminal para instalarlas.</string>
+    <string name="linux_health_service_crashed_title">“%1$s” falló</string>
+    <string name="linux_health_service_crashed_detail">Terminó con %1$s. Su registro puede indicar por qué; pídele al agente que lo revise.</string>
+    <string name="linux_health_service_killed_title">Android detuvo “%1$s”</string>
+    <string name="linux_health_service_killed_detail">Se cerró mientras Locus estaba en segundo plano (límite de procesos fantasma).</string>
+    <string name="linux_health_service_not_running_title">“%1$s” no se está ejecutando</string>
+    <string name="linux_health_service_not_running_detail">Está configurado para iniciarse al abrir Locus, pero no se está ejecutando. Inícialo o desactiva Iniciar al abrir Locus en Servicios.</string>
+
+    <string name="linux_exit_error">un error</string>
+    <string name="linux_exit_signal">la señal %1$d</string>
+    <string name="linux_exit_signal_named">la señal %1$d (%2$s)</string>
+    <string name="linux_exit_code">el código %1$d</string>
+
+    <string name="linux_status_downloading">Descargando Alpine Linux %1$s</string>
+    <string name="linux_status_unpacking">Descomprimiendo</string>
+    <string name="linux_status_no_runtime">Esta versión no incluye el entorno de ejecución de Linux para %1$s.</string>
+
+    <string name="linux_kill_reason">Android detiene los procesos de Linux de las apps en segundo plano cuando hay demasiados o usan mucha CPU.</string>
+    <string name="linux_kill_fix_lead">Para evitarlo, activa Ajustes → Sistema → Opciones para desarrolladores → \"Inhabilitar restricciones de procesos secundarios\" (Android 14 y posteriores). En Android 12L y 13, ejecuta esto desde una computadora:</string>
+    <string name="linux_kill_fix">Para evitarlo, activa Ajustes → Sistema → Opciones para desarrolladores → \"Inhabilitar restricciones de procesos secundarios\" (Android 14 y posteriores) o, en Android 12L y 13, ejecuta `%1$s` desde una computadora.</string>
+    <string name="linux_kill_what_command">un comando</string>
+    <string name="linux_kill_what_service">el servicio %1$s</string>
+    <string name="linux_kill_what_terminal">una terminal</string>
+</resources>

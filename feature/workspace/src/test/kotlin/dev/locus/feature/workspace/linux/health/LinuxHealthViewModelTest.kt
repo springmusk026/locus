@@ -82,7 +82,7 @@ class LinuxHealthViewModelTest {
 
             vm.cleanCaches()
             val cleaned = vm.uiState.first { it.message != null }
-            assertEquals(UiText.Res(R.string.workspace_health_freed, "200 MB"), cleaned.message?.text)
+            assertEquals(UiText.Res(R.string.workspace_health_freed, UiText.Res(dev.locus.core.linux.R.string.linux_bytes_mb, 200.0)), cleaned.message?.text)
             vm.messageShown()
             val after = vm.uiState.first { it.busy == null && !it.refreshing && it.report?.storage?.caches?.isEmpty() == true }
             assertTrue(after.checks.none { it.level != HealthLevel.Ok }, after.checks.toString())
@@ -121,7 +121,7 @@ class LinuxHealthViewModelTest {
             val crashed = vm.uiState.first { !it.refreshing && it.checks.any { c -> c.id == "service:api" } }
             assertEquals(listOf("service:api"), HealthSummary.problems(crashed.checks).map { it.id })
             assertEquals(HealthLevel.Problem, LinuxHealth.overall(crashed.checks))
-            assertEquals(UiText.Res(R.string.workspace_health_service_crashed, "code 1"), serviceView(service("api", exit = 1)).label)
+            assertEquals(UiText.Res(R.string.workspace_health_service_crashed, UiText.Res(dev.locus.core.linux.R.string.linux_exit_code, 1)), serviceView(service("api", exit = 1)).label)
             assertEquals(ServiceAction.Restart, serviceView(service("api", exit = 1)).action)
             assertEquals(UiText.Res(R.string.workspace_health_service_didnt_start), serviceView(service("web", lost = true).copy(autostart = true)).label)
 

@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="linux_fix_repair">修复</string>
+    <string name="linux_fix_reinstall">重新安装</string>
+    <string name="linux_fix_clean_caches">清理缓存</string>
+    <string name="linux_fix_phantom_help">如何解决</string>
+    <string name="linux_fix_restart">重启</string>
+    <string name="linux_fix_start">启动</string>
+    <string name="linux_fix_reset_dns">重置 DNS</string>
+    <string name="linux_fix_open_terminal">打开终端</string>
+
+    <string name="linux_health_headline_ok">Linux 运行正常</string>
+    <plurals name="linux_health_headline_more_problems">
+        <item quantity="other">%1$s，另有 %2$d 个问题</item>
+    </plurals>
+    <plurals name="linux_health_headline_more_warnings">
+        <item quantity="other">%1$s，另有 %2$d 个警告</item>
+    </plurals>
+    <string name="linux_health_two_sentences">%1$s%2$s</string>
+    <string name="linux_health_runtime_title">缺少 Linux 运行环境</string>
+    <string name="linux_health_runtime_missing_proot">此 Locus 副本无法运行其 Linux 运行环境（缺少 proot）。请从同一来源重新安装 Locus。</string>
+    <string name="linux_health_runtime_missing_loader">此 Locus 副本无法运行其 Linux 运行环境（缺少 proot 的加载器）。请从同一来源重新安装 Locus。</string>
+    <string name="linux_health_runtime_not_executable">此 Locus 副本无法运行其 Linux 运行环境（proot 无法执行）。请从同一来源重新安装 Locus。</string>
+    <string name="linux_health_roundtrip_timeout_title">Linux 没有响应</string>
+    <string name="linux_health_roundtrip_timeout_detail">测试命令在 %1$d 秒内没有完成。修复会重写 Linux 的设置，不会改动你的软件包。</string>
+    <string name="linux_health_roundtrip_failed_title">Linux 无法运行命令</string>
+    <string name="linux_health_roundtrip_failed_detail">测试命令失败。修复会重写 Linux 的设置，不会改动你的软件包。</string>
+    <string name="linux_health_roundtrip_failed_detail_output">测试命令失败：%1$s。修复会重写 Linux 的设置，不会改动你的软件包。</string>
+    <string name="linux_health_roundtrip_slow_title">命令启动缓慢</string>
+    <string name="linux_health_roundtrip_slow_detail">测试命令用了 %1$.1f 秒。手机可能正忙、过热或处于省电模式。</string>
+    <string name="linux_health_roundtrip_ok_title">可以运行命令</string>
+    <string name="linux_health_roundtrip_ok_detail">测试命令用了 %1$d 毫秒。</string>
+    <string name="linux_health_files_damaged_title">Linux 的系统文件已损坏</string>
+    <string name="linux_health_files_damaged_missing">Linux 缺少 %1$s。只有重新安装才能恢复；工作区文件会保留。</string>
+    <string name="linux_health_files_damaged_missing_and_db">Linux 缺少 %1$s；软件包数据库无法读取。只有重新安装才能恢复；工作区文件会保留。</string>
+    <string name="linux_health_files_damaged_db">Linux 的软件包数据库无法读取。只有重新安装才能恢复；工作区文件会保留。</string>
+    <string name="linux_health_files_more">%1$s 等另外 %2$d 个</string>
+    <string name="linux_health_files_ok_title">系统文件完好</string>
+    <string name="linux_health_files_ok_detail">关键文件和软件包数据库都在。</string>
+    <string name="linux_health_storage_full_title">手机存储空间快满了</string>
+    <string name="linux_health_storage_full_detail">剩余 %1$s。安装软件包会失败。</string>
+    <string name="linux_health_storage_full_detail_caches">剩余 %1$s。安装软件包会失败。Linux 中的缓存占用 %2$s。</string>
+    <string name="linux_health_storage_low_title">手机存储空间不足</string>
+    <string name="linux_health_storage_low_detail">剩余 %1$s。较大的软件包（编译器、Java、Node）可能装不下。</string>
+    <string name="linux_health_storage_low_detail_caches">剩余 %1$s。较大的软件包（编译器、Java、Node）可能装不下。Linux 中的缓存占用 %2$s。</string>
+    <string name="linux_health_caches_title">缓存占用 %1$s</string>
+    <string name="linux_health_caches_detail">软件包和下载缓存可以删除；需要时会重新下载。</string>
+    <string name="linux_health_storage_ok_title">存储空间充足</string>
+    <string name="linux_health_storage_ok_detail">Linux 占用 %1$s；手机剩余 %2$s。</string>
+    <string name="linux_health_memory_low_title">手机内存不足</string>
+    <string name="linux_health_memory_low_detail">可用 %1$s。Android 可能会停止 Linux 程序，尤其是在 Locus 处于后台时。</string>
+    <string name="linux_health_memory_ok_title">内存充足</string>
+    <string name="linux_health_memory_ok_detail">可用 %1$s（共 %2$s）；Linux 程序占用 %3$s。</string>
+    <string name="linux_health_phantom_off_title">后台限制已关闭</string>
+    <string name="linux_health_phantom_off_detail">子进程限制已关闭，因此 Android 不会因此停止 Linux。</string>
+    <string name="linux_health_phantom_warning_title">Android 可能会在后台停止 Linux</string>
+    <string name="linux_health_phantom_warning_detail">Android 12 及以上版本会停止应用的额外进程（Locus 现在有 %1$d 个在运行）。你可以关闭此限制。</string>
+    <string name="linux_health_phantom_killed_command">Locus 在后台时，Android 停止了一个命令。</string>
+    <string name="linux_health_phantom_killed_service">Locus 在后台时，Android 停止了服务 %1$s。</string>
+    <string name="linux_health_phantom_killed_terminal">Locus 在后台时，Android 停止了一个终端。</string>
+    <string name="linux_health_phantom_killed_other">Locus 在后台时，Android 停止了 %1$s。</string>
+    <string name="linux_health_phantom_on_title">后台限制已开启</string>
+    <string name="linux_health_phantom_on_detail">Locus 处于后台时，Android 12 及以上版本可能会停止 Linux 程序。</string>
+    <string name="linux_health_phantom_on_detail_unknown">Locus 处于后台时，Android 12 及以上版本可能会停止 Linux 程序（此手机不允许 Locus 查看该设置）。</string>
+    <string name="linux_health_dns_config_title">未设置 DNS 服务器</string>
+    <string name="linux_health_dns_config_detail">Linux 的 /etc/resolv.conf 没有指定域名服务器，因此无法连接互联网。</string>
+    <string name="linux_health_network_dns_title">Linux 无法解析域名</string>
+    <string name="linux_health_network_dns_detail">Linux 内的 DNS 解析失败。如果手机已联网，请重置 Linux 的 DNS 服务器。</string>
+    <string name="linux_health_network_https_title">无法连接 Alpine 的镜像</string>
+    <string name="linux_health_network_https_detail">域名可以解析，但 dl-cdn.alpinelinux.org 没有通过 HTTPS 响应。可能被 VPN、网络登录页面或防火墙拦截。</string>
+    <string name="linux_health_network_ok_title">网络正常</string>
+    <string name="linux_health_network_ok_detail">到 Alpine 镜像的 DNS 和 HTTPS 用时 %1$d 毫秒。</string>
+    <string name="linux_health_upgrades_none_title">软件包已是最新</string>
+    <string name="linux_health_upgrades_none_detail">Alpine %1$s 的软件源中没有更新的版本。</string>
+    <plurals name="linux_health_upgrades_title">
+        <item quantity="other">有 %1$d 个更新</item>
+    </plurals>
+    <string name="linux_health_upgrades_detail">在终端中运行 `apk upgrade` 来安装。</string>
+    <string name="linux_health_service_crashed_title">“%1$s”已崩溃</string>
+    <string name="linux_health_service_crashed_detail">它以%1$s退出。日志中可能有原因；可以让智能体查看。</string>
+    <string name="linux_health_service_killed_title">Android 停止了“%1$s”</string>
+    <string name="linux_health_service_killed_detail">它在 Locus 处于后台时被终止（幽灵进程限制）。</string>
+    <string name="linux_health_service_not_running_title">“%1$s”未在运行</string>
+    <string name="linux_health_service_not_running_detail">它设置为在 Locus 打开时启动，但没有在运行。请启动它，或在“服务”下关闭“Locus 打开时启动”。</string>
+
+    <string name="linux_exit_error">错误</string>
+    <string name="linux_exit_signal">信号 %1$d</string>
+    <string name="linux_exit_signal_named">信号 %1$d（%2$s）</string>
+    <string name="linux_exit_code">代码 %1$d</string>
+
+    <string name="linux_status_downloading">正在下载 Alpine Linux %1$s</string>
+    <string name="linux_status_unpacking">正在解压</string>
+    <string name="linux_status_no_runtime">此版本不包含适用于 %1$s 的 Linux 运行环境。</string>
+
+    <string name="linux_kill_reason">当后台应用的 Linux 进程过多或占用大量 CPU 时，Android 会停止它们。</string>
+    <string name="linux_kill_fix_lead">要避免这种情况，请开启 设置 → 系统 → 开发者选项 →“停用子进程限制”（Android 14 及以上）。在 Android 12L 和 13 上，请在电脑上运行：</string>
+    <string name="linux_kill_fix">要避免这种情况，请开启 设置 → 系统 → 开发者选项 →“停用子进程限制”（Android 14 及以上），或在 Android 12L 和 13 上从电脑运行 `%1$s`。</string>
+    <string name="linux_kill_what_command">一个命令</string>
+    <string name="linux_kill_what_service">服务 %1$s</string>
+    <string name="linux_kill_what_terminal">一个终端</string>
+</resources>

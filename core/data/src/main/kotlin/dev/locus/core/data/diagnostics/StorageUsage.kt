@@ -2,8 +2,10 @@ package dev.locus.core.data.diagnostics
 
 import android.content.Context
 import android.os.StatFs
+import androidx.annotation.StringRes
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.locus.core.agent.tools.Workspace
+import dev.locus.core.data.R
 import dev.locus.core.database.DatabaseBackup
 import dev.locus.core.linux.LinuxEnvironment
 import dev.locus.core.model.FileTrees
@@ -16,17 +18,17 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.CoroutineContext
 
-/** A part of Locus's storage the Storage screen lists, in the order shown. */
-enum class StorageArea(val title: String, val note: String) {
-    Database("Chats and history", "The database: chats, messages, activity and usage."),
-    Workspace("Workspace", "Files you and the agent keep."),
-    Trash("Workspace trash", "Deleted and overwritten files, kept so changes can be undone."),
-    Linux("Linux", "Alpine Linux, its packages and its caches."),
-    Models("On-device models", "LiteRT and GGUF models, and unfinished downloads."),
-    Browser("Browser data", "The agent browser's cookies, sign-ins and page cache."),
-    Caches("Caches", "Temporary files Locus makes again when needed."),
-    Logs("Logs", "Diagnostics entries on this phone."),
-    AgentHome("Memory, skills and settings", "What the agent learned, your skills and connectors, settings and saved keys."),
+/** A part of Locus's storage the Storage screen lists, in the order shown, with its name and what it holds. */
+enum class StorageArea(@param:StringRes val titleRes: Int, @param:StringRes val noteRes: Int) {
+    Database(R.string.data_storage_database_title, R.string.data_storage_database_note),
+    Workspace(R.string.data_storage_workspace_title, R.string.data_storage_workspace_note),
+    Trash(R.string.data_storage_trash_title, R.string.data_storage_trash_note),
+    Linux(R.string.data_storage_linux_title, R.string.data_storage_linux_note),
+    Models(R.string.data_storage_models_title, R.string.data_storage_models_note),
+    Browser(R.string.data_storage_browser_title, R.string.data_storage_browser_note),
+    Caches(R.string.data_storage_caches_title, R.string.data_storage_caches_note),
+    Logs(R.string.data_storage_logs_title, R.string.data_storage_logs_note),
+    AgentHome(R.string.data_storage_agent_home_title, R.string.data_storage_agent_home_note),
 }
 
 /** One area's size; [bytes] is null when it couldn't be measured. */

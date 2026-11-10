@@ -3,6 +3,7 @@ package dev.locus.feature.workspace.linux.health
 import android.content.Context
 import android.content.res.Resources
 import androidx.test.core.app.ApplicationProvider
+import dev.locus.core.linux.EngineText
 import dev.locus.core.linux.HealthCheck
 import dev.locus.core.linux.HealthLevel
 import dev.locus.core.linux.LinuxFix
@@ -48,9 +49,9 @@ class HealthSummaryTest {
     @Test
     fun `problems are worst first even when given out of order`() {
         val checks = listOf(
-            HealthCheck("a", "A", HealthLevel.Warning, ""),
-            HealthCheck("b", "B", HealthLevel.Ok, ""),
-            HealthCheck("c", "C", HealthLevel.Problem, "", LinuxFix.Repair),
+            HealthCheck("a", EngineText.Plain("A"), HealthLevel.Warning, EngineText.Plain("")),
+            HealthCheck("b", EngineText.Plain("B"), HealthLevel.Ok, EngineText.Plain("")),
+            HealthCheck("c", EngineText.Plain("C"), HealthLevel.Problem, EngineText.Plain(""), LinuxFix.Repair),
         )
         assertEquals(listOf("c", "a"), HealthSummary.problems(checks).map { it.id })
     }

@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="data_linux_package_python_note">python3 和 pip</string>
+    <string name="data_linux_package_git_note">版本控制</string>
+    <string name="data_linux_package_node_note">node 和 npm</string>
+    <string name="data_linux_package_curl_note">在 shell 中使用 HTTP</string>
+    <string name="data_linux_phase_starting">正在开始…</string>
+    <string name="data_linux_phase_removing_old">正在移除旧的 Linux 系统…</string>
+    <string name="data_linux_phase_installing_alpine">正在安装 Alpine Linux…</string>
+    <string name="data_linux_phase_checking">正在检查已安装的内容…</string>
+    <string name="data_linux_phase_updating">正在更新软件包列表（apk update）…</string>
+    <string name="data_linux_phase_installing_package">正在安装 %1$s（第 %2$d 个，共 %3$d 个）…</string>
+    <string name="data_linux_phase_repairing">正在修复…</string>
+    <string name="data_linux_phase_removing">正在移除 Linux…</string>
+    <string name="data_linux_working">正在处理…</string>
+    <string name="data_linux_ready">Linux 已就绪。</string>
+    <string name="data_linux_reinstalled">已重新安装 Linux。</string>
+    <string name="data_linux_reinstalled_with">已重新安装 Linux，并装好 %1$s。</string>
+    <string name="data_linux_installed">已安装 %1$s。</string>
+    <string name="data_linux_cancelled">已取消。下载的内容均未保留。</string>
+    <string name="data_linux_repaired">已修复。Alpine Linux %1$s 可以正常启动。</string>
+    <string name="data_linux_removed">已移除 Linux。你的工作区文件仍在。</string>
+    <string name="data_linux_update_timed_out">apk update 超时。</string>
+    <string name="data_linux_update_unreachable">无法连接 Alpine 的软件包服务器。</string>
+    <string name="data_linux_update_failed">%1$s请检查网络连接后重试。</string>
+    <string name="data_linux_package_timed_out">已超时。智能体稍后可以用 apk add 完成。</string>
+    <string name="data_linux_package_exit">apk 退出，代码 %1$s</string>
+    <string name="data_linux_packages_failed">%2$d 个中有 %1$d 个无法安装。详见下方；可以重试。</string>
+    <string name="data_linux_estimate_under_a_minute">下载约 %1$d MB，在手机上占用 %2$d MB。使用 Wi-Fi 通常不到一分钟。</string>
+    <plurals name="data_linux_estimate_minutes">
+        <item quantity="other">下载约 %1$d MB，在手机上占用 %2$d MB。使用 Wi-Fi 通常约需 %3$d 分钟。</item>
+    </plurals>
+    <string name="data_linux_notification_setting_up">正在设置 Linux</string>
+    <string name="data_linux_notification_channel">Linux 设置</string>
+    <string name="data_linux_notification_title">正在安装 Linux</string>
+    <string name="data_linux_notification_cancel">取消</string>
+
+    <string name="data_heat_services_more">%1$s 等另外 %2$d 个</string>
+    <plurals name="data_heat_message">
+        <item quantity="other">手机温度很高，且有 %1$d 个 Linux 服务正在运行（%2$s）。停止它们有助于降温；智能体稍后可以重新启动它们。</item>
+    </plurals>
+
+    <string name="data_storage_database_title">对话和历史记录</string>
+    <string name="data_storage_database_note">数据库：对话、消息、活动和用量。</string>
+    <string name="data_storage_workspace_title">工作区</string>
+    <string name="data_storage_workspace_note">你和智能体保存的文件。</string>
+    <string name="data_storage_trash_title">工作区回收站</string>
+    <string name="data_storage_trash_note">已删除和被覆盖的文件，保留以便撤销更改。</string>
+    <string name="data_storage_linux_title">Linux</string>
+    <string name="data_storage_linux_note">Alpine Linux 及其软件包和缓存。</string>
+    <string name="data_storage_models_title">设备端模型</string>
+    <string name="data_storage_models_note">LiteRT 和 GGUF 模型，以及未完成的下载。</string>
+    <string name="data_storage_browser_title">浏览器数据</string>
+    <string name="data_storage_browser_note">智能体浏览器的 Cookie、登录信息和网页缓存。</string>
+    <string name="data_storage_caches_title">缓存</string>
+    <string name="data_storage_caches_note">Locus 需要时会重新生成的临时文件。</string>
+    <string name="data_storage_logs_title">日志</string>
+    <string name="data_storage_logs_note">此手机上的诊断记录。</string>
+    <string name="data_storage_agent_home_title">记忆、技能和设置</string>
+    <string name="data_storage_agent_home_note">智能体学到的内容、你的技能和连接器、设置以及保存的密钥。</string>
+
+    <string name="data_selftest_fix_run_again">重试</string>
+    <string name="data_selftest_fix_reset_keys">重置密钥</string>
+    <string name="data_selftest_fix_notifications">开启</string>
+    <string name="data_selftest_fix_storage">释放空间</string>
+    <string name="data_selftest_fix_linux">打开 Linux</string>
+    <string name="data_selftest_fix_models">打开模型</string>
+    <string name="data_selftest_vault_title">Keystore 和保存的密钥</string>
+    <string name="data_selftest_database_title">数据库</string>
+    <string name="data_selftest_storage_title">可用存储空间</string>
+    <string name="data_selftest_notifications_title">通知</string>
+    <string name="data_selftest_linux_title">Linux</string>
+    <string name="data_selftest_vault_ok_empty">Keystore 密钥可以打开、加密和解密。还没有保存任何密钥。</string>
+    <plurals name="data_selftest_vault_ok">
+        <item quantity="other">Keystore 密钥可以打开、加密和解密。%1$d 个保存的值可以解密。</item>
+    </plurals>
+    <string name="data_selftest_vault_locked">手机重启后首次解锁，保存的密钥才能打开。</string>
+    <string name="data_selftest_vault_needs_reset">Locus 无法打开你保存的密钥（%1$s）。重置会生成新密钥；旧密钥会保留一份副本，以便日后恢复。</string>
+    <string name="data_selftest_vault_unavailable">Locus 暂时无法打开你保存的密钥。没有做任何更改；这可能会自行恢复。</string>
+    <string name="data_selftest_vault_unavailable_reason">Locus 暂时无法打开你保存的密钥（%1$s）。没有做任何更改；这可能会自行恢复。</string>
+    <string name="data_selftest_database_failed">无法运行完整性检查。</string>
+    <string name="data_selftest_database_failed_reason">无法运行完整性检查（%1$s）。</string>
+    <string name="data_selftest_database_ok">完整性检查（quick_check）没有发现问题。</string>
+    <plurals name="data_selftest_database_problems">
+        <item quantity="other">完整性检查发现 %1$d 个问题：%2$s。趁 Locus 还能读取你的对话，请在 设置 → 备份与恢复 中保存一份备份。</item>
+    </plurals>
+    <string name="data_selftest_storage_unknown">Android 没有告知剩余空间。</string>
+    <string name="data_selftest_storage_ok">共 %2$s，剩余 %1$s。</string>
+    <string name="data_selftest_storage_full">共 %2$s，剩余 %1$s。保存对话、文件和下载可能会失败。</string>
+    <string name="data_selftest_storage_low">共 %2$s，剩余 %1$s。较大的下载（设备端模型、Linux 工具）可能装不下。</string>
+    <string name="data_selftest_notifications_on">已开启。批准请求、提问和已完成的任务都能通知你。</string>
+    <string name="data_selftest_notifications_off">已关闭。Locus 不在屏幕上时，批准请求和提问会无人看到，定时任务也无法告诉你已完成。</string>
+    <string name="data_selftest_linux_not_installed">未安装，因此未检查。</string>
+    <string name="data_selftest_linux_failed">无法运行 Linux 健康检查。</string>
+    <plurals name="data_selftest_linux_passed">
+        <item quantity="other">%1$s：%2$d 项检查通过。</item>
+    </plurals>
+    <string name="data_selftest_linux_attention">%1$s。%3$d 项检查中有 %2$d 项需要处理；每项的解决方法都在 Linux 页面上。</string>
+    <string name="data_selftest_provider_not_checked">未检查：%1$s</string>
+    <plurals name="data_selftest_provider_listed">
+        <item quantity="other">使用其密钥可以连接：列出了 %1$d 个模型。</item>
+    </plurals>
+    <string name="data_selftest_provider_refused">密钥被拒绝（HTTP %1$d）。</string>
+    <string name="data_selftest_provider_refused_message">密钥被拒绝（HTTP %1$d）。%2$s</string>
+    <string name="data_selftest_provider_no_list">它有响应，但不列出模型（HTTP %1$d）；对话可能仍然可用。</string>
+    <string name="data_selftest_provider_unreachable">无法连接 %1$s：%2$s</string>
+    <string name="data_selftest_provider_no_answer">没有响应</string>
+    <plurals name="data_selftest_provider_timeout">
+        <item quantity="other">%1$d 秒内没有响应。</item>
+    </plurals>
+
+    <string name="data_integrity_tool_permissions">你的工具权限在 Locus 之外被更改，因此已重置为安全设置：会改动内容的操作会先询问你，AI 审查器已关闭。拒绝设置已保留。请查看 设置 → 权限。</string>
+    <string name="data_integrity_endpoints">模型提供商地址、代理或 SSH 主机在 Locus 之外被更改。在你检查提供商地址并重新保存之前（设置 → 模型），Locus 不会向它发送密钥；代理和导入的证书已移除，每台 SSH 主机的主机密钥都需要重新确认。</string>
+    <plurals name="data_integrity_connectors">
+        <item quantity="other">有连接器在 Locus 之外被添加或更改（%1$s），因此已退回草稿。请在资料库中检查后再批准。</item>
+    </plurals>
+    <plurals name="data_integrity_skills">
+        <item quantity="other">有技能在 Locus 之外被更改（%1$s）。Locus 没有使用更改后的版本：它们作为标有“已在 Locus 之外更改”的草稿留在 资料库 → 技能 中，你批准过的版本已从保留的副本中恢复。只有确认是你自己所做的更改时才批准。</item>
+    </plurals>
+    <plurals name="data_integrity_helpers">
+        <item quantity="other">有助手在 Locus 之外被更改（%1$s）。Locus 没有使用更改后的版本：它们作为标有“已在 Locus 之外更改”的草稿留在 资料库 → 助手 中，你批准过的版本已从保留的副本中恢复。只有确认是你自己所做的更改时才批准。</item>
+    </plurals>
+    <string name="data_integrity_persona">你的智能体人设（%1$s）在 Locus 之外被更改。Locus 没有使用该更改：新对话使用你保存的版本。请在 设置 → 智能体 → 智能体身份 中查看更改，然后保留或放弃。</string>
+
+    <string name="data_notice_vault_reset">Locus 无法解锁你保存的密钥（API 密钥、密码和登录信息），因此已将其清除。请在设置中重新输入。详情见 设置 → 关于与隐私 → 诊断。</string>
+    <string name="data_notice_settings_reset">Locus 无法读取其设置文件，因此设置已恢复为默认值。旧文件已保留一份副本。详情见 设置 → 关于与隐私 → 诊断。</string>
+    <string name="data_notice_keys_recovered">Locus 打开了上次重置时留存的已保存密钥，并已恢复。此后你输入的密钥也已保留。详情见 设置 → 关于与隐私 → 诊断。</string>
+
+    <string name="data_service_passed">已连接到 %1$s，它接受了密钥（HTTP %2$d）。</string>
+    <string name="data_service_redirect">%1$s 重定向到 %2$s。Locus 不会带着密钥跟随重定向：请改用它重定向到的地址。</string>
+    <string name="data_service_redirect_elsewhere">%1$s 重定向到另一个地址。Locus 不会带着密钥跟随重定向：请改用它重定向到的地址。</string>
+    <string name="data_service_refused">%1$s 拒绝了密钥（HTTP 401）。请检查是否完整复制，以及是否已过期。</string>
+    <string name="data_service_forbidden">%1$s 接受了密钥，但它没有执行此操作的权限（HTTP 403）。请检查密钥的权限。</string>
+    <string name="data_service_not_found">该地址下什么也没有（HTTP 404）。请检查地址，包括 /miniflux 这样的子路径。</string>
+    <string name="data_service_server_error">%1$s 出错了（HTTP %2$d）。请稍后再试。</string>
+    <string name="data_service_http">%1$s 返回 HTTP %2$d。</string>
+    <string name="data_service_unknown_host">找不到 %1$s。请检查地址，并确认这台手机能访问到它（同一网络或 VPN）。</string>
+    <string name="data_service_tls">与 %1$s 的安全连接失败：%2$s。不接受自签名证书。</string>
+    <string name="data_service_tls_untrusted">与 %1$s 的安全连接失败：它的证书不受信任。不接受自签名证书。</string>
+    <string name="data_service_connect">无法连接到 %1$s。服务器在运行吗？端口正确吗？</string>
+    <string name="data_service_timeout">%1$s 没有及时响应。</string>
+    <string name="data_service_unreachable">无法连接 %1$s：%2$s</string>
+    <string name="data_service_login_refused">%1$s 拒绝了该用户名或 API 密码。请在 Profile → API management 下检查 API 密码。</string>
+    <string name="data_service_login_no_api">该地址没有 Google Reader API。请检查地址，并确认已在 FreshRSS 中启用 API（Administration → Authentication）。</string>
+    <string name="data_service_login_http">%1$s 对登录返回了 HTTP %2$d。</string>
+    <string name="data_service_login_no_token">%1$s 没有返回登录令牌。API 启用了吗？</string>
+    <string name="data_service_home_assistant_missing">目录中没有 Home Assistant。</string>
+    <string name="data_service_home_assistant_no_token">请粘贴长期访问令牌。</string>
+    <string name="data_service_home_assistant_passed">已连接到 %1$s 上的 Home Assistant，它接受了令牌。</string>
+</resources>

@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -59,6 +60,23 @@ import dev.locus.core.designsystem.UiText
 import dev.locus.core.designsystem.asString
 import dev.locus.core.designsystem.color
 import dev.locus.core.model.ServiceAddress
+import dev.locus.core.ui.asString
+import dev.locus.core.ui.authSummaryText
+import dev.locus.core.ui.bylineText
+import dev.locus.core.ui.descriptionText
+import dev.locus.core.ui.displayName
+import dev.locus.core.ui.fieldLabel
+import dev.locus.core.ui.fullWarningText
+import dev.locus.core.ui.hostHintText
+import dev.locus.core.ui.labelText
+import dev.locus.core.ui.needsText
+import dev.locus.core.ui.noteText
+import dev.locus.core.ui.pasteText
+import dev.locus.core.ui.scopesText
+import dev.locus.core.ui.sentAsText
+import dev.locus.core.ui.sentenceLabel
+import dev.locus.core.ui.usernameLabelText
+import dev.locus.core.ui.whereText
 
 /** The MCP templates the service picker also offers: the personal ones, set up like a service. */
 internal val personalMcpTemplates: List<McpTemplate> get() = McpTemplates.all.filter { it.category == McpTemplate.Category.HOME }
@@ -71,18 +89,19 @@ internal fun ServicePicker(onPickService: (ConnectorTemplate) -> Unit, onPickMcp
         subtitle = stringResource(R.string.library_service_picker_subtitle),
         onDismiss = onDismiss,
     ) {
+        val res = LocalResources.current
         SectionLabel(stringResource(R.string.library_service_picker_home))
         CardGroup {
             personalMcpTemplates.forEachIndexed { i, t ->
                 if (i > 0) GroupDivider(inset = Insets.iconRow)
-                PickerRow(t.name, t.description, t.authSummary, leading = { ConnectorIcon(t.id, name = t.name) }) { onPickMcp(t) }
+                PickerRow(t.name, t.descriptionText(res), t.authSummaryText(res), leading = { ConnectorIcon(t.id, name = t.name) }) { onPickMcp(t) }
             }
         }
         SectionLabel(stringResource(R.string.library_service_picker_self_hosted), Modifier.padding(top = Spacing.xs))
         CardGroup {
             ConnectorTemplates.all.forEachIndexed { i, t ->
                 if (i > 0) GroupDivider(inset = Insets.iconRow)
-                PickerRow(t.name, t.description, stringResource(R.string.library_service_picker_needs, sentenceLower(t.auth.label)), leading = { ConnectorIcon(t.id, name = t.name) }) { onPickService(t) }
+                PickerRow(t.name, t.descriptionText(res), stringResource(R.string.library_service_picker_needs, t.auth.sentenceLabel(res)), leading = { ConnectorIcon(t.id, name = t.name) }) { onPickService(t) }
             }
         }
     }
@@ -104,12 +123,6 @@ private fun PickerRow(title: String, description: String, needs: String, leading
         leading = leading,
         onClick = onClick,
     )
-}
-
-/** "Access token" → "access token", but "API key" stays: an acronym keeps its capitals. */
-internal fun sentenceLower(label: String): String {
-    val first = label.substringBefore(' ')
-    return if (first.length > 1 && first.all { it.isUpperCase() }) label else label.replaceFirstChar { it.lowercase() }
 }
 
 /** What the user types for a service: its address, a user name when it needs one, and the key. */
@@ -149,20 +162,21 @@ internal fun ServiceTemplateSheet(
     val uriHandler = LocalUriHandler.current
     LaunchedEffect(setup.added) { if (setup.added) onDismiss() }
     val busy = setup.testing || setup.adding
+    val res = LocalResources.current
     LocusSheet(
         title = template.name,
-        subtitle = template.description,
+        subtitle = template.descriptionText(res),
         onDismiss = onDismiss,
         action = stringResource(if (setup.adding) R.string.library_service_adding else R.string.library_action_add),
         actionEnabled = form.ready(template) && !busy,
         onAction = { form.checked.url?.let { url -> localNetwork.run(url) { onAdd(form.address, form.username, form.key) } } },
     ) {
-        AddressField(form, template.hostHint, localNetwork) { form.address = it; onEdited() }
+        AddressField(form, template.hostHintText(res), localNetwork) { form.address = it; onEdited() }
         val auth = template.auth
         if (auth.needsUsername) {
             OutlinedTextField(
                 form.username, { form.username = it.trim(); onEdited() },
-                label = { Text(auth.usernameLabel ?: stringResource(R.string.library_service_user_name)) },
+                label = { Text(auth.usernameLabelText(res) ?: stringResource(R.string.library_service_user_name)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, autoCorrectEnabled = false, imeAction = ImeAction.Next),
                 modifier = Modifier.fillMaxWidth(),
@@ -170,10 +184,10 @@ internal fun ServiceTemplateSheet(
         }
         PasswordField(
             form.key, { form.key = it; onEdited() },
-            label = auth.label,
-            supportingText = stringResource(R.string.library_service_key_hint, auth.where, auth.sentAs),
+            label = auth.labelText(res),
+            supportingText = stringResource(R.string.library_service_key_hint, template.whereText(res), auth.sentAsText(res)),
         )
-        template.note?.let { SupportingText(it) }
+        template.noteText(res)?.let { SupportingText(it) }
         TestButton(enabled = form.ready(template) && !busy, testing = setup.testing) {
             form.checked.url?.let { url -> localNetwork.run(url) { onTest(form.address, form.username, form.key) } }
         }
@@ -234,8 +248,8 @@ internal fun ConnectionResult(setup: ServiceSetup) {
             title = stringResource(R.string.library_service_connection),
             subtitle = when (result) {
                 null -> stringResource(R.string.library_service_trying)
-                is ConnectionCheck.Passed -> result.detail
-                is ConnectionCheck.Failed -> result.message.ifBlank { stringResource(R.string.library_service_test_failed_body) }
+                is ConnectionCheck.Passed -> result.detail.asString()
+                is ConnectionCheck.Failed -> result.message.asString().ifBlank { stringResource(R.string.library_service_test_failed_body) }
             },
             subtitleMaxLines = Int.MAX_VALUE,
             meta = if (large) ({ Box(Modifier.padding(top = Spacing.xs)) { pill() } }) else null,
@@ -292,9 +306,10 @@ internal fun HomeAssistantSheet(
     LaunchedEffect(setup.added) { if (setup.added) onDismiss() }
     val busy = setup.testing || setup.adding
     val ready = form.checked.ok && form.key.isNotBlank() && rules.parsed != null && !busy
+    val res = LocalResources.current
     LocusSheet(
         title = template.name,
-        subtitle = template.description,
+        subtitle = template.descriptionText(res),
         onDismiss = onDismiss,
         action = stringResource(if (setup.adding) R.string.library_service_adding else R.string.library_action_add),
         actionEnabled = ready,
@@ -306,16 +321,16 @@ internal fun HomeAssistantSheet(
         Row(verticalAlignment = Alignment.CenterVertically) {
             ConnectorIcon(template.id, name = template.name)
             androidx.compose.foundation.layout.Column(Modifier.weight(1f).padding(start = Spacing.md)) {
-                Text(template.byline, style = LocusType.rowSupporting)
-                SupportingText(template.authSummary)
+                Text(template.bylineText(res), style = LocusType.rowSupporting)
+                SupportingText(template.authSummaryText(res))
             }
         }
-        template.note?.let { SupportingText(it) }
+        template.noteText(res)?.let { SupportingText(it) }
         AddressField(form, hosted.hostHint, localNetwork) { form.address = it; onEdited() }
         PasswordField(
             form.key, { form.key = it; onEdited() },
-            label = template.key?.label ?: stringResource(R.string.library_service_token_label),
-            supportingText = stringResource(R.string.library_service_bearer_hint, template.key?.scopes?.replaceFirstChar { it.uppercase() }.orEmpty()),
+            label = template.key?.labelText(res) ?: stringResource(R.string.library_service_token_label),
+            supportingText = stringResource(R.string.library_service_bearer_hint, template.scopesText(res)?.replaceFirstChar { it.uppercase() }.orEmpty()),
         )
         TestButton(enabled = form.checked.ok && form.key.isNotBlank() && !busy, testing = setup.testing) {
             form.checked.url?.let { url -> localNetwork.run(url) { onTest(form.address, form.key) } }
@@ -324,12 +339,12 @@ internal fun HomeAssistantSheet(
         CardGroup {
             SwitchRow(
                 title = stringResource(R.string.library_service_full_access),
-                subtitle = if (full) hosted.fullWarning.orEmpty() else stringResource(R.string.library_service_full_access_off, hosted.path),
+                subtitle = if (full) template.fullWarningText(res).orEmpty() else stringResource(R.string.library_service_full_access_off, hosted.path),
                 checked = full,
                 onCheckedChange = { full = it },
             )
         }
-        if (full) Banner(hosted.fullWarning.orEmpty(), Tone.Caution, title = stringResource(R.string.library_service_full_access_banner))
+        if (full) Banner(template.fullWarningText(res).orEmpty(), Tone.Caution, title = stringResource(R.string.library_service_full_access_banner))
         HomeRulesFields(rules)
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             template.key?.let { key -> TextButton(onClick = { uriHandler.openUri(key.url) }) { Text(stringResource(R.string.library_service_about_tokens)) } }

@@ -57,6 +57,8 @@ import dev.locus.core.designsystem.meterFraction
 import dev.locus.core.designsystem.meterPercent
 import dev.locus.core.designsystem.relativeTime
 import dev.locus.core.linux.LinuxHealth
+import dev.locus.core.ui.asString
+import dev.locus.core.ui.toUiText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -119,7 +121,7 @@ internal class StorageViewModel @Inject constructor(private val storage: Storage
                 when (action) {
                     StorageAction.ClearCaches -> StorageMessage(
                         storage.clearCaches().let {
-                            if (it > 0) UiText.Res(R.string.settings_storage_cleared, LinuxHealth.bytes(it)) else UiText.Res(R.string.settings_storage_nothing_to_clear)
+                            if (it > 0) UiText.Res(R.string.settings_storage_cleared, LinuxHealth.bytesText(it).toUiText()) else UiText.Res(R.string.settings_storage_nothing_to_clear)
                         },
                     )
                     StorageAction.EmptyTrash -> StorageMessage(
@@ -236,12 +238,12 @@ internal fun StorageSettings(
 private fun Summary(report: StorageReport, measuring: Boolean, onRefresh: () -> Unit) {
     LocusCard {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            Text(stringResource(R.string.settings_storage_locus_uses, LinuxHealth.bytes(report.locusBytes)), style = LocusType.stateTitle)
+            Text(stringResource(R.string.settings_storage_locus_uses, LinuxHealth.bytesText(report.locusBytes).asString()), style = LocusType.stateTitle)
             if (report.totalBytes > 0) {
                 // The bar is the phone's storage, not Locus's: it sits under the line that says so.
                 val used = (report.totalBytes - report.freeBytes).coerceAtLeast(0)
                 val fraction = meterFraction(used, report.totalBytes)
-                SupportingText(stringResource(R.string.settings_storage_phone_full, (fraction * 100).roundToInt(), LinuxHealth.bytes(report.freeBytes), LinuxHealth.bytes(report.totalBytes)))
+                SupportingText(stringResource(R.string.settings_storage_phone_full, (fraction * 100).roundToInt(), LinuxHealth.bytesText(report.freeBytes).asString(), LinuxHealth.bytesText(report.totalBytes).asString()))
                 Meter(fraction, size = MeterSize.Medium, contentDescription = stringResource(R.string.settings_storage_phone_description, meterPercent(fraction)))
             }
             SupportingText(if (measuring) stringResource(R.string.settings_storage_measuring_again) else stringResource(R.string.settings_storage_measured, relativeTime(report.takenAt).lowercase()))
@@ -271,7 +273,7 @@ private fun AreaRow(
     val size = when (bytes) {
         null -> stringResource(R.string.settings_storage_unmeasured)
         0L -> stringResource(R.string.settings_storage_empty)
-        else -> LinuxHealth.bytes(bytes)
+        else -> LinuxHealth.bytesText(bytes).asString()
     }
     // Each area's one action: a confirmed clean-up, or the screen that manages it.
     val action: Pair<String, () -> Unit>? = when (item.area) {
@@ -284,9 +286,9 @@ private fun AreaRow(
     val running = (item.area == StorageArea.Caches && busy == StorageAction.ClearCaches) ||
         (item.area == StorageArea.Trash && busy == StorageAction.EmptyTrash)
     val actionButton: (@Composable () -> Unit)? = when {
-        running -> ({ InlineSpinner(contentDescription = stringResource(R.string.settings_storage_working, item.area.title)) })
+        running -> ({ InlineSpinner(contentDescription = stringResource(R.string.settings_storage_working, stringResource(item.area.titleRes))) })
         action != null -> ({
-            val description = stringResource(R.string.settings_storage_action_description, action.first, item.area.title)
+            val description = stringResource(R.string.settings_storage_action_description, action.first, stringResource(item.area.titleRes))
             TextButton(
                 onClick = action.second,
                 enabled = enabled,
@@ -298,8 +300,8 @@ private fun AreaRow(
     // At a large font the action goes under the size, so the area's words keep the row's width.
     val large = LocalDensity.current.fontScale > LARGE_FONT
     ListRow(
-        title = item.area.title,
-        subtitle = item.area.note,
+        title = stringResource(item.area.titleRes),
+        subtitle = stringResource(item.area.noteRes),
         titleMaxLines = 2,
         subtitleMaxLines = if (large) Int.MAX_VALUE else 3,
         leading = { IconTile(item.area.icon()) },

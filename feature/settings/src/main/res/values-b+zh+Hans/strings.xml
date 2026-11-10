@@ -404,6 +404,7 @@
     <string name="settings_selftest_level_warn">警告</string>
     <string name="settings_selftest_level_fail">失败</string>
     <string name="settings_selftest_level_skipped">已跳过</string>
+    <string name="settings_selftest_check_failed">检查本身出错（%1$s）。</string>
     <plurals name="settings_selftest_providers_requests">
         <item quantity="other">会使用网络：向你的每个提供商（共 %1$d 个）各发送一次请求。</item>
     </plurals>

@@ -159,12 +159,24 @@ internal object DataStoreModule {
             produceFile = { context.dataStoreFile(DataStoreFiles.SECRETS) },
         )
 
-    const val VAULT_RESET_NOTICE =
+    const val VAULT_RESET_NOTICE = StoreNotices.VAULT_RESET
+    const val SETTINGS_RESET_NOTICE = StoreNotices.SETTINGS_RESET
+}
+
+/**
+ * The one-time notices Locus stores (in English, [DiagnosticsLog.addNotice]) when it had to reset or
+ * restore stored data. Public so the screen that shows them can say the known ones in the app's language.
+ */
+object StoreNotices {
+    const val VAULT_RESET =
         "Locus couldn't unlock your saved keys (API keys, passwords and sign-ins), so they were cleared. " +
             "Enter them again in Settings. Details are in Settings → About & privacy → Diagnostics."
-    const val SETTINGS_RESET_NOTICE =
+    const val SETTINGS_RESET =
         "Locus couldn't read its settings file, so settings were reset to the defaults. A copy of the old file was kept. " +
             "Details are in Settings → About & privacy → Diagnostics."
+    const val KEYS_RECOVERED =
+        "Locus could open the saved keys it had set aside at the last reset, and restored them. " +
+            "Keys you entered since were kept. Details are in Settings → About & privacy → Diagnostics."
 }
 
 internal fun secretsJson(): Serializer<Map<String, String>> = JsonSerializer(MapSerializer(String.serializer(), String.serializer()), emptyMap())

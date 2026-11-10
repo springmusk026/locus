@@ -1,5 +1,6 @@
 package dev.locus.feature.onboarding
 
+import androidx.compose.ui.platform.LocalResources
 import dev.locus.core.designsystem.asString
 import dev.locus.core.designsystem.UiText
 import androidx.compose.foundation.clickable
@@ -43,6 +44,12 @@ import dev.locus.core.designsystem.Sizes
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.ui.SshAuthFields
 import dev.locus.core.ui.TelegramSheet
+import dev.locus.core.ui.asString
+import dev.locus.core.ui.descriptionText
+import dev.locus.core.ui.displayName
+import dev.locus.core.ui.keyHelpText
+import dev.locus.core.ui.keyLabelText
+import dev.locus.core.ui.linkLabelText
 import dev.locus.core.ui.sshHostSubtitle
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.GroupDivider
@@ -68,6 +75,8 @@ import dev.locus.core.designsystem.Meter
 import dev.locus.core.linux.LinuxStatus
 import dev.locus.core.model.ApiFormat
 import dev.locus.core.model.LINUX_INSTALL_ACTION
+import dev.locus.core.ui.summaryText
+import dev.locus.core.ui.toUiText
 
 // ---- Workspace & Linux ---------------------------------------------------------------------------
 
@@ -84,9 +93,9 @@ internal fun ColumnScope.LinuxStep(state: OnboardingUiState, viewModel: Onboardi
                 Text(stringResource(R.string.onboarding_linux_alpine), style = LocusType.rowTitle)
                 when (linux) {
                     LinuxStatus.NotInstalled -> Hint(stringResource(R.string.onboarding_linux_not_installed))
-                    is LinuxStatus.Installing -> StatusLine(linux.step, Tone.Live)
+                    is LinuxStatus.Installing -> StatusLine(linux.stepText.asString(), Tone.Live)
                     LinuxStatus.Ready -> Hint(stringResource(R.string.onboarding_linux_installed_note))
-                    is LinuxStatus.Unavailable -> Text(linux.reason, style = LocusType.rowSupporting, color = Locus.colors.onCautionContainer)
+                    is LinuxStatus.Unavailable -> Text(linux.reasonText.asString(), style = LocusType.rowSupporting, color = Locus.colors.onCautionContainer)
                     is LinuxStatus.Failed -> Text(linux.message, style = LocusType.rowSupporting, color = Locus.colors.critical)
                 }
             }
@@ -115,7 +124,7 @@ internal fun ColumnScope.LinuxStep(state: OnboardingUiState, viewModel: Onboardi
                 Checkbox(checked = installed || p in viewModel.packages, onCheckedChange = { viewModel.togglePackage(p) }, enabled = selectable)
                 Column(Modifier.weight(1f).padding(vertical = Spacing.sm)) {
                     Text(p.label, style = LocusType.rowTitle)
-                    SupportingText(p.note, style = LocusType.rowSupporting)
+                    SupportingText(stringResource(p.noteRes), style = LocusType.rowSupporting)
                 }
                 when (pkg) {
                     PackageState.Installed -> StatusPill(stringResource(R.string.onboarding_linux_package_installed), Tone.Live)
@@ -125,7 +134,7 @@ internal fun ColumnScope.LinuxStep(state: OnboardingUiState, viewModel: Onboardi
                     PackageState.Unknown -> Unit
                 }
             }
-            (pkg as? PackageState.Failed)?.let { OutputBlock(it.detail, Modifier.padding(start = Spacing.sm + Sizes.touchTarget, end = Spacing.lg, bottom = Spacing.md)) }
+            (pkg as? PackageState.Failed)?.let { OutputBlock(it.detail.asString(), Modifier.padding(start = Spacing.sm + Sizes.touchTarget, end = Spacing.lg, bottom = Spacing.md)) }
         }
     }
 
@@ -166,14 +175,13 @@ internal fun ColumnScope.LinuxStep(state: OnboardingUiState, viewModel: Onboardi
     when {
         setup.running -> Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             val installing = linux as? LinuxStatus.Installing
-            StatusLine(installing?.step ?: setup.phase ?: stringResource(R.string.onboarding_linux_working), Tone.Live)
+            StatusLine(installing?.stepText?.asString() ?: setup.phase?.asString() ?: stringResource(R.string.onboarding_linux_working), Tone.Live)
             Meter(installing?.fraction ?: setup.progress, tone = Tone.Live, contentDescription = stringResource(R.string.onboarding_linux_progress))
             Hint(stringResource(R.string.onboarding_linux_background_note))
             if (setup.cancellable) TextButton(onClick = viewModel::cancelLinux) { Text(stringResource(R.string.onboarding_linux_cancel_install)) }
         }
-        // LinuxSetup's words are core's.
-        setup.error != null -> JobStatus(Job(error = setup.error?.let(UiText::Plain)), "")
-        setup.message != null -> JobStatus(Job(result = setup.message?.let(UiText::Plain)), "")
+        setup.error != null -> JobStatus(Job(error = setup.error?.toUiText()), "")
+        setup.message != null -> JobStatus(Job(result = setup.message?.toUiText()), "")
     }
     Hint(stringResource(R.string.onboarding_linux_packages_note))
 }
@@ -270,8 +278,8 @@ internal fun ColumnScope.ConnectorsStep(state: OnboardingUiState, viewModel: Onb
         state.integrations.forEachIndexed { i, (integration, hasKey) ->
             if (i > 0) GroupDivider(Insets.iconRow)
             ListRow(
-                integration.name,
-                subtitle = integration.summary,
+                integration.displayName(LocalResources.current),
+                subtitle = integration.summaryText(LocalResources.current),
                 onClick = { keyFor = integration.id },
                 leading = { IntegrationIcon(integration.id) },
                 subtitleMaxLines = 2,
@@ -337,9 +345,10 @@ private fun IntegrationKeySheet(integration: Integration, hasKey: Boolean, onSav
     var key by rememberSaveable { mutableStateOf("") }
     val problem = keyProblem(integration, key)
     val uri = LocalUriHandler.current
+    val res = LocalResources.current
     LocusSheet(
-        title = integration.name,
-        subtitle = integration.description,
+        title = integration.displayName(res),
+        subtitle = integration.descriptionText(res),
         onDismiss = onDismiss,
         action = stringResource(R.string.onboarding_connectors_key_save),
         actionEnabled = key.isNotBlank() && problem == null,
@@ -348,16 +357,16 @@ private fun IntegrationKeySheet(integration: Integration, hasKey: Boolean, onSav
         OutlinedTextField(
             key,
             { key = it },
-            label = { Text(if (hasKey) stringResource(R.string.onboarding_connectors_key_label_saved, integration.keyLabel) else integration.keyLabel) },
+            label = { Text(integration.keyLabelText(res).let { if (hasKey) stringResource(R.string.onboarding_connectors_key_label_saved, it) else it }) },
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             isError = problem != null,
-            supportingText = (problem?.asString() ?: integration.keyHelp)?.let { { Text(it) } },
+            supportingText = (problem?.asString() ?: integration.keyHelpText(res))?.let { { Text(it) } },
             modifier = Modifier.fillMaxWidth(),
         )
         Row {
-            TextButton(onClick = { uri.openUri(integration.signupUrl) }) { Text(integration.linkLabel) }
+            TextButton(onClick = { uri.openUri(integration.signupUrl) }) { Text(integration.linkLabelText(res)) }
             if (hasKey) {
                 androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
                 TextButton(onClick = { onSave(null) }) { Text(stringResource(R.string.onboarding_connectors_key_remove), color = Locus.colors.critical) }

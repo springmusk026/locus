@@ -23,6 +23,10 @@
     <string name="app_keys_reset_title">Não é possível abrir as chaves salvas</string>
     <string name="app_keys_reset_action">Redefinir</string>
     <string name="app_keys_reset_message">O Locus não consegue abrir suas chaves salvas. Isso pode acontecer depois de trocar o bloqueio de tela ou restaurar o telefone. Redefinir e digitar as chaves de novo? (Uma cópia é mantida caso seja possível recuperá-las.)</string>
+    <string name="app_keys_reset_failed">A redefinição não abriu chaves novas. Os detalhes estão em Configurações → Sobre e privacidade → Diagnóstico.</string>
+    <string name="app_restore_rolled_back">A restauração do backup não terminou; seus dados e chaves salvas continuam como estavam. Tente de novo em Configurações → Backup e restauração.</string>
+    <string name="app_restore_retrying">A restauração do backup não terminou, e alguns dos seus dados ainda não puderam ser recuperados. O Locus tenta de novo na próxima vez que iniciar. Reinicie o Locus antes de restaurar de novo.</string>
+    <string name="app_restore_tasks_failed">Suas tarefas agendadas não puderam ser configuradas de novo após a restauração (%1$s). Elas não vão rodar até isso acontecer; o Locus tenta de novo na próxima vez que iniciar.</string>
     <plurals name="app_share_failures_title" tools:ignore="ImpliedQuantity">
         <item quantity="one">Um arquivo compartilhado não foi importado</item>
         <item quantity="many">%1$d arquivos compartilhados não foram importados</item>

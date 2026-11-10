@@ -67,6 +67,8 @@ import dev.locus.core.designsystem.color
 import dev.locus.core.designsystem.meterFraction
 import dev.locus.core.designsystem.meterPercent
 import dev.locus.core.designsystem.relativeTime
+import dev.locus.core.linux.EngineText
+import dev.locus.core.ui.asString
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -77,7 +79,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /** A row of the self-test: [result] is null until its check has run. */
-internal data class SelfTestRow(val id: String, val title: String, val result: SelfTestResult? = null)
+internal data class SelfTestRow(val id: String, val title: EngineText, val result: SelfTestResult? = null)
 
 /**
  * The self-test page. [rows] is empty before the first run starts; [checking] is the id of the check
@@ -163,7 +165,7 @@ internal class SelfTestViewModel @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            SelfTestResult(check.id, check.title, SelfTestLevel.Fail, "The check itself failed (${e::class.java.simpleName}).", SelfTestFix.RunAgain)
+            SelfTestResult(check.id, check.title, SelfTestLevel.Fail, EngineText.Res(R.string.settings_selftest_check_failed, e::class.java.simpleName), SelfTestFix.RunAgain)
         }
         _state.update { s -> s.copy(rows = s.rows.map { if (it.id == check.id) it.copy(result = result) else it }) }
     }
@@ -332,9 +334,10 @@ private fun Verdict(state: SelfTestUiState, onRun: () -> Unit) {
 private fun CheckRow(row: SelfTestRow, checking: Boolean, busy: Boolean, onFix: (SelfTestFix) -> Unit) {
     val result = row.result
     val large = LocalDensity.current.fontScale > LARGE_FONT
+    val title = row.title.asString()
     ListRow(
-        title = row.title,
-        subtitle = result?.detail ?: stringResource(if (checking) R.string.settings_selftest_checking else R.string.settings_selftest_waiting),
+        title = title,
+        subtitle = result?.detail?.asString() ?: stringResource(if (checking) R.string.settings_selftest_checking else R.string.settings_selftest_waiting),
         titleMaxLines = 2,
         subtitleMaxLines = 6,
         leading = {
@@ -345,7 +348,7 @@ private fun CheckRow(row: SelfTestRow, checking: Boolean, busy: Boolean, onFix: 
                     tint = result.level.tone().color(),
                     modifier = Modifier.size(IconSize.medium),
                 )
-                checking -> InlineSpinner(contentDescription = stringResource(R.string.settings_selftest_checking_row, row.title))
+                checking -> InlineSpinner(contentDescription = stringResource(R.string.settings_selftest_checking_row, title))
                 else -> Icon(LocusIcons.Clock, contentDescription = stringResource(R.string.settings_selftest_waiting), tint = Tone.Neutral.color(), modifier = Modifier.size(IconSize.medium))
             }
         },
@@ -357,12 +360,13 @@ private fun CheckRow(row: SelfTestRow, checking: Boolean, busy: Boolean, onFix: 
 
 @Composable
 private fun FixButton(fix: SelfTestFix, row: SelfTestRow, busy: Boolean, onFix: (SelfTestFix) -> Unit) {
-    val description = stringResource(R.string.settings_selftest_fix_description, fix.label, row.title)
+    val label = stringResource(fix.labelRes)
+    val description = stringResource(R.string.settings_selftest_fix_description, label, row.title.asString())
     TextButton(
         onClick = { onFix(fix) },
         enabled = !busy,
         modifier = Modifier.heightIn(min = Sizes.touchTarget).semantics { contentDescription = description },
-    ) { Text(fix.label) }
+    ) { Text(label) }
 }
 
 /** From this font scale a row's action moves under its text. */

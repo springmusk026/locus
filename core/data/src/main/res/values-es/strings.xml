@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="data_linux_package_python_note">python3 y pip</string>
+    <string name="data_linux_package_git_note">control de versiones</string>
+    <string name="data_linux_package_node_note">node y npm</string>
+    <string name="data_linux_package_curl_note">HTTP desde la shell</string>
+    <string name="data_linux_phase_starting">Empezando…</string>
+    <string name="data_linux_phase_removing_old">Quitando el sistema Linux anterior…</string>
+    <string name="data_linux_phase_installing_alpine">Instalando Alpine Linux…</string>
+    <string name="data_linux_phase_checking">Comprobando lo que ya está instalado…</string>
+    <string name="data_linux_phase_updating">Actualizando la lista de paquetes (apk update)…</string>
+    <string name="data_linux_phase_installing_package">Instalando %1$s (%2$d de %3$d)…</string>
+    <string name="data_linux_phase_repairing">Reparando…</string>
+    <string name="data_linux_phase_removing">Quitando Linux…</string>
+    <string name="data_linux_working">Trabajando…</string>
+    <string name="data_linux_ready">Linux está listo.</string>
+    <string name="data_linux_reinstalled">Se reinstaló Linux.</string>
+    <string name="data_linux_reinstalled_with">Se reinstaló Linux con %1$s.</string>
+    <string name="data_linux_installed">Se instaló %1$s.</string>
+    <string name="data_linux_cancelled">Cancelado. No se conservó nada de lo descargado.</string>
+    <string name="data_linux_repaired">Reparado. Alpine Linux %1$s arranca con normalidad.</string>
+    <string name="data_linux_removed">Se quitó Linux. Los archivos de tu espacio de trabajo siguen aquí.</string>
+    <string name="data_linux_update_timed_out">apk update agotó el tiempo de espera.</string>
+    <string name="data_linux_update_unreachable">No se pudo acceder a los servidores de paquetes de Alpine.</string>
+    <string name="data_linux_update_failed">%1$s Revisa la conexión a internet e inténtalo de nuevo.</string>
+    <string name="data_linux_package_timed_out">Se agotó el tiempo. El agente puede terminarlo más tarde con apk add.</string>
+    <string name="data_linux_package_exit">apk terminó con %1$s</string>
+    <string name="data_linux_packages_failed">No se pudieron instalar %1$d de %2$d. Mira abajo; puedes volver a intentarlo.</string>
+    <string name="data_linux_estimate_under_a_minute">Unos %1$d MB de descarga y %2$d MB en el teléfono. Con Wi-Fi suele tardar menos de un minuto.</string>
+    <plurals name="data_linux_estimate_minutes">
+        <item quantity="one">Unos %1$d MB de descarga y %2$d MB en el teléfono. Con Wi-Fi suele tardar unos %3$d minuto.</item>
+        <item quantity="many">Unos %1$d MB de descarga y %2$d MB en el teléfono. Con Wi-Fi suele tardar unos %3$d minutos.</item>
+        <item quantity="other">Unos %1$d MB de descarga y %2$d MB en el teléfono. Con Wi-Fi suele tardar unos %3$d minutos.</item>
+    </plurals>
+    <string name="data_linux_notification_setting_up">Configurando Linux</string>
+    <string name="data_linux_notification_channel">Configuración de Linux</string>
+    <string name="data_linux_notification_title">Instalando Linux</string>
+    <string name="data_linux_notification_cancel">Cancelar</string>
+
+    <string name="data_heat_services_more">%1$s y %2$d más</string>
+    <plurals name="data_heat_message">
+        <item quantity="one">El teléfono está muy caliente y hay %1$d servicio de Linux en ejecución (%2$s). Detenerlo ayudaría a que se enfríe; el agente puede volver a iniciarlo más tarde.</item>
+        <item quantity="many">El teléfono está muy caliente y hay %1$d servicios de Linux en ejecución (%2$s). Detenerlos ayudaría a que se enfríe; el agente puede volver a iniciarlos más tarde.</item>
+        <item quantity="other">El teléfono está muy caliente y hay %1$d servicios de Linux en ejecución (%2$s). Detenerlos ayudaría a que se enfríe; el agente puede volver a iniciarlos más tarde.</item>
+    </plurals>
+
+    <string name="data_storage_database_title">Chats e historial</string>
+    <string name="data_storage_database_note">La base de datos: chats, mensajes, actividad y uso.</string>
+    <string name="data_storage_workspace_title">Espacio de trabajo</string>
+    <string name="data_storage_workspace_note">Archivos que guardan tú y el agente.</string>
+    <string name="data_storage_trash_title">Papelera del espacio de trabajo</string>
+    <string name="data_storage_trash_note">Archivos eliminados y sobrescritos, guardados para poder deshacer cambios.</string>
+    <string name="data_storage_linux_title">Linux</string>
+    <string name="data_storage_linux_note">Alpine Linux, sus paquetes y sus cachés.</string>
+    <string name="data_storage_models_title">Modelos en el dispositivo</string>
+    <string name="data_storage_models_note">Modelos LiteRT y GGUF, y descargas sin terminar.</string>
+    <string name="data_storage_browser_title">Datos del navegador</string>
+    <string name="data_storage_browser_note">Las cookies, los inicios de sesión y la caché de páginas del navegador del agente.</string>
+    <string name="data_storage_caches_title">Cachés</string>
+    <string name="data_storage_caches_note">Archivos temporales que Locus vuelve a crear cuando hace falta.</string>
+    <string name="data_storage_logs_title">Registros</string>
+    <string name="data_storage_logs_note">Entradas de diagnóstico en este teléfono.</string>
+    <string name="data_storage_agent_home_title">Memoria, habilidades y ajustes</string>
+    <string name="data_storage_agent_home_note">Lo que aprendió el agente, tus habilidades y conectores, los ajustes y las claves guardadas.</string>
+
+    <string name="data_selftest_fix_run_again">Reintentar</string>
+    <string name="data_selftest_fix_reset_keys">Restablecer claves</string>
+    <string name="data_selftest_fix_notifications">Activar</string>
+    <string name="data_selftest_fix_storage">Liberar espacio</string>
+    <string name="data_selftest_fix_linux">Abrir Linux</string>
+    <string name="data_selftest_fix_models">Abrir Modelos</string>
+    <string name="data_selftest_vault_title">Keystore y claves guardadas</string>
+    <string name="data_selftest_database_title">Base de datos</string>
+    <string name="data_selftest_storage_title">Almacenamiento libre</string>
+    <string name="data_selftest_notifications_title">Notificaciones</string>
+    <string name="data_selftest_linux_title">Linux</string>
+    <string name="data_selftest_vault_ok_empty">La clave del Keystore abre, cifra y descifra. Aún no hay claves guardadas.</string>
+    <plurals name="data_selftest_vault_ok">
+        <item quantity="one">La clave del Keystore abre, cifra y descifra. %1$d valor guardado se descifra.</item>
+        <item quantity="many">La clave del Keystore abre, cifra y descifra. %1$d valores guardados se descifran.</item>
+        <item quantity="other">La clave del Keystore abre, cifra y descifra. %1$d valores guardados se descifran.</item>
+    </plurals>
+    <string name="data_selftest_vault_locked">Las claves guardadas se abren después de desbloquear el teléfono por primera vez desde que se reinició.</string>
+    <string name="data_selftest_vault_needs_reset">Locus no puede abrir tus claves guardadas (%1$s). Al restablecerlas se crean claves nuevas; se guarda una copia de las anteriores por si se pueden recuperar.</string>
+    <string name="data_selftest_vault_unavailable">Locus no puede abrir tus claves guardadas ahora mismo. No se cambió nada; puede resolverse solo.</string>
+    <string name="data_selftest_vault_unavailable_reason">Locus no puede abrir tus claves guardadas ahora mismo (%1$s). No se cambió nada; puede resolverse solo.</string>
+    <string name="data_selftest_database_failed">No se pudo ejecutar la comprobación de integridad.</string>
+    <string name="data_selftest_database_failed_reason">No se pudo ejecutar la comprobación de integridad (%1$s).</string>
+    <string name="data_selftest_database_ok">La comprobación de integridad (quick_check) no encontró problemas.</string>
+    <plurals name="data_selftest_database_problems">
+        <item quantity="one">La comprobación de integridad encontró %1$d problema: %2$s. Guarda una copia de seguridad en Ajustes → Copia de seguridad y restauración mientras Locus aún puede leer tus chats.</item>
+        <item quantity="many">La comprobación de integridad encontró %1$d problemas: %2$s. Guarda una copia de seguridad en Ajustes → Copia de seguridad y restauración mientras Locus aún puede leer tus chats.</item>
+        <item quantity="other">La comprobación de integridad encontró %1$d problemas: %2$s. Guarda una copia de seguridad en Ajustes → Copia de seguridad y restauración mientras Locus aún puede leer tus chats.</item>
+    </plurals>
+    <string name="data_selftest_storage_unknown">Android no indicó cuánto espacio queda libre.</string>
+    <string name="data_selftest_storage_ok">%1$s libres de %2$s.</string>
+    <string name="data_selftest_storage_full">%1$s libres de %2$s. Puede fallar al guardar chats, archivos y descargas.</string>
+    <string name="data_selftest_storage_low">%1$s libres de %2$s. Puede que las descargas grandes (un modelo en el dispositivo, herramientas de Linux) no quepan.</string>
+    <string name="data_selftest_notifications_on">Activadas. Te pueden llegar aprobaciones, preguntas y tareas terminadas.</string>
+    <string name="data_selftest_notifications_off">Desactivadas. Mientras Locus no está en pantalla, las aprobaciones y preguntas esperan sin que las veas, y las tareas programadas no pueden avisarte cuando terminan.</string>
+    <string name="data_selftest_linux_not_installed">No está instalado, así que no se comprobó.</string>
+    <string name="data_selftest_linux_failed">No se pudo ejecutar la comprobación del estado de Linux.</string>
+    <plurals name="data_selftest_linux_passed">
+        <item quantity="one">%1$s: se superó %2$d comprobación.</item>
+        <item quantity="many">%1$s: se superaron %2$d comprobaciones.</item>
+        <item quantity="other">%1$s: se superaron %2$d comprobaciones.</item>
+    </plurals>
+    <string name="data_selftest_linux_attention">%1$s. %2$d de %3$d comprobaciones necesitan atención; cada una tiene su solución en la pantalla de Linux.</string>
+    <string name="data_selftest_provider_not_checked">Sin comprobar: %1$s</string>
+    <plurals name="data_selftest_provider_listed">
+        <item quantity="one">Accesible con su clave: %1$d modelo en la lista.</item>
+        <item quantity="many">Accesible con su clave: %1$d modelos en la lista.</item>
+        <item quantity="other">Accesible con su clave: %1$d modelos en la lista.</item>
+    </plurals>
+    <string name="data_selftest_provider_refused">Se rechazó la clave (HTTP %1$d).</string>
+    <string name="data_selftest_provider_refused_message">Se rechazó la clave (HTTP %1$d). %2$s</string>
+    <string name="data_selftest_provider_no_list">Respondió, pero no lista modelos (HTTP %1$d); puede que los chats funcionen igual.</string>
+    <string name="data_selftest_provider_unreachable">No se pudo acceder a %1$s: %2$s</string>
+    <string name="data_selftest_provider_no_answer">sin respuesta</string>
+    <plurals name="data_selftest_provider_timeout">
+        <item quantity="one">Sin respuesta en %1$d segundo.</item>
+        <item quantity="many">Sin respuesta en %1$d segundos.</item>
+        <item quantity="other">Sin respuesta en %1$d segundos.</item>
+    </plurals>
+
+    <string name="data_integrity_tool_permissions">Los permisos de tus herramientas se cambiaron fuera de Locus, así que se restablecieron a una configuración segura: las acciones que cambian algo te preguntan primero y el revisor de IA está desactivado. Se conservaron los rechazos. Revisa Ajustes → Permisos.</string>
+    <string name="data_integrity_endpoints">Las direcciones de proveedores de modelos, los proxies o las máquinas SSH se cambiaron fuera de Locus. Locus no enviará a un proveedor su clave hasta que compruebes su dirección y la vuelvas a guardar (Ajustes → Modelos); se quitaron los proxies y los certificados importados, y hay que volver a confirmar la clave de host de cada máquina SSH.</string>
+    <plurals name="data_integrity_connectors">
+        <item quantity="one">Se agregó o cambió un conector fuera de Locus (%1$s), así que volvió a borradores. Revísalo en Biblioteca antes de aprobarlo de nuevo.</item>
+        <item quantity="many">Se agregaron o cambiaron conectores fuera de Locus (%1$s), así que volvieron a borradores. Revísalos en Biblioteca antes de aprobarlos de nuevo.</item>
+        <item quantity="other">Se agregaron o cambiaron conectores fuera de Locus (%1$s), así que volvieron a borradores. Revísalos en Biblioteca antes de aprobarlos de nuevo.</item>
+    </plurals>
+    <plurals name="data_integrity_skills">
+        <item quantity="one">Se cambió una habilidad fuera de Locus (%1$s). Locus no usa la versión cambiada: espera en Biblioteca → Habilidades como borrador marcado “Cambiado fuera de Locus”, y la versión que aprobaste volvió donde se guardaba una copia. Aprueba un cambio solo si lo hiciste tú.</item>
+        <item quantity="many">Se cambiaron habilidades fuera de Locus (%1$s). Locus no usa las versiones cambiadas: esperan en Biblioteca → Habilidades como borradores marcados “Cambiado fuera de Locus”, y la versión que aprobaste volvió donde se guardaba una copia. Aprueba un cambio solo si lo hiciste tú.</item>
+        <item quantity="other">Se cambiaron habilidades fuera de Locus (%1$s). Locus no usa las versiones cambiadas: esperan en Biblioteca → Habilidades como borradores marcados “Cambiado fuera de Locus”, y la versión que aprobaste volvió donde se guardaba una copia. Aprueba un cambio solo si lo hiciste tú.</item>
+    </plurals>
+    <plurals name="data_integrity_helpers">
+        <item quantity="one">Se cambió un ayudante fuera de Locus (%1$s). Locus no usa la versión cambiada: espera en Biblioteca → Ayudantes como borrador marcado “Cambiado fuera de Locus”, y la versión que aprobaste volvió donde se guardaba una copia. Aprueba un cambio solo si lo hiciste tú.</item>
+        <item quantity="many">Se cambiaron ayudantes fuera de Locus (%1$s). Locus no usa las versiones cambiadas: esperan en Biblioteca → Ayudantes como borradores marcados “Cambiado fuera de Locus”, y la versión que aprobaste volvió donde se guardaba una copia. Aprueba un cambio solo si lo hiciste tú.</item>
+        <item quantity="other">Se cambiaron ayudantes fuera de Locus (%1$s). Locus no usa las versiones cambiadas: esperan en Biblioteca → Ayudantes como borradores marcados “Cambiado fuera de Locus”, y la versión que aprobaste volvió donde se guardaba una copia. Aprueba un cambio solo si lo hiciste tú.</item>
+    </plurals>
+    <string name="data_integrity_persona">La personalidad de tu agente (%1$s) se cambió fuera de Locus. Locus no usa el cambio: los chats nuevos reciben la versión que guardaste. Lee el cambio en Ajustes → Agente → Identidad del agente y luego consérvalo o descártalo.</string>
+
+    <string name="data_notice_vault_reset">Locus no pudo desbloquear tus claves guardadas (claves de API, contraseñas e inicios de sesión), así que se borraron. Vuelve a introducirlas en Ajustes. Hay más detalles en Ajustes → Acerca de y privacidad → Diagnóstico.</string>
+    <string name="data_notice_settings_reset">Locus no pudo leer su archivo de ajustes, así que los ajustes volvieron a los valores predeterminados. Se guardó una copia del archivo anterior. Hay más detalles en Ajustes → Acerca de y privacidad → Diagnóstico.</string>
+    <string name="data_notice_keys_recovered">Locus pudo abrir las claves guardadas que había apartado en el último restablecimiento y las restauró. Se conservaron las claves que introdujiste desde entonces. Hay más detalles en Ajustes → Acerca de y privacidad → Diagnóstico.</string>
+
+    <string name="data_service_passed">Se accedió a %1$s y aceptó la clave (HTTP %2$d).</string>
+    <string name="data_service_redirect">%1$s redirige a %2$s. Locus no sigue redirecciones con una clave: usa la dirección a la que redirige.</string>
+    <string name="data_service_redirect_elsewhere">%1$s redirige a otra dirección. Locus no sigue redirecciones con una clave: usa la dirección a la que redirige.</string>
+    <string name="data_service_refused">%1$s rechazó la clave (HTTP 401). Comprueba que se copió entera y que no ha caducado.</string>
+    <string name="data_service_forbidden">%1$s aceptó la clave, pero no tiene permiso para esto (HTTP 403). Revisa los permisos de la clave.</string>
+    <string name="data_service_not_found">No hay nada en esa dirección (HTTP 404). Revísala, incluida cualquier subruta como /miniflux.</string>
+    <string name="data_service_server_error">%1$s tuvo un error (HTTP %2$d). Inténtalo más tarde.</string>
+    <string name="data_service_http">%1$s respondió HTTP %2$d.</string>
+    <string name="data_service_unknown_host">No se encontró %1$s. Revisa la dirección y que este teléfono pueda acceder a ella (misma red o VPN).</string>
+    <string name="data_service_tls">Falló la conexión segura con %1$s: %2$s. No se acepta un certificado autofirmado.</string>
+    <string name="data_service_tls_untrusted">Falló la conexión segura con %1$s: su certificado no es de confianza. No se acepta un certificado autofirmado.</string>
+    <string name="data_service_connect">No se pudo conectar con %1$s. ¿Está el servidor en marcha y es correcto el puerto?</string>
+    <string name="data_service_timeout">%1$s no respondió a tiempo.</string>
+    <string name="data_service_unreachable">No se pudo acceder a %1$s: %2$s</string>
+    <string name="data_service_login_refused">%1$s rechazó ese nombre de usuario o contraseña de API. Revisa la contraseña de API en Profile → API management.</string>
+    <string name="data_service_login_no_api">No hay ninguna API de Google Reader en esa dirección. Revísala y comprueba que la API esté activada en FreshRSS (Administration → Authentication).</string>
+    <string name="data_service_login_http">%1$s respondió HTTP %2$d al inicio de sesión.</string>
+    <string name="data_service_login_no_token">%1$s no devolvió un token de inicio de sesión. ¿Está activada la API?</string>
+    <string name="data_service_home_assistant_missing">Home Assistant no está en el catálogo.</string>
+    <string name="data_service_home_assistant_no_token">Pega un token de acceso de larga duración.</string>
+    <string name="data_service_home_assistant_passed">Se accedió a Home Assistant en %1$s y aceptó el token.</string>
+</resources>

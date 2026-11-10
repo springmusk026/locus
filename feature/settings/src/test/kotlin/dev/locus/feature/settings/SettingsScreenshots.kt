@@ -18,6 +18,7 @@ import dev.locus.core.data.updates.UpdateAvailability
 import dev.locus.core.data.updates.UpdateInfo
 import dev.locus.core.data.updates.UpdateProblem
 import dev.locus.core.data.updates.UpdateState
+import dev.locus.core.linux.EngineText
 import dev.locus.core.model.ApiFormat
 import dev.locus.core.model.ApprovalScopeKind
 import dev.locus.core.model.DeviceState
@@ -358,12 +359,12 @@ class SettingsScreenshots : ScreenshotTest() {
     @Test fun diagnosticsEmpty() = snap("settings-diagnostics-empty") { DiagnosticsSettings(emptyList(), onBack = {}, onShare = {}, onClear = {}) }
 
     private val checks = listOf(
-        SelfTestRow("vault", "Saved keys", SelfTestResult("vault", "Saved keys", SelfTestLevel.Pass, "7 keys open with the hardware key.")),
-        SelfTestRow("database", "Database", SelfTestResult("database", "Database", SelfTestLevel.Pass, "Integrity check passed (48 MB).")),
-        SelfTestRow("storage", "Free space", SelfTestResult("storage", "Free space", SelfTestLevel.Warn, "1.2 GB free. Downloads and Linux packages need more.", SelfTestFix.OpenStorage)),
-        SelfTestRow("notifications", "Notifications", SelfTestResult("notifications", "Notifications", SelfTestLevel.Fail, "Turned off: tasks can't tell you when they finish.", SelfTestFix.NotificationSettings)),
-        SelfTestRow("linux", "Linux", SelfTestResult("linux", "Linux", SelfTestLevel.Skipped, "Not installed.")),
-        SelfTestRow("workspace", "Workspace", SelfTestResult("workspace", "Workspace", SelfTestLevel.Pass, "Readable and writable.")),
+        SelfTestRow("vault", EngineText.Plain("Saved keys"), SelfTestResult("vault", EngineText.Plain("Saved keys"), SelfTestLevel.Pass, EngineText.Plain("7 keys open with the hardware key."))),
+        SelfTestRow("database", EngineText.Plain("Database"), SelfTestResult("database", EngineText.Plain("Database"), SelfTestLevel.Pass, EngineText.Plain("Integrity check passed (48 MB)."))),
+        SelfTestRow("storage", EngineText.Plain("Free space"), SelfTestResult("storage", EngineText.Plain("Free space"), SelfTestLevel.Warn, EngineText.Plain("1.2 GB free. Downloads and Linux packages need more."), SelfTestFix.OpenStorage)),
+        SelfTestRow("notifications", EngineText.Plain("Notifications"), SelfTestResult("notifications", EngineText.Plain("Notifications"), SelfTestLevel.Fail, EngineText.Plain("Turned off: tasks can't tell you when they finish."), SelfTestFix.NotificationSettings)),
+        SelfTestRow("linux", EngineText.Plain("Linux"), SelfTestResult("linux", EngineText.Plain("Linux"), SelfTestLevel.Skipped, EngineText.Plain("Not installed."))),
+        SelfTestRow("workspace", EngineText.Plain("Workspace"), SelfTestResult("workspace", EngineText.Plain("Workspace"), SelfTestLevel.Pass, EngineText.Plain("Readable and writable."))),
     )
 
     @Test
@@ -385,7 +386,7 @@ class SettingsScreenshots : ScreenshotTest() {
             "notifications" to "On: tasks can tell you when they finish.",
             "linux" to "Installed and starts.",
         )
-        val rows = checks.map { r -> r.copy(result = r.result!!.copy(level = SelfTestLevel.Pass, fix = null, detail = passed[r.id] ?: r.result!!.detail)) }
+        val rows = checks.map { r -> r.copy(result = r.result!!.copy(level = SelfTestLevel.Pass, fix = null, detail = passed[r.id]?.let(EngineText::Plain) ?: r.result!!.detail)) }
         SelfTestSettings(SelfTestUiState(rows = rows, includeProviders = true, providerCount = 3, finishedAt = now - 60_000), onBack = {}, onRun = {}, onIncludeProviders = {}, onFix = { _, _ -> })
     }
 

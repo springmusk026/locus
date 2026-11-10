@@ -23,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -154,7 +155,7 @@ fun EmailSheet(
     }
 
     LocusSheet(
-        title = integration.name,
+        title = integration.displayName(LocalResources.current),
         onDismiss = onDismiss,
         action = stringResource(if (state.running == EmailRun.SAVE) DesignR.string.common_saving else DesignR.string.common_save),
         actionEnabled = ready,
@@ -183,15 +184,15 @@ fun EmailSheet(
 
         PasswordField(
             form.password, { v -> state.edit { it.copy(password = v) } },
-            label = preset?.fieldLabel ?: stringResource(R.string.ui_email_app_password),
+            label = preset?.fieldLabel?.let { LocalResources.current.emailPresetText(it) } ?: stringResource(R.string.ui_email_app_password),
             supportingText = when {
                 hasSavedPassword && form.password.isEmpty() -> stringResource(R.string.ui_email_password_keep)
-                else -> preset?.passwordHint ?: stringResource(R.string.ui_email_password_hint)
+                else -> preset?.passwordHint?.let { LocalResources.current.emailPresetText(it) } ?: stringResource(R.string.ui_email_password_hint)
             },
         )
         if (preset != null) {
-            preset.note?.let { SupportingText(it) }
-            TextButton(onClick = { uriHandler.openUri(preset.passwordUrl) }) { Text(preset.passwordLabel) }
+            preset.note?.let { SupportingText(LocalResources.current.emailPresetText(it)) }
+            TextButton(onClick = { uriHandler.openUri(preset.passwordUrl) }) { Text(LocalResources.current.emailPresetText(preset.passwordLabel)) }
         }
 
         OutlinedTextField(
@@ -412,7 +413,7 @@ private fun TestResults(form: EmailForm, check: EmailCheck?) {
                 subtitle = when (result) {
                     null -> stringResource(R.string.ui_email_signing_in, server.host.trim())
                     ServerCheck.Passed -> stringResource(R.string.ui_email_signed_in, server.host.trim())
-                    is ServerCheck.Failed -> result.message
+                    is ServerCheck.Failed -> result.messageText(LocalResources.current)
                 },
                 subtitleMaxLines = Int.MAX_VALUE,
                 titleMaxLines = 2,

@@ -8,11 +8,14 @@ import dev.locus.core.agent.home.AgentHome
 import dev.locus.core.agent.home.Connector
 import dev.locus.core.agent.home.ConnectorKeys
 import dev.locus.core.agent.mcp.McpOAuth
+import dev.locus.core.data.R
+import dev.locus.core.data.connectors.ServiceSetupException
 import dev.locus.core.data.mcp.ConnectorKeyOrigins
 import dev.locus.core.data.connectors.ConnectionCheck
 import dev.locus.core.data.connectors.ConnectorTemplate
 import dev.locus.core.data.connectors.ServiceConnections
 import dev.locus.core.data.mcp.HomeAssistantSafety
+import dev.locus.core.linux.EngineText
 import dev.locus.core.model.ServiceAddress
 import dev.locus.core.data.mcp.LocalMcpHealth
 import dev.locus.core.agent.home.GitHubSkillFetcher
@@ -361,12 +364,12 @@ class LibraryRepository @Inject constructor(
     /** Test connection for a service template: one GET of its test path with the key, at [address]. */
     suspend fun testService(template: ConnectorTemplate, address: String, username: String, key: String): ConnectionCheck {
         val checked = ServiceAddress.check(address)
-        val server = checked.url ?: return ConnectionCheck.Failed(checked.error.orEmpty())
+        val server = checked.url ?: return ConnectionCheck.Failed(EngineText.Plain(checked.error.orEmpty()))
         val draft = template.connector(template.id, server, "test")
         val secret = try {
             serviceSecret(template, draft.baseUrl, username, key)
         } catch (e: IllegalArgumentException) {
-            return ConnectionCheck.Failed(e.message.orEmpty())
+            return ConnectionCheck.Failed((e as? ServiceSetupException)?.text ?: EngineText.Plain(e.message.orEmpty()))
         }
         return services.test(draft.baseUrl.trimEnd('/') + template.testPath, draft.auth, secret)
     }
@@ -389,12 +392,12 @@ class LibraryRepository @Inject constructor(
 
     /** Test connection for Home Assistant: a GET of its REST API root (`/api/`) with the token. */
     suspend fun testHomeAssistant(address: String, token: String): ConnectionCheck {
-        val template = McpTemplates.byId(HomeAssistantSafety.TEMPLATE_ID)?.selfHosted ?: return ConnectionCheck.Failed("Home Assistant isn't in the catalogue.")
+        val template = McpTemplates.byId(HomeAssistantSafety.TEMPLATE_ID)?.selfHosted ?: return ConnectionCheck.Failed(EngineText.Res(R.string.data_service_home_assistant_missing))
         val checked = ServiceAddress.check(address)
-        val server = checked.url ?: return ConnectionCheck.Failed(checked.error.orEmpty())
-        if (token.isBlank()) return ConnectionCheck.Failed("Paste a long-lived access token.")
+        val server = checked.url ?: return ConnectionCheck.Failed(EngineText.Plain(checked.error.orEmpty()))
+        if (token.isBlank()) return ConnectionCheck.Failed(EngineText.Res(R.string.data_service_home_assistant_no_token))
         return when (val result = services.test(server + template.testPath, Connector.Auth("bearer", secret = "test"), token.trim())) {
-            is ConnectionCheck.Passed -> ConnectionCheck.Passed("Reached Home Assistant at ${ConnectorKeys.host(ConnectorKeys.origin(server).orEmpty())} and it accepted the token.")
+            is ConnectionCheck.Passed -> ConnectionCheck.Passed(EngineText.Res(R.string.data_service_home_assistant_passed, ConnectorKeys.host(ConnectorKeys.origin(server).orEmpty())))
             is ConnectionCheck.Failed -> result
         }
     }

@@ -5,6 +5,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
+/** The checks' rules. Their English is checked as the screen renders it, in feature/workspace's LinuxEngineTextTest. */
 class LinuxHealthTest {
     private val gb = 1024L * 1024 * 1024
     private val mb = 1024L * 1024
@@ -36,7 +37,7 @@ class LinuxHealthTest {
     fun `a healthy install is OK with each check listed`() {
         val checks = LinuxHealth.checks(healthy())
         assertEquals(HealthLevel.Ok, LinuxHealth.overall(checks))
-        assertEquals("Linux is working", LinuxHealth.headline(checks))
+        assertEquals(EngineText.Res(R.string.linux_health_headline_ok), LinuxHealth.headline(checks))
         assertEquals(setOf("roundtrip", "files", "storage", "memory", "phantom"), checks.map { it.id }.toSet())
         // Even when fine, the phantom limit offers its explanation.
         assertEquals(LinuxFix.PhantomHelp, check(healthy(), "phantom").fix)
@@ -52,8 +53,14 @@ class LinuxHealthTest {
         assertEquals(HealthLevel.Problem, LinuxHealth.overall(checks))
         assertEquals(LinuxFix.Repair, check(r, "roundtrip").fix)
         assertEquals(LinuxFix.Reinstall, check(r, "files").fix, "repair only rewrites what Locus manages")
-        assertTrue("/bin/sh" in check(r, "files").detail && "package database" in check(r, "files").detail)
-        assertEquals("Linux can't run commands, and 1 more problem", LinuxHealth.headline(checks))
+        assertEquals(
+            EngineText.Res(R.string.linux_health_files_damaged_missing_and_db, EngineText.Plain("/bin/sh, /lib/apk/db/installed")),
+            check(r, "files").detail,
+        )
+        assertEquals(
+            EngineText.Plural(R.plurals.linux_health_headline_more_problems, 1, EngineText.Res(R.string.linux_health_roundtrip_failed_title), 1),
+            LinuxHealth.headline(checks),
+        )
         assertEquals(HealthLevel.Problem, checks.first().level, "worst first")
         assertEquals(HealthLevel.Problem, check(healthy().copy(roundTrip = LinuxReport.RoundTrip(ok = false, millis = 20_000, timedOut = true)), "roundtrip").level)
         assertEquals(HealthLevel.Warning, check(healthy().copy(roundTrip = LinuxReport.RoundTrip(ok = true, millis = 4_200)), "roundtrip").level)
@@ -88,7 +95,20 @@ class LinuxHealthTest {
         assertEquals(HealthLevel.Warning, check(killed, "phantom").level, "a kill makes the limit a warning")
         val commandKilled = check(healthy().copy(lastKill = AndroidKillNotice("A command", 1)), "phantom")
         assertEquals(HealthLevel.Warning, commandKilled.level)
-        assertTrue(commandKilled.detail.startsWith("Android stopped a command while Locus was in the background."), commandKilled.detail)
+        assertEquals(
+            EngineText.Res(
+                R.string.linux_health_two_sentences,
+                EngineText.Res(R.string.linux_health_phantom_killed_other, "a command"),
+                EngineText.Res(R.string.linux_health_phantom_warning_detail, 2),
+            ),
+            commandKilled.detail,
+        )
+        val kinds = AndroidKillNotice.Kind.entries.associateWith { kind ->
+            (check(healthy().copy(lastKill = AndroidKillNotice("x", 1, kind, "web")), "phantom").detail as EngineText.Res).args.first()
+        }
+        assertEquals(EngineText.Res(R.string.linux_health_phantom_killed_command), kinds[AndroidKillNotice.Kind.Command])
+        assertEquals(EngineText.Res(R.string.linux_health_phantom_killed_service, "web"), kinds[AndroidKillNotice.Kind.Service])
+        assertEquals(EngineText.Res(R.string.linux_health_phantom_killed_terminal), kinds[AndroidKillNotice.Kind.Terminal])
 
 
         assertEquals(HealthLevel.Ok, check(healthy().copy(phantom = LinuxReport.Phantom(applies = true, monitorOff = true)), "phantom").level)
@@ -113,7 +133,7 @@ class LinuxHealthTest {
         val checks = LinuxHealth.checks(lost)
         assertTrue(checks.none { it.id == "service:api" }, "$checks")
         assertEquals(HealthLevel.Ok, LinuxHealth.overall(checks))
-        assertEquals("Linux is working", LinuxHealth.headline(checks))
+        assertEquals(EngineText.Res(R.string.linux_health_headline_ok), LinuxHealth.headline(checks))
         assertEquals(LinuxEnvironment.ServiceState.StoppedByRestart, service(lostOnRestart = true).state)
         // Finished cleanly (exit 0) isn't a problem either.
         assertNull(LinuxHealth.serviceCheck(service(exitCode = 0)))
@@ -123,7 +143,7 @@ class LinuxHealthTest {
         val due = check(healthy().copy(services = listOf(service(lostOnRestart = true, autostart = true))), "service:api")
         assertEquals(HealthLevel.Warning, due.level)
         assertEquals(LinuxFix.StartService, due.fix)
-        assertEquals("Start", due.fix?.label)
+        assertEquals(R.string.linux_fix_start, due.fix?.labelRes)
         assertEquals("api", due.target)
         assertEquals(HealthLevel.Warning, LinuxHealth.serviceCheck(service(exitCode = 0, autostart = true))?.level)
 
@@ -138,11 +158,11 @@ class LinuxHealthTest {
         val c = check(crashed, "service:api")
         assertEquals(HealthLevel.Problem, c.level)
         assertEquals(LinuxFix.RestartService, c.fix)
-        assertEquals("“api” crashed", c.title)
-        assertTrue("code 1" in c.detail, c.detail)
+        assertEquals(EngineText.Res(R.string.linux_health_service_crashed_title, "api"), c.title)
+        assertEquals(EngineText.Res(R.string.linux_health_service_crashed_detail, EngineText.Res(R.string.linux_exit_code, 1)), c.detail)
         val checks = LinuxHealth.checks(crashed)
         assertEquals(HealthLevel.Problem, LinuxHealth.overall(checks))
-        assertEquals("“api” crashed", LinuxHealth.headline(checks))
+        assertEquals(EngineText.Res(R.string.linux_health_service_crashed_title, "api"), LinuxHealth.headline(checks))
         // A crash wins over "set to start but not running".
         assertEquals(HealthLevel.Problem, LinuxHealth.serviceCheck(service(exitCode = 139, autostart = true))?.level)
         // A crash recorded before a restart still reads as one afterwards (the record kept its exit).
@@ -166,6 +186,15 @@ class LinuxHealthTest {
     }
 
     @Test
+    fun `the screen's exit codes name the same code or signal`() {
+        assertEquals(EngineText.Res(R.string.linux_exit_code, 1), LinuxHealth.exitText(1))
+        assertEquals(EngineText.Res(R.string.linux_exit_signal_named, 11, "SIGSEGV"), LinuxHealth.exitText(139))
+        assertEquals(EngineText.Res(R.string.linux_exit_signal, 30), LinuxHealth.exitText(158))
+        assertEquals(EngineText.Res(R.string.linux_exit_code, 255), LinuxHealth.exitText(255))
+        assertEquals(EngineText.Res(R.string.linux_exit_error), LinuxHealth.exitText(null))
+    }
+
+    @Test
     fun `network and dns`() {
         assertEquals(LinuxFix.ResetDns, check(healthy().copy(network = LinuxReport.Network(dnsOk = false, httpsOk = false, millis = 6_000)), "network").fix)
         assertEquals(HealthLevel.Warning, check(healthy().copy(network = LinuxReport.Network(dnsOk = true, httpsOk = false, millis = 6_000)), "network").level)
@@ -178,9 +207,9 @@ class LinuxHealthTest {
     @Test
     fun `upgrades are information with the terminal as the way to apply them`() {
         val r = healthy().copy(upgrades = listOf(LinuxInventory.Upgrade("busybox", "1.37.0-r31", "1.37.0-r32")))
-        assertEquals("1 update available", check(r, "upgrades").title)
+        assertEquals(EngineText.Plural(R.plurals.linux_health_upgrades_title, 1), check(r, "upgrades").title)
         assertEquals(LinuxFix.OpenTerminal, check(r, "upgrades").fix)
-        assertEquals("Packages up to date", check(healthy().copy(upgrades = emptyList()), "upgrades").title)
+        assertEquals(EngineText.Res(R.string.linux_health_upgrades_none_title), check(healthy().copy(upgrades = emptyList()), "upgrades").title)
     }
 
     @Test
@@ -189,5 +218,13 @@ class LinuxHealthTest {
         assertEquals("1.5 KB", LinuxHealth.bytes(1536))
         assertEquals("400 MB", LinuxHealth.bytes(400 * mb))
         assertEquals("2.0 GB", LinuxHealth.bytes(2 * gb))
+    }
+
+    @Test
+    fun `the screen's sizes pick the same unit and precision`() {
+        assertEquals(EngineText.Res(R.string.linux_bytes_b, 0L), LinuxHealth.bytesText(0))
+        assertEquals(EngineText.Res(R.string.linux_bytes_kb_small, 1.5), LinuxHealth.bytesText(1536))
+        assertEquals(EngineText.Res(R.string.linux_bytes_mb, 400.0), LinuxHealth.bytesText(400 * mb))
+        assertEquals(EngineText.Res(R.string.linux_bytes_gb_small, 2.0), LinuxHealth.bytesText(2 * gb))
     }
 }

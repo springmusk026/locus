@@ -1,5 +1,6 @@
 package dev.locus.core.linux
 
+import androidx.annotation.StringRes
 import java.util.Locale
 
 /**
@@ -74,29 +75,32 @@ data class LinuxReport(
 
 enum class HealthLevel { Ok, Warning, Problem }
 
-/** What a check's button does; the health screen runs each one. */
-enum class LinuxFix(val label: String) {
+/** What a check's button does; the health screen runs each one. [labelRes] is its button's text. */
+enum class LinuxFix(@param:StringRes val labelRes: Int) {
     /** LinuxSetup's repair: rewrites the files Locus manages and checks Linux starts; packages stay. */
-    Repair("Repair"),
+    Repair(R.string.linux_fix_repair),
 
     /** LinuxSetup's reinstall: Alpine from scratch, with Locus's offered tools put back; the workspace stays. */
-    Reinstall("Reinstall"),
-    CleanCaches("Clean caches"),
-    PhantomHelp("How to fix"),
-    RestartService("Restart"),
+    Reinstall(R.string.linux_fix_reinstall),
+    CleanCaches(R.string.linux_fix_clean_caches),
+    PhantomHelp(R.string.linux_fix_phantom_help),
+    RestartService(R.string.linux_fix_restart),
 
     /** Starts a service that isn't running through no fault of its own (a restart ended it). */
-    StartService("Start"),
-    ResetDns("Reset DNS"),
-    OpenTerminal("Open terminal"),
+    StartService(R.string.linux_fix_start),
+    ResetDns(R.string.linux_fix_reset_dns),
+    OpenTerminal(R.string.linux_fix_open_terminal),
 }
 
-/** One line of the checks list. [target] is what the fix acts on (a service's name). */
+/**
+ * One line of the checks list. [title] and [detail] are only shown (never given to the model), so they
+ * are resources in the app's language. [target] is what the fix acts on (a service's name).
+ */
 data class HealthCheck(
     val id: String,
-    val title: String,
+    val title: EngineText,
     val level: HealthLevel,
-    val detail: String,
+    val detail: EngineText,
     val fix: LinuxFix? = null,
     val target: String? = null,
 )
@@ -121,60 +125,89 @@ object LinuxHealth {
     /** Android 12+ kills phantom processes past 32 across all apps; Locus alone this close is a warning. */
     const val PROCESS_WARNING = 20
 
+    /** How many missing files a damaged-files check names before "and N more". */
+    private const val MISSING_NAMED = 4
+
+    private fun res(id: Int, vararg args: Any) = EngineText.Res(id, *args)
+
     /** Every check for [report], worst first, OK ones last (they show what was looked at). */
     fun checks(report: LinuxReport): List<HealthCheck> {
         val out = mutableListOf<HealthCheck>()
         val rt = report.runtime
-        when {
-            !rt.prootPresent || !rt.prootExecutable || !rt.loaderPresent -> out += HealthCheck(
-                "runtime", "Linux runtime is missing", HealthLevel.Problem,
-                "This copy of Locus can't run its Linux runtime (proot${if (!rt.prootPresent) " isn't there" else if (!rt.loaderPresent) "'s loader isn't there" else " can't be executed"}). " +
-                    "Reinstall Locus from the same source.",
-            )
-            else -> Unit
+        if (!rt.prootPresent || !rt.prootExecutable || !rt.loaderPresent) {
+            val detail = when {
+                !rt.prootPresent -> R.string.linux_health_runtime_missing_proot
+                !rt.loaderPresent -> R.string.linux_health_runtime_missing_loader
+                else -> R.string.linux_health_runtime_not_executable
+            }
+            out += HealthCheck("runtime", res(R.string.linux_health_runtime_title), HealthLevel.Problem, res(detail))
         }
         report.roundTrip?.let { trip ->
             out += when {
-                trip.timedOut -> HealthCheck("roundtrip", "Linux doesn't respond", HealthLevel.Problem, "A test command didn't finish in ${trip.millis / 1000} s. Repair rewrites Linux's settings without touching your packages.", LinuxFix.Repair)
-                !trip.ok -> HealthCheck("roundtrip", "Linux can't run commands", HealthLevel.Problem, "A test command failed${trip.detail?.let { ": ${it.take(160)}" }.orEmpty()}. Repair rewrites Linux's settings without touching your packages.", LinuxFix.Repair)
-                trip.millis > SLOW_ROUND_TRIP_MS -> HealthCheck("roundtrip", "Commands are slow to start", HealthLevel.Warning, "A test command took ${seconds(trip.millis)}. The phone may be busy, hot or in battery saver.")
-                else -> HealthCheck("roundtrip", "Runs commands", HealthLevel.Ok, "A test command took ${trip.millis} ms.")
+                trip.timedOut -> HealthCheck(
+                    "roundtrip", res(R.string.linux_health_roundtrip_timeout_title), HealthLevel.Problem,
+                    res(R.string.linux_health_roundtrip_timeout_detail, trip.millis / 1000), LinuxFix.Repair,
+                )
+                !trip.ok -> HealthCheck(
+                    "roundtrip", res(R.string.linux_health_roundtrip_failed_title), HealthLevel.Problem,
+                    trip.detail?.let { res(R.string.linux_health_roundtrip_failed_detail_output, it.take(160)) }
+                        ?: res(R.string.linux_health_roundtrip_failed_detail),
+                    LinuxFix.Repair,
+                )
+                trip.millis > SLOW_ROUND_TRIP_MS -> HealthCheck(
+                    "roundtrip", res(R.string.linux_health_roundtrip_slow_title), HealthLevel.Warning,
+                    res(R.string.linux_health_roundtrip_slow_detail, trip.millis / 1000.0),
+                )
+                else -> HealthCheck("roundtrip", res(R.string.linux_health_roundtrip_ok_title), HealthLevel.Ok, res(R.string.linux_health_roundtrip_ok_detail, trip.millis))
             }
         }
         val integrity = report.integrity
         if (integrity.missing.isNotEmpty() || !integrity.apkDbReadable) {
-            val what = buildList {
-                if (integrity.missing.isNotEmpty()) add("missing ${integrity.missing.take(4).joinToString(", ")}${if (integrity.missing.size > 4) " and ${integrity.missing.size - 4} more" else ""}")
-                if (!integrity.apkDbReadable) add("the package database can't be read")
-            }.joinToString("; ")
-            out += HealthCheck("files", "Linux's system files are damaged", HealthLevel.Problem, "Linux is $what. Only a reinstall puts them back; your workspace files stay.", LinuxFix.Reinstall)
+            val missing = integrity.missing.takeIf { it.isNotEmpty() }?.let { files ->
+                val named = files.take(MISSING_NAMED).joinToString(", ")
+                if (files.size > MISSING_NAMED) res(R.string.linux_health_files_more, named, files.size - MISSING_NAMED) else EngineText.Plain(named)
+            }
+            val detail = when {
+                missing != null && !integrity.apkDbReadable -> res(R.string.linux_health_files_damaged_missing_and_db, missing)
+                missing != null -> res(R.string.linux_health_files_damaged_missing, missing)
+                else -> res(R.string.linux_health_files_damaged_db)
+            }
+            out += HealthCheck("files", res(R.string.linux_health_files_damaged_title), HealthLevel.Problem, detail, LinuxFix.Reinstall)
         } else {
-            out += HealthCheck("files", "System files intact", HealthLevel.Ok, "Key files and the package database are in place.")
+            out += HealthCheck("files", res(R.string.linux_health_files_ok_title), HealthLevel.Ok, res(R.string.linux_health_files_ok_detail))
         }
         report.storage?.let { s ->
+            val free = bytesText(s.phoneFreeBytes)
+            val caches = bytesText(s.cacheBytes)
             out += when {
                 s.phoneFreeBytes < STORAGE_PROBLEM_BYTES -> HealthCheck(
-                    "storage", "Phone storage is almost full", HealthLevel.Problem,
-                    "${bytes(s.phoneFreeBytes)} free. Installing packages will fail.${cacheHint(s)}",
+                    "storage", res(R.string.linux_health_storage_full_title), HealthLevel.Problem,
+                    if (s.cacheBytes > 0) res(R.string.linux_health_storage_full_detail_caches, free, caches) else res(R.string.linux_health_storage_full_detail, free),
                     LinuxFix.CleanCaches.takeIf { s.cacheBytes > 0 },
                 )
                 s.phoneFreeBytes < STORAGE_WARNING_BYTES -> HealthCheck(
-                    "storage", "Phone storage is low", HealthLevel.Warning,
-                    "${bytes(s.phoneFreeBytes)} free. Larger packages (compilers, Java, Node) may not fit.${cacheHint(s)}",
+                    "storage", res(R.string.linux_health_storage_low_title), HealthLevel.Warning,
+                    if (s.cacheBytes > 0) res(R.string.linux_health_storage_low_detail_caches, free, caches) else res(R.string.linux_health_storage_low_detail, free),
                     LinuxFix.CleanCaches.takeIf { s.cacheBytes > 0 },
                 )
                 s.cacheBytes >= CACHE_WARNING_BYTES -> HealthCheck(
-                    "storage", "Caches use ${bytes(s.cacheBytes)}", HealthLevel.Warning,
-                    "Package and download caches can be deleted; they're downloaded again when needed.", LinuxFix.CleanCaches,
+                    "storage", res(R.string.linux_health_caches_title, caches), HealthLevel.Warning,
+                    res(R.string.linux_health_caches_detail), LinuxFix.CleanCaches,
                 )
-                else -> HealthCheck("storage", "Enough storage", HealthLevel.Ok, "Linux uses ${bytes(s.linuxBytes)}; ${bytes(s.phoneFreeBytes)} free on the phone.")
+                else -> HealthCheck(
+                    "storage", res(R.string.linux_health_storage_ok_title), HealthLevel.Ok,
+                    res(R.string.linux_health_storage_ok_detail, bytesText(s.linuxBytes), free),
+                )
             }
         }
         report.memory?.let { m ->
             out += if (isLowMemory(m)) {
-                HealthCheck("memory", "Phone is low on memory", HealthLevel.Warning, "${bytes(m.availableBytes)} available. Android may stop Linux programs, especially while Locus is in the background.")
+                HealthCheck("memory", res(R.string.linux_health_memory_low_title), HealthLevel.Warning, res(R.string.linux_health_memory_low_detail, bytesText(m.availableBytes)))
             } else {
-                HealthCheck("memory", "Enough memory", HealthLevel.Ok, "${bytes(m.availableBytes)} of ${bytes(m.totalBytes)} available; Linux programs use ${bytes(report.guestRssBytes)}.")
+                HealthCheck(
+                    "memory", res(R.string.linux_health_memory_ok_title), HealthLevel.Ok,
+                    res(R.string.linux_health_memory_ok_detail, bytesText(m.availableBytes), bytesText(m.totalBytes), bytesText(report.guestRssBytes)),
+                )
             }
         }
         report.services.forEach { s -> serviceCheck(s)?.let { out += it } }
@@ -182,34 +215,51 @@ object LinuxHealth {
         val p = report.phantom
         if (p.applies) {
             out += when {
-                p.monitorOff == true -> HealthCheck("phantom", "Background limit is off", HealthLevel.Ok, "Child process restrictions are turned off, so Android won't stop Linux for that reason.")
-                killed || report.processes.size >= PROCESS_WARNING -> HealthCheck(
-                    "phantom", "Android may stop Linux in the background", HealthLevel.Warning,
-                    (report.lastKill?.let { "Android stopped ${it.what.replaceFirstChar(Char::lowercase)} while Locus was in the background. " }.orEmpty()) +
-                        "Android 12+ stops apps' extra processes (${report.processes.size} running for Locus now). You can turn this off.",
-                    LinuxFix.PhantomHelp,
-                )
+                p.monitorOff == true -> HealthCheck("phantom", res(R.string.linux_health_phantom_off_title), HealthLevel.Ok, res(R.string.linux_health_phantom_off_detail))
+                killed || report.processes.size >= PROCESS_WARNING -> {
+                    val limit = res(R.string.linux_health_phantom_warning_detail, report.processes.size)
+                    HealthCheck(
+                        "phantom", res(R.string.linux_health_phantom_warning_title), HealthLevel.Warning,
+                        report.lastKill?.let { res(R.string.linux_health_two_sentences, it.stoppedSentence(), limit) } ?: limit,
+                        LinuxFix.PhantomHelp,
+                    )
+                }
                 else -> HealthCheck(
-                    "phantom", "Background limit is on", HealthLevel.Ok,
-                    "Android 12+ may stop Linux programs while Locus is in the background${if (p.monitorOff == null) " (this phone doesn't let Locus check the setting)" else ""}.", LinuxFix.PhantomHelp,
+                    "phantom", res(R.string.linux_health_phantom_on_title), HealthLevel.Ok,
+                    res(if (p.monitorOff == null) R.string.linux_health_phantom_on_detail_unknown else R.string.linux_health_phantom_on_detail),
+                    LinuxFix.PhantomHelp,
                 )
             }
         }
         if (!integrity.resolvConfOk) {
-            out += HealthCheck("dns-config", "No DNS server set", HealthLevel.Problem, "Linux's /etc/resolv.conf names no nameserver, so it can't reach the internet.", LinuxFix.ResetDns)
+            out += HealthCheck("dns-config", res(R.string.linux_health_dns_config_title), HealthLevel.Problem, res(R.string.linux_health_dns_config_detail), LinuxFix.ResetDns)
         }
         report.network?.let { n ->
             out += when {
-                !n.dnsOk -> HealthCheck("network", "Linux can't look up names", HealthLevel.Problem, "DNS failed inside Linux. If the phone is online, reset Linux's DNS servers.", LinuxFix.ResetDns)
-                !n.httpsOk -> HealthCheck("network", "Can't reach Alpine's mirror", HealthLevel.Warning, "Names resolve but dl-cdn.alpinelinux.org didn't answer over HTTPS. A VPN, captive portal or firewall may block it.")
-                else -> HealthCheck("network", "Internet works", HealthLevel.Ok, "DNS and HTTPS to Alpine's mirror in ${n.millis} ms.")
+                !n.dnsOk -> HealthCheck("network", res(R.string.linux_health_network_dns_title), HealthLevel.Problem, res(R.string.linux_health_network_dns_detail), LinuxFix.ResetDns)
+                !n.httpsOk -> HealthCheck("network", res(R.string.linux_health_network_https_title), HealthLevel.Warning, res(R.string.linux_health_network_https_detail))
+                else -> HealthCheck("network", res(R.string.linux_health_network_ok_title), HealthLevel.Ok, res(R.string.linux_health_network_ok_detail, n.millis))
             }
         }
         report.upgrades?.let { u ->
-            out += if (u.isEmpty()) HealthCheck("upgrades", "Packages up to date", HealthLevel.Ok, "No newer versions in Alpine ${report.alpineVersion ?: ""}'s repositories.".replace("  ", " "))
-            else HealthCheck("upgrades", "${u.size} update${if (u.size == 1) "" else "s"} available", HealthLevel.Ok, "Run `apk upgrade` in the terminal to install them.", LinuxFix.OpenTerminal)
+            out += if (u.isEmpty()) {
+                HealthCheck("upgrades", res(R.string.linux_health_upgrades_none_title), HealthLevel.Ok, res(R.string.linux_health_upgrades_none_detail, report.alpineVersion.orEmpty()))
+            } else {
+                HealthCheck(
+                    "upgrades", EngineText.Plural(R.plurals.linux_health_upgrades_title, u.size), HealthLevel.Ok,
+                    res(R.string.linux_health_upgrades_detail), LinuxFix.OpenTerminal,
+                )
+            }
         }
         return out.sortedByDescending { it.level }
+    }
+
+    /** "Android stopped a command while Locus was in the background." */
+    private fun AndroidKillNotice.stoppedSentence(): EngineText = when (kind) {
+        AndroidKillNotice.Kind.Command -> res(R.string.linux_health_phantom_killed_command)
+        AndroidKillNotice.Kind.Service -> res(R.string.linux_health_phantom_killed_service, name.orEmpty())
+        AndroidKillNotice.Kind.Terminal -> res(R.string.linux_health_phantom_killed_terminal)
+        null -> res(R.string.linux_health_phantom_killed_other, what.replaceFirstChar(Char::lowercase))
     }
 
     /**
@@ -222,26 +272,38 @@ object LinuxHealth {
         return when (s.state) {
             LinuxEnvironment.ServiceState.Running -> null
             LinuxEnvironment.ServiceState.Crashed -> HealthCheck(
-                id, "“${s.name}” crashed", HealthLevel.Problem,
-                "It exited with ${exitDescription(s.exitCode)}. Its log may say why; ask the agent to check it.", LinuxFix.RestartService, s.name,
+                id, res(R.string.linux_health_service_crashed_title, s.name), HealthLevel.Problem,
+                res(R.string.linux_health_service_crashed_detail, exitText(s.exitCode)), LinuxFix.RestartService, s.name,
             )
             LinuxEnvironment.ServiceState.KilledByAndroid -> HealthCheck(
-                id, "Android stopped “${s.name}”", HealthLevel.Warning,
-                "It was killed while Locus was in the background (phantom process limit).", LinuxFix.RestartService, s.name,
+                id, res(R.string.linux_health_service_killed_title, s.name), HealthLevel.Warning,
+                res(R.string.linux_health_service_killed_detail), LinuxFix.RestartService, s.name,
             )
             LinuxEnvironment.ServiceState.StoppedByRestart, LinuxEnvironment.ServiceState.Finished -> if (s.autostart) HealthCheck(
-                id, "“${s.name}” isn't running", HealthLevel.Warning,
-                "It's set to start when Locus opens, but it isn't running. Start it, or turn off Start when Locus opens under Services.",
+                id, res(R.string.linux_health_service_not_running_title, s.name), HealthLevel.Warning,
+                res(R.string.linux_health_service_not_running_detail),
                 LinuxFix.StartService, s.name,
             ) else null
         }
     }
 
-    /** "code 1", or "signal 11 (SIGSEGV)" for a process a signal ended (128 + the signal, as java.lang.Process reports it). */
+    /**
+     * "code 1", or "signal 11 (SIGSEGV)" for a process a signal ended (128 + the signal, as java.lang.Process
+     * reports it). This English is what the model reads (linux_service_status); screens show [exitText].
+     */
     fun exitDescription(code: Int?): String = when {
         code == null -> "an error"
         code > 128 && code - 128 <= 64 -> (code - 128).let { sig -> "signal $sig" + (SIGNALS[sig]?.let { " ($it)" }.orEmpty()) }
         else -> "code $code"
+    }
+
+    /** [exitDescription] for the screen, in the app's language. */
+    fun exitText(code: Int?): EngineText = when {
+        code == null -> res(R.string.linux_exit_error)
+        code > 128 && code - 128 <= 64 -> (code - 128).let { sig ->
+            SIGNALS[sig]?.let { res(R.string.linux_exit_signal_named, sig, it) } ?: res(R.string.linux_exit_signal, sig)
+        }
+        else -> res(R.string.linux_exit_code, code)
     }
 
     private val SIGNALS = mapOf(1 to "SIGHUP", 2 to "SIGINT", 3 to "SIGQUIT", 4 to "SIGILL", 6 to "SIGABRT", 7 to "SIGBUS", 8 to "SIGFPE", 9 to "SIGKILL", 11 to "SIGSEGV", 13 to "SIGPIPE", 15 to "SIGTERM")
@@ -254,27 +316,41 @@ object LinuxHealth {
     fun overall(checks: List<HealthCheck>): HealthLevel = checks.maxOfOrNull { it.level } ?: HealthLevel.Ok
 
     /** The headline: the worst check's title, or that all is well. */
-    fun headline(checks: List<HealthCheck>): String {
+    fun headline(checks: List<HealthCheck>): EngineText {
         val worst = overall(checks)
-        if (worst == HealthLevel.Ok) return "Linux is working"
+        if (worst == HealthLevel.Ok) return res(R.string.linux_health_headline_ok)
         val bad = checks.filter { it.level == worst }
         if (bad.size == 1) return bad.single().title
         val more = bad.size - 1
-        val kind = if (worst == HealthLevel.Problem) "problem" else "warning"
-        return "${bad.first().title}, and $more more $kind${if (more == 1) "" else "s"}"
+        val plural = if (worst == HealthLevel.Problem) R.plurals.linux_health_headline_more_problems else R.plurals.linux_health_headline_more_warnings
+        return EngineText.Plural(plural, more, bad.first().title, more)
     }
 
-    private fun cacheHint(s: LinuxReport.Storage) = if (s.cacheBytes > 0) " Caches in Linux use ${bytes(s.cacheBytes)}." else ""
-
-    private fun seconds(ms: Long) = String.format(Locale.ROOT, "%.1f s", ms / 1000.0)
-
-    /** 1.2 GB, 340 MB, 12 KB: one decimal only below 10 of a unit. */
+    /** 1.2 GB, 340 MB, 12 KB: one decimal only below 10 of a unit. English with a dot, for logs and tests; screens use [bytesText]. */
     fun bytes(b: Long): String {
-        val units = listOf("B" to 1L, "KB" to KB, "MB" to MB, "GB" to GB, "TB" to GB * 1024)
-        val (unit, size) = units.last { b >= it.second || it.second == 1L }
+        val (unit, size) = unit(b)
         if (size == 1L) return "$b B"
         val v = b.toDouble() / size
         return if (v < 10) String.format(Locale.ROOT, "%.1f %s", v, unit) else String.format(Locale.ROOT, "%.0f %s", v, unit)
     }
 
+    /** [bytes] for the screen: the same units, the number written the way the app's language writes it (1,5 KB). */
+    fun bytesText(b: Long): EngineText {
+        val (unit, size) = unit(b)
+        if (size == 1L) return res(R.string.linux_bytes_b, b)
+        val v = b.toDouble() / size
+        val small = v < 10
+        return res(
+            when (unit) {
+                "KB" -> if (small) R.string.linux_bytes_kb_small else R.string.linux_bytes_kb
+                "MB" -> if (small) R.string.linux_bytes_mb_small else R.string.linux_bytes_mb
+                "GB" -> if (small) R.string.linux_bytes_gb_small else R.string.linux_bytes_gb
+                else -> if (small) R.string.linux_bytes_tb_small else R.string.linux_bytes_tb
+            },
+            v,
+        )
+    }
+
+    private fun unit(b: Long): Pair<String, Long> =
+        listOf("B" to 1L, "KB" to KB, "MB" to MB, "GB" to GB, "TB" to GB * 1024).last { b >= it.second || it.second == 1L }
 }

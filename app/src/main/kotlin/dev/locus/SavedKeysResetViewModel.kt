@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.locus.core.data.diagnostics.DiagnosticsRepository
+import dev.locus.core.designsystem.UiText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -24,8 +25,8 @@ class SavedKeysResetViewModel @Inject constructor(private val diagnostics: Diagn
     private val dismissed = MutableStateFlow(false)
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
-    private val _error = MutableStateFlow<String?>(null)
-    val error: StateFlow<String?> = _error.asStateFlow()
+    private val _error = MutableStateFlow<UiText?>(null)
+    val error: StateFlow<UiText?> = _error.asStateFlow()
 
     val ask: StateFlow<Boolean> = combine(diagnostics.savedKeysNeedReset, dismissed) { needs, gone -> needs && !gone }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
@@ -41,7 +42,7 @@ class SavedKeysResetViewModel @Inject constructor(private val diagnostics: Diagn
         _error.value = null
         viewModelScope.launch(Dispatchers.IO) {
             val opened = runCatching { diagnostics.resetSavedKeys() }.getOrDefault(false)
-            if (!opened) _error.value = "The reset didn't open new keys. Details are in Settings → About & privacy → Diagnostics."
+            if (!opened) _error.value = UiText.Res(R.string.app_keys_reset_failed)
             _busy.value = false
         }
     }

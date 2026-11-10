@@ -411,6 +411,7 @@
     <string name="settings_selftest_level_warn">Warning</string>
     <string name="settings_selftest_level_fail">Failed</string>
     <string name="settings_selftest_level_skipped">Skipped</string>
+    <string name="settings_selftest_check_failed">The check itself failed (%1$s).</string>
     <plurals name="settings_selftest_providers_requests">
         <item quantity="one">Uses the network: one request to your provider.</item>
         <item quantity="other">Uses the network: one request to each of your %1$d providers.</item>

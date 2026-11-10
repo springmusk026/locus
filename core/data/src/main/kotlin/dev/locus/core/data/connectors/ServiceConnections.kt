@@ -2,6 +2,8 @@ package dev.locus.core.data.connectors
 
 import dev.locus.core.agent.home.Connector
 import dev.locus.core.agent.home.ConnectorKeys
+import dev.locus.core.data.R
+import dev.locus.core.linux.EngineText
 import io.ktor.client.HttpClient
 import io.ktor.client.request.forms.submitForm
 import io.ktor.client.request.get
@@ -16,12 +18,15 @@ import java.net.URI
 import java.net.UnknownHostException
 import javax.net.ssl.SSLException
 
-/** What Test connection found: it signed in, or why not, in words for the user. Never contains a key. */
+/** What Test connection found: it signed in, or why not, in words for the user (only shown). Never contains a key. */
 sealed interface ConnectionCheck {
-    data class Passed(val detail: String) : ConnectionCheck
+    data class Passed(val detail: EngineText) : ConnectionCheck
 
-    data class Failed(val message: String) : ConnectionCheck
+    data class Failed(val message: EngineText) : ConnectionCheck
 }
+
+/** A setup step that failed for a reason the user can fix, said in [text]; [message] is the same in English, for logs. */
+class ServiceSetupException(val text: EngineText, message: String) : IllegalArgumentException(message)
 
 /**
  * The setup sheets' network calls for a self-hosted service: Test connection (one harmless GET with the
@@ -45,13 +50,13 @@ class ServiceConnections(http: HttpClient) {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            ConnectionCheck.Failed(scrub(networkMessage(e, host), forms))
+            ConnectionCheck.Failed(networkMessage(e, host) { scrub(it, forms) })
         }
     }
 
     /**
      * Google Reader ClientLogin: the `Auth` token for [username] and [password] at [apiBase]
-     * (`…/api/greader.php`). Throws [IllegalArgumentException] with a message for the user.
+     * (`…/api/greader.php`). Throws [ServiceSetupException] with a message for the user.
      */
     suspend fun googleReaderLogin(apiBase: String, username: String, password: String): String {
         val host = hostOf(apiBase)
@@ -63,38 +68,44 @@ class ServiceConnections(http: HttpClient) {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            throw IllegalArgumentException(scrub(networkMessage(e, host), listOf(password)))
+            throw ServiceSetupException(networkMessage(e, host) { scrub(it, listOf(password)) }, "Couldn't reach $host")
         }
         val code = response.status.value
-        if (code == 401 || code == 403) throw IllegalArgumentException("$host refused that user name or API password. Check the API password under Profile → API management.")
-        if (code == 404) throw IllegalArgumentException("No Google Reader API at that address. Check it, and that the API is enabled in FreshRSS (Administration → Authentication).")
-        if (code !in 200..299) throw IllegalArgumentException("$host answered HTTP $code to the sign-in.")
+        if (code == 401 || code == 403) throw ServiceSetupException(EngineText.Res(R.string.data_service_login_refused, host), "$host refused that user name or API password.")
+        if (code == 404) throw ServiceSetupException(EngineText.Res(R.string.data_service_login_no_api), "No Google Reader API at that address.")
+        if (code !in 200..299) throw ServiceSetupException(EngineText.Res(R.string.data_service_login_http, host, code), "$host answered HTTP $code to the sign-in.")
         val token = response.bodyAsText().lineSequence().map { it.trim() }.firstOrNull { it.startsWith("Auth=") }?.removePrefix("Auth=")
-        require(!token.isNullOrBlank() && token.none { it.isWhitespace() || it.isISOControl() }) { "$host didn't return a sign-in token. Is the API enabled?" }
+        if (token.isNullOrBlank() || token.any { it.isWhitespace() || it.isISOControl() }) {
+            throw ServiceSetupException(EngineText.Res(R.string.data_service_login_no_token, host), "$host didn't return a sign-in token.")
+        }
         return token
     }
 
     private suspend fun judge(response: HttpResponse, host: String): ConnectionCheck {
         val code = response.status.value
         return when {
-            code in 200..299 -> ConnectionCheck.Passed("Reached $host and it accepted the key (HTTP $code).")
+            code in 200..299 -> ConnectionCheck.Passed(EngineText.Res(R.string.data_service_passed, host, code))
             code in 300..399 -> ConnectionCheck.Failed(
-                "$host redirects to ${response.headers["Location"]?.let(::hostOrPath) ?: "another address"}. Locus doesn't follow redirects with a key: use the address it redirects to.",
+                response.headers["Location"]?.let(::hostOrPath)?.let { EngineText.Res(R.string.data_service_redirect, host, it) }
+                    ?: EngineText.Res(R.string.data_service_redirect_elsewhere, host),
             )
-            code == 401 -> ConnectionCheck.Failed("$host refused the key (HTTP 401). Check it was copied whole and hasn't expired.")
-            code == 403 -> ConnectionCheck.Failed("$host accepted the key but it lacks permission for this (HTTP 403). Check the key's permissions.")
-            code == 404 -> ConnectionCheck.Failed("Nothing found at that address (HTTP 404). Check it, including any sub-path like /miniflux.")
-            code >= 500 -> ConnectionCheck.Failed("$host had an error (HTTP $code). Try again later.")
-            else -> ConnectionCheck.Failed("$host answered HTTP $code.")
+            code == 401 -> ConnectionCheck.Failed(EngineText.Res(R.string.data_service_refused, host))
+            code == 403 -> ConnectionCheck.Failed(EngineText.Res(R.string.data_service_forbidden, host))
+            code == 404 -> ConnectionCheck.Failed(EngineText.Res(R.string.data_service_not_found))
+            code >= 500 -> ConnectionCheck.Failed(EngineText.Res(R.string.data_service_server_error, host, code))
+            else -> ConnectionCheck.Failed(EngineText.Res(R.string.data_service_http, host, code))
         }
     }
 
-    private fun networkMessage(e: Exception, host: String): String = when (e) {
-        is UnknownHostException -> "Couldn't find $host. Check the address, and that this phone can reach it (same network or VPN)."
-        is SSLException -> "The secure connection to $host failed: ${e.message ?: "its certificate isn't trusted"}. A self-signed certificate isn't accepted."
-        is ConnectException -> "Couldn't connect to $host. Is the server running, and is the port right?"
-        is SocketTimeoutException -> "$host didn't answer in time."
-        else -> if (e::class.simpleName.orEmpty().contains("Timeout")) "$host didn't answer in time." else "Couldn't reach $host: ${e.message ?: e::class.simpleName}"
+    /** Why [e] stopped the request; [scrub] takes any key out of the exception's own words. */
+    private fun networkMessage(e: Exception, host: String, scrub: (String) -> String): EngineText = when (e) {
+        is UnknownHostException -> EngineText.Res(R.string.data_service_unknown_host, host)
+        is SSLException -> e.message?.let { EngineText.Res(R.string.data_service_tls, host, scrub(it)) }
+            ?: EngineText.Res(R.string.data_service_tls_untrusted, host)
+        is ConnectException -> EngineText.Res(R.string.data_service_connect, host)
+        is SocketTimeoutException -> EngineText.Res(R.string.data_service_timeout, host)
+        else -> if (e::class.simpleName.orEmpty().contains("Timeout")) EngineText.Res(R.string.data_service_timeout, host)
+        else EngineText.Res(R.string.data_service_unreachable, host, scrub(e.message ?: e::class.simpleName.orEmpty()))
     }
 
     private fun hostOrPath(location: String): String = runCatching { URI(location) }.getOrNull()?.let { u ->

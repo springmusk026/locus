@@ -73,6 +73,7 @@ import dev.locus.feature.workspace.R
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.material3.Button
+import dev.locus.feature.workspace.linux.asString
 
 /**
  * Interactive terminals in the Linux workspace (docs/design/terminal.md): tabs of login shells
@@ -176,8 +177,8 @@ fun TerminalRoute(
                 linux != LinuxStatus.Ready && tabs.isEmpty() -> EmptyState(
                     title = stringResource(if (linux is LinuxStatus.Installing) R.string.workspace_terminal_installing_title else R.string.workspace_terminal_not_installed_title),
                     body = when (val s = linux) {
-                        is LinuxStatus.Installing -> stringResource(R.string.workspace_terminal_installing_body, s.step)
-                        is LinuxStatus.Unavailable -> s.reason
+                        is LinuxStatus.Installing -> stringResource(R.string.workspace_terminal_installing_body, s.stepText.asString())
+                        is LinuxStatus.Unavailable -> s.reasonText.asString()
                         is LinuxStatus.Failed -> stringResource(R.string.workspace_terminal_failed_body, s.message)
                         else -> stringResource(R.string.workspace_terminal_not_installed_body)
                     },

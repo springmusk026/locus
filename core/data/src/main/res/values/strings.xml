@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Text core/data makes for the screens (docs/design/localization.md, "Text from the engine"). None of it is given to the model or stored. -->
+
+    <!-- Linux setup (LinuxSetup, LinuxPanel, LinuxSetupWorker) -->
+    <string name="data_linux_package_python_note">python3 and pip</string>
+    <string name="data_linux_package_git_note">version control</string>
+    <string name="data_linux_package_node_note">node and npm</string>
+    <string name="data_linux_package_curl_note">HTTP from the shell</string>
+    <string name="data_linux_phase_starting">Starting…</string>
+    <string name="data_linux_phase_removing_old">Removing the old Linux system…</string>
+    <string name="data_linux_phase_installing_alpine">Installing Alpine Linux…</string>
+    <string name="data_linux_phase_checking">Checking what\'s already installed…</string>
+    <string name="data_linux_phase_updating">Updating the package list (apk update)…</string>
+    <string name="data_linux_phase_installing_package">Installing %1$s (%2$d of %3$d)…</string>
+    <string name="data_linux_phase_repairing">Repairing…</string>
+    <string name="data_linux_phase_removing">Removing Linux…</string>
+    <string name="data_linux_working">Working…</string>
+    <string name="data_linux_ready">Linux is ready.</string>
+    <string name="data_linux_reinstalled">Linux was reinstalled.</string>
+    <string name="data_linux_reinstalled_with">Linux was reinstalled with %1$s.</string>
+    <string name="data_linux_installed">Installed %1$s.</string>
+    <string name="data_linux_cancelled">Cancelled. Nothing it downloaded was kept.</string>
+    <string name="data_linux_repaired">Repaired. Alpine Linux %1$s starts normally.</string>
+    <string name="data_linux_removed">Linux was removed. Your workspace files are still here.</string>
+    <string name="data_linux_update_timed_out">apk update timed out.</string>
+    <string name="data_linux_update_unreachable">Couldn\'t reach Alpine\'s package servers.</string>
+    <string name="data_linux_update_failed">%1$s Check the internet connection and try again.</string>
+    <string name="data_linux_package_timed_out">Timed out. The agent can finish this later with apk add.</string>
+    <string name="data_linux_package_exit">apk exited with %1$s</string>
+    <string name="data_linux_packages_failed">%1$d of %2$d couldn\'t be installed. See below; you can retry.</string>
+    <string name="data_linux_with_output" translatable="false">%1$s\n%2$s</string>
+    <string name="data_linux_estimate_under_a_minute">About %1$d MB to download, %2$d MB on the phone. Usually under a minute on Wi-Fi.</string>
+    <plurals name="data_linux_estimate_minutes">
+        <item quantity="one">About %1$d MB to download, %2$d MB on the phone. Usually about %3$d minute on Wi-Fi.</item>
+        <item quantity="other">About %1$d MB to download, %2$d MB on the phone. Usually about %3$d minutes on Wi-Fi.</item>
+    </plurals>
+    <string name="data_linux_notification_setting_up">Setting up Linux</string>
+    <string name="data_linux_notification_channel">Linux setup</string>
+    <string name="data_linux_notification_title">Installing Linux</string>
+    <string name="data_linux_notification_cancel">Cancel</string>
+
+    <!-- The phone is very hot and Linux services run (LinuxHeatAdvice) -->
+    <string name="data_heat_services_more">%1$s and %2$d more</string>
+    <plurals name="data_heat_message">
+        <item quantity="one">The phone is very hot and a Linux service is running (%2$s). Stopping them would help it cool down; the agent can start them again later.</item>
+        <item quantity="other">The phone is very hot and %1$d Linux services are running (%2$s). Stopping them would help it cool down; the agent can start them again later.</item>
+    </plurals>
+
+    <!-- Settings → About & privacy → Diagnostics → Storage (StorageArea) -->
+    <string name="data_storage_database_title">Chats and history</string>
+    <string name="data_storage_database_note">The database: chats, messages, activity and usage.</string>
+    <string name="data_storage_workspace_title">Workspace</string>
+    <string name="data_storage_workspace_note">Files you and the agent keep.</string>
+    <string name="data_storage_trash_title">Workspace trash</string>
+    <string name="data_storage_trash_note">Deleted and overwritten files, kept so changes can be undone.</string>
+    <string name="data_storage_linux_title">Linux</string>
+    <string name="data_storage_linux_note">Alpine Linux, its packages and its caches.</string>
+    <string name="data_storage_models_title">On-device models</string>
+    <string name="data_storage_models_note">LiteRT and GGUF models, and unfinished downloads.</string>
+    <string name="data_storage_browser_title">Browser data</string>
+    <string name="data_storage_browser_note">The agent browser\'s cookies, sign-ins and page cache.</string>
+    <string name="data_storage_caches_title">Caches</string>
+    <string name="data_storage_caches_note">Temporary files Locus makes again when needed.</string>
+    <string name="data_storage_logs_title">Logs</string>
+    <string name="data_storage_logs_note">Diagnostics entries on this phone.</string>
+    <string name="data_storage_agent_home_title">Memory, skills and settings</string>
+    <string name="data_storage_agent_home_note">What the agent learned, your skills and connectors, settings and saved keys.</string>
+
+    <!-- Settings → About & privacy → Diagnostics → Self-test (SelfTest) -->
+    <string name="data_selftest_fix_run_again">Try again</string>
+    <string name="data_selftest_fix_reset_keys">Reset keys</string>
+    <string name="data_selftest_fix_notifications">Turn on</string>
+    <string name="data_selftest_fix_storage">Free space</string>
+    <string name="data_selftest_fix_linux">Open Linux</string>
+    <string name="data_selftest_fix_models">Open Models</string>
+    <string name="data_selftest_vault_title">Keystore and saved keys</string>
+    <string name="data_selftest_database_title">Database</string>
+    <string name="data_selftest_storage_title">Free storage</string>
+    <string name="data_selftest_notifications_title">Notifications</string>
+    <string name="data_selftest_linux_title">Linux</string>
+    <string name="data_selftest_vault_ok_empty">The Keystore key opens, encrypts and decrypts. No keys are saved yet.</string>
+    <plurals name="data_selftest_vault_ok">
+        <item quantity="one">The Keystore key opens, encrypts and decrypts. %1$d saved value decrypts.</item>
+        <item quantity="other">The Keystore key opens, encrypts and decrypts. %1$d saved values decrypt.</item>
+    </plurals>
+    <string name="data_selftest_vault_locked">Saved keys open after you unlock the phone for the first time since it restarted.</string>
+    <string name="data_selftest_vault_needs_reset">Locus can\'t open your saved keys (%1$s). Resetting makes new keys; a copy of the old ones is kept in case they can be recovered.</string>
+    <string name="data_selftest_vault_unavailable">Locus can\'t open your saved keys right now. Nothing was changed; this can pass on its own.</string>
+    <string name="data_selftest_vault_unavailable_reason">Locus can\'t open your saved keys right now (%1$s). Nothing was changed; this can pass on its own.</string>
+    <string name="data_selftest_database_failed">The integrity check couldn\'t run.</string>
+    <string name="data_selftest_database_failed_reason">The integrity check couldn\'t run (%1$s).</string>
+    <string name="data_selftest_database_ok">The integrity check (quick_check) found no problems.</string>
+    <plurals name="data_selftest_database_problems">
+        <item quantity="one">The integrity check found %1$d problem: %2$s. Save a backup in Settings → Backup &amp; restore while Locus still reads your chats.</item>
+        <item quantity="other">The integrity check found %1$d problems: %2$s. Save a backup in Settings → Backup &amp; restore while Locus still reads your chats.</item>
+    </plurals>
+    <string name="data_selftest_storage_unknown">Android didn\'t say how much space is free.</string>
+    <string name="data_selftest_storage_ok">%1$s free of %2$s.</string>
+    <string name="data_selftest_storage_full">%1$s free of %2$s. Saving chats, files and downloads may fail.</string>
+    <string name="data_selftest_storage_low">%1$s free of %2$s. Large downloads (an on-device model, Linux tools) may not fit.</string>
+    <string name="data_selftest_notifications_on">On. Approvals, questions and finished tasks can reach you.</string>
+    <string name="data_selftest_notifications_off">Off. While Locus isn\'t on screen, approvals and questions wait unseen and scheduled tasks can\'t tell you they\'re done.</string>
+    <string name="data_selftest_linux_not_installed">Not installed, so not checked.</string>
+    <string name="data_selftest_linux_failed">Linux\'s health check couldn\'t run.</string>
+    <plurals name="data_selftest_linux_passed">
+        <item quantity="one">%1$s: %2$d check passed.</item>
+        <item quantity="other">%1$s: %2$d checks passed.</item>
+    </plurals>
+    <string name="data_selftest_linux_attention">%1$s. %2$d of %3$d checks need attention; each has its fix on the Linux screen.</string>
+    <string name="data_selftest_provider_not_checked">Not checked: %1$s</string>
+    <plurals name="data_selftest_provider_listed">
+        <item quantity="one">Reachable with its key: %1$d model listed.</item>
+        <item quantity="other">Reachable with its key: %1$d models listed.</item>
+    </plurals>
+    <string name="data_selftest_provider_refused">The key was refused (HTTP %1$d).</string>
+    <string name="data_selftest_provider_refused_message">The key was refused (HTTP %1$d). %2$s</string>
+    <string name="data_selftest_provider_no_list">It answered but doesn\'t list models (HTTP %1$d); chats may still work.</string>
+    <string name="data_selftest_provider_unreachable">Couldn\'t reach %1$s: %2$s</string>
+    <string name="data_selftest_provider_no_answer">no answer</string>
+    <plurals name="data_selftest_provider_timeout">
+        <item quantity="one">No answer in %1$d second.</item>
+        <item quantity="other">No answer in %1$d seconds.</item>
+    </plurals>
+
+    <!-- Settings changed outside Locus (PolicyIntegrity), shown once at start -->
+    <string name="data_integrity_tool_permissions">Your tool permissions were changed outside Locus, so they were reset to safe settings: actions that change something ask you first, and the AI reviewer is off. Deny settings were kept. Check Settings → Permissions.</string>
+    <string name="data_integrity_endpoints">Model provider addresses, proxies or SSH machines were changed outside Locus. Locus won\'t send a provider its key until you check its address and save it again (Settings → Models), proxies and imported certificates were removed, and each SSH machine\'s host key must be confirmed again.</string>
+    <plurals name="data_integrity_connectors">
+        <item quantity="one">A connector was added or changed outside Locus (%1$s), so it was moved back to drafts. Review it in Library before approving again.</item>
+        <item quantity="other">Connectors were added or changed outside Locus (%1$s), so they were moved back to drafts. Review them in Library before approving again.</item>
+    </plurals>
+    <plurals name="data_integrity_skills">
+        <item quantity="one">A skill was changed outside Locus (%1$s). Locus isn\'t using the changed version: it waits in Library → Skills as a draft marked “Changed outside Locus”, and the version you approved is back where a copy was kept. Approve a change only if you made it.</item>
+        <item quantity="other">Skills were changed outside Locus (%1$s). Locus isn\'t using the changed versions: they wait in Library → Skills as drafts marked “Changed outside Locus”, and the version you approved is back where a copy was kept. Approve a change only if you made it.</item>
+    </plurals>
+    <plurals name="data_integrity_helpers">
+        <item quantity="one">A helper was changed outside Locus (%1$s). Locus isn\'t using the changed version: it waits in Library → Helpers as a draft marked “Changed outside Locus”, and the version you approved is back where a copy was kept. Approve a change only if you made it.</item>
+        <item quantity="other">Helpers were changed outside Locus (%1$s). Locus isn\'t using the changed versions: they wait in Library → Helpers as drafts marked “Changed outside Locus”, and the version you approved is back where a copy was kept. Approve a change only if you made it.</item>
+    </plurals>
+    <string name="data_integrity_persona">Your agent\'s persona (%1$s) was changed outside Locus. Locus isn\'t using the change: new chats get the version you saved. Read the change in Settings → Agent → Agent identity, then keep or discard it.</string>
+
+    <!-- Stored data Locus had to reset or restore (StoreNotices), shown once at start -->
+    <string name="data_notice_vault_reset">Locus couldn\'t unlock your saved keys (API keys, passwords and sign-ins), so they were cleared. Enter them again in Settings. Details are in Settings → About &amp; privacy → Diagnostics.</string>
+    <string name="data_notice_settings_reset">Locus couldn\'t read its settings file, so settings were reset to the defaults. A copy of the old file was kept. Details are in Settings → About &amp; privacy → Diagnostics.</string>
+    <string name="data_notice_keys_recovered">Locus could open the saved keys it had set aside at the last reset, and restored them. Keys you entered since were kept. Details are in Settings → About &amp; privacy → Diagnostics.</string>
+
+    <!-- Library → Add a service → Test connection (ServiceConnections, LibraryRepository) -->
+    <string name="data_service_passed">Reached %1$s and it accepted the key (HTTP %2$d).</string>
+    <string name="data_service_redirect">%1$s redirects to %2$s. Locus doesn\'t follow redirects with a key: use the address it redirects to.</string>
+    <string name="data_service_redirect_elsewhere">%1$s redirects to another address. Locus doesn\'t follow redirects with a key: use the address it redirects to.</string>
+    <string name="data_service_refused">%1$s refused the key (HTTP 401). Check it was copied whole and hasn\'t expired.</string>
+    <string name="data_service_forbidden">%1$s accepted the key but it lacks permission for this (HTTP 403). Check the key\'s permissions.</string>
+    <string name="data_service_not_found">Nothing found at that address (HTTP 404). Check it, including any sub-path like /miniflux.</string>
+    <string name="data_service_server_error">%1$s had an error (HTTP %2$d). Try again later.</string>
+    <string name="data_service_http">%1$s answered HTTP %2$d.</string>
+    <string name="data_service_unknown_host">Couldn\'t find %1$s. Check the address, and that this phone can reach it (same network or VPN).</string>
+    <string name="data_service_tls">The secure connection to %1$s failed: %2$s. A self-signed certificate isn\'t accepted.</string>
+    <string name="data_service_tls_untrusted">The secure connection to %1$s failed: its certificate isn\'t trusted. A self-signed certificate isn\'t accepted.</string>
+    <string name="data_service_connect">Couldn\'t connect to %1$s. Is the server running, and is the port right?</string>
+    <string name="data_service_timeout">%1$s didn\'t answer in time.</string>
+    <string name="data_service_unreachable">Couldn\'t reach %1$s: %2$s</string>
+    <string name="data_service_login_refused">%1$s refused that user name or API password. Check the API password under Profile → API management.</string>
+    <string name="data_service_login_no_api">No Google Reader API at that address. Check it, and that the API is enabled in FreshRSS (Administration → Authentication).</string>
+    <string name="data_service_login_http">%1$s answered HTTP %2$d to the sign-in.</string>
+    <string name="data_service_login_no_token">%1$s didn\'t return a sign-in token. Is the API enabled?</string>
+    <string name="data_service_home_assistant_missing">Home Assistant isn\'t in the catalogue.</string>
+    <string name="data_service_home_assistant_no_token">Paste a long-lived access token.</string>
+    <string name="data_service_home_assistant_passed">Reached Home Assistant at %1$s and it accepted the token.</string>
+</resources>

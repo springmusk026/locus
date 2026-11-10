@@ -1,5 +1,6 @@
 package dev.locus.feature.workspace.linux
 
+import androidx.compose.ui.platform.LocalResources
 import dev.locus.core.designsystem.SideOrBelow
 import android.text.format.Formatter
 import androidx.compose.foundation.layout.Arrangement
@@ -83,21 +84,22 @@ fun LinuxCard(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val feedback = Locus.feedback
+    val resources = LocalResources.current
     LaunchedEffect(state.message) {
         val message = state.message ?: return@LaunchedEffect
-        feedback.show(message)
+        feedback.show(message.asString(resources))
         viewModel.messageShown()
     }
     LocusCard(modifier) {
         Header(state.panel)
         when (val panel = state.panel) {
-            is LinuxPanel.Unavailable -> SupportingText(panel.reason, Modifier.padding(top = Spacing.sm), style = LocusType.rowSupporting)
+            is LinuxPanel.Unavailable -> SupportingText(panel.reason.asString(), Modifier.padding(top = Spacing.sm), style = LocusType.rowSupporting)
             is LinuxPanel.NotInstalled -> NotInstalled(panel, state, viewModel)
             is LinuxPanel.Working -> Working(panel, viewModel::cancel)
             is LinuxPanel.Installed -> Installed(panel, state, viewModel, onOpenTerminal, onOpenHealth)
             is LinuxPanel.Failed -> ErrorState(
                 title = stringResource(R.string.workspace_linux_failed_title),
-                message = panel.reason,
+                message = panel.reason.asString(),
                 onRetry = viewModel::install,
                 icon = LocusIcons.Terminal,
             )
@@ -146,7 +148,7 @@ private fun NotInstalled(panel: LinuxPanel.NotInstalled, state: LinuxUiState, vi
         )
         Text(stringResource(R.string.workspace_linux_tools_to_add), style = LocusType.cardTitle)
         PackagePicker(state, viewModel::toggle, enabled = true)
-        SupportingText(panel.estimate.summary)
+        SupportingText(panel.estimate.summary.asString())
         Button(onClick = viewModel::install, modifier = Modifier.fillMaxWidth().heightIn(min = Sizes.touchTarget)) {
             Text(
                 if (state.selected.isEmpty()) {
@@ -163,12 +165,13 @@ private fun NotInstalled(panel: LinuxPanel.NotInstalled, state: LinuxUiState, vi
 @Composable
 private fun Working(panel: LinuxPanel.Working, onCancel: () -> Unit) {
     Column(Modifier.padding(top = Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-        Text(panel.step, style = LocusType.rowSupporting)
+        val step = panel.step.asString()
+        Text(step, style = LocusType.rowSupporting)
         Meter(
             panel.fraction,
             tone = Tone.Live,
             size = MeterSize.Medium,
-            contentDescription = stringResource(R.string.workspace_linux_working_description, workingLabel(panel.operation), panel.step),
+            contentDescription = stringResource(R.string.workspace_linux_working_description, workingLabel(panel.operation), step),
         )
         if (panel.cancellable) {
             SupportingText(stringResource(R.string.workspace_linux_working_note))
@@ -190,7 +193,7 @@ private fun Installed(
     var confirm by rememberSaveable { mutableStateOf<String?>(null) }
     Column(Modifier.padding(top = Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         panel.killed?.let { kill ->
-            KillNotice(kill.what, relativeTime(kill.at), onDismiss = viewModel::dismissKill)
+            KillNotice(kill.whatText.asString(), relativeTime(kill.at), onDismiss = viewModel::dismissKill)
         }
         Column {
             KeyValueRow(stringResource(R.string.workspace_linux_version), stringResource(R.string.workspace_linux_alpine_version, panel.version), dense = true, mono = true)
@@ -224,7 +227,7 @@ private fun Installed(
                 }
             }
         }
-        state.error?.let { Banner(it, Tone.Critical, title = stringResource(R.string.workspace_linux_error_title), actionsBelow = true) }
+        state.error?.let { Banner(it.asString(), Tone.Critical, title = stringResource(R.string.workspace_linux_error_title), actionsBelow = true) }
         // One focus: the terminal. Health beside it; Repair, Reinstall and Remove are rarer, so they're
         // together in Manage, each with what it does.
         FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
@@ -289,7 +292,7 @@ private fun Installed(
 private fun KillNotice(what: String, whenText: String, onDismiss: () -> Unit) {
     val uri = LocalUriHandler.current
     Banner(
-        stringResource(R.string.workspace_linux_kill_message, what, whenText.lowercase(), AndroidKill.REASON, AndroidKill.FIX),
+        stringResource(R.string.workspace_linux_kill_message, what, whenText.lowercase(), AndroidKill.reasonText.asString(), AndroidKill.fixText.asString()),
         Tone.Caution,
         title = stringResource(R.string.workspace_linux_kill_title),
         actionsBelow = true,
@@ -304,6 +307,7 @@ private fun KillNotice(what: String, whenText: String, onDismiss: () -> Unit) {
 private fun PackagePicker(state: LinuxUiState, onToggle: (LinuxPackage) -> Unit, enabled: Boolean) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
         LinuxPackage.entries.forEach { p ->
+            val note = stringResource(p.noteRes)
             when (val pkg = state.packages[p]) {
                 PackageState.Installed -> LocusChip(p.label, tone = Tone.Live, icon = LocusIcons.Check, contentDescription = stringResource(R.string.workspace_linux_package_installed, p.label))
                 is PackageState.Failed -> LocusChip(
@@ -313,7 +317,7 @@ private fun PackagePicker(state: LinuxUiState, onToggle: (LinuxPackage) -> Unit,
                     selected = p in state.selected,
                     enabled = enabled,
                     onClick = { onToggle(p) },
-                    contentDescription = stringResource(R.string.workspace_linux_package_failed, p.label, p.note, pkg.detail.lineSequence().firstOrNull().orEmpty()),
+                    contentDescription = stringResource(R.string.workspace_linux_package_failed, p.label, note, pkg.detail.asString().lineSequence().firstOrNull().orEmpty()),
                 )
                 else -> LocusChip(
                     p.label,
@@ -321,7 +325,7 @@ private fun PackagePicker(state: LinuxUiState, onToggle: (LinuxPackage) -> Unit,
                     selected = p in state.selected,
                     enabled = enabled,
                     onClick = { onToggle(p) },
-                    contentDescription = stringResource(R.string.workspace_linux_package, p.label, p.note),
+                    contentDescription = stringResource(R.string.workspace_linux_package, p.label, note),
                 )
             }
         }

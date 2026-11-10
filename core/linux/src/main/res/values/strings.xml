@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Linux text the screens show (docs/design/localization.md, "Text from the engine"). The model reads the English in core/linux's Kotlin, never these. -->
+
+    <!-- The health check's fixes (LinuxFix) -->
+    <string name="linux_fix_repair">Repair</string>
+    <string name="linux_fix_reinstall">Reinstall</string>
+    <string name="linux_fix_clean_caches">Clean caches</string>
+    <string name="linux_fix_phantom_help">How to fix</string>
+    <string name="linux_fix_restart">Restart</string>
+    <string name="linux_fix_start">Start</string>
+    <string name="linux_fix_reset_dns">Reset DNS</string>
+    <string name="linux_fix_open_terminal">Open terminal</string>
+
+    <!-- The health checks (LinuxHealth.checks): a title and what it found -->
+    <string name="linux_health_headline_ok">Linux is working</string>
+    <plurals name="linux_health_headline_more_problems">
+        <item quantity="one">%1$s, and %2$d more problem</item>
+        <item quantity="other">%1$s, and %2$d more problems</item>
+    </plurals>
+    <plurals name="linux_health_headline_more_warnings">
+        <item quantity="one">%1$s, and %2$d more warning</item>
+        <item quantity="other">%1$s, and %2$d more warnings</item>
+    </plurals>
+    <string name="linux_health_two_sentences">%1$s %2$s</string>
+    <string name="linux_health_runtime_title">Linux runtime is missing</string>
+    <string name="linux_health_runtime_missing_proot">This copy of Locus can\'t run its Linux runtime (proot isn\'t there). Reinstall Locus from the same source.</string>
+    <string name="linux_health_runtime_missing_loader">This copy of Locus can\'t run its Linux runtime (proot\'s loader isn\'t there). Reinstall Locus from the same source.</string>
+    <string name="linux_health_runtime_not_executable">This copy of Locus can\'t run its Linux runtime (proot can\'t be executed). Reinstall Locus from the same source.</string>
+    <string name="linux_health_roundtrip_timeout_title">Linux doesn\'t respond</string>
+    <string name="linux_health_roundtrip_timeout_detail">A test command didn\'t finish in %1$d s. Repair rewrites Linux\'s settings without touching your packages.</string>
+    <string name="linux_health_roundtrip_failed_title">Linux can\'t run commands</string>
+    <string name="linux_health_roundtrip_failed_detail">A test command failed. Repair rewrites Linux\'s settings without touching your packages.</string>
+    <string name="linux_health_roundtrip_failed_detail_output">A test command failed: %1$s. Repair rewrites Linux\'s settings without touching your packages.</string>
+    <string name="linux_health_roundtrip_slow_title">Commands are slow to start</string>
+    <string name="linux_health_roundtrip_slow_detail">A test command took %1$.1f s. The phone may be busy, hot or in battery saver.</string>
+    <string name="linux_health_roundtrip_ok_title">Runs commands</string>
+    <string name="linux_health_roundtrip_ok_detail">A test command took %1$d ms.</string>
+    <string name="linux_health_files_damaged_title">Linux\'s system files are damaged</string>
+    <string name="linux_health_files_damaged_missing">Linux is missing %1$s. Only a reinstall puts them back; your workspace files stay.</string>
+    <string name="linux_health_files_damaged_missing_and_db">Linux is missing %1$s; the package database can\'t be read. Only a reinstall puts them back; your workspace files stay.</string>
+    <string name="linux_health_files_damaged_db">Linux is the package database can\'t be read. Only a reinstall puts them back; your workspace files stay.</string>
+    <string name="linux_health_files_more">%1$s and %2$d more</string>
+    <string name="linux_health_files_ok_title">System files intact</string>
+    <string name="linux_health_files_ok_detail">Key files and the package database are in place.</string>
+    <string name="linux_health_storage_full_title">Phone storage is almost full</string>
+    <string name="linux_health_storage_full_detail">%1$s free. Installing packages will fail.</string>
+    <string name="linux_health_storage_full_detail_caches">%1$s free. Installing packages will fail. Caches in Linux use %2$s.</string>
+    <string name="linux_health_storage_low_title">Phone storage is low</string>
+    <string name="linux_health_storage_low_detail">%1$s free. Larger packages (compilers, Java, Node) may not fit.</string>
+    <string name="linux_health_storage_low_detail_caches">%1$s free. Larger packages (compilers, Java, Node) may not fit. Caches in Linux use %2$s.</string>
+    <string name="linux_health_caches_title">Caches use %1$s</string>
+    <string name="linux_health_caches_detail">Package and download caches can be deleted; they\'re downloaded again when needed.</string>
+    <string name="linux_health_storage_ok_title">Enough storage</string>
+    <string name="linux_health_storage_ok_detail">Linux uses %1$s; %2$s free on the phone.</string>
+    <string name="linux_health_memory_low_title">Phone is low on memory</string>
+    <string name="linux_health_memory_low_detail">%1$s available. Android may stop Linux programs, especially while Locus is in the background.</string>
+    <string name="linux_health_memory_ok_title">Enough memory</string>
+    <string name="linux_health_memory_ok_detail">%1$s of %2$s available; Linux programs use %3$s.</string>
+    <string name="linux_health_phantom_off_title">Background limit is off</string>
+    <string name="linux_health_phantom_off_detail">Child process restrictions are turned off, so Android won\'t stop Linux for that reason.</string>
+    <string name="linux_health_phantom_warning_title">Android may stop Linux in the background</string>
+    <string name="linux_health_phantom_warning_detail">Android 12+ stops apps\' extra processes (%1$d running for Locus now). You can turn this off.</string>
+    <string name="linux_health_phantom_killed_command">Android stopped a command while Locus was in the background.</string>
+    <string name="linux_health_phantom_killed_service">Android stopped service %1$s while Locus was in the background.</string>
+    <string name="linux_health_phantom_killed_terminal">Android stopped a terminal while Locus was in the background.</string>
+    <string name="linux_health_phantom_killed_other">Android stopped %1$s while Locus was in the background.</string>
+    <string name="linux_health_phantom_on_title">Background limit is on</string>
+    <string name="linux_health_phantom_on_detail">Android 12+ may stop Linux programs while Locus is in the background.</string>
+    <string name="linux_health_phantom_on_detail_unknown">Android 12+ may stop Linux programs while Locus is in the background (this phone doesn\'t let Locus check the setting).</string>
+    <string name="linux_health_dns_config_title">No DNS server set</string>
+    <string name="linux_health_dns_config_detail">Linux\'s /etc/resolv.conf names no nameserver, so it can\'t reach the internet.</string>
+    <string name="linux_health_network_dns_title">Linux can\'t look up names</string>
+    <string name="linux_health_network_dns_detail">DNS failed inside Linux. If the phone is online, reset Linux\'s DNS servers.</string>
+    <string name="linux_health_network_https_title">Can\'t reach Alpine\'s mirror</string>
+    <string name="linux_health_network_https_detail">Names resolve but dl-cdn.alpinelinux.org didn\'t answer over HTTPS. A VPN, captive portal or firewall may block it.</string>
+    <string name="linux_health_network_ok_title">Internet works</string>
+    <string name="linux_health_network_ok_detail">DNS and HTTPS to Alpine\'s mirror in %1$d ms.</string>
+    <string name="linux_health_upgrades_none_title">Packages up to date</string>
+    <string name="linux_health_upgrades_none_detail">No newer versions in Alpine %1$s\'s repositories.</string>
+    <plurals name="linux_health_upgrades_title">
+        <item quantity="one">%1$d update available</item>
+        <item quantity="other">%1$d updates available</item>
+    </plurals>
+    <string name="linux_health_upgrades_detail">Run `apk upgrade` in the terminal to install them.</string>
+    <string name="linux_health_service_crashed_title">“%1$s” crashed</string>
+    <string name="linux_health_service_crashed_detail">It exited with %1$s. Its log may say why; ask the agent to check it.</string>
+    <string name="linux_health_service_killed_title">Android stopped “%1$s”</string>
+    <string name="linux_health_service_killed_detail">It was killed while Locus was in the background (phantom process limit).</string>
+    <string name="linux_health_service_not_running_title">“%1$s” isn\'t running</string>
+    <string name="linux_health_service_not_running_detail">It\'s set to start when Locus opens, but it isn\'t running. Start it, or turn off Start when Locus opens under Services.</string>
+
+    <!-- How a process ended (LinuxHealth.exitText), inside “It exited with …” and “Crashed, …” -->
+    <string name="linux_exit_error">an error</string>
+    <string name="linux_exit_signal">signal %1$d</string>
+    <string name="linux_exit_signal_named">signal %1$d (%2$s)</string>
+    <string name="linux_exit_code">code %1$d</string>
+
+    <!-- Sizes (LinuxHealth.bytesText): the number follows the language, the units don't change -->
+    <string name="linux_bytes_b" translatable="false">%1$d B</string>
+    <string name="linux_bytes_kb_small" translatable="false">%1$.1f KB</string>
+    <string name="linux_bytes_kb" translatable="false">%1$.0f KB</string>
+    <string name="linux_bytes_mb_small" translatable="false">%1$.1f MB</string>
+    <string name="linux_bytes_mb" translatable="false">%1$.0f MB</string>
+    <string name="linux_bytes_gb_small" translatable="false">%1$.1f GB</string>
+    <string name="linux_bytes_gb" translatable="false">%1$.0f GB</string>
+    <string name="linux_bytes_tb_small" translatable="false">%1$.1f TB</string>
+    <string name="linux_bytes_tb" translatable="false">%1$.0f TB</string>
+
+    <!-- Linux's status while it installs, or why it can't (LinuxStatus) -->
+    <string name="linux_status_downloading">Downloading Alpine Linux %1$s</string>
+    <string name="linux_status_unpacking">Unpacking</string>
+    <string name="linux_status_no_runtime">This build doesn\'t include the Linux runtime for %1$s.</string>
+
+    <!-- Android's phantom process limit (AndroidKill); the model reads the English in AndroidKill -->
+    <string name="linux_kill_reason">Android stops the Linux processes of apps in the background when there are too many or they use a lot of CPU.</string>
+    <string name="linux_kill_fix_lead">To stop that, turn on Settings → System → Developer options → \"Disable child process restrictions\" (Android 14 and later). On Android 12L and 13, run this from a computer:</string>
+    <string name="linux_kill_fix">To stop that, turn on Settings → System → Developer options → \"Disable child process restrictions\" (Android 14 and later), or on Android 12L and 13 run `%1$s` from a computer.</string>
+    <string name="linux_kill_what_command">A command</string>
+    <string name="linux_kill_what_service">Service %1$s</string>
+    <string name="linux_kill_what_terminal">A terminal</string>
+</resources>

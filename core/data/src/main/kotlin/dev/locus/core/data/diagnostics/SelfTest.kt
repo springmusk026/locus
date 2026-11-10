@@ -5,10 +5,12 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.StatFs
+import androidx.annotation.StringRes
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.locus.core.agent.SecretScrubber
+import dev.locus.core.data.R
 import dev.locus.core.data.auth.ProviderAccess
 import dev.locus.core.data.repository.SettingsRepository
 import dev.locus.core.database.DatabaseCheck
@@ -16,7 +18,7 @@ import dev.locus.core.datastore.DataStoreFiles
 import dev.locus.core.datastore.SecretStore
 import dev.locus.core.datastore.VaultCheck
 import dev.locus.core.datastore.VaultState
-import dev.locus.core.datastore.userMessage
+import dev.locus.core.linux.EngineText
 import dev.locus.core.linux.HealthLevel
 import dev.locus.core.linux.LinuxEnvironment
 import dev.locus.core.linux.LinuxHealth
@@ -36,37 +38,37 @@ import javax.inject.Singleton
 enum class SelfTestLevel { Pass, Warn, Fail, Skipped }
 
 /** What a check's button does; the self-test screen runs each one. Every one is reversible or confirmed first. */
-enum class SelfTestFix(val label: String) {
+enum class SelfTestFix(@param:StringRes val labelRes: Int) {
     /** Run the check again (a passing failure: the key before the first unlock, a timeout). */
-    RunAgain("Try again"),
+    RunAgain(R.string.data_selftest_fix_run_again),
 
     /** The vault's confirmed reset (a copy of the old keys is kept): asks in a confirmation sheet first. */
-    ResetSavedKeys("Reset keys"),
+    ResetSavedKeys(R.string.data_selftest_fix_reset_keys),
 
     /** Android's notification settings for Locus. */
-    NotificationSettings("Turn on"),
+    NotificationSettings(R.string.data_selftest_fix_notifications),
 
     /** Settings → About & privacy → Diagnostics → Storage. */
-    OpenStorage("Free space"),
+    OpenStorage(R.string.data_selftest_fix_storage),
 
     /** The Linux health screen, where each Linux problem has its own fix. */
-    OpenLinux("Open Linux"),
+    OpenLinux(R.string.data_selftest_fix_linux),
 
     /** Settings → Models, to check a provider's key or address. */
-    OpenModels("Open Models"),
+    OpenModels(R.string.data_selftest_fix_models),
 }
 
-/** One line of the self-test: [id] is stable per check ("vault", "provider:<id>"). */
+/** One line of the self-test: [id] is stable per check ("vault", "provider:<id>"). Its text is only shown. */
 data class SelfTestResult(
     val id: String,
-    val title: String,
+    val title: EngineText,
     val level: SelfTestLevel,
-    val detail: String,
+    val detail: EngineText,
     val fix: SelfTestFix? = null,
 )
 
 /** A check the self-test will run: its [id] and [title] show as a pending row before it runs. */
-class SelfTestCheck(val id: String, val title: String, val run: suspend () -> SelfTestResult)
+class SelfTestCheck(val id: String, val title: EngineText, val run: suspend () -> SelfTestResult)
 
 /**
  * Locus's self-test (docs/design/diagnostics.md, "Self-test"): local checks of what Locus needs to work,
@@ -94,7 +96,7 @@ class SelfTest @Inject constructor(
         add(SelfTestCheck(STORAGE, SelfTestRules.STORAGE_TITLE) { storage() })
         add(SelfTestCheck(NOTIFICATIONS, SelfTestRules.NOTIFICATIONS_TITLE) { notifications() })
         add(SelfTestCheck(LINUX, SelfTestRules.LINUX_TITLE) { linux() })
-        if (providers) cloudProviders().forEach { p -> add(SelfTestCheck(providerId(p.id), p.name) { provider(p) }) }
+        if (providers) cloudProviders().forEach { p -> add(SelfTestCheck(providerId(p.id), EngineText.Plain(p.name)) { provider(p) }) }
     }
 
     /** The providers the opt-in check would contact (on-device ones need no network). */
@@ -135,9 +137,13 @@ class SelfTest @Inject constructor(
         val outcome = runCatchingCancellable { withTimeoutOrNull(PROVIDER_TIMEOUT_MS) { access.listModels(p, null).size } }
         val scrubber = SecretScrubber(runCatchingCancellable { secrets.valuesForScrubbing() }.getOrDefault(emptyList()))
         val error = when (val e = outcome.exceptionOrNull()) {
-            null -> if (outcome.getOrNull() == null) ProviderError("No answer in ${PROVIDER_TIMEOUT_MS / 1000} seconds.", null) else null
-            is LlmException -> ProviderError(scrubber.scrub(e.message.orEmpty()), e.httpStatus)
-            else -> ProviderError(scrubber.scrub(e.message ?: e::class.java.simpleName), null)
+            null -> if (outcome.getOrNull() == null) {
+                (PROVIDER_TIMEOUT_MS / 1000).toInt().let { ProviderError(EngineText.Plural(R.plurals.data_selftest_provider_timeout, it), null) }
+            } else {
+                null
+            }
+            is LlmException -> ProviderError(EngineText.Plain(scrubber.scrub(e.message.orEmpty())), e.httpStatus)
+            else -> ProviderError(EngineText.Plain(scrubber.scrub(e.message ?: e::class.java.simpleName)), null)
         }
         return SelfTestRules.provider(p, missing = null, listed = outcome.getOrNull(), error = error)
     }
@@ -154,16 +160,18 @@ class SelfTest @Inject constructor(
     }
 }
 
-/** A provider check's failure, already scrubbed of secrets. */
-data class ProviderError(val message: String, val httpStatus: Int?)
+/** A provider check's failure, already scrubbed of secrets: the server's own words, or Locus's. */
+data class ProviderError(val message: EngineText, val httpStatus: Int?)
 
 /** How each check's facts become a result: no Android here, so it's tested on plain values. */
 object SelfTestRules {
-    const val VAULT_TITLE = "Keystore and saved keys"
-    const val DATABASE_TITLE = "Database"
-    const val STORAGE_TITLE = "Free storage"
-    const val NOTIFICATIONS_TITLE = "Notifications"
-    const val LINUX_TITLE = "Linux"
+    val VAULT_TITLE: EngineText get() = EngineText.Res(R.string.data_selftest_vault_title)
+    val DATABASE_TITLE: EngineText get() = EngineText.Res(R.string.data_selftest_database_title)
+    val STORAGE_TITLE: EngineText get() = EngineText.Res(R.string.data_selftest_storage_title)
+    val NOTIFICATIONS_TITLE: EngineText get() = EngineText.Res(R.string.data_selftest_notifications_title)
+    val LINUX_TITLE: EngineText get() = EngineText.Res(R.string.data_selftest_linux_title)
+
+    private fun res(id: Int, vararg args: Any) = EngineText.Res(id, *args)
 
     fun vault(check: VaultCheck): SelfTestResult {
         val id = SelfTest.VAULT
@@ -171,25 +179,24 @@ object SelfTestRules {
             VaultState.Ready -> when (val problem = check.problem) {
                 null -> SelfTestResult(
                     id, VAULT_TITLE, SelfTestLevel.Pass,
-                    "The Keystore key opens, encrypts and decrypts. " +
-                        when (val n = check.entries ?: 0) {
-                            0 -> "No keys are saved yet."
-                            1 -> "1 saved value decrypts."
-                            else -> "$n saved values decrypt."
-                        },
+                    when (val n = check.entries ?: 0) {
+                        0 -> res(R.string.data_selftest_vault_ok_empty)
+                        else -> EngineText.Plural(R.plurals.data_selftest_vault_ok, n)
+                    },
                 )
-                else -> SelfTestResult(id, VAULT_TITLE, SelfTestLevel.Fail, problem, SelfTestFix.RunAgain)
+                else -> SelfTestResult(id, VAULT_TITLE, SelfTestLevel.Fail, EngineText.Plain(problem), SelfTestFix.RunAgain)
             }
-            VaultState.Locked -> SelfTestResult(id, VAULT_TITLE, SelfTestLevel.Warn, state.userMessage().orEmpty(), SelfTestFix.RunAgain)
+            // The same words as VaultState.userMessage, which other features show in English.
+            VaultState.Locked -> SelfTestResult(id, VAULT_TITLE, SelfTestLevel.Warn, res(R.string.data_selftest_vault_locked), SelfTestFix.RunAgain)
             is VaultState.NeedsReset -> SelfTestResult(
                 id, VAULT_TITLE, SelfTestLevel.Fail,
-                "Locus can't open your saved keys (${state.reason}). Resetting makes new keys; a copy of the old ones is kept in case they can be recovered.",
+                res(R.string.data_selftest_vault_needs_reset, state.reason),
                 SelfTestFix.ResetSavedKeys,
             )
             VaultState.NotOpened, is VaultState.Unavailable -> SelfTestResult(
                 id, VAULT_TITLE, SelfTestLevel.Fail,
-                "Locus can't open your saved keys right now" + ((state as? VaultState.Unavailable)?.reason?.let { " ($it)" }.orEmpty()) +
-                    ". Nothing was changed; this can pass on its own.",
+                (state as? VaultState.Unavailable)?.reason?.let { res(R.string.data_selftest_vault_unavailable_reason, it) }
+                    ?: res(R.string.data_selftest_vault_unavailable),
                 SelfTestFix.RunAgain,
             )
         }
@@ -199,50 +206,51 @@ object SelfTestRules {
     fun database(problems: List<String>?, error: String?): SelfTestResult = when {
         problems == null -> SelfTestResult(
             SelfTest.DATABASE, DATABASE_TITLE, SelfTestLevel.Fail,
-            "The integrity check couldn't run${error?.let { " ($it)" }.orEmpty()}.", SelfTestFix.RunAgain,
+            error?.let { res(R.string.data_selftest_database_failed_reason, it) } ?: res(R.string.data_selftest_database_failed),
+            SelfTestFix.RunAgain,
         )
-        problems.isEmpty() -> SelfTestResult(SelfTest.DATABASE, DATABASE_TITLE, SelfTestLevel.Pass, "The integrity check (quick_check) found no problems.")
+        problems.isEmpty() -> SelfTestResult(SelfTest.DATABASE, DATABASE_TITLE, SelfTestLevel.Pass, res(R.string.data_selftest_database_ok))
         else -> SelfTestResult(
             SelfTest.DATABASE, DATABASE_TITLE, SelfTestLevel.Fail,
-            "The integrity check found ${problems.size} problem${if (problems.size == 1) "" else "s"}: ${problems.take(3).joinToString("; ").take(400)}. " +
-                "Save a backup in Settings → Backup & restore while Locus still reads your chats.",
+            EngineText.Plural(R.plurals.data_selftest_database_problems, problems.size, problems.size, problems.take(3).joinToString("; ").take(400)),
         )
     }
 
     fun storage(free: Long?, total: Long?): SelfTestResult {
         if (free == null || total == null || total <= 0) {
-            return SelfTestResult(SelfTest.STORAGE, STORAGE_TITLE, SelfTestLevel.Warn, "Android didn't say how much space is free.", SelfTestFix.RunAgain)
+            return SelfTestResult(SelfTest.STORAGE, STORAGE_TITLE, SelfTestLevel.Warn, res(R.string.data_selftest_storage_unknown), SelfTestFix.RunAgain)
         }
-        val line = "${LinuxHealth.bytes(free)} free of ${LinuxHealth.bytes(total)}."
+        val freeText = LinuxHealth.bytesText(free)
+        val totalText = LinuxHealth.bytesText(total)
         return when {
             free < LinuxHealth.STORAGE_PROBLEM_BYTES -> SelfTestResult(
                 SelfTest.STORAGE, STORAGE_TITLE, SelfTestLevel.Fail,
-                "$line Saving chats, files and downloads may fail.", SelfTestFix.OpenStorage,
+                res(R.string.data_selftest_storage_full, freeText, totalText), SelfTestFix.OpenStorage,
             )
             free < LinuxHealth.STORAGE_WARNING_BYTES -> SelfTestResult(
                 SelfTest.STORAGE, STORAGE_TITLE, SelfTestLevel.Warn,
-                "$line Large downloads (an on-device model, Linux tools) may not fit.", SelfTestFix.OpenStorage,
+                res(R.string.data_selftest_storage_low, freeText, totalText), SelfTestFix.OpenStorage,
             )
-            else -> SelfTestResult(SelfTest.STORAGE, STORAGE_TITLE, SelfTestLevel.Pass, line)
+            else -> SelfTestResult(SelfTest.STORAGE, STORAGE_TITLE, SelfTestLevel.Pass, res(R.string.data_selftest_storage_ok, freeText, totalText))
         }
     }
 
     /** [permission] is POST_NOTIFICATIONS on Android 13+, null before (no runtime permission). */
     fun notifications(enabled: Boolean, permission: Boolean?): SelfTestResult =
         if (enabled && permission != false) {
-            SelfTestResult(SelfTest.NOTIFICATIONS, NOTIFICATIONS_TITLE, SelfTestLevel.Pass, "On. Approvals, questions and finished tasks can reach you.")
+            SelfTestResult(SelfTest.NOTIFICATIONS, NOTIFICATIONS_TITLE, SelfTestLevel.Pass, res(R.string.data_selftest_notifications_on))
         } else {
             SelfTestResult(
                 SelfTest.NOTIFICATIONS, NOTIFICATIONS_TITLE, SelfTestLevel.Warn,
-                "Off. While Locus isn't on screen, approvals and questions wait unseen and scheduled tasks can't tell you they're done.",
+                res(R.string.data_selftest_notifications_off),
                 SelfTestFix.NotificationSettings,
             )
         }
 
     fun linux(installed: Boolean, report: LinuxReport?): SelfTestResult {
-        if (!installed) return SelfTestResult(SelfTest.LINUX, LINUX_TITLE, SelfTestLevel.Skipped, "Not installed, so not checked.")
+        if (!installed) return SelfTestResult(SelfTest.LINUX, LINUX_TITLE, SelfTestLevel.Skipped, res(R.string.data_selftest_linux_not_installed))
         if (report == null) {
-            return SelfTestResult(SelfTest.LINUX, LINUX_TITLE, SelfTestLevel.Fail, "Linux's health check couldn't run.", SelfTestFix.OpenLinux)
+            return SelfTestResult(SelfTest.LINUX, LINUX_TITLE, SelfTestLevel.Fail, res(R.string.data_selftest_linux_failed), SelfTestFix.OpenLinux)
         }
         val checks = LinuxHealth.checks(report)
         val bad = checks.count { it.level != HealthLevel.Ok }
@@ -252,9 +260,9 @@ object SelfTestRules {
             HealthLevel.Problem -> SelfTestLevel.Fail
         }
         val detail = if (bad == 0) {
-            "${LinuxHealth.headline(checks)}: ${checks.size} checks passed."
+            EngineText.Plural(R.plurals.data_selftest_linux_passed, checks.size, LinuxHealth.headline(checks), checks.size)
         } else {
-            "${LinuxHealth.headline(checks)}. $bad of ${checks.size} checks need attention; each has its fix on the Linux screen."
+            res(R.string.data_selftest_linux_attention, LinuxHealth.headline(checks), bad, checks.size)
         }
         return SelfTestResult(SelfTest.LINUX, LINUX_TITLE, level, detail, SelfTestFix.OpenLinux.takeIf { bad > 0 })
     }
@@ -262,18 +270,27 @@ object SelfTestRules {
     /** [missing]: why nothing was sent; else [listed] models, or the [error]. */
     fun provider(p: ProviderConfig, missing: String?, listed: Int?, error: ProviderError?): SelfTestResult {
         val id = SelfTest.providerId(p.id)
+        val name = EngineText.Plain(p.name)
         return when {
-            missing != null -> SelfTestResult(id, p.name, SelfTestLevel.Fail, "Not checked: $missing", SelfTestFix.OpenModels)
+            missing != null -> SelfTestResult(id, name, SelfTestLevel.Fail, res(R.string.data_selftest_provider_not_checked, missing), SelfTestFix.OpenModels)
             error == null && listed != null ->
-                SelfTestResult(id, p.name, SelfTestLevel.Pass, "Reachable with its key: ${listed} model${if (listed == 1) "" else "s"} listed.")
-            error?.httpStatus == 401 || error?.httpStatus == 403 ->
-                SelfTestResult(id, p.name, SelfTestLevel.Fail, "The key was refused (HTTP ${error.httpStatus}). ${error.message}".trim(), SelfTestFix.OpenModels)
+                SelfTestResult(id, name, SelfTestLevel.Pass, EngineText.Plural(R.plurals.data_selftest_provider_listed, listed))
+            error?.httpStatus == 401 || error?.httpStatus == 403 -> SelfTestResult(
+                id, name, SelfTestLevel.Fail,
+                if ((error.message as? EngineText.Plain)?.value?.isBlank() == true) res(R.string.data_selftest_provider_refused, error.httpStatus)
+                else res(R.string.data_selftest_provider_refused_message, error.httpStatus, error.message),
+                SelfTestFix.OpenModels,
+            )
             // Some servers (a local llama.cpp, a proxy) don't list models but still chat.
             error?.httpStatus == 404 || error?.httpStatus == 405 ->
-                SelfTestResult(id, p.name, SelfTestLevel.Warn, "It answered but doesn't list models (HTTP ${error.httpStatus}); chats may still work.")
+                SelfTestResult(id, name, SelfTestLevel.Warn, res(R.string.data_selftest_provider_no_list, error.httpStatus))
             else -> SelfTestResult(
-                id, p.name, SelfTestLevel.Fail,
-                "Couldn't reach ${p.baseUrl}: ${error?.message?.take(300) ?: "no answer"}", SelfTestFix.RunAgain,
+                id, name, SelfTestLevel.Fail,
+                res(
+                    R.string.data_selftest_provider_unreachable, p.baseUrl,
+                    error?.message?.let { m -> (m as? EngineText.Plain)?.let { EngineText.Plain(it.value.take(300)) } ?: m } ?: res(R.string.data_selftest_provider_no_answer),
+                ),
+                SelfTestFix.RunAgain,
             )
         }
     }

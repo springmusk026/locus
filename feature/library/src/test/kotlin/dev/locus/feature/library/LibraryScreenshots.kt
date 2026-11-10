@@ -529,7 +529,7 @@ class LibraryScreenshots : ScreenshotTest() {
     fun serviceTested() = snap("library-sheet-service-mastodon-tested", heightDp = 1600) {
         ServiceTemplateSheet(
             checkNotNull(dev.locus.core.data.connectors.ConnectorTemplates.byId("mastodon")),
-            ServiceSetup(result = dev.locus.core.data.connectors.ConnectionCheck.Passed("Reached mastodon.social and it accepted the key (HTTP 200).")),
+            ServiceSetup(result = dev.locus.core.data.connectors.ConnectionCheck.Passed(dev.locus.core.linux.EngineText.Res(dev.locus.core.data.R.string.data_service_passed, "mastodon.social", 200))),
             dev.locus.core.designsystem.rememberLocalNetworkGate(),
             onTest = { _, _, _ -> }, onAdd = { _, _, _ -> }, onEdited = {}, onDismiss = {},
             initialForm = filled("mastodon.social", key = "x8Hq2-token"),
@@ -540,7 +540,7 @@ class LibraryScreenshots : ScreenshotTest() {
     fun serviceFailed() = snap("library-sheet-service-miniflux-failed", heightDp = 1600) {
         ServiceTemplateSheet(
             checkNotNull(dev.locus.core.data.connectors.ConnectorTemplates.byId("miniflux")),
-            ServiceSetup(result = dev.locus.core.data.connectors.ConnectionCheck.Failed("rss.example.com refused the key (HTTP 401). Check it was copied whole and hasn't expired.")),
+            ServiceSetup(result = dev.locus.core.data.connectors.ConnectionCheck.Failed(dev.locus.core.linux.EngineText.Res(dev.locus.core.data.R.string.data_service_refused, "rss.example.com"))),
             dev.locus.core.designsystem.rememberLocalNetworkGate(),
             onTest = { _, _, _ -> }, onAdd = { _, _, _ -> }, onEdited = {}, onDismiss = {},
             initialForm = filled("rss.example.com"),
@@ -551,7 +551,7 @@ class LibraryScreenshots : ScreenshotTest() {
     fun homeAssistant() = snap("library-sheet-home-assistant", heightDp = 2200) {
         HomeAssistantSheet(
             checkNotNull(McpTemplates.byId("home-assistant")),
-            ServiceSetup(result = dev.locus.core.data.connectors.ConnectionCheck.Passed("Reached Home Assistant at homeassistant.local:8123 and it accepted the token.")),
+            ServiceSetup(result = dev.locus.core.data.connectors.ConnectionCheck.Passed(dev.locus.core.linux.EngineText.Res(dev.locus.core.data.R.string.data_service_home_assistant_passed, "homeassistant.local:8123"))),
             dev.locus.core.designsystem.rememberLocalNetworkGate(),
             onTest = { _, _ -> }, onAdd = { _, _, _, _ -> }, onEdited = {}, onDismiss = {},
             initialForm = filled("https://homeassistant.local:8123", key = "eyJhbGciOiJIUzI1NiJ9.llat"),

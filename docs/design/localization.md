@@ -71,9 +71,22 @@ The model answers in the user's language when the user writes in it; the scaffol
 - Chinese wraps at any character, and buttons and chips with Chinese text keep their line breaks sensible: check the renders.
 - `translatable="false"` is on brand names, URLs, commands and ids, and on nothing a person reads as a sentence.
 
+## Text from the engine
+
+The engine's modules make text the screens show: Linux's health checks, setup steps and Android's kill notice (core/linux, core/data), the self-test and Storage (core/data), the start-up notices, and the catalogues behind Settings → Integrations and Library (integrations, MCP and service templates, provider and email presets, connection checks). The model must keep reading exactly the English it always read, so the split is:
+
+- **Text only the user reads moves into resources** of the module that makes it: `linux_*` in core/linux, `data_*` in core/data. Those modules can't use `UiText` (core/designsystem), so they return an `EngineText` (core/linux): the same idea, a resource id and its arguments, resolved when shown. Screens call `asString()` on it, or `toUiText()` for a view model's state (core/ui, and feature/workspace, which doesn't use core/ui). Enums carry a `@StringRes` (`LinuxFix.labelRes`, `SelfTestFix.labelRes`, `StorageArea.titleRes`, `LinuxPackage.noteRes`).
+- **Text the model also reads keeps its English** where it is, and gets a display twin: `LinuxStatus.Installing.stepText` beside `step`, `LinuxStatus.Unavailable.reasonText` beside `reason`, `LinuxHealth.exitText` beside `exitDescription`, `AndroidKill.reasonText`/`fixText`/`fixLeadText` beside `REASON`/`FIX`/`FIX_LEAD`, and `LinuxHeatAdvice.messageText` beside `message` (chat still shows the English one).
+- **Catalogues keep their English fields** (a template's description is saved into the connector the model reads; a preset's name is saved as the provider's name), and core/ui maps each entry, by id or by its English label, to resources (`CatalogText.kt`, `ui_catalog_*`): `descriptionText`, `authSummaryText`, `labelText`, `noteText` and the like. Product names stay as they are.
+- **Stored English notices** ("Locus couldn't unlock your saved keys…") stay stored in English; `StorageNotices.text` shows the known ones in the app's language, and an unknown one (from an older version) as stored.
+- **Sizes** (`LinuxHealth.bytesText`) keep their units and write the number the language's way (1,5 KB); `LinuxHealth.bytes` stays the English form for logs and tests.
+
+Tests: core/linux and core/data check which resource and arguments each case gets; `LinuxEngineTextTest` (feature/workspace), `EngineTextTest` (feature/settings), `CatalogTextTest` (core/ui) and core/data's `EngineEnglishTest` render them in English and compare with the English the code wrote before, word for word, and fail when a catalogue entry has no resource.
+
 ## Still English
 
-- **Text from the engine** (core/agent, core/data, core/linux, core/model): Linux health checks, package labels, tool names and activity lines, relative times ("3 minutes ago"), schedule and trigger labels, integration and template descriptions, errors from the agent and providers. They are shared with what the model reads, so they need a display/model split first.
+- **Text from the engine not covered above**: tool names and activity lines, relative times ("3 minutes ago"), schedule and trigger labels and other core/model labels, errors from the agent and providers, and exception messages core/data throws for the user (`LibraryRepository`'s "needs an https:// address", `ProviderAccess.missing`, `ServiceAddress` checks, Linux repair failures), which screens show as they are.
+- **Catalogue names that are words** stay English because they are saved or match logos: provider preset names ("On this phone (Gemma 4, offline)", "Custom") and MCP template names ("Files", "Knowledge graph").
 - **View-model messages and helpers that tests compare in English** in chat, settings and tasks (notes in each extraction PR). They move with their tests.
 - **The voice-mode spoken layer** in chat.
 

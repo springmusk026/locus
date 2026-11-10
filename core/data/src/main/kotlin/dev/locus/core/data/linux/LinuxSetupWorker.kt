@@ -18,6 +18,8 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import dev.locus.core.data.R
+import dev.locus.core.linux.EngineText
 import dev.locus.core.linux.LinuxStatus
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.combine
@@ -39,19 +41,22 @@ class LinuxSetupWorker @AssistedInject constructor(
     private val setup: LinuxSetup,
 ) : CoroutineWorker(context, params) {
 
-    override suspend fun getForegroundInfo(): ForegroundInfo = foregroundInfo("Setting up Linux", null)
+    private val resources get() = applicationContext.resources
+
+    override suspend fun getForegroundInfo(): ForegroundInfo = foregroundInfo(resources.getString(R.string.data_linux_notification_setting_up), null)
 
     override suspend fun doWork(): Result {
         val packages = inputData.getStringArray(KEY_PACKAGES).orEmpty().mapNotNull { name -> LinuxPackage.entries.firstOrNull { it.name == name } }
         val request = LinuxSetupRequest(packages, reinstall = inputData.getBoolean(KEY_REINSTALL, false))
         // Android may refuse a foreground start (the app went to the background first); the install
         // still runs, as ordinary expedited work.
-        runCatching { setForeground(foregroundInfo("Setting up Linux", null)) }
+        runCatching { setForeground(foregroundInfo(resources.getString(R.string.data_linux_notification_setting_up), null)) }
         coroutineScope {
             val progress = launch {
                 combine(setup.status, setup.state) { status, state ->
                     val installing = status as? LinuxStatus.Installing
-                    (installing?.step ?: state.phase ?: "Setting up Linux") to (installing?.fraction ?: state.progress)
+                    (installing?.stepText ?: state.phase ?: EngineText.Res(R.string.data_linux_notification_setting_up)).asString(resources) to
+                        (installing?.fraction ?: state.progress)
                 }
                     // At most one update per percent, so the notification isn't rebuilt per chunk.
                     .distinctUntilChanged { a, b -> a.first == b.first && percent(a.second) == percent(b.second) }
@@ -70,18 +75,18 @@ class LinuxSetupWorker @AssistedInject constructor(
 
     private fun foregroundInfo(step: String, fraction: Float?): ForegroundInfo {
         val manager = applicationContext.getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(NotificationChannel(CHANNEL, "Linux setup", NotificationManager.IMPORTANCE_LOW))
+        manager.createNotificationChannel(NotificationChannel(CHANNEL, resources.getString(R.string.data_linux_notification_channel), NotificationManager.IMPORTANCE_LOW))
         val open = applicationContext.packageManager.getLaunchIntentForPackage(applicationContext.packageName)?.let {
             PendingIntent.getActivity(applicationContext, 0, it, PendingIntent.FLAG_IMMUTABLE)
         }
         val cancel = WorkManager.getInstance(applicationContext).createCancelPendingIntent(id)
         val notification = NotificationCompat.Builder(applicationContext, CHANNEL)
             .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentTitle("Installing Linux")
+            .setContentTitle(resources.getString(R.string.data_linux_notification_title))
             .setContentText(step)
             .setProgress(100, ((fraction ?: 0f) * 100).toInt(), fraction == null)
             .setContentIntent(open)
-            .addAction(0, "Cancel", cancel)
+            .addAction(0, resources.getString(R.string.data_linux_notification_cancel), cancel)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .build()

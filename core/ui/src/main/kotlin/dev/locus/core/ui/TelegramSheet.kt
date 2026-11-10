@@ -13,6 +13,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import android.text.format.DateFormat
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import dev.locus.core.agent.integrations.TelegramRemote
 import dev.locus.core.designsystem.ConfirmSheet
@@ -115,7 +116,7 @@ fun TelegramSheet(integration: Integration, hasKey: Boolean, actions: TelegramAc
     fun failed(e: Throwable) { error = e.message?.let { UiText.Plain(it) } ?: UiText.Res(DesignR.string.common_error_generic); note = null; running = null }
 
     LocusSheet(
-        title = integration.name,
+        title = integration.displayName(LocalResources.current),
         subtitle = stringResource(R.string.ui_telegram_subtitle),
         onDismiss = onDismiss,
         action = stringResource(DesignR.string.common_save),
@@ -129,7 +130,7 @@ fun TelegramSheet(integration: Integration, hasKey: Boolean, actions: TelegramAc
         Text(stringResource(R.string.ui_telegram_steps), style = LocusType.rowSupporting)
         OutlinedTextField(
             token, { token = it.trim(); error = null },
-            label = { Text(if (hasKey) stringResource(R.string.ui_telegram_bot_token) else integration.keyLabel) },
+            label = { Text(if (hasKey) stringResource(R.string.ui_telegram_bot_token) else integration.keyLabelText(LocalResources.current)) },
             supportingText = if (hasKey) { { Text(stringResource(R.string.ui_telegram_token_keep)) } } else null,
             singleLine = true, isError = token.isNotBlank() && !Telegram.isToken(token),
             visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
@@ -153,7 +154,7 @@ fun TelegramSheet(integration: Integration, hasKey: Boolean, actions: TelegramAc
                 },
             ) { BusyLabel(stringResource(R.string.ui_telegram_find_chat), running == "find") }
             TextButton(onClick = { uriHandler.openUri(found?.botUsername?.let { "https://t.me/$it" } ?: integration.signupUrl) }) {
-                Text(found?.botUsername?.let { stringResource(R.string.ui_telegram_open_bot, it) } ?: integration.linkLabel)
+                Text(found?.botUsername?.let { stringResource(R.string.ui_telegram_open_bot, it) } ?: integration.linkLabelText(LocalResources.current))
             }
         }
         found?.chats?.takeIf { it.isNotEmpty() }?.let { chats ->

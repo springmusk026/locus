@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -50,6 +51,7 @@ import dev.locus.core.designsystem.compactCount
 import dev.locus.core.llm.ChatGptErrors
 import dev.locus.core.model.ApiFormat
 import dev.locus.core.ondevice.ModelState
+import dev.locus.core.ui.noteText
 
 @Composable
 internal fun ColumnScope.ProviderStep(state: OnboardingUiState, viewModel: OnboardingViewModel) {
@@ -85,7 +87,7 @@ internal fun ColumnScope.ProviderStep(state: OnboardingUiState, viewModel: Onboa
                 if (i > 0) GroupDivider(Insets.iconRow)
                 ListRow(
                     preset.name,
-                    subtitle = preset.note,
+                    subtitle = preset.noteText(LocalResources.current),
                     // The note says what to enter; cutting it mid-instruction loses the point.
                     subtitleMaxLines = Int.MAX_VALUE,
                     onClick = { viewModel.pickPreset(preset) },
@@ -109,7 +111,7 @@ internal fun ColumnScope.ProviderStep(state: OnboardingUiState, viewModel: Onboa
             JobStatus(viewModel.providerSave, stringResource(R.string.onboarding_shared_saving))
         }
     }
-    SupportingText(draft.preset.note)
+    SupportingText(draft.preset.noteText(LocalResources.current))
 }
 
 @Composable

@@ -412,6 +412,7 @@
     <string name="settings_selftest_level_warn">Aviso</string>
     <string name="settings_selftest_level_fail">Com falha</string>
     <string name="settings_selftest_level_skipped">Ignorada</string>
+    <string name="settings_selftest_check_failed">A própria verificação falhou (%1$s).</string>
     <plurals name="settings_selftest_providers_requests" tools:ignore="ImpliedQuantity">
         <item quantity="one">Usa a rede: uma solicitação ao seu provedor.</item>
         <item quantity="many">Usa a rede: uma solicitação a cada um dos seus %1$d provedores.</item>

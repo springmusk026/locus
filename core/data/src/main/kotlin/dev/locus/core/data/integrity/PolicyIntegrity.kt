@@ -4,12 +4,15 @@ import androidx.datastore.core.DataStore
 import dev.locus.core.agent.home.AgentHome
 import dev.locus.core.agent.home.ConnectorSeal
 import dev.locus.core.agent.home.InstructionSeal
+import dev.locus.core.data.R
 import dev.locus.core.data.di.ApplicationScope
 import dev.locus.core.datastore.IntegrityAlert
 import dev.locus.core.datastore.IntegrityAlerts
 import dev.locus.core.datastore.resealSettingsFile
+import dev.locus.core.linux.EngineText
 import dev.locus.core.model.AppSettings
 import dev.locus.core.model.IntegrityKey
+import dev.locus.core.model.SettingsDestination
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -58,8 +61,11 @@ class PolicyIntegrity @Inject constructor(
         }
     }
 
-    /** What to tell the user, or null when nothing failed its check. */
-    val message: Flow<String?> = alerts.alerts.map { list -> list.takeIf { it.isNotEmpty() }?.let(::describe) }
+    /** What to tell the user, one paragraph per alert ([describe]); empty when nothing failed its check. */
+    val messages: Flow<List<EngineText>> = alerts.alerts.map { Companion.describe(it) }
+
+    /** The Settings page the notice links to: the first one an alert names ([destination]). */
+    val destination: Flow<SettingsDestination?> = alerts.alerts.map { list -> list.firstNotNullOfOrNull { Companion.destination(it) } }
 
     fun dismiss() = alerts.dismiss()
 
@@ -72,36 +78,26 @@ class PolicyIntegrity @Inject constructor(
     }
 
     companion object {
-        private fun changed(names: List<String>, kind: String, where: String): String {
-            val one = names.size == 1
-            return "${if (one) "A $kind was" else "${kind.replaceFirstChar { it.uppercase() }}s were"} changed outside Locus " +
-                "(${names.joinToString()}). Locus isn't using the changed ${if (one) "version" else "versions"}: " +
-                "${if (one) "it waits" else "they wait"} in $where as ${if (one) "a draft" else "drafts"} marked “Changed outside Locus”, " +
-                "and the version you approved is back where a copy was kept. Approve a change only if you made it."
+        private fun names(names: List<String>) = names.joinToString()
+
+        /** What happened for each alert and what Locus did about it, in the app's language. Only shown, never stored. */
+        fun describe(alerts: List<IntegrityAlert>): List<EngineText> = alerts.map { alert ->
+            when (alert) {
+                IntegrityAlert.ToolPermissions -> EngineText.Res(R.string.data_integrity_tool_permissions)
+                IntegrityAlert.Endpoints -> EngineText.Res(R.string.data_integrity_endpoints)
+                is IntegrityAlert.Connectors -> EngineText.Plural(R.plurals.data_integrity_connectors, alert.ids.size, names(alert.ids))
+                is IntegrityAlert.Skills -> EngineText.Plural(R.plurals.data_integrity_skills, alert.names.size, names(alert.names))
+                is IntegrityAlert.Helpers -> EngineText.Plural(R.plurals.data_integrity_helpers, alert.names.size, names(alert.names))
+                is IntegrityAlert.Persona -> EngineText.Res(R.string.data_integrity_persona, names(alert.files))
+            }
         }
 
-        fun describe(alerts: List<IntegrityAlert>): String = alerts.joinToString("\n\n") { alert ->
-            when (alert) {
-                IntegrityAlert.ToolPermissions ->
-                    "Your tool permissions were changed outside Locus, so they were reset to safe settings: " +
-                        "actions that change something ask you first, and the AI reviewer is off. " +
-                        "Deny settings were kept. Check Settings → Permissions."
-                IntegrityAlert.Endpoints ->
-                    "Model provider addresses, proxies or SSH machines were changed outside Locus. " +
-                        "Locus won't send a provider its key until you check its address and save it again (Settings → Models), " +
-                        "proxies and imported certificates were removed, and each SSH machine's host key must be confirmed again."
-                is IntegrityAlert.Connectors -> {
-                    val one = alert.ids.size == 1
-                    "${if (one) "A connector was" else "Connectors were"} added or changed outside Locus " +
-                        "(${alert.ids.joinToString()}), so ${if (one) "it was" else "they were"} moved back to drafts. " +
-                        "Review ${if (one) "it" else "them"} in Library before approving again."
-                }
-                is IntegrityAlert.Skills -> changed(alert.names, "skill", "Library → Skills")
-                is IntegrityAlert.Helpers -> changed(alert.names, "helper", "Library → Helpers")
-                is IntegrityAlert.Persona ->
-                    "Your agent's persona (${alert.files.joinToString()}) was changed outside Locus. Locus isn't using the change: " +
-                        "new chats get the version you saved. Read the change in Settings → Agent → Agent identity, then keep or discard it."
-            }
+        /** The Settings page [alert]'s text sends the user to, or null (Library isn't in Settings). */
+        fun destination(alert: IntegrityAlert): SettingsDestination? = when (alert) {
+            IntegrityAlert.ToolPermissions -> SettingsDestination.Permissions
+            IntegrityAlert.Endpoints -> SettingsDestination.Models
+            is IntegrityAlert.Persona -> SettingsDestination.Agent
+            is IntegrityAlert.Connectors, is IntegrityAlert.Skills, is IntegrityAlert.Helpers -> null
         }
     }
 }
