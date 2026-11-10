@@ -53,6 +53,8 @@ import dev.locus.core.model.ProxyMode
 import dev.locus.core.model.ProxyType
 import dev.locus.core.designsystem.AddRow
 import dev.locus.core.designsystem.RowChevron
+import android.content.res.Resources
+import androidx.compose.ui.platform.LocalResources
 
 /** One extra header in the editor: its name, and a new value when the user typed one. */
 internal data class HeaderDraft(val name: String, val newValue: String? = null)
@@ -101,17 +103,19 @@ internal class NetworkDraft(initial: ProviderNetwork) {
 }
 
 /** "2 headers · Default proxy · 1 certificate". */
-internal fun networkSummary(network: ProviderNetwork, defaults: NetworkDefaults): String {
+internal fun networkSummary(res: Resources, network: ProviderNetwork, defaults: NetworkDefaults): String {
     val parts = mutableListOf<String>()
-    if (network.headerNames.isNotEmpty()) parts += "${network.headerNames.size} header${if (network.headerNames.size == 1) "" else "s"}"
+    val headers = network.headerNames.size
+    if (headers > 0) parts += res.getQuantityString(R.plurals.settings_pnet_summary_headers, headers, headers)
+    val noProxy = res.getString(R.string.settings_pnet_proxy_none)
     parts += when (network.proxyMode) {
-        ProxyMode.DEFAULT -> if (defaults.proxy != null) "Default proxy" else "No proxy"
-        ProxyMode.DIRECT -> "No proxy"
-        ProxyMode.CUSTOM -> network.proxy?.let { "Proxy ${it.host}:${it.port}" } ?: "No proxy"
+        ProxyMode.DEFAULT -> if (defaults.proxy != null) res.getString(R.string.settings_pnet_summary_default_proxy) else noProxy
+        ProxyMode.DIRECT -> noProxy
+        ProxyMode.CUSTOM -> network.proxy?.let { res.getString(R.string.settings_pnet_summary_custom_proxy, "${it.host}:${it.port}") } ?: noProxy
     }
     val certs = defaults.certificates.count { it.allProviders || it.id in network.certificateIds }
-    if (certs > 0) parts += "$certs certificate${if (certs == 1) "" else "s"}"
-    return parts.joinToString(" · ")
+    if (certs > 0) parts += res.getQuantityString(R.plurals.settings_network_certificates_count, certs, certs)
+    return summaryJoin(res, parts)
 }
 
 /** The provider editor's "Network" row; opens [ProviderNetworkSheet]. */
@@ -120,7 +124,7 @@ internal fun ProviderNetworkRow(draft: NetworkDraft, defaults: NetworkDefaults, 
     CardGroup {
         ListRow(
             title = stringResource(R.string.settings_pnet_title),
-            subtitle = networkSummary(draft.network(), defaults),
+            subtitle = networkSummary(LocalResources.current, draft.network(), defaults),
             subtitleMaxLines = 2,
             onClick = onOpen,
             leading = { IconTile(LocusIcons.Globe) },

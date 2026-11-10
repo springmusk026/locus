@@ -828,7 +828,7 @@
     <string name="settings_models_use_http">Use an http:// or https:// address.</string>
     <string name="settings_models_unencrypted">Unencrypted connection to a public address. Your prompts and key would be readable in transit.</string>
     <plurals name="settings_models_count">
-        <item quantity="one">%1$d models</item>
+        <item quantity="one">%1$d model</item>
         <item quantity="other">%1$d models</item>
     </plurals>
 
@@ -1024,4 +1024,183 @@
     <string name="settings_ondevice_notice_deleted">Deleted.</string>
     <string name="settings_ondevice_notice_delete_busy">It\'s replying now. Delete it when it finishes.</string>
 
+    <!-- Settings → Network: summaries and import messages -->
+    <string name="settings_network_import_already">That certificate is already imported.</string>
+    <string name="settings_network_import_one">Imported. Tick it in a provider\'s Network settings to trust it there.</string>
+    <plurals name="settings_network_import_many">
+        <item quantity="one">Imported %1$d certificate. Tick it in a provider\'s Network settings to trust it there.</item>
+        <item quantity="other">Imported %1$d certificates. Tick them in a provider\'s Network settings to trust them there.</item>
+    </plurals>
+    <string name="settings_network_import_read_failed">Couldn\'t read that file.</string>
+    <string name="settings_network_cert_use_all">Trusted by every provider</string>
+    <string name="settings_network_cert_use_none">Not used by any provider yet</string>
+    <string name="settings_network_cert_use_named">Trusted by %1$s</string>
+    <plurals name="settings_network_cert_use_count">
+        <item quantity="one">Trusted by %1$d provider</item>
+        <item quantity="other">Trusted by %1$d providers</item>
+    </plurals>
+    <string name="settings_network_hub_proxy">%1$s proxy</string>
+    <string name="settings_network_hub_direct">Direct</string>
+    <plurals name="settings_network_certificates_count">
+        <item quantity="one">%1$d certificate</item>
+        <item quantity="other">%1$d certificates</item>
+    </plurals>
+    <plurals name="settings_network_hub_all_providers">
+        <item quantity="one">%1$d for all providers</item>
+        <item quantity="other">%1$d for all providers</item>
+    </plurals>
+    <plurals name="settings_pnet_summary_headers">
+        <item quantity="one">%1$d header</item>
+        <item quantity="other">%1$d headers</item>
+    </plurals>
+    <string name="settings_pnet_summary_default_proxy">Default proxy</string>
+    <string name="settings_pnet_summary_custom_proxy">Proxy %1$s</string>
+
+    <!-- Settings → Permissions: remembered rules and the reviewer -->
+    <string name="settings_permissions_remembered_your_calendar">your calendar</string>
+    <string name="settings_permissions_remembered_calendar_change">Change events in %1$s</string>
+    <string name="settings_permissions_remembered_calendar_add">Add events to %1$s</string>
+    <string name="settings_permissions_remembered_this_chat">This chat only</string>
+    <string name="settings_permissions_remembered_always">Always</string>
+    <string name="settings_permissions_remembered_ends_today">Always · ends today</string>
+    <plurals name="settings_permissions_remembered_days_left">
+        <item quantity="one">Always · %1$d day left</item>
+        <item quantity="other">Always · %1$d days left</item>
+    </plurals>
+    <string name="settings_permissions_remembered_in_project">%1$s · in its project</string>
+    <string name="settings_permissions_reviewer_hint_off">Actions set to Ask always ask you.</string>
+    <string name="settings_permissions_reviewer_hint_asks">Checks actions set to Ask: runs the clearly fine ones, blocks the clearly wrong ones, asks you about the rest. Uses %1$s.</string>
+    <string name="settings_permissions_reviewer_hint_all">Also checks allowed actions that change something; any it doesn\'t clear come to you. Uses %1$s.</string>
+    <string name="settings_permissions_reviewer_own_model">each chat\'s own model (set a helper model in Settings → Helper model &amp; extras for a faster one)</string>
+
+    <!-- Settings → Backup & restore: progress, outcomes and errors -->
+    <string name="settings_backup_progress_backing_up">Backing up</string>
+    <string name="settings_backup_progress_checking">Checking the backup</string>
+    <string name="settings_backup_saved">Backup saved: %1$s before compression.</string>
+    <string name="settings_backup_saved_with_keys">Backup saved: %1$s before compression, with keys.</string>
+    <string name="settings_backup_cancelled">Backup cancelled. Delete the partial file.</string>
+    <string name="settings_backup_error_not_a_backup">This isn\'t a Locus backup file.</string>
+    <string name="settings_backup_error_wrong_password">That password doesn\'t open this backup.</string>
+    <string name="settings_backup_error_damaged">This file is damaged or was changed after it was made, so Locus won\'t restore it.</string>
+    <string name="settings_backup_error_database_damaged">The database inside this backup (chats, tasks and projects) is damaged, so Locus won\'t restore it. Nothing on this phone has changed. Try an older backup.</string>
+    <string name="settings_backup_error_newer_format">This backup was made by a newer version of Locus. Update Locus, then try again.</string>
+    <string name="settings_backup_error_newer_schema">This backup\'s data is from a newer version of Locus. Update Locus, then try again.</string>
+    <string name="settings_backup_error_run_active">A task is running. Stop it first, then restore.</string>
+    <string name="settings_backup_error_no_space">There isn\'t enough free space on this phone to restore this backup. Free some space, then try again.</string>
+    <string name="settings_backup_error_read">Couldn\'t read the file: %1$s</string>
+    <string name="settings_backup_error_unknown">unknown error</string>
+    <string name="settings_backup_failed_no_space">Backup failed: the phone ran out of space. Free some space, then back up again; Settings → About &amp; privacy → Diagnostics → Storage shows what Locus uses. Delete the incomplete file where you saved it.</string>
+    <string name="settings_backup_failed_write">Backup failed: Locus couldn\'t write the file. Try again, or save it in another folder. Delete the incomplete file where you saved it.</string>
+    <string name="settings_backup_no_space_text">Not enough free space to restore this backup. It needs about %1$s and %2$s is free: free up at least %3$s, then try again.</string>
+    <plurals name="settings_backup_section_entries">
+        <item quantity="one">%1$d entry</item>
+        <item quantity="other">%1$d entries</item>
+    </plurals>
+    <plurals name="settings_backup_section_files">
+        <item quantity="one">%1$d file</item>
+        <item quantity="other">%1$d files</item>
+    </plurals>
+    <string name="settings_backup_restore_warning">%1$s %2$s %3$s %4$s</string>
+    <string name="settings_backup_restore_warning_replaces">This replaces the chats, activity, settings, memory, skills and helpers on this phone with the backup\'s.</string>
+    <string name="settings_backup_restore_warning_workspace">The workspace is replaced too.</string>
+    <string name="settings_backup_restore_warning_workspace_kept">Your workspace files stay as they are.</string>
+    <string name="settings_backup_restore_warning_keys">Saved keys are replaced with the backup\'s.</string>
+    <string name="settings_backup_restore_warning_keys_kept">Keys saved on this phone are kept; add any that are missing.</string>
+    <string name="settings_backup_restore_warning_restarts">Locus then restarts.</string>
+
+    <!-- Settings → About & privacy → Updates: status lines and problems -->
+    <string name="settings_updates_status_checked">checked %1$s</string>
+    <string name="settings_updates_status_checked_start">Checked %1$s</string>
+    <string name="settings_updates_status_checking">Checking GitHub…</string>
+    <string name="settings_updates_status_no_release">No release published yet</string>
+    <string name="settings_updates_status_up_to_date">Up to date (%1$s)</string>
+    <string name="settings_updates_status_skipped">%1$s skipped</string>
+    <string name="settings_updates_status_beta_available">Beta %1$s available</string>
+    <string name="settings_updates_status_available">%1$s available</string>
+    <string name="settings_updates_status_updating">Updating to %1$s</string>
+    <string name="settings_updates_status_not_checked">Not checked yet</string>
+    <string name="settings_updates_status_waiting_wifi">Waiting for Wi-Fi to check</string>
+    <string name="settings_updates_note_disabled">This build doesn\'t check for updates. They come from where you installed Locus (F-Droid or IzzyOnDroid).</string>
+    <string name="settings_updates_note_debug">Debug build: updates come from your own builds. Check now still shows the latest release.</string>
+    <string name="settings_updates_note_store">Installed from %1$s, which keeps Locus up to date.</string>
+    <string name="settings_updates_problem_no_network">Couldn\'t reach GitHub. Check your connection and try again.</string>
+    <string name="settings_updates_problem_rate_limited">GitHub limits how often a network can ask without signing in, and this one has asked too often. Try again after %1$s.</string>
+    <string name="settings_updates_problem_unreadable">GitHub\'s answer couldn\'t be read. Try again later.</string>
+    <string name="settings_updates_problem_server">GitHub answered with an error (HTTP %1$d). Try again later.</string>
+    <string name="settings_updates_problem_no_apk">This release has no APK for this phone (%1$s). See the release page.</string>
+    <string name="settings_updates_problem_unknown_abi">unknown ABI</string>
+    <string name="settings_updates_problem_no_checksum">This release doesn\'t publish a SHA-256 checksum Locus can check the APK against, so Locus won\'t install it. You can download it yourself from the release page.</string>
+    <string name="settings_updates_problem_checksum_mismatch">The download didn\'t match the release\'s SHA-256 checksum, so Locus deleted it. Try again; if it happens again, report it on GitHub.</string>
+    <string name="settings_updates_problem_signature_mismatch">This APK is signed with a different key than the Locus on this phone, so Android won\'t install it as an update. To switch, make a backup in Settings → Backup &amp; restore, uninstall Locus, install the new APK, then restore the backup.</string>
+    <string name="settings_updates_problem_bad_apk">The download isn\'t a newer Locus, so Locus deleted it.</string>
+    <string name="settings_updates_problem_install_not_allowed">Android needs your permission for Locus to install apps. Turn on \"Allow from this source\" for Locus, then come back here.</string>
+    <string name="settings_updates_problem_install_cancelled">The update was cancelled in Android\'s installer. The verified download is kept.</string>
+    <string name="settings_updates_problem_storage">There isn\'t enough free space for the update. Free some up and try again.</string>
+    <string name="settings_updates_problem_install_failed">Android couldn\'t install the update.</string>
+    <string name="settings_updates_problem_install_failed_reason">Android couldn\'t install the update: %1$s</string>
+    <string name="settings_updates_progress_of">%1$s of %2$s MB</string>
+    <string name="settings_updates_progress">%1$s MB</string>
+
+    <!-- Settings → Integrations: the built-in tools or the vendor's MCP server -->
+    <string name="settings_integrations_mcpfirst_the_server">the MCP server</string>
+    <string name="settings_integrations_mcpfirst_using">Using the MCP server in new chats</string>
+    <string name="settings_integrations_mcpfirst_kept">Using the built-in tools in new chats</string>
+    <string name="settings_integrations_mcpfirst_failing">The MCP server isn\'t working</string>
+    <string name="settings_integrations_mcpfirst_body_using">New chats leave out the built-in %1$s tools and use “%2$s”. Chats you already have keep the tools they started with.</string>
+    <string name="settings_integrations_mcpfirst_body_using_keeps">New chats leave out the built-in %1$s tools and use “%2$s”. %3$s Chats you already have keep the tools they started with.</string>
+    <plurals name="settings_integrations_mcpfirst_body_kept">
+        <item quantity="one">%1$s stays, since it uploads from your workspace.</item>
+        <item quantity="other">%1$s stay, since they upload from your workspace.</item>
+    </plurals>
+    <string name="settings_integrations_mcpfirst_body_kept_builtin">“%1$s” is connected too, but new chats use the built-in %2$s tools, as you chose.</string>
+    <string name="settings_integrations_mcpfirst_body_failed">“%1$s” failed: %2$s. Until it works, new chats use the built-in %3$s tools.</string>
+    <string name="settings_integrations_mcpfirst_body_not_ready">“%1$s” can\'t be used yet. Until it works, new chats use the built-in %2$s tools.</string>
+
+    <!-- Settings: agent cost note, saved logins and self-test messages -->
+    <string name="settings_agent_cost_note">Cost needs model prices: turn on model details (models.dev) in Settings → Models.</string>
+    <string name="settings_logins_problem">Saved logins can\'t be opened right now: %1$s.</string>
+    <string name="settings_logins_problem_locked">the vault is locked</string>
+    <string name="settings_logins_save_failed">Couldn\'t save the login.</string>
+    <string name="settings_selftest_check_crashed">The check itself failed (%1$s).</string>
+
+    <!-- Settings → Models → On-device models: fit, states, problems and file kinds -->
+    <string name="settings_ondevice_fitchip_fits">Fits this phone</string>
+    <string name="settings_ondevice_fitchip_fits_spoken">fits this phone</string>
+    <string name="settings_ondevice_fitchip_tight">Tight fit</string>
+    <string name="settings_ondevice_fitchip_tight_spoken">tight fit for this phone</string>
+    <string name="settings_ondevice_fitchip_too_large">Too large</string>
+    <string name="settings_ondevice_fitchip_too_large_spoken">too large for this phone</string>
+    <string name="settings_ondevice_fitchip_unknown">Fit unknown</string>
+    <string name="settings_ondevice_fitchip_unknown_spoken">fit unknown</string>
+    <string name="settings_ondevice_status_waiting_wifi">Waiting for Wi-Fi</string>
+    <string name="settings_ondevice_status_waiting">Waiting to start</string>
+    <string name="settings_ondevice_status_paused">Paused</string>
+    <string name="settings_ondevice_spoken_tools">supports tools</string>
+    <string name="settings_ondevice_spoken_chat_only">chat only</string>
+    <string name="settings_ondevice_spoken_separator">", "</string>
+    <string name="settings_ondevice_spoken_default">%1$s, default</string>
+    <string name="settings_ondevice_problem_offline">Offline</string>
+    <string name="settings_ondevice_problem_rate_limited">Too many requests</string>
+    <string name="settings_ondevice_problem_gated">Needs a Hugging Face login</string>
+    <string name="settings_ondevice_problem_gated_advice">Locus downloads without an account. Search for the same model from another publisher (unsloth, bartowski, ggml-org often have ungated copies), or download the file on a computer and import it.</string>
+    <string name="settings_ondevice_problem_other">Something went wrong: %1$s</string>
+    <string name="settings_ondevice_url_warning_http">Only https:// addresses: a plain http download could be changed on the way.</string>
+    <string name="settings_ondevice_url_warning_full">Paste a full address starting with https://.</string>
+    <string name="settings_ondevice_url_warning_spaces">An address can\'t contain spaces.</string>
+    <string name="settings_ondevice_finished_existing">%1$s is already on this phone</string>
+    <string name="settings_ondevice_finished_verified">%1$s installed and verified</string>
+    <string name="settings_ondevice_finished_unverified">%1$s installed from an unverified source</string>
+    <string name="settings_ondevice_state_idle">Idle</string>
+    <string name="settings_ondevice_state_loading">Loading</string>
+    <string name="settings_ondevice_state_replying">Replying</string>
+    <string name="settings_ondevice_state_loaded">Loaded</string>
+    <string name="settings_ondevice_state_crashed">Ran out of memory last time</string>
+    <string name="settings_ondevice_detail_gone">This model isn\'t on the phone any more.</string>
+    <string name="settings_ondevice_detail_no_checksum">Hugging Face publishes no checksum for this file.</string>
+    <string name="settings_ondevice_detail_imported">Imported file</string>
+    <string name="settings_ondevice_detail_source_at">%1$s at %2$s</string>
+    <string name="settings_ondevice_kind_split">Part %1$d of %2$d</string>
+    <string name="settings_ondevice_kind_projector">Vision projector</string>
+    <string name="settings_ondevice_kind_draft">Draft head</string>
+    <string name="settings_ondevice_kind_other">Not a model</string>
 </resources>

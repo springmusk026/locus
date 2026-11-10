@@ -6,9 +6,19 @@ import dev.locus.core.data.mcp.McpFirstStatus
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import android.content.Context
+import android.content.res.Resources
+import androidx.test.core.app.ApplicationProvider
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /** Which built-in integrations recommend their vendor's MCP server (docs/design/mcp-connectors.md). */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36])
 class OfficialMcpTest {
+    private val res: Resources get() = ApplicationProvider.getApplicationContext<Context>().resources
+
     @Test
     fun `built-ins with a usable official server recommend it, the rest don't`() {
         val recommended = Integrations.all.filter { officialMcp(it.id) != null }.map { it.id }.toSet()
@@ -31,16 +41,16 @@ class OfficialMcpTest {
     @Test
     fun `with both set up, the sheet says which one new chats use`() {
         val using = status()
-        assertEquals(USING_MCP, mcpFirstTitle(using))
-        val body = mcpFirstBody(Integrations.netlify, using, "Netlify")
+        assertEquals("Using the MCP server in new chats", mcpFirstTitle(res, using))
+        val body = mcpFirstBody(res, Integrations.netlify, using, "Netlify")
         assertTrue("netlify_deploy stays" in body, body)
         assertTrue("Chats you already have keep the tools they started with" in body)
 
         val kept = status(using = false, kept = true)
-        assertEquals("Using the built-in tools in new chats", mcpFirstTitle(kept))
+        assertEquals("Using the built-in tools in new chats", mcpFirstTitle(res, kept))
 
         val failing = status(using = false, problem = "401 Unauthorized")
-        assertEquals("The MCP server isn't working", mcpFirstTitle(failing))
-        assertTrue("401 Unauthorized" in mcpFirstBody(Integrations.netlify, failing, "Netlify"))
+        assertEquals("The MCP server isn't working", mcpFirstTitle(res, failing))
+        assertTrue("401 Unauthorized" in mcpFirstBody(res, Integrations.netlify, failing, "Netlify"))
     }
 }

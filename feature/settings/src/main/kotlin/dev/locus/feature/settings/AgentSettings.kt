@@ -61,7 +61,7 @@ internal fun AgentSettings(
                 dev.locus.core.designsystem.TaskBudgetEditor(
                     state.taskBudget,
                     onChange = onSetTaskBudget,
-                    costNote = "Cost needs model prices: turn on model details (models.dev) in Settings → Models.".takeIf { !state.modelCatalog },
+                    costNote = stringResource(R.string.settings_agent_cost_note).takeIf { !state.modelCatalog },
                     costNoteDestination = dev.locus.core.model.SettingsDestination.Models,
                 )
             }
