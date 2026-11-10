@@ -230,9 +230,10 @@ class ModelCatalog(
     private var memory: CatalogCache? = null
     private var loadedFromDisk = false
     private var lastFailure: Long? = null
+    private var index: ModelCatalogIndex? = null
 
     /** The copy on disk, without touching the network. */
-    suspend fun cached(): ModelCatalogIndex? = mutex.withLock { readCache()?.let { ModelCatalogIndex(it.providers) } }
+    suspend fun cached(): ModelCatalogIndex? = mutex.withLock { readCache()?.let(::indexOf) }
 
     /** The catalogue, refreshed first when the cached copy is older than a day. */
     suspend fun get(): ModelCatalogIndex? = mutex.withLock {
@@ -241,8 +242,17 @@ class ModelCatalog(
         val fresh = cache != null && cache.version >= CACHE_VERSION && t - cache.checkedAt in 0 until maxAge
         val backingOff = lastFailure?.let { t - it in 0 until retryAfter } == true
         val result = if (fresh || backingOff) cache else refresh(cache, t)
-        result?.let { ModelCatalogIndex(it.providers) }
+        result?.let(::indexOf)
     }
+
+    /**
+     * One index per catalogue: callers ask on every task and helper pick, and a new index each time
+     * rebuilt its lookup maps and, as a new value, made every price observer recompute (the chat's
+     * receipts), which held a copy per pending update until the app ran out of memory. A 304 keeps
+     * the same providers, so it keeps the same index.
+     */
+    private fun indexOf(cache: CatalogCache): ModelCatalogIndex =
+        index?.takeIf { it.providers === cache.providers } ?: ModelCatalogIndex(cache.providers).also { index = it }
 
     private suspend fun refresh(cache: CatalogCache?, t: Long): CatalogCache? {
         val fetched = try {

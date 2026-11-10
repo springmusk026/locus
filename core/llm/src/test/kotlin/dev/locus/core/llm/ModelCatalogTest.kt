@@ -15,6 +15,8 @@ import java.io.File
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertSame
+import kotlin.test.assertNotSame
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -97,6 +99,28 @@ class ModelCatalogTest {
         assertNull(headers[HttpHeaders.Cookie])
         assertEquals(ModelCatalog.URL, requests.single().url.toString())
         assertTrue(file.isFile)
+    }
+
+    @Test
+    fun `the same catalogue gives the same index, so observers don't see a change and maps aren't rebuilt`() = runTest {
+        val catalog = catalog(tempFile())
+        val first = catalog.get()
+        assertNotNull(first)
+        // Asked on every task and helper pick: one index, not a new one each time.
+        assertSame(first, catalog.get())
+        assertSame(first, catalog.cached())
+        // A 304 keeps the providers, so it keeps the index too.
+        clock += ModelCatalog.DAY_MS
+        status = HttpStatusCode.NotModified
+        assertSame(first, catalog.get())
+        assertEquals(2, requests.size)
+        // A new catalogue is a new index.
+        clock += ModelCatalog.DAY_MS
+        status = HttpStatusCode.OK
+        val refreshed = catalog.get()
+        assertNotNull(refreshed)
+        assertNotSame(first, refreshed)
+        assertSame(refreshed, catalog.cached())
     }
 
     @Test

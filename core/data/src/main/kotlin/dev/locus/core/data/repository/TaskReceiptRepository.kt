@@ -22,6 +22,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
@@ -103,7 +104,8 @@ class TaskReceiptRepository @Inject constructor(
         prices(),
     ) { records, audit, helpers, side, price ->
         ReceiptInputs(records.map { it.toModel() }, audit.mapNotNull { it.toModel() }, helpers(helpers), side.map { it.toUsage() }, price)
-    }.flowOn(io)
+        // Only the latest matters, and each holds the chat's whole audit log: never queue them behind a slow reader.
+    }.flowOn(io).conflate()
 
     /** The receipt of [conversationId]'s latest finished task (a scheduled run's notification); null when it has none. */
     suspend fun latest(conversationId: String): TaskReceipt? = guarded {
