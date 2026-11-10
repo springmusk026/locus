@@ -56,6 +56,9 @@ import java.util.Date
 import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.RowChevron
 import dev.locus.core.designsystem.SwitchRow
+import android.content.res.Resources
+import androidx.compose.ui.platform.LocalResources
+import dev.locus.core.designsystem.asString
 
 /** Settings → Backup & restore: an encrypted file the user saves wherever they like, and restoring from one. */
 @Composable
@@ -160,10 +163,11 @@ internal fun BackupSettings(
         state.backupProgress?.let { progress ->
             item { ProgressCard(progress, onCancel = onCancelBackup) }
         }
-        state.result?.let { (message, failed) ->
+        state.result?.let { result ->
             item {
+                val failed = result.failed
                 Banner(
-                    text = message,
+                    text = result.text.asString(),
                     tone = if (failed) Tone.Critical else Tone.Live,
                     modifier = NotePadding,
                     actionsBelow = failed,
@@ -173,7 +177,7 @@ internal fun BackupSettings(
                             FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.xs, Alignment.End)) {
                                 TextButton(onClick = onDismissResult) { Text(stringResource(R.string.settings_backup_dismiss)) }
                                 // "Free some space … Settings → … → Storage": the way to it.
-                                SettingsActionFor(message)
+                                SettingsActionFor(result.text.asString(), destination = result.link)
                                 TextButton(onClick = { onDismissResult(); onBackUp() }) { Text(stringResource(R.string.settings_backup_try_again)) }
                             }
                         } else {
@@ -218,15 +222,15 @@ private fun ProgressCard(progress: BackupProgress, onCancel: (() -> Unit)? = nul
             Text(
                 when {
                     !showLabel -> amount ?: stringResource(R.string.settings_backup_progress_working)
-                    amount != null -> stringResource(R.string.settings_backup_progress_label_amount, progress.label, amount)
-                    else -> stringResource(R.string.settings_backup_progress_label, progress.label)
+                    amount != null -> stringResource(R.string.settings_backup_progress_label_amount, progress.label.asString(), amount)
+                    else -> stringResource(R.string.settings_backup_progress_label, progress.label.asString())
                 },
                 style = LocusType.rowSupporting,
             )
             Meter(
                 if (progress.total > 0) meterFraction(progress.done, progress.total) else null,
                 tone = Tone.Live,
-                contentDescription = progress.label,
+                contentDescription = progress.label.asString(),
             )
             if (onCancel != null) TextButton(onClick = onCancel) { Text(stringResource(R.string.settings_backup_cancel)) }
         }
@@ -273,12 +277,15 @@ private fun NewPasswordSheet(includesVault: Boolean, onDismiss: () -> Unit, onDo
 internal const val MIN_PASSWORD = 8
 
 /** Why the password can't be used yet, or null when it can. */
-internal fun backupPasswordProblem(password: String, again: String): String? = when {
-    password.length < MIN_PASSWORD -> "Too short"
-    password.isBlank() -> "Blank"
-    again != password -> "Doesn't match"
+internal fun backupPasswordProblem(password: String, again: String): PasswordProblem? = when {
+    password.length < MIN_PASSWORD -> PasswordProblem.TooShort
+    password.isBlank() -> PasswordProblem.Blank
+    again != password -> PasswordProblem.Mismatch
     else -> null
 }
+
+/** What keeps a backup password from being used; the sheet turns Continue off (the fields say why). */
+internal enum class PasswordProblem { TooShort, Blank, Mismatch }
 
 /** The restore flow in one sheet: password, checking, preview and confirm. */
 @Composable
@@ -306,7 +313,7 @@ private fun RestoreSheet(
                 onAction = { if (notABackup) onChooseAnother() else onUnlock(password) },
             ) {
                 if (step.noSpace != null) NoSpaceBanner(step.noSpace)
-                else if (step.error != null) Banner(text = step.error, tone = Tone.Critical)
+                else if (step.error != null) Banner(text = step.error.asString(), tone = Tone.Critical)
                 if (!notABackup) {
                     OutlinedTextField(
                         password, { password = it },
@@ -332,9 +339,9 @@ private fun RestoreSheet(
         ) {
             if (runActive) Banner(title = stringResource(R.string.settings_backup_run_active_title), text = stringResource(R.string.settings_backup_run_active_text), tone = Tone.Caution)
             if (step.noSpace != null) NoSpaceBanner(step.noSpace)
-            else if (step.error != null) Banner(text = step.error, tone = Tone.Critical)
+            else if (step.error != null) Banner(text = step.error.asString(), tone = Tone.Critical)
             Banner(
-                text = restoreWarning(step.manifest),
+                text = restoreWarning(LocalResources.current, step.manifest),
                 tone = Tone.Critical,
             )
             ManifestPreview(step.manifest)
@@ -356,7 +363,7 @@ private fun RestoreSheet(
 @Composable
 private fun NoSpaceBanner(need: SpaceNeeded) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-        Banner(text = noSpaceText(need), tone = Tone.Critical, title = stringResource(R.string.settings_backup_no_space_title))
+        Banner(text = noSpaceText(LocalResources.current, need), tone = Tone.Critical, title = stringResource(R.string.settings_backup_no_space_title))
         SettingsLink(SettingsDestination.Storage, hint = stringResource(R.string.settings_backup_no_space_hint))
     }
 }
@@ -379,7 +386,7 @@ private fun ManifestPreview(manifest: BackupManifest) {
             GroupDivider(inset = Insets.iconRow)
             ListRow(
                 title = sectionTitle(section.name),
-                subtitle = sectionSummary(section.name, section.files, section.bytes),
+                subtitle = sectionSummary(LocalResources.current, section.name, section.files, section.bytes),
                 titleMaxLines = 2,
                 leading = { IconTile(sectionIcon(section.name)) },
             )
@@ -397,10 +404,13 @@ internal fun sectionTitle(name: String) = when (name) {
     else -> name
 }
 
-internal fun sectionSummary(name: String, files: Int, bytes: Long) = when (name) {
-    BackupArchive.VAULT -> if (files == 1) "1 entry" else "$files entries"
-    BackupArchive.DATABASE, BackupArchive.SETTINGS -> formatBytes(bytes)
-    else -> "${if (files == 1) "1 file" else "$files files"} · ${formatBytes(bytes)}"
+internal fun sectionSummary(res: Resources, name: String, files: Int, bytes: Long): String {
+    val size = formatBytes(bytes, res.configuration.locales[0])
+    return when (name) {
+        BackupArchive.VAULT -> res.getQuantityString(R.plurals.settings_backup_section_entries, files, files)
+        BackupArchive.DATABASE, BackupArchive.SETTINGS -> size
+        else -> summaryJoin(res, listOf(res.getQuantityString(R.plurals.settings_backup_section_files, files, files), size))
+    }
 }
 
 private fun sectionIcon(name: String) = when (name) {
@@ -413,9 +423,10 @@ private fun sectionIcon(name: String) = when (name) {
 }
 
 /** Says exactly what is replaced and what is kept. */
-internal fun restoreWarning(manifest: BackupManifest): String = buildString {
-    append("This replaces the chats, activity, settings, memory, skills and helpers on this phone with the backup's.")
-    append(if (manifest.includesWorkspace) " The workspace is replaced too." else " Your workspace files stay as they are.")
-    append(if (manifest.includesVault) " Saved keys are replaced with the backup's." else " Keys saved on this phone are kept; add any that are missing.")
-    append(" Locus then restarts.")
-}
+internal fun restoreWarning(res: Resources, manifest: BackupManifest): String = res.getString(
+    R.string.settings_backup_restore_warning,
+    res.getString(R.string.settings_backup_restore_warning_replaces),
+    res.getString(if (manifest.includesWorkspace) R.string.settings_backup_restore_warning_workspace else R.string.settings_backup_restore_warning_workspace_kept),
+    res.getString(if (manifest.includesVault) R.string.settings_backup_restore_warning_keys else R.string.settings_backup_restore_warning_keys_kept),
+    res.getString(R.string.settings_backup_restore_warning_restarts),
+)

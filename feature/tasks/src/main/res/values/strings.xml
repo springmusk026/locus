@@ -185,4 +185,39 @@
     <string name="tasks_failure_test_event">Couldn\'t send the test event.</string>
     <string name="tasks_failure_check_source">Couldn\'t check the source.</string>
     <string name="tasks_failure_start">Couldn\'t start the task.</string>
+
+    <!-- Status lines and messages made outside the composables (UiText). -->
+    <string name="tasks_trigger_quiet_problem">Quiet hours need two times, like 22:00 and 07:00.</string>
+    <string name="tasks_trigger_noun_calendar">calendar entry</string>
+    <string name="tasks_trigger_noun_ntfy">ntfy message</string>
+    <string name="tasks_trigger_noun_mail">mail</string>
+    <string name="tasks_trigger_noun_app">event from another app</string>
+    <string name="tasks_status_paused">%1$s · paused</string>
+    <string name="tasks_status_no_access">%1$s · no access</string>
+    <string name="tasks_status_not_set_up">%1$s · not set up</string>
+    <string name="tasks_status_offline">%1$s · offline</string>
+    <string name="tasks_status_check_failed">%1$s · check failed</string>
+    <string name="tasks_status_last_failed">%1$s · last run failed</string>
+    <string name="tasks_status_last_stopped">%1$s · last run stopped</string>
+    <string name="tasks_status_last_failed_at">%1$s · last run failed %2$s</string>
+    <string name="tasks_status_last_stopped_at">%1$s · last run stopped %2$s</string>
+    <string name="tasks_status_ran">%1$s · ran %2$s</string>
+    <string name="tasks_status_not_run">%1$s · not run yet</string>
+    <string name="tasks_status_waiting">%1$s · waiting for an event</string>
+    <string name="tasks_status_checked">%1$s · checked %2$s</string>
+    <string name="tasks_status_not_checked">%1$s · not checked yet</string>
+    <string name="tasks_row_last_run_failed">Last run failed</string>
+    <string name="tasks_row_last_run_stopped">Last run stopped</string>
+    <string name="tasks_run_line_queued">Queued: starts when there\'s a connection</string>
+    <string name="tasks_run_line_event_queued">Event run queued</string>
+    <string name="tasks_run_line_running">Running now</string>
+    <string name="tasks_run_line_event_running">Running for an event</string>
+    <string name="tasks_run_finished_done">“%1$s” ran.</string>
+    <string name="tasks_run_finished_skipped">“%1$s” was already running, so it didn\'t run again.</string>
+    <string name="tasks_run_finished_failed">“%1$s” didn\'t finish.</string>
+    <string name="tasks_test_unmatched">The test didn\'t match “%1$s”.</string>
+    <string name="tasks_test_unmatched_reason">The test didn\'t match “%1$s”: %2$s.</string>
+    <string name="tasks_test_matched">The test matched: “%1$s” is starting.</string>
+    <string name="tasks_test_matched_failed">The test matched, but Locus couldn\'t start the run.</string>
+    <string name="tasks_test_recorded">The test was recorded: %1$s.</string>
 </resources>

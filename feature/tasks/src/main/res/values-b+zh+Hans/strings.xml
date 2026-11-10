@@ -162,4 +162,39 @@
     <string name="tasks_failure_test_event">无法发送测试事件。</string>
     <string name="tasks_failure_check_source">无法检查来源。</string>
     <string name="tasks_failure_start">无法启动任务。</string>
+
+    <!-- Status lines and messages made outside the composables (UiText). -->
+    <string name="tasks_trigger_quiet_problem">免打扰时段需要两个时间，例如 22:00 和 07:00。</string>
+    <string name="tasks_trigger_noun_calendar">日历</string>
+    <string name="tasks_trigger_noun_ntfy">ntfy</string>
+    <string name="tasks_trigger_noun_mail">邮件</string>
+    <string name="tasks_trigger_noun_app">其他应用</string>
+    <string name="tasks_status_paused">%1$s · 已暂停</string>
+    <string name="tasks_status_no_access">%1$s · 无权限</string>
+    <string name="tasks_status_not_set_up">%1$s · 未设置</string>
+    <string name="tasks_status_offline">%1$s · 离线</string>
+    <string name="tasks_status_check_failed">%1$s · 检查失败</string>
+    <string name="tasks_status_last_failed">%1$s · 上次运行失败</string>
+    <string name="tasks_status_last_stopped">%1$s · 上次运行已停止</string>
+    <string name="tasks_status_last_failed_at">%1$s · 上次运行失败 %2$s</string>
+    <string name="tasks_status_last_stopped_at">%1$s · 上次运行已停止 %2$s</string>
+    <string name="tasks_status_ran">%1$s · %2$s运行过</string>
+    <string name="tasks_status_not_run">%1$s · 尚未运行</string>
+    <string name="tasks_status_waiting">%1$s · 等待事件</string>
+    <string name="tasks_status_checked">%1$s · %2$s已检查</string>
+    <string name="tasks_status_not_checked">%1$s · 尚未检查</string>
+    <string name="tasks_row_last_run_failed">上次运行失败</string>
+    <string name="tasks_row_last_run_stopped">上次运行已停止</string>
+    <string name="tasks_run_line_queued">排队中：联网后开始</string>
+    <string name="tasks_run_line_event_queued">事件运行排队中</string>
+    <string name="tasks_run_line_running">正在运行</string>
+    <string name="tasks_run_line_event_running">正在为事件运行</string>
+    <string name="tasks_run_finished_done">“%1$s”已运行。</string>
+    <string name="tasks_run_finished_skipped">“%1$s”已在运行，因此没有再次运行。</string>
+    <string name="tasks_run_finished_failed">“%1$s”未完成。</string>
+    <string name="tasks_test_unmatched">测试未匹配“%1$s”。</string>
+    <string name="tasks_test_unmatched_reason">测试未匹配“%1$s”：%2$s。</string>
+    <string name="tasks_test_matched">测试已匹配：“%1$s”正在开始。</string>
+    <string name="tasks_test_matched_failed">测试已匹配，但 Locus 无法启动运行。</string>
+    <string name="tasks_test_recorded">测试已记录：%1$s。</string>
 </resources>

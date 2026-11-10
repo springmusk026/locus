@@ -35,15 +35,18 @@ import javax.inject.Inject
 data class QuantOption(
     val path: String,
     val fileName: String,
+    /** The file's quantisation ("Q4_K_M"), when it has one. */
     val quant: String?,
     val sizeBytes: Long,
     val ramBytes: Long?,
     val fit: Fit,
     val sha256: String?,
     /** Why it can't be downloaded (split, projector, draft head), or null. */
-    val problem: String?,
+    val problem: UiText?,
     /** The recommended pick, pre-selected. */
     val recommended: Boolean = false,
+    /** What the file is when it has no [quant]: a split part, a vision projector, a draft head. */
+    val kind: UiText? = null,
 ) {
     val usable: Boolean get() = problem == null
 }
@@ -51,7 +54,8 @@ data class QuantOption(
 /** What the detail screen shows about the model, before or after it's installed. */
 data class ModelInfo(
     val name: String,
-    val publisher: String,
+    /** A Hub owner or a publisher's name, or our "Imported file". */
+    val publisher: UiText,
     val description: String?,
     val engine: Engine,
     val license: String?,
@@ -60,7 +64,7 @@ data class ModelInfo(
     val contextTokens: Int?,
     val tools: Boolean?,
     /** Where it's pinned: "unsloth/Qwen3.5-2B-GGUF at f6d5376". */
-    val source: String?,
+    val source: UiText?,
 )
 
 /** A model on the phone, as the detail screen shows it. */
@@ -285,7 +289,7 @@ class OnDeviceDetailViewModel @Inject constructor(private val actions: OnDeviceA
         is ModelKey.Repo -> repoDetail(k, r, l, sel, memory)
     }
 
-    private fun missing() = DetailUiState(loading = false, problem = Problem("This model isn't on the phone any more.", Problem.Kind.Other), gone = true)
+    private fun missing() = DetailUiState(loading = false, problem = Problem(UiText.Res(R.string.settings_ondevice_detail_gone), Problem.Kind.Other), gone = true)
 
     private fun liteRtDetail(k: ModelKey.LiteRt, l: Local, memory: DeviceMemory): DetailUiState {
         val m = OnDeviceCatalog.models.firstOrNull { it.id == k.id } ?: return missing()
@@ -294,7 +298,7 @@ class OnDeviceDetailViewModel @Inject constructor(private val actions: OnDeviceA
         val file = m.url.substringAfterLast('/')
         return DetailUiState(
             loading = false,
-            info = ModelInfo(m.name, "Google (LiteRT community)", m.description, Engine.LiteRt, "Apache 2.0", "https://ai.google.dev/gemma/docs/gemma_4_license", null, null, true, m.url.substringAfter("huggingface.co/").substringBefore("/resolve")),
+            info = ModelInfo(m.name, UiText.Plain("Google (LiteRT community)"), m.description, Engine.LiteRt, "Apache 2.0", "https://ai.google.dev/gemma/docs/gemma_4_license", null, null, true, UiText.Plain(m.url.substringAfter("huggingface.co/").substringBefore("/resolve"))),
             options = listOf(QuantOption(file, file, "LiteRT-LM", m.sizeBytes, null, liteRtFit(check, memory), m.sha256, null, recommended = true)),
             selected = file,
             download = liteRtDownloadUi(state, actions.liteRt.partialBytes(m.id), m.sizeBytes)?.let { ActiveDownload(k, m.id, m.name, Engine.LiteRt, it) },
@@ -309,7 +313,7 @@ class OnDeviceDetailViewModel @Inject constructor(private val actions: OnDeviceA
         val installed = l.gguf.firstOrNull { m -> m.sha256 != null && options.any { it.sha256 == m.sha256 } }
         return DetailUiState(
             loading = false,
-            info = ModelInfo(e.name, e.repo.substringBefore('/'), e.description, Engine.LlamaCpp, e.licenseName, e.licenseUrl, e.sizeLabel, e.contextLength, e.callsTools, "${e.repo} at ${e.revision.take(7)}"),
+            info = ModelInfo(e.name, UiText.Plain(e.repo.substringBefore('/')), e.description, Engine.LlamaCpp, e.licenseName, e.licenseUrl, e.sizeLabel, e.contextLength, e.callsTools, UiText.Res(R.string.settings_ondevice_detail_source_at, e.repo, e.revision.take(7))),
             options = options,
             optionsLoading = r.filesLoading,
             optionsProblem = r.filesProblem,
@@ -321,7 +325,7 @@ class OnDeviceDetailViewModel @Inject constructor(private val actions: OnDeviceA
 
     private fun installedDetail(m: GgufModel, l: Local, memory: DeviceMemory): DetailUiState = DetailUiState(
         loading = false,
-        info = ModelInfo(m.name, m.source?.substringBefore('/') ?: "Imported file", null, Engine.LlamaCpp, m.license, null, m.sizeLabel, m.contextTokens, m.callsTools, m.source),
+        info = ModelInfo(m.name, m.source?.substringBefore('/')?.let(UiText::Plain) ?: UiText.Res(R.string.settings_ondevice_detail_imported), null, Engine.LlamaCpp, m.license, null, m.sizeLabel, m.contextTokens, m.callsTools, m.source?.let(UiText::Plain)),
         installed = installedInfo(m),
         download = null,
     )
@@ -333,7 +337,7 @@ class OnDeviceDetailViewModel @Inject constructor(private val actions: OnDeviceA
         return DetailUiState(
             loading = r.loading,
             problem = r.problem,
-            info = ModelInfo(repoDisplayName(k.repo), k.repo.substringBefore('/'), null, Engine.LlamaCpp, r.repo?.license, "https://huggingface.co/${k.repo}", null, null, null, r.repo?.sha?.let { "${k.repo} at ${it.take(7)}" }),
+            info = ModelInfo(repoDisplayName(k.repo), UiText.Plain(k.repo.substringBefore('/')), null, Engine.LlamaCpp, r.repo?.license, "https://huggingface.co/${k.repo}", null, null, null, r.repo?.sha?.let { UiText.Res(R.string.settings_ondevice_detail_source_at, k.repo, it.take(7)) }),
             options = withPick,
             selected = sel ?: withPick.firstOrNull { it.recommended }?.path,
             download = ggufDownload(l, options, null),
@@ -356,15 +360,17 @@ class OnDeviceDetailViewModel @Inject constructor(private val actions: OnDeviceA
         /** A Hub file as a choice. The KV cache depends on the model, not the file, so a catalogue entry's applies to all its files. */
         fun option(f: HfFile, kvPerToken: Long?, trained: Int?, memory: DeviceMemory): QuantOption {
             val ram = GgufMemory.estimate(f.sizeBytes, kvPerToken, GgufMemory.chooseContext(trained, f.sizeBytes, kvPerToken, memory))
-            val problem = GgufSources.kindProblem(f.kind) ?: if (f.sha256 == null) "Hugging Face publishes no checksum for this file." else null
-            return QuantOption(f.path, f.fileName, f.quant ?: kindLabel(f.kind), f.sizeBytes, ram, ggufFit(ram, memory), f.sha256, problem)
+            // The kind's problem is core's, in English.
+            val problem = GgufSources.kindProblem(f.kind)?.let(UiText::Plain)
+                ?: if (f.sha256 == null) UiText.Res(R.string.settings_ondevice_detail_no_checksum) else null
+            return QuantOption(f.path, f.fileName, f.quant, f.sizeBytes, ram, ggufFit(ram, memory), f.sha256, problem, kind = kindLabel(f.kind))
         }
 
-        private fun kindLabel(kind: HfFileKind): String? = when (kind) {
-            is HfFileKind.Split -> "Part ${kind.part} of ${kind.count}"
-            HfFileKind.Projector -> "Vision projector"
-            HfFileKind.Draft -> "Draft head"
-            HfFileKind.Other -> "Not a model"
+        private fun kindLabel(kind: HfFileKind): UiText? = when (kind) {
+            is HfFileKind.Split -> UiText.Res(R.string.settings_ondevice_kind_split, kind.part, kind.count)
+            HfFileKind.Projector -> UiText.Res(R.string.settings_ondevice_kind_projector)
+            HfFileKind.Draft -> UiText.Res(R.string.settings_ondevice_kind_draft)
+            HfFileKind.Other -> UiText.Res(R.string.settings_ondevice_kind_other)
             HfFileKind.Model -> null
         }
 

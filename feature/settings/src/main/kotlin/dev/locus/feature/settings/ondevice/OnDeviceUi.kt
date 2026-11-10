@@ -1,5 +1,8 @@
 package dev.locus.feature.settings.ondevice
 
+import android.content.res.Resources
+import androidx.annotation.StringRes
+import dev.locus.core.designsystem.UiText
 import dev.locus.core.ondevice.DeviceMemory
 import dev.locus.core.ondevice.MemoryGate
 import dev.locus.core.ondevice.ModelState
@@ -12,6 +15,10 @@ import dev.locus.core.ondevice.gguf.GgufDownloadText
 import dev.locus.core.ondevice.gguf.GgufMemory
 import dev.locus.core.ondevice.gguf.GgufOffer
 import dev.locus.core.ondevice.gguf.HfError
+import dev.locus.feature.settings.R
+import java.math.RoundingMode
+import java.text.NumberFormat
+import java.util.Locale
 
 /*
  * What the on-device model screens show, as plain data and pure functions, so filtering, the fit
@@ -54,15 +61,15 @@ sealed interface ModelKey {
 /** Which runtime runs a model; shown as a badge. */
 enum class Engine(val label: String) { LiteRt("LiteRT"), LlamaCpp("llama.cpp") }
 
-/** How a model fits this phone's memory. */
-enum class Fit(val label: String, val spoken: String) {
-    Fits("Fits this phone", "fits this phone"),
+/** How a model fits this phone's memory: its chip's label, and the words TalkBack reads in a row. */
+enum class Fit(@param:StringRes val labelRes: Int, @param:StringRes val spokenRes: Int) {
+    Fits(R.string.settings_ondevice_fitchip_fits, R.string.settings_ondevice_fitchip_fits_spoken),
     /** Runs, but may be slow or be stopped by Android: the existing "short on memory" warning. */
-    Tight("Tight fit", "tight fit for this phone"),
+    Tight(R.string.settings_ondevice_fitchip_tight, R.string.settings_ondevice_fitchip_tight_spoken),
     /** Can't load at all: refused, as at load time. */
-    TooLarge("Too large", "too large for this phone"),
+    TooLarge(R.string.settings_ondevice_fitchip_too_large, R.string.settings_ondevice_fitchip_too_large_spoken),
     /** The phone's memory couldn't be read. */
-    Unknown("Fit unknown", "fit unknown"),
+    Unknown(R.string.settings_ondevice_fitchip_unknown, R.string.settings_ondevice_fitchip_unknown_spoken),
 }
 
 /** The verdict for a GGUF model needing [ramBytes] (null: not known yet). */
@@ -222,63 +229,78 @@ data class InstalledItem(
     val engine: Engine,
     val sizeBytes: Long,
     val tools: Boolean,
-    val state: String,
+    /** Idle, Loading, Replying, Loaded, or that it ran out of memory last time. */
+    val state: UiText,
     val fit: Fit,
     val inUse: Boolean = false,
 )
 
-/** "1.3 GB", kept on one line. */
-fun gb(bytes: Long): String = "%.1f".format(java.util.Locale.ROOT, bytes / 1e9) + GgufDownloadText.NBSP + "GB"
+/** "1.3 GB", kept on one line, with [locale]'s decimal separator. */
+fun gb(bytes: Long, locale: Locale = Locale.getDefault()): String {
+    val number = NumberFormat.getNumberInstance(locale).apply {
+        minimumFractionDigits = 1
+        maximumFractionDigits = 1
+        roundingMode = RoundingMode.HALF_UP
+        isGroupingUsed = false
+    }
+    return number.format(bytes / 1e9) + GgufDownloadText.NBSP + "GB"
+}
 
 /**
  * A download's status in two lines, so a figure never breaks at 200% font: how much ("0.8 / 1.9 GB"),
  * then speed and time left ("5.0 MB/s · 4 min left") or what it's waiting for.
  */
-fun statusLines(ui: DownloadUi): String = when (ui) {
+fun statusLines(res: Resources, ui: DownloadUi): String = when (ui) {
+    // The amount and rate are core's (GgufDownloadText).
     is DownloadUi.Running -> listOfNotNull(GgufDownloadText.amount(ui.bytes, ui.total), GgufDownloadText.rate(ui.bytesPerSecond, ui.etaSeconds)).joinToString("\n")
     // Nothing downloaded yet: the size alone, not "0.0 / 2.6 GB".
-    is DownloadUi.Waiting -> (if (ui.bytes > 0) GgufDownloadText.amount(ui.bytes, ui.total) else ui.total?.let(::gb) ?: "") +
-        (if (ui.bytes > 0 || ui.total != null) "\n" else "") + if (ui.wifiOnly) "Waiting for Wi-Fi" else "Waiting to start"
-    is DownloadUi.Paused -> GgufDownloadText.amount(ui.bytes, ui.total) + "\nPaused"
+    is DownloadUi.Waiting -> (if (ui.bytes > 0) GgufDownloadText.amount(ui.bytes, ui.total) else ui.total?.let { gb(it, res.configuration.locales[0]) } ?: "") +
+        (if (ui.bytes > 0 || ui.total != null) "\n" else "") +
+        res.getString(if (ui.wifiOnly) R.string.settings_ondevice_status_waiting_wifi else R.string.settings_ondevice_status_waiting)
+    is DownloadUi.Paused -> GgufDownloadText.amount(ui.bytes, ui.total) + "\n" + res.getString(R.string.settings_ondevice_status_paused)
     else -> ""
 }
 
 /** "Qwen3.5 2B, 1.3 GB, fits this phone, supports tools, Get": a row read as one item. */
-fun spokenRow(name: String, sizeBytes: Long?, fit: Fit?, tools: Boolean?, action: String?): String = listOfNotNull(
+fun spokenRow(res: Resources, name: String, sizeBytes: Long?, fit: Fit?, tools: Boolean?, action: String?): String = listOfNotNull(
     name,
-    sizeBytes?.let(::gb)?.replace('\u00A0', ' '),
-    fit?.spoken,
-    tools?.let { if (it) "supports tools" else "chat only" },
+    sizeBytes?.let { gb(it, res.configuration.locales[0]) }?.replace('\u00A0', ' '),
+    fit?.let { res.getString(it.spokenRes) },
+    tools?.let { res.getString(if (it) R.string.settings_ondevice_spoken_tools else R.string.settings_ondevice_spoken_chat_only) },
     action,
-).joinToString(", ")
+).joinToString(res.getString(R.string.settings_ondevice_spoken_separator))
 
 /** The step a download announcement is at: every 10 %, so TalkBack isn't flooded. */
 fun announceStep(fraction: Float?): Int? = fraction?.let { (it * 10).toInt().coerceIn(0, 10) * 10 }
 
-/** How a Hub call or a check failed, so the screen can say what to do. */
-data class Problem(val message: String, val kind: Kind) {
+/**
+ * How a Hub call or a check failed, so the screen can say what to do. [message] is the Hub client's
+ * own (core, English) or ours.
+ */
+data class Problem(val message: UiText, val kind: Kind) {
     enum class Kind { Offline, RateLimited, Gated, Other }
 
-    val title: String? get() = when (kind) {
-        Kind.Offline -> "Offline"
-        Kind.RateLimited -> "Too many requests"
-        Kind.Gated -> "Needs a Hugging Face login"
+    @get:StringRes
+    val titleRes: Int? get() = when (kind) {
+        Kind.Offline -> R.string.settings_ondevice_problem_offline
+        Kind.RateLimited -> R.string.settings_ondevice_problem_rate_limited
+        Kind.Gated -> R.string.settings_ondevice_problem_gated
         Kind.Other -> null
     }
 
     /** What to do about a gated repo: the user can't sign in from Locus yet. */
-    val advice: String? get() = if (kind == Kind.Gated) {
-        "Locus downloads without an account. Search for the same model from another publisher (unsloth, bartowski, ggml-org often have ungated copies), or download the file on a computer and import it."
-    } else null
+    @get:StringRes
+    val adviceRes: Int? get() = if (kind == Kind.Gated) R.string.settings_ondevice_problem_gated_advice else null
 
     companion object {
         fun of(e: Throwable): Problem = when (e) {
-            is HfError.Offline -> Problem(e.message.orEmpty(), Kind.Offline)
-            is HfError.RateLimited -> Problem(e.message.orEmpty(), Kind.RateLimited)
-            is HfError.Gated -> Problem(e.message.orEmpty(), Kind.Gated)
-            is DownloadException -> Problem(e.message.orEmpty(), if (e.retryable && e.message?.startsWith("No connection") == true) Kind.Offline else Kind.Other)
-            is HfError -> Problem(e.message.orEmpty(), Kind.Other)
-            else -> Problem("Something went wrong: ${e.message ?: e::class.simpleName}", Kind.Other)
+            is HfError.Offline -> Problem(UiText.Plain(e.message.orEmpty()), Kind.Offline)
+            is HfError.RateLimited -> Problem(UiText.Plain(e.message.orEmpty()), Kind.RateLimited)
+            is HfError.Gated -> Problem(UiText.Plain(e.message.orEmpty()), Kind.Gated)
+            // The download's message is core's English: "No connection…" means offline.
+            is DownloadException -> Problem(UiText.Plain(e.message.orEmpty()), if (e.retryable && e.message?.startsWith("No connection") == true) Kind.Offline else Kind.Other)
+            is HfError -> Problem(UiText.Plain(e.message.orEmpty()), Kind.Other)
+            else -> Problem(UiText.Res(R.string.settings_ondevice_problem_other, e.message ?: e::class.simpleName.toString()), Kind.Other)
         }
     }
 }
@@ -297,13 +319,14 @@ sealed interface OfferCheck {
 }
 
 /** What's wrong with a pasted address before it's checked online; null when it can be tried. */
-fun urlWarning(url: String): String? {
+@StringRes
+fun urlWarning(url: String): Int? {
     val u = url.trim()
     if (u.isEmpty()) return null
     return when {
-        u.startsWith("http://", ignoreCase = true) -> "Only https:// addresses: a plain http download could be changed on the way."
-        !u.startsWith("https://", ignoreCase = true) -> "Paste a full address starting with https://."
-        u.contains(' ') -> "An address can't contain spaces."
+        u.startsWith("http://", ignoreCase = true) -> R.string.settings_ondevice_url_warning_http
+        !u.startsWith("https://", ignoreCase = true) -> R.string.settings_ondevice_url_warning_full
+        u.contains(' ') -> R.string.settings_ondevice_url_warning_spaces
         else -> null
     }
 }
