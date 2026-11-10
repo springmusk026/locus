@@ -71,8 +71,8 @@ sealed interface ChatItem {
         val text: String,
         val usage: TurnUsage? = null,
         val turn: TurnBranch? = null,
-        /** For an on-device reply: backend and speed, e.g. "GPU · ≈18 tok/s". Not saved; recent replies only. */
-        val speed: String? = null,
+        /** For an on-device reply: backend and speed, shown as "GPU · ≈18 tok/s" ([speedLine]). Not saved; recent replies only. */
+        val speed: dev.locus.core.ondevice.TurnSpeed? = null,
         /** When a backup model answered: "Answered by gpt-5.2 · claude-opus-5-5 (Anthropic) couldn't answer". */
         val fallbackNote: UiText? = null,
         /**
@@ -1127,8 +1127,8 @@ internal fun List<ChatItem>.withSpeeds(speeds: Map<String, dev.locus.core.ondevi
     if (speeds.isEmpty()) this
     else map { item ->
         if (item !is ChatItem.Assistant) return@map item
-        val line = speeds[item.text.trim()]?.let(dev.locus.core.ondevice.OnDeviceFormat::turnLine)
-        if (line == null) item else item.copy(speed = line)
+        val speed = speeds[item.text.trim()]?.takeIf { it.decodePerSecond != null }
+        if (speed == null) item else item.copy(speed = speed)
     }
 
 internal fun chatProvider(p: dev.locus.core.model.ProviderConfig) =

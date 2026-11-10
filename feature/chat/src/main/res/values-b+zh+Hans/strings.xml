@@ -1,5 +1,182 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- RunTextUi.kt: provider errors, run notices and progress, budget, receipts and speeds from core (LlmErrorText, RunNote, BudgetReached, TaskReceipt) -->
+    <string name="chat_error_provider_words">%1$s 返回 HTTP %2$s：%3$s</string>
+    <string name="chat_error_bad_request">%1$s 无法接受该请求（HTTP 400）。</string>
+    <string name="chat_error_key_refused">%1$s 未接受该 API 密钥（HTTP 401）。请在“设置 → 模型”中检查。</string>
+    <string name="chat_error_forbidden">%1$s 拒绝了该请求（HTTP 403）。该密钥可能无权使用此模型。请在“设置 → 模型”中检查。</string>
+    <string name="chat_error_not_found">%1$s 找不到该模型或地址（HTTP 404）。请在“设置 → 模型”中检查基础 URL 和模型。</string>
+    <string name="chat_error_timed_out">发给 %1$s 的请求超时（HTTP 408）。请重试。</string>
+    <string name="chat_error_too_large">该请求对 %1$s 来说太大（HTTP 413）。请尝试更短的消息或更少的附件。</string>
+    <string name="chat_error_rate_limited">%1$s 正在限制请求频率（HTTP 429）。请稍等后重试。</string>
+    <string name="chat_error_internal">%1$s 出现内部错误（HTTP 500）。这通常是暂时的。请重试。</string>
+    <string name="chat_error_bad_gateway">%1$s 的网关没有从模型服务器收到有效响应（HTTP 502）。这通常是暂时的。请重试。</string>
+    <string name="chat_error_unavailable">%1$s 目前不可用或负载过高（HTTP 503）。这通常是暂时的。请稍后重试。</string>
+    <string name="chat_error_gateway_timeout">%1$s 的网关超时（HTTP 504）。这通常是暂时的。请重试。</string>
+    <string name="chat_error_gateway_unreachable">%1$s 的网关无法连接到模型服务器（HTTP %2$s）。这通常是暂时的。请重试。</string>
+    <string name="chat_error_gateway_connect_timeout">%1$s 的网关连接模型服务器超时（HTTP 522）。这通常是暂时的。请重试。</string>
+    <string name="chat_error_gateway_model_timeout">%1$s 的网关等待模型超时（HTTP 524）。这通常是暂时的。请重试。</string>
+    <string name="chat_error_overloaded">%1$s 目前负载过高（HTTP 529）。请稍后重试。</string>
+    <string name="chat_error_server_error">%1$s 出现服务器错误（HTTP %2$s）。这通常是暂时的。请重试。</string>
+    <string name="chat_error_status_title">%1$s 返回 HTTP %2$s（%3$s）。</string>
+    <string name="chat_error_status">%1$s 返回 HTTP %2$s。</string>
+    <string name="chat_error_billing">%1$s：%2$s\n这是账单或消费上限，不是频率限制，所以 Locus 不会重试。请在你的 %1$s 账户中充值或提高上限，然后重试。</string>
+    <string name="chat_error_out_of_credit">余额不足</string>
+    <string name="chat_error_daily_quota">%1$s：%2$s\n这是每日配额，现在重试也无济于事。</string>
+    <string name="chat_error_daily_quota_reached">已达到每日配额</string>
+    <string name="chat_error_chatgpt_limit">你已达到 Locus 的 ChatGPT 使用上限。请在 ChatGPT 设置 → 使用情况（%1$s）中查看或提高上限。</string>
+    <string name="chat_error_chatgpt_resets">将于 %1$s 重置。</string>
+    <string name="chat_error_chatgpt_not_included">此 ChatGPT 套餐不包含在 Locus 等其他应用中使用。请在 ChatGPT 中查看套餐，或选择其他模型。</string>
+    <string name="chat_error_chatgpt_out_of_credit">ChatGPT：此套餐余额不足</string>
+    <string name="chat_error_chatgpt_usage_unavailable">ChatGPT 暂时无法查看你的套餐用量。请稍后重试。</string>
+    <string name="chat_error_chatgpt_not_eligible">此 ChatGPT 账户或工作区无法在其他应用中使用其套餐。使用 ChatGPT 套餐需要 Plus 或 Pro。</string>
+    <string name="chat_error_chatgpt_unsupported">ChatGPT 套餐不支持此请求的部分内容</string>
+    <string name="chat_error_chatgpt_unsupported_param">ChatGPT 套餐不支持此请求的部分内容（%1$s）</string>
+    <string name="chat_error_chatgpt_unsupported_message">ChatGPT 套餐不支持此请求的部分内容：%1$s</string>
+    <string name="chat_error_chatgpt_unsupported_param_message">ChatGPT 套餐不支持此请求的部分内容（%1$s）：%2$s</string>
+    <string name="chat_error_chatgpt_sign_in_refused">ChatGPT 未接受此登录。请在“设置 → 模型”中重新登录。</string>
+    <string name="chat_error_chatgpt_sign_in_refused_detail">ChatGPT 未接受此登录。请在“设置 → 模型”中重新登录。（%1$s）</string>
+    <string name="chat_error_chatgpt_route_not_supported">ChatGPT 不允许使用套餐登录发出此类请求。</string>
+    <string name="chat_error_chatgpt_overloaded">ChatGPT 目前负载过高。</string>
+    <string name="chat_error_chatgpt_overloaded_message">ChatGPT 目前负载过高：%1$s</string>
+    <string name="chat_error_chatgpt_server_error">ChatGPT：服务器出错。</string>
+    <string name="chat_error_chatgpt_too_many_requests">ChatGPT：目前请求过多。</string>
+    <string name="chat_error_response_failed_code">%1$s：响应失败，代码为“%2$s”。</string>
+    <string name="chat_error_chatgpt_refused_detail">ChatGPT 拒绝了该请求：%1$s</string>
+    <string name="chat_error_chatgpt_refused">ChatGPT 拒绝了该请求（HTTP 403）。</string>
+    <string name="chat_error_chatgpt_plan_unavailable_detail">ChatGPT 套餐暂时无法使用：%1$s</string>
+    <string name="chat_error_chatgpt_plan_unavailable">ChatGPT 套餐暂时无法使用（HTTP 503）。请稍后重试。</string>
+    <string name="chat_error_unexplained">%1$s 以错误结束了响应，且未说明原因。</string>
+    <string name="chat_error_unexplained_with_id">%1$s 以错误结束了响应，且未说明原因（请求 ID %2$s）。</string>
+    <string name="chat_error_overflow">此任务已超出 %1$s 的上下文窗口。</string>
+    <string name="chat_error_overflow_after_summary">即使总结了之前的消息，此任务仍超出 %1$s 的上下文窗口。</string>
+    <string name="chat_error_overflow_next">请开始新对话继续剩下的部分（那里的智能体可以用 chat_history_read 读取此对话），或换用上下文窗口更大的模型。</string>
+    <string name="chat_error_overflow_provider_said">提供商返回：%1$s</string>
+    <string name="chat_failure_advice_twice">两次</string>
+    <string name="chat_failure_advice_repeat">这已经以同样的方式失败了%1$s，所以问题可能出在此对话的请求上，而不是偶发故障。</string>
+    <string name="chat_failure_advice_repeat_large">这已经以同样的方式失败了%1$s，所以问题可能出在此对话的请求上，而不是偶发故障：此对话很长（约 %2$s 个令牌）。</string>
+    <string name="chat_failure_advice_compact_or_switch">总结对话会用简短摘要替换冗长的历史；也可以换个模型试试。</string>
+    <string name="chat_failure_advice_switch">换个模型也许可以。</string>
+    <string name="chat_failure_advice_details">“详情”中有提供商发送的内容。</string>
+    <string name="chat_failure_advice_usage_limit">在额度受限期间，可以换个模型继续这个对话。</string>
+    <string name="chat_failure_advice_transient_repeat">又以同样的方式失败了；提供商似乎遇到了问题。在此期间可以换个模型回答。</string>
+    <string name="chat_run_summarising">正在总结之前的消息</string>
+    <string name="chat_run_compacting">正在总结之前的消息…</string>
+    <string name="chat_run_compacting_overflow">上下文已满，正在总结之前的消息…</string>
+    <string name="chat_run_compaction_failed">无法总结之前的消息（%1$s）。如果对话已超出模型容量，下一条回复可能会失败：请再试一次“总结对话”，或开始新对话。</string>
+    <string name="chat_run_unknown_error">未知错误</string>
+    <string name="chat_run_compact_now_failed">无法总结对话：%1$s</string>
+    <string name="chat_run_retrying_busy">提供商繁忙，正在重试（%1$d）…</string>
+    <string name="chat_run_retrying_dropped">连接已断开，正在重试（%1$d）…</string>
+    <string name="chat_run_retrying_busy_wait">提供商繁忙，将在 %1$d 秒后重试（%2$d）…</string>
+    <string name="chat_run_retrying_dropped_wait">连接已断开，将在 %1$d 秒后重试（%2$d）…</string>
+    <string name="chat_run_fell_back">%1$s 无法回答，正在切换到 %2$s…</string>
+    <string name="chat_run_fell_back_skipped">%1$s 无法回答，正在切换到 %2$s（已跳过：%3$s）…</string>
+    <string name="chat_run_not_confirmed">未确认：%1$s。</string>
+    <string name="chat_run_refused">模型拒绝了此请求。</string>
+    <string name="chat_run_refused_detail">模型拒绝了此请求（%1$s）。</string>
+    <string name="chat_run_budget_go_on">发送消息即可继续。</string>
+    <string name="chat_run_branch_unfinished">此分支在智能体完成前停止了。要从中断处继续吗？</string>
+    <string name="chat_run_closed_mid_task">此任务在 Locus 关闭时停止了。要从中断处继续吗？</string>
+    <string name="chat_run_background_helper">Locus 在后台时有一个助手完成了任务。要根据它的报告继续吗？</string>
+    <string name="chat_run_background_queued">Locus 在后台时无法发送你排队的消息。要继续吗？</string>
+    <string name="chat_run_tool_gone">无法运行：该工具已不可用。</string>
+    <string name="chat_run_no_provider">请先在“设置 → 模型”中添加模型提供商。</string>
+    <string name="chat_budget_paused_reached">已暂停：已达到此任务 %1$s 的预算。</string>
+    <string name="chat_budget_stopped_reached">已停止：已达到此任务 %1$s 的预算。</string>
+    <string name="chat_budget_reached">已达到此任务 %1$s 的预算。</string>
+    <string name="chat_budget_size_tokens">%1$s 令牌</string>
+    <string name="chat_budget_size_cost">%1$s 费用</string>
+    <string name="chat_budget_spoken_tokens">已用 %1$s / %2$s 令牌</string>
+    <string name="chat_budget_spoken_used">已用 %1$s / %2$s</string>
+    <string name="chat_budget_tokens_count">%1$s 令牌</string>
+    <string name="chat_budget_about">约 %1$s</string>
+    <string name="chat_budget_about_or_more">约 %1$s 或更多</string>
+    <string name="chat_task_time_seconds">%1$d秒</string>
+    <string name="chat_task_time_minutes_seconds">%1$d分%2$02d秒</string>
+    <string name="chat_task_time_hours_minutes">%1$d小时%2$02d分</string>
+    <string name="chat_task_time_minutes">%1$d分钟</string>
+    <string name="chat_receipt_outcome_done">已完成</string>
+    <string name="chat_receipt_outcome_stopped_by_you">已被你停止</string>
+    <string name="chat_receipt_outcome_stopped">已停止</string>
+    <string name="chat_receipt_outcome_budget">因预算暂停</string>
+    <string name="chat_receipt_outcome_failed_label">失败</string>
+    <string name="chat_receipt_outcome_refused">模型拒绝</string>
+    <string name="chat_receipt_outcome_step_limit">已达步数上限</string>
+    <string name="chat_receipt_outcome_interrupted">已中断</string>
+    <string name="chat_receipt_cost_unknown_short">费用未知</string>
+    <string name="chat_receipt_tests_failed">测试失败</string>
+    <string name="chat_receipt_tests_timed_out">测试超时</string>
+    <string name="chat_receipt_tests_finished">测试已结束</string>
+    <string name="chat_receipt_tests_passed">测试通过</string>
+    <string name="chat_receipt_build_failed">构建失败</string>
+    <string name="chat_receipt_build_timed_out">构建超时</string>
+    <string name="chat_receipt_build_finished">构建已结束</string>
+    <string name="chat_receipt_build_passed">构建通过</string>
+    <string name="chat_receipt_checks_failed">检查失败</string>
+    <string name="chat_receipt_checks_timed_out">检查超时</string>
+    <string name="chat_receipt_checks_finished">检查已结束</string>
+    <string name="chat_receipt_checks_passed">检查通过</string>
+    <string name="chat_receipt_model_backup">%1$s（%2$s 的备用）</string>
+    <string name="chat_receipt_model_helper">%1$s（助手）</string>
+    <string name="chat_receipt_model_reviewer">%1$s（审查器）</string>
+    <string name="chat_receipt_model_summary">%1$s（摘要）</string>
+    <string name="chat_receipt_helper_cost_model">%1$s：%2$s，使用 %3$s</string>
+    <string name="chat_receipt_helper_cost">%1$s：%2$s</string>
+    <string name="chat_receipt_helper_model">%1$s，使用 %2$s</string>
+    <string name="chat_receipt_source_web_search">网页搜索</string>
+    <string name="chat_receipt_source_web_pages">网页</string>
+    <string name="chat_receipt_source_wikipedia">维基百科</string>
+    <string name="chat_receipt_source_connectors">连接器</string>
+    <string name="chat_receipt_source_email">邮件</string>
+    <string name="chat_receipt_source_github">GitHub</string>
+    <string name="chat_receipt_source_command_output">命令输出</string>
+    <string name="chat_receipt_source_remote_machines">远程机器</string>
+    <string name="chat_receipt_source_helper_reports">助手的报告</string>
+    <string name="chat_reply_meta_prefill">预填充 %1$s</string>
+    <plurals name="chat_failure_advice_times">
+        <item quantity="other">%1$d 次</item>
+    </plurals>
+    <plurals name="chat_run_compacted">
+        <item quantity="other">已总结 %1$d 条之前的消息，以腾出上下文空间。</item>
+    </plurals>
+    <plurals name="chat_run_step_limit">
+        <item quantity="other">已在 %1$d 步后停止。发送消息即可继续。</item>
+    </plurals>
+    <plurals name="chat_run_lessons_saved">
+        <item quantity="other">已将 %1$d 条经验保存到记忆。</item>
+    </plurals>
+    <plurals name="chat_budget_size_minutes">
+        <item quantity="other">%1$d 分钟</item>
+    </plurals>
+    <plurals name="chat_receipt_checks_passed_count">
+        <item quantity="other">%1$d 项通过</item>
+    </plurals>
+    <plurals name="chat_receipt_checks_unclear_count">
+        <item quantity="other">%1$d 项不明确</item>
+    </plurals>
+    <plurals name="chat_receipt_checks_failed_count">
+        <item quantity="other">%1$d 项失败</item>
+    </plurals>
+    <plurals name="chat_receipt_checks_timed_out_count">
+        <item quantity="other">%1$d 项超时</item>
+    </plurals>
+    <plurals name="chat_receipt_completion_items">
+        <item quantity="other">Locus 要求它完成 %1$d 个未完成项</item>
+    </plurals>
+    <plurals name="chat_receipt_summary_files">
+        <item quantity="other">%1$d 个文件</item>
+    </plurals>
+    <plurals name="chat_receipt_summary_workflow_checks">
+        <item quantity="other">%2$d 项检查中通过 %1$d 项</item>
+    </plurals>
+    <plurals name="chat_receipt_summary_approvals">
+        <item quantity="other">%1$d 次批准</item>
+    </plurals>
+    <plurals name="chat_receipt_summary_blocked">
+        <item quantity="other">%1$d 次被阻止</item>
+    </plurals>
+
     <string name="chat_changes_hide_files">隐藏文件</string>
     <string name="chat_changes_show_files">显示文件</string>
     <string name="chat_changes_expanded">已展开</string>

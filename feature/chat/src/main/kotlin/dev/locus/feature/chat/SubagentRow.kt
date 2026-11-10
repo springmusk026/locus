@@ -68,8 +68,8 @@ import dev.locus.core.model.Part
 import dev.locus.core.model.Role
 import dev.locus.core.model.SubagentStatus
 import dev.locus.core.model.SubagentTools
-import dev.locus.core.model.toolActivity
-import dev.locus.core.model.toolLabel
+import dev.locus.core.designsystem.localizedToolActivity
+import dev.locus.core.designsystem.localizedToolLabel
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -160,7 +160,7 @@ internal fun SubagentRow(item: ChatItem.ToolCall) {
             if (partial) append(" · " + partialReason(stop).asString())
             when {
                 running && helper.waitingApproval -> append(" · " + stringResource(R.string.chat_helper_waiting_approval))
-                running && helper.currentTool != null -> append(" · ${toolActivity(helper.currentTool.orEmpty()).lowercase()}")
+                running && helper.currentTool != null -> append(" · ${localizedToolActivity(helper.currentTool.orEmpty()).lowercase()}")
                 running && helper.background -> append(" · " + stringResource(R.string.chat_helper_background))
             }
         }
@@ -212,7 +212,7 @@ private fun RefusedSpawn(item: ChatItem.ToolCall) {
             val (accent, icon) = accentFor(item.name)
             AccentTile(accent, icon, size = IconSize.large)
             Text(
-                toolLabel(item.name, item.argumentsJson, done = item.result != null),
+                localizedToolLabel(item.name, item.argumentsJson, done = item.result != null),
                 modifier = Modifier.padding(start = Spacing.sm).weight(1f),
                 style = LocusType.rowSupporting,
                 maxLines = 1,
@@ -274,7 +274,7 @@ private fun SubagentTranscriptSheet(
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = Spacing.xs)) {
                         StatusDot(Tone.Live)
-                        SupportingText(helper.currentTool?.let { toolActivity(it) } ?: stringResource(R.string.chat_helper_working), modifier = Modifier.padding(start = Spacing.sm))
+                        SupportingText(helper.currentTool?.let { localizedToolActivity(it) } ?: stringResource(R.string.chat_helper_working), modifier = Modifier.padding(start = Spacing.sm))
                         androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
                         TextButton(onClick = onSteer) { Text(stringResource(R.string.chat_helper_steer)) }
                         TextButton(onClick = { runner.stop(helper.agentId) }) { Text(stringResource(R.string.chat_helper_stop)) }
@@ -354,7 +354,7 @@ private fun TranscriptCall(entry: Entry.Call) {
             val (accent, icon) = accentFor(entry.name)
             AccentTile(accent, icon, size = IconSize.large)
             Text(
-                toolLabel(entry.name, entry.argumentsJson, done = entry.result != null),
+                localizedToolLabel(entry.name, entry.argumentsJson, done = entry.result != null),
                 modifier = Modifier.padding(start = Spacing.sm).weight(1f),
                 style = LocusType.rowSupporting,
                 maxLines = 2,

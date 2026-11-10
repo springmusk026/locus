@@ -41,54 +41,76 @@ object ChatGptErrors {
         param: String? = null,
         resetsAt: Long? = null,
         requestId: String? = null,
-    ): LlmException = when (code) {
-        in LIMIT_CODES -> LlmException(LIMIT_MESSAGE + resetText(resetsAt), status ?: 429, kind = LlmFailure.QUOTA, errorCode = code)
-        "usage_not_included" -> LlmException(
-            "This ChatGPT plan doesn't include use in other apps like Locus. Check the plan in ChatGPT, or pick another model.",
-            status ?: 403,
-            kind = LlmFailure.QUOTA,
-            errorCode = code,
-        )
-        in BILLING_CODES -> LlmException("ChatGPT: ${message ?: "out of credit for this plan"}", status ?: 429, kind = LlmFailure.QUOTA, errorCode = code)
-        USAGE_UNAVAILABLE, "subscription_sharing_user_unavailable" ->
-            LlmException("ChatGPT couldn't check your plan's usage right now. Try again in a moment.", status ?: 503, retryable = true, errorCode = code)
-        "subscription_sharing_user_not_eligible" ->
-            LlmException("This ChatGPT account or workspace can't use its plan in other apps. ChatGPT plan use needs Plus or Pro.", status ?: 403, errorCode = code)
-        "subscription_sharing_unsupported_capability" -> LlmException(
-            "ChatGPT's plan doesn't support part of this request${param?.let { " ($it)" }.orEmpty()}: ${message.orEmpty()}".trimEnd(':', ' '),
-            status ?: 400,
-            errorCode = code,
-        )
-        "subscription_sharing_invalid_user", "chatpass_v2_scope_not_authorized", "chatpass_v2_invalid_authorization_context" ->
-            LlmException("ChatGPT didn't accept this sign-in. Sign in again in Settings → Models.", status ?: 401, kind = LlmFailure.AUTH, errorCode = code)
-        "subscription_sharing_route_not_supported" -> LlmException("ChatGPT doesn't allow this request type with a plan sign-in.", status ?: 403, errorCode = code)
-        "server_is_overloaded" ->
-            LlmException("ChatGPT is overloaded right now" + (message?.let { ": $it" } ?: "."), status, retryable = true, kind = LlmFailure.OVERLOADED, errorCode = code)
-        "server_error", "rate_limit_exceeded", "slow_down" -> LlmException(
-            "ChatGPT: ${message ?: if (code == "server_error") "the server had an error." else "too many requests for now."}",
-            status,
-            retryable = true,
-            kind = if (code == "server_error") LlmFailure.TRANSIENT else LlmFailure.RATE_LIMIT,
-            errorCode = code,
-        )
-        // Nothing to go on: say so, with the request id for a report. Retried, as Codex retries it; one that
-        // comes back the same after Try again is treated as caused by the request (RepeatFailure).
-        null -> if (message == null) {
-            LlmException(unexplainedText("ChatGPT", requestId), status, retryable = true, kind = LlmFailure.TRANSIENT)
-        } else {
-            LlmException("ChatGPT: $message", status, kind = if (ContextOverflow.matches(null, message)) LlmFailure.CONTEXT_OVERFLOW else LlmFailure.OTHER)
+    ): LlmException {
+        fun text(kind: LlmErrorText.Kind, vararg values: String) = LlmErrorText(kind, values.toList())
+        fun failure(
+            text: LlmErrorText,
+            status: Int?,
+            retryable: Boolean = false,
+            kind: LlmFailure = if (retryable) LlmFailure.TRANSIENT else LlmFailure.OTHER,
+            errorCode: String? = code,
+        ) = LlmException(text.english, status, retryable, kind = kind, errorCode = errorCode, text = text)
+        return when (code) {
+            in LIMIT_CODES -> failure(LlmErrorText(LlmErrorText.Kind.CHATGPT_LIMIT, resetsAt = resetsAt), status ?: 429, kind = LlmFailure.QUOTA)
+            "usage_not_included" -> failure(text(LlmErrorText.Kind.CHATGPT_NOT_INCLUDED), status ?: 403, kind = LlmFailure.QUOTA)
+            in BILLING_CODES -> if (message != null) {
+                LlmException("ChatGPT: $message", status ?: 429, kind = LlmFailure.QUOTA, errorCode = code)
+            } else {
+                failure(text(LlmErrorText.Kind.CHATGPT_OUT_OF_CREDIT), status ?: 429, kind = LlmFailure.QUOTA)
+            }
+            USAGE_UNAVAILABLE, "subscription_sharing_user_unavailable" ->
+                failure(text(LlmErrorText.Kind.CHATGPT_USAGE_UNAVAILABLE), status ?: 503, retryable = true)
+            "subscription_sharing_user_not_eligible" -> failure(text(LlmErrorText.Kind.CHATGPT_NOT_ELIGIBLE), status ?: 403)
+            "subscription_sharing_unsupported_capability" -> failure(
+                when {
+                    param != null && !message.isNullOrEmpty() -> text(LlmErrorText.Kind.CHATGPT_UNSUPPORTED_PARAM_MESSAGE, param, message)
+                    param != null -> text(LlmErrorText.Kind.CHATGPT_UNSUPPORTED_PARAM, param)
+                    !message.isNullOrEmpty() -> text(LlmErrorText.Kind.CHATGPT_UNSUPPORTED_MESSAGE, message)
+                    else -> text(LlmErrorText.Kind.CHATGPT_UNSUPPORTED)
+                },
+                status ?: 400,
+            )
+            "subscription_sharing_invalid_user", "chatpass_v2_scope_not_authorized", "chatpass_v2_invalid_authorization_context" ->
+                failure(text(LlmErrorText.Kind.CHATGPT_SIGN_IN_REFUSED), status ?: 401, kind = LlmFailure.AUTH)
+            "subscription_sharing_route_not_supported" -> failure(text(LlmErrorText.Kind.CHATGPT_ROUTE_NOT_SUPPORTED), status ?: 403)
+            "server_is_overloaded" -> failure(
+                message?.let { text(LlmErrorText.Kind.CHATGPT_OVERLOADED_MESSAGE, it) } ?: text(LlmErrorText.Kind.CHATGPT_OVERLOADED),
+                status,
+                retryable = true,
+                kind = LlmFailure.OVERLOADED,
+            )
+            "server_error", "rate_limit_exceeded", "slow_down" -> {
+                val kind = if (code == "server_error") LlmFailure.TRANSIENT else LlmFailure.RATE_LIMIT
+                if (message != null) {
+                    LlmException("ChatGPT: $message", status, retryable = true, kind = kind, errorCode = code)
+                } else {
+                    failure(text(if (code == "server_error") LlmErrorText.Kind.CHATGPT_SERVER_ERROR else LlmErrorText.Kind.CHATGPT_TOO_MANY_REQUESTS), status, retryable = true, kind = kind)
+                }
+            }
+            // Nothing to go on: say so, with the request id for a report. Retried, as Codex retries it; one that
+            // comes back the same after Try again is treated as caused by the request (RepeatFailure).
+            null -> if (message == null) {
+                failure(unexplained("ChatGPT", requestId), status, retryable = true, kind = LlmFailure.TRANSIENT, errorCode = null)
+            } else {
+                LlmException("ChatGPT: $message", status, kind = if (ContextOverflow.matches(null, message)) LlmFailure.CONTEXT_OVERFLOW else LlmFailure.OTHER)
+            }
+            else -> {
+                val kind = if (ContextOverflow.matches(code, message)) LlmFailure.CONTEXT_OVERFLOW else LlmFailure.OTHER
+                if (message != null) {
+                    LlmException("ChatGPT: $message", status, kind = kind, errorCode = code)
+                } else {
+                    failure(text(LlmErrorText.Kind.RESPONSE_FAILED_CODE, "ChatGPT", code), status, kind = kind)
+                }
+            }
         }
-        else -> LlmException(
-            "ChatGPT: ${message ?: "the response failed with “$code”."}",
-            status,
-            kind = if (ContextOverflow.matches(code, message)) LlmFailure.CONTEXT_OVERFLOW else LlmFailure.OTHER,
-            errorCode = code,
-        )
     }
 
     /** What the chat says when a provider ended a response with an error and no reason at all. */
-    fun unexplainedText(provider: String, requestId: String?): String =
-        "$provider ended the response with an error and gave no reason" + (requestId?.let { " (request id $it)" }.orEmpty()) + "."
+    fun unexplainedText(provider: String, requestId: String?): String = unexplained(provider, requestId).english
+
+    /** [unexplainedText] as data, for the chat to word in the user's language. */
+    fun unexplained(provider: String, requestId: String?): LlmErrorText =
+        if (requestId != null) LlmErrorText(LlmErrorText.Kind.UNEXPLAINED_WITH_ID, listOf(provider, requestId)) else LlmErrorText(LlmErrorText.Kind.UNEXPLAINED, listOf(provider))
 
     /** " It resets at 14:30." (a date too when it's not today) for a usage limit with a known reset time. */
     internal fun resetText(resetsAt: Long?, zone: java.time.ZoneId = java.time.ZoneId.systemDefault(), now: Long = System.currentTimeMillis()): String {
@@ -108,22 +130,20 @@ object ChatGptErrors {
         if (code != null) {
             val resetsAt = error?.get("resets_at").stringOrNull()?.toLongOrNull()
             val e = fromCode(code, error?.string("message"), status, error?.string("param"), resetsAt)
-            return LlmException(e.message.orEmpty(), e.httpStatus, e.retryable, kind = e.kind, rawBody = body.takeIf { it.isNotBlank() }, errorCode = code)
+            return LlmException(e.message.orEmpty(), e.httpStatus, e.retryable, kind = e.kind, rawBody = body.takeIf { it.isNotBlank() }, errorCode = code, text = e.text)
         }
         // The server's words when it gave some; never a gateway's HTML page (ProviderErrorText).
         val detail = ProviderErrorText.providerWords(body)?.take(300)
         val raw = body.takeIf { it.isNotBlank() }
-        return when (status) {
-            429 -> LlmException(LIMIT_MESSAGE, 429, kind = LlmFailure.QUOTA, rawBody = raw)
-            401 -> LlmException("ChatGPT didn't accept this sign-in. Sign in again in Settings → Models." + (detail?.let { " ($it)" } ?: ""), 401, kind = LlmFailure.AUTH, rawBody = raw)
-            403 -> LlmException(detail?.let { "ChatGPT refused the request: $it" } ?: "ChatGPT refused the request (HTTP 403).", 403, rawBody = raw)
-            503 -> LlmException(
-                detail?.let { "ChatGPT plan use is unavailable right now: $it" } ?: "ChatGPT plan use is unavailable right now (HTTP 503). Try again in a moment.",
-                503,
-                retryable = true,
-                rawBody = raw,
-            )
-            else -> LlmException(ProviderErrorText.message("ChatGPT", status, body), status, isRetryableStatus(status), rawBody = raw)
+        fun text(kind: LlmErrorText.Kind, vararg values: String) = LlmErrorText(kind, values.toList())
+        val (text, kind) = when (status) {
+            429 -> text(LlmErrorText.Kind.CHATGPT_LIMIT) to LlmFailure.QUOTA
+            401 -> (detail?.let { text(LlmErrorText.Kind.CHATGPT_SIGN_IN_REFUSED_DETAIL, it) } ?: text(LlmErrorText.Kind.CHATGPT_SIGN_IN_REFUSED)) to LlmFailure.AUTH
+            403 -> (detail?.let { text(LlmErrorText.Kind.CHATGPT_REFUSED_DETAIL, it) } ?: text(LlmErrorText.Kind.CHATGPT_REFUSED)) to LlmFailure.OTHER
+            503 -> (detail?.let { text(LlmErrorText.Kind.CHATGPT_PLAN_UNAVAILABLE_DETAIL, it) } ?: text(LlmErrorText.Kind.CHATGPT_PLAN_UNAVAILABLE)) to LlmFailure.TRANSIENT
+            else -> ProviderErrorText.messageText("ChatGPT", status, body) to if (isRetryableStatus(status)) LlmFailure.TRANSIENT else LlmFailure.OTHER
         }
+        val retryable = if (status == 503) true else if (status in setOf(429, 401, 403)) false else isRetryableStatus(status)
+        return LlmException(text.english, status, retryable, kind = kind, rawBody = raw, text = text)
     }
 }

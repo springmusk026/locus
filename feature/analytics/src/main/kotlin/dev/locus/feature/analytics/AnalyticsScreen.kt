@@ -87,7 +87,9 @@ import dev.locus.core.designsystem.accentFor
 import dev.locus.core.designsystem.compactCount
 import dev.locus.core.designsystem.entrance
 import dev.locus.core.model.UsageSource
-import dev.locus.core.model.toolLabel
+import dev.locus.core.model.toolLabelText
+import dev.locus.core.designsystem.asString
+import dev.locus.core.designsystem.localizedToolActivity
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -477,7 +479,7 @@ private fun SlowestTools(tools: ToolStats, modifier: Modifier = Modifier) {
             val callsText = pluralStringResource(R.plurals.analytics_slow_calls, t.calls, t.name, t.calls)
             val failedText = if (t.failures > 0) stringResource(R.string.analytics_slow_failed, t.failures) else ""
             ListRow(
-                title = slowToolTitle(t.name),
+                title = slowToolTitle(LocalResources.current, t.name),
                 leading = { AccentTile(accent, icon) },
                 meta = {
                     SupportingText(
@@ -664,9 +666,14 @@ internal fun costAction(cost: CostReport, catalogLoaded: Boolean, setup: PricesS
     else -> null
 }
 
-/** What the tool does, in a few words ("Ask a helper", "Wait for helpers"); its kind of work when the wording needs arguments. */
-internal fun slowToolTitle(name: String): String =
-    toolLabel(name, "{}", done = false).takeUnless { '…' in it || it == name } ?: toolActivity(name)
+/**
+ * What the tool does, in a few words ("Ask a helper", "Wait for helpers"); its kind of work when the
+ * wording needs arguments. In the user's language; the choice is made on core/model's English label.
+ */
+internal fun slowToolTitle(resources: android.content.res.Resources, name: String): String {
+    val label = toolLabelText(name, "{}", done = false)
+    return if (label.english.let { '…' in it || it == name }) localizedToolActivity(resources, name) else label.asString(resources)
+}
 
 /**
  * The name the model picker shows: the provider's own name for the model, else the models.dev
