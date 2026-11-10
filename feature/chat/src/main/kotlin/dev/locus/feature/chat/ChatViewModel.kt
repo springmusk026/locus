@@ -25,6 +25,7 @@ import dev.locus.core.model.Message
 import dev.locus.core.model.Part
 import dev.locus.core.model.Role
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.combine
@@ -512,7 +513,8 @@ class ChatViewModel @AssistedInject constructor(
             outsideContent = dev.locus.core.agent.Taint.sourcesIn(thread.messages).isNotEmpty(),
             typedHosts = dev.locus.core.agent.LinkGuard.namedHosts(thread.messages, emptyList()),
         )
-    }.flowOn(compute)
+        // The screen shows the latest transcript only; a queue of whole transcripts behind a busy run just holds memory.
+    }.flowOn(compute).conflate()
 
     /** Whether change [id] can be undone, and whether its file changed since; asked before confirming. */
     suspend fun checkUndo(id: Long): dev.locus.core.data.repository.UndoCheck = changes.check(id)
