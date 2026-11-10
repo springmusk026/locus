@@ -71,7 +71,7 @@ object SkillScope {
     private val URL_TOOLS = setOf("fetch_url", "web_read", "browser_open", "device_open_url")
 
     private val BY_NAME: Map<String, String> = buildMap {
-        listOf("list_files", "read_file", "search_files", "find_files", "code_outline", "project_info", "git_inspect", "send_file").forEach { put(it, "files.read") }
+        listOf("list_files", "read_file", "search_files", "find_files", "code_outline", "project_info", "git_inspect", "send_file", "view_image").forEach { put(it, "files.read") }
         listOf("write_file", "edit_file", "multi_edit", "move_path", "copy_path", "delete_path", "make_directory", "git_commit").forEach { put(it, "files.write") }
         listOf("run_command").forEach { put(it, "linux") }
         listOf("web_search", "web_read", "fetch_url", "wikipedia", "weather").forEach { put(it, "web") }

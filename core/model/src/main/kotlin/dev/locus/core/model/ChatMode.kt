@@ -59,6 +59,8 @@ enum class ToolCapability {
 
             // Workspace files.
             classify(READ, "list_files", "read_file", "search_files", "find_files", "code_outline", "project_info")
+            // Shows workspace images to the model; reads like read_file.
+            classify(READ, "view_image")
             classify(LOCAL, "write_file", "edit_file", "multi_edit", "move_path", "copy_path", "delete_path", "make_directory")
             // Web and open data. fetch_url with another method than GET is a network write.
             classify(READ, "web_search", "web_read", "weather", "wikipedia")

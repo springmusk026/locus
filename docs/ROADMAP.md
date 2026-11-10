@@ -82,6 +82,7 @@ The eight items chosen in November 2026 (#82), in priority order. All eight have
 ## Phase 2c: Everyday polish
 
 - [x] **Attachments.** Photos and files from the composer's +. Saved to `inbox/` in the workspace, with photos downscaled to 1568 px. Images go to vision models inline, PDFs to Claude as documents, other files as workspace references.
+- [x] **The agent sees its own images** (`view_image`): screenshots, charts and photos in the workspace go to vision models in each provider's tool-result shape, resized and kept byte-stable ([design](design/view-image.md)). *Not yet tried on the phone.*
 - [x] **Native integrations** with a key in Settings → Integrations: **Firecrawl** (`web_search`, `web_read`; free plan 1,000 credits a month).
 - [x] No-key integrations: Open-Meteo `weather`, `wikipedia`.
 - [x] More search services, each with its own key: **Tavily** (1,000 free searches a month, no card), **Brave Search**, **Exa** ($10 of free credit a month). `web_search` routes to the first connected service in the order Firecrawl → Tavily → Brave → Exa, so the agent keeps one tool. Endpoints and fields come from each service's docs (2026-10-31) and are covered by mock tests. *Not yet tried with real keys.*

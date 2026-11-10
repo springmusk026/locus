@@ -32,7 +32,7 @@ object ToolDiscovery {
      * chat created before it declares every tool it had then, so it never sees these: its tool list,
      * and with it the provider's cached prefix, stays exactly as it was (docs/design/android-bridge.md).
      */
-    val DISCOVERY_ONLY: Set<String> = dev.locus.core.model.DeviceIntegrations.ALL + dev.locus.core.model.ProviderDrafts.TOOL
+    val DISCOVERY_ONLY: Set<String> = dev.locus.core.model.DeviceIntegrations.ALL + dev.locus.core.model.ProviderDrafts.TOOL + dev.locus.core.model.ViewImages.TOOL
 
     /**
      * The tools a v1 chat declares up front. Chosen by evidence, not taste (see the design doc):
@@ -104,11 +104,18 @@ object ToolDiscovery {
      * order, so a chat's description (part of its cached prefix) never changes.
      */
     fun categories(deferred: Collection<String>): String {
-        val names = deferred.toSet()
+        val names = deferred.toSet() - UNLISTED
         val groups = GROUPS.filter { (_, test) -> names.any(test) }.map { it.first }
         val listed = names.filter { n -> GROUPS.none { (_, test) -> test(n) } }.sorted()
         return (groups + listed).joinToString(", ")
     }
+
+    /**
+     * Deferred tools left out of the list: they joined chats that already had a find_tools description,
+     * and no group's wording fits them. The model finds them by their own description ("image",
+     * "screenshot", "look", "see", "picture" find view_image), so the description stays as it was.
+     */
+    private val UNLISTED = setOf(dev.locus.core.model.ViewImages.TOOL)
 
     private val GROUPS: List<Pair<String, (String) -> Boolean>> = listOf(
         "more browser actions (scroll, tabs, forms, keys, uploads, dialogs, saving pages, waiting, back, logs)" to { n: String -> n.startsWith("browser_") },

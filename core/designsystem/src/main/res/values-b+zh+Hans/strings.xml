@@ -23,6 +23,9 @@
     <string name="common_error_generic">出了点问题。</string>
     <string name="common_on">开</string>
     <string name="common_off">关</string>
+    <!-- An image a tool showed the model (view_image), for TalkBack and the viewer -->
+    <string name="designsystem_image_named">图片，%1$s</string>
+    <string name="designsystem_image_named_of">第 %1$d 张图片，共 %2$d 张，%3$s</string>
     <plurals name="designsystem_image_grid_and_more">
         <item quantity="other">%1$s，以及另外 %2$d 项</item>
     </plurals>

@@ -1318,6 +1318,8 @@ class AgentRunner @Inject constructor(
                 model = provider.model,
                 fallbacks = fallbacks,
                 modelLabel = FallbackChain.label(provider, provider.model),
+                // view_image says so instead of showing images to a model that can't see them (docs/design/view-image.md).
+                vision = if (provider.format == ApiFormat.ON_DEVICE) dev.locus.core.llm.Support.NO else directory.capabilities(provider, provider.model).vision,
                 budget = budgets[conversationId],
                 // Hosts the user set up, and hosts they typed in this chat's browser address bar, count as named
                 // by them once the run is tainted (docs/design/taint.md).

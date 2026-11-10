@@ -160,6 +160,11 @@ class ToolCallContext(
      * limits, the workflow's scope, its taint and loaded skills. Helpers started from it inherit all of it.
      */
     val run: RunScope = RunScope(),
+    /**
+     * Whether the model serving the run can see images in tool results ([AgentConfig.vision], then the
+     * backup's after a fallback). view_image refuses without preparing anything when it's NO.
+     */
+    val vision: dev.locus.core.llm.Support = dev.locus.core.llm.Support.UNKNOWN,
 ) : kotlin.coroutines.AbstractCoroutineContextElement(Key) {
     companion object Key : kotlin.coroutines.CoroutineContext.Key<ToolCallContext>
 
@@ -176,7 +181,7 @@ class ToolCallContext(
     val scope: dev.locus.core.model.ChatScopeSpec? get() = run.project
 
     /** The same run's context for another call: how a call run at a step boundary (Run anyway) joins the run. */
-    fun forCall(callId: String) = ToolCallContext(conversationId, callId, depth, reviewer, budget, author, changeOwner, run)
+    fun forCall(callId: String) = ToolCallContext(conversationId, callId, depth, reviewer, budget, author, changeOwner, run, vision)
 }
 
 /** Asks the user. Suspends until they answer; returning false (or timing out) means deny. */
@@ -384,6 +389,11 @@ class AgentConfig(
     /** How notes name this run's own model, e.g. "claude-opus-5-5 (Anthropic)"; null uses [model]. */
     val modelLabel: String? = null,
     /**
+     * Whether this run's own model can see images in a tool's result (view_image): its vision, and NO for
+     * on-device models, which get tool results as text. After a fallback the backup's vision applies.
+     */
+    val vision: dev.locus.core.llm.Support = dev.locus.core.llm.Support.UNKNOWN,
+    /**
      * Compaction inside the run: at a step boundary once the last request used
      * [CompactionSetup.threshold] of the window, and when the provider rejects a request as too long
      * for its context window (the step is then sent once more). Null: neither, and an overflow fails
@@ -506,6 +516,7 @@ class AgentLoop(
             privateReads = concurrentSetOf(limits.taint?.privateReads.orEmpty() + Taint.privateReadsIn(history)),
             reached = concurrentSetOf(emptyList()),
             allowedSites = concurrentSetOf(emptyList()),
+            vision = { serving.vision },
         )
         val budget = config.budget?.takeIf { it.active }
         // The model paces itself against the token budget where the provider supports it. Only the chat's
@@ -716,6 +727,9 @@ class AgentLoop(
      */
     private inner class Serving(var model: ChatModel, var servedBy: Pair<String?, String?>) {
         private var next = 0
+
+        /** What the serving model sees in tool results (see [ToolCallContext.vision]). */
+        @Volatile var vision: dev.locus.core.llm.Support = config.vision
         val label: String get() = fellBackTo ?: config.modelLabel ?: servedBy.second ?: "the chat's model"
         private var fellBackTo: String? = null
 
@@ -761,6 +775,7 @@ class AgentLoop(
                 model = opened
                 servedBy = candidate.providerId to candidate.model
                 fellBackTo = candidate.label
+                vision = candidate.capabilities.vision
                 emit(AgentEvent.FellBack(from, candidate.label, reason.message.orEmpty(), passedOver.toList(), fit.unconfirmedLabel))
                 return true
             }
@@ -1150,7 +1165,7 @@ class AgentLoop(
         // reviewer or a saved rule did (approvalLine). Last, so results read by their first line (a command's exit
         // code, a helper's report) read the same.
         val content = approvalLine(decision)?.let { line -> "${bounded.content}\n\n$line" } ?: bounded.content
-        return Part.ToolResult(ran.original.id, ran.original.name, content, bounded.isError, decision)
+        return Part.ToolResult(ran.original.id, ran.original.name, content, bounded.isError, decision, bounded.images)
     }
 
     private suspend fun FlowCollector<AgentEvent>.authorizeAndRun(
@@ -1483,6 +1498,8 @@ class AgentLoop(
          * Never seeded into helpers or later runs, and never stored.
          */
         val allowedSites: MutableSet<String>,
+        /** The serving model's vision, for [ToolCallContext.vision]. */
+        val vision: () -> dev.locus.core.llm.Support = { dev.locus.core.llm.Support.UNKNOWN },
     ) {
         /** Whether the user allowed the host [tool] opens, or the page it acts on, for the rest of this run ([Taint.siteOf]). */
         suspend fun siteAllowed(tool: Tool, args: JsonObject): Boolean =
@@ -1653,6 +1670,7 @@ class AgentLoop(
         config.author,
         config.changeOwner ?: turnOwner(conversationId, transcript),
         limits.with(taint.seed(), taint.skills.seed(), readOnly = limits.readOnly || config.chatReadOnly?.invoke() == true),
+        taint.vision(),
     )
 
     /**
