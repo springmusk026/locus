@@ -1,5 +1,6 @@
 package dev.locus.feature.activity
 
+import dev.locus.core.designsystem.UiText
 import dev.locus.core.model.ApprovalDecision
 import dev.locus.core.model.AuditEntry
 import dev.locus.core.model.TASK_BUDGET_ENTRY
@@ -13,7 +14,7 @@ class RunsTest {
     private fun call(chat: String, at: Long, decision: ApprovalDecision = ApprovalDecision.AUTO_ALLOWED, error: Boolean = false) =
         AuditEntry("e${n++}", chat, "c$n", "read_file", "{}", decision, "", error, at, at + 1_000)
 
-    private fun runs(vararg oldestFirst: AuditEntry) = clusterRuns(oldestFirst.reversed(), { RunChat(it, exists = true) })
+    private fun runs(vararg oldestFirst: AuditEntry) = clusterRuns(oldestFirst.reversed(), { RunChat(UiText.Plain(it), exists = true) })
 
     @Test fun `close calls in one chat make one run, oldest first`() {
         val r = runs(call("a", 0), call("a", 5 * min), call("a", 14 * min))
@@ -55,5 +56,11 @@ class RunsTest {
         n = 0
         val after = runs(call("a", 0), call("a", min)).single().key
         assertEquals(before, after)
+    }
+
+    @Test fun `a helper's run is named after its job and its chat, or a deleted chat`() {
+        assertEquals(UiText.Res(R.string.activity_helper_chat, "Research", UiText.Plain("Trip plans")), helperTitle("research", "Trip plans"))
+        assertEquals(UiText.Res(R.string.activity_helper_chat, "Research", UiText.Res(R.string.activity_deleted_chat)), helperTitle("research", null))
+        assertEquals(UiText.Res(R.string.activity_helper_chat_untyped, UiText.Plain("Trip plans")), helperTitle(null, "Trip plans"))
     }
 }

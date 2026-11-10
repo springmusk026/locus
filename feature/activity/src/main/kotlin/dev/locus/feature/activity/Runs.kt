@@ -12,7 +12,8 @@ internal const val RUN_GAP_MS = 10 * 60_000L
 
 /** The chat a run belongs to, as far as the screen needs it. */
 data class RunChat(
-    val title: String,
+    /** The chat's own title, or ours for a helper's chat or one that was deleted. */
+    val title: UiText,
     /** Null when the chat was deleted; its audit rows outlive it. */
     val exists: Boolean,
     val provider: RunProvider? = null,

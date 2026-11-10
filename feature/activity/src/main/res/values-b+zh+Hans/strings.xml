@@ -70,4 +70,9 @@
     <string name="activity_detail_error">错误</string>
     <string name="activity_detail_result">结果</string>
     <string name="activity_detail_empty">（空）</string>
+
+    <!-- Activity: chats a run belongs to -->
+    <string name="activity_deleted_chat">已删除的对话</string>
+    <string name="activity_helper_chat">%1$s 助手 · %2$s</string>
+    <string name="activity_helper_chat_untyped">助手 · %1$s</string>
 </resources>

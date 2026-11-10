@@ -112,12 +112,12 @@ fun ActivityRoute(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             LocusTopBar(
-                state.scopeTitle ?: stringResource(R.string.activity_screen_title),
+                state.scopeTitle?.asString() ?: stringResource(R.string.activity_screen_title),
                 onBack = if (state.scopedHere) viewModel::showEverything else onBack,
                 status = { TopStatus(state) },
                 actions = {
                     val id = state.conversationId
-                    val exists = state.days.firstOrNull()?.runs?.firstOrNull()?.chat?.exists ?: (state.scopeTitle != "Deleted chat")
+                    val exists = state.days.firstOrNull()?.runs?.firstOrNull()?.chat?.exists ?: state.scopeChatKnown
                     if (id != null && exists) {
                         IconButton(onClick = { onOpenConversation(id) }) { Icon(LocusIcons.Chats, contentDescription = stringResource(R.string.activity_top_open_chat)) }
                     }
@@ -351,7 +351,7 @@ private fun RunHeader(run: Run, expanded: Boolean, inChat: Boolean, modifier: Mo
             if (p != null) ProviderBadge(p.name, p.baseUrl, p.onDevice, size = IconSize.tileSmall, model = p.model) else IconTile(LocusIcons.Chats, size = IconSize.tileSmall)
             Column(Modifier.weight(1f).padding(horizontal = Spacing.md)) {
                 Text(
-                    if (inChat) timeRange(context, run.start, run.end) else run.chat.title,
+                    if (inChat) timeRange(context, run.start, run.end) else run.chat.title.asString(),
                     style = LocusType.cardTitle,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -437,7 +437,7 @@ private fun DetailSheet(entry: AuditEntry, chat: RunChat, onDismiss: () -> Unit,
             SupportingText(entry.toolName, Modifier.weight(1f).padding(horizontal = Spacing.sm), style = LocusType.mono)
             LocusChip(stringResource(decisionText(entry)), tone = decisionPill(entry)?.second ?: Tone.Neutral)
         }
-        SupportingText(stringResource(R.string.activity_detail_in_chat, chat.title), style = LocusType.rowSupporting)
+        SupportingText(stringResource(R.string.activity_detail_in_chat, chat.title.asString()), style = LocusType.rowSupporting)
         CodeBlock(stringResource(R.string.activity_detail_arguments), pretty(entry.argumentsJson))
         CodeBlock(
             stringResource(if (entry.failed) R.string.activity_detail_error else R.string.activity_detail_result),
