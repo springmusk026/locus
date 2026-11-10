@@ -17,7 +17,6 @@ import dev.locus.core.model.TaskBudget
 import dev.locus.core.model.ThermalLevel
 import dev.locus.core.model.ToolGroup
 import dev.locus.core.model.TriggerDecision
-import dev.locus.core.model.TriggerSource
 import dev.locus.core.model.Verification
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -47,8 +46,7 @@ class ModelTextTest {
         MemoryScope.entries.forEach { assertEquals(it.label, s(it.labelRes)) }
         PauseReason.entries.forEach { assertEquals(it.chip, s(it.chipRes)) }
         ThermalLevel.entries.forEach { assertEquals(it.label, s(it.labelRes)) }
-        TriggerSource.entries.forEach { assertEquals(it.noun, s(it.nounRes)) }
-        TriggerDecision.entries.forEach { assertEquals(it.label, s(it.labelRes)) }
+        TriggerDecision.entries.forEach { assertEquals(it.label, s(it.labelRes)); assertEquals(it.label.lowercase(), s(it.inlineRes)) }
         HelperPrompt.entries.forEach { assertEquals(it.label, s(it.labelRes)) }
         SubagentStatus.entries.forEach { assertEquals(it.label, s(it.labelRes)) }
     }
@@ -74,6 +72,7 @@ class ModelTextTest {
         }
         listOf(45L, 60, 120, 180, 360, 1_440, 2_880, 4_320, 10_080, 20_160, 90).forEach { minutes ->
             assertEquals(ScheduleIntervals.label(minutes), scheduleLabel(res, minutes), "$minutes")
+            assertEquals(ScheduleIntervals.label(minutes), scheduleText(minutes).asString(res), "$minutes")
         }
         HelperTimeLimit.CHOICES.forEach { assertEquals(HelperTimeLimit.label(it), helperTimeLimitLabel(res, it)) }
     }

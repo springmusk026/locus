@@ -116,11 +116,12 @@ data class TaskDraft(
         get() = if (mode == StartMode.SCHEDULE) null else trigger.copy(allowedApps = TaskTrigger.parseApps(apps), quietHours = quietHours)
 
     /** What stops saving, shown under the fields; null when it can be saved. */
-    val problem: String?
+    val problem: UiText?
         get() = when {
             mode == StartMode.SCHEDULE -> null
-            quietOn && quietHours == null -> "Quiet hours need two times, like 22:00 and 07:00."
-            else -> toTrigger?.problem
+            quietOn && quietHours == null -> UiText.Res(R.string.tasks_trigger_quiet_problem)
+            // The trigger's own check is core's, in English.
+            else -> toTrigger?.problem?.let(UiText::Plain)
         }
 
     val valid: Boolean get() = title.isNotBlank() && prompt.isNotBlank() && problem == null

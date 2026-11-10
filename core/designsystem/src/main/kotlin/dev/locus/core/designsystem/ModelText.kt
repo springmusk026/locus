@@ -18,7 +18,6 @@ import dev.locus.core.model.SubagentStatus
 import dev.locus.core.model.ThermalLevel
 import dev.locus.core.model.ToolGroup
 import dev.locus.core.model.TriggerDecision
-import dev.locus.core.model.TriggerSource
 import dev.locus.core.model.Verification
 
 /*
@@ -116,16 +115,6 @@ val ThermalLevel.labelRes: Int
         ThermalLevel.EMERGENCY, ThermalLevel.SHUTDOWN -> R.string.designsystem_thermal_overheating
     }
 
-/** What the event-source sentence calls one event: "calendar entry", "event from another app". */
-@get:StringRes
-val TriggerSource.nounRes: Int
-    get() = when (this) {
-        TriggerSource.CALENDAR -> R.string.designsystem_trigger_noun_calendar
-        TriggerSource.NTFY -> R.string.designsystem_trigger_noun_ntfy
-        TriggerSource.MAIL -> R.string.designsystem_trigger_noun_mail
-        TriggerSource.APP -> R.string.designsystem_trigger_noun_app
-    }
-
 @get:StringRes
 val TriggerDecision.labelRes: Int
     get() = when (this) {
@@ -138,6 +127,21 @@ val TriggerDecision.labelRes: Int
         TriggerDecision.BUSY -> R.string.designsystem_trigger_decision_busy
         TriggerDecision.NOT_ALLOWED -> R.string.designsystem_trigger_decision_not_allowed
         TriggerDecision.FAILED -> R.string.designsystem_trigger_decision_failed
+    }
+
+/** The same inside a sentence ("The test was recorded: didn't match."): [TriggerDecision.label] in lower case in English. */
+@get:StringRes
+val TriggerDecision.inlineRes: Int
+    get() = when (this) {
+        TriggerDecision.FIRED -> R.string.designsystem_trigger_decision_fired_inline
+        TriggerDecision.TEST -> R.string.designsystem_trigger_decision_test_inline
+        TriggerDecision.NO_MATCH -> R.string.designsystem_trigger_decision_no_match_inline
+        TriggerDecision.RATE_LIMITED -> R.string.designsystem_trigger_decision_rate_limited_inline
+        TriggerDecision.QUIET_HOURS -> R.string.designsystem_trigger_decision_quiet_hours_inline
+        TriggerDecision.DISABLED -> R.string.designsystem_trigger_decision_disabled_inline
+        TriggerDecision.BUSY -> R.string.designsystem_trigger_decision_busy_inline
+        TriggerDecision.NOT_ALLOWED -> R.string.designsystem_trigger_decision_not_allowed_inline
+        TriggerDecision.FAILED -> R.string.designsystem_trigger_decision_failed_inline
     }
 
 @get:StringRes
@@ -202,19 +206,25 @@ val ScheduleInterval.labelRes: Int
 val ScheduleInterval.shortRes: Int
     get() = if (minutes == ScheduleIntervals.SIX_HOURS.minutes) R.string.designsystem_schedule_six_hours_short else labelRes
 
-/** [ScheduleIntervals.label] in the app's language: "Daily", else "Every 2 days", "Every 3 hours", "Every 45 min". */
-fun scheduleLabel(resources: Resources, minutes: Long): String {
-    ScheduleIntervals.all.firstOrNull { it.minutes == minutes }?.let { return resources.getString(it.labelRes) }
+/**
+ * [ScheduleIntervals.label] as [UiText], for a line put together outside a composable: "Daily", else
+ * "Every 2 days", "Every 3 hours", "Every 45 min".
+ */
+fun scheduleText(minutes: Long): UiText {
+    ScheduleIntervals.all.firstOrNull { it.minutes == minutes }?.let { return UiText.Res(it.labelRes) }
     return when {
         minutes >= 1_440 && minutes % 1_440 == 0L -> (minutes / 1_440).toInt().let { n ->
-            if (n == 1) resources.getString(R.string.designsystem_schedule_every_day) else resources.getQuantityString(R.plurals.designsystem_schedule_every_days, n, n)
+            if (n == 1) UiText.Res(R.string.designsystem_schedule_every_day) else UiText.Plural(R.plurals.designsystem_schedule_every_days, n)
         }
         minutes >= 60 && minutes % 60 == 0L -> (minutes / 60).toInt().let { n ->
-            if (n == 1) resources.getString(R.string.designsystem_schedule_every_hour) else resources.getQuantityString(R.plurals.designsystem_schedule_every_hours, n, n)
+            if (n == 1) UiText.Res(R.string.designsystem_schedule_every_hour) else UiText.Plural(R.plurals.designsystem_schedule_every_hours, n)
         }
-        else -> resources.getString(R.string.designsystem_schedule_every_minutes, minutes.toInt())
+        else -> UiText.Res(R.string.designsystem_schedule_every_minutes, minutes.toInt())
     }
 }
+
+/** [scheduleText] in [resources]. */
+fun scheduleLabel(resources: Resources, minutes: Long): String = scheduleText(minutes).asString(resources)
 
 @Composable
 @ReadOnlyComposable

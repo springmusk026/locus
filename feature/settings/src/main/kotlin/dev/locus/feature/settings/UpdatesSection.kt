@@ -62,6 +62,7 @@ import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.relativeTime
 import dev.locus.core.markdown.documentTypography
 import dev.locus.core.model.SettingsDestination
+import androidx.compose.ui.platform.LocalResources
 
 /**
  * Settings → About & privacy → Updates (docs/design/updates.md): the opt-in daily check, Check now
@@ -72,7 +73,7 @@ internal fun LazyListScope.updatesSection(ui: UpdatesUiState, actions: UpdateAct
     item { SectionLabel(stringResource(R.string.settings_updates_section), SectionPadding) }
     item {
         CardGroup {
-            val note = availabilityNote(info.availability)
+            val note = availabilityNote(LocalResources.current, info.availability)
             if (note != null) {
                 ListRow(availabilityTitle(info.availability), subtitle = note, titleMaxLines = 2, subtitleMaxLines = Int.MAX_VALUE, leading = { IconTile(LocusIcons.Info) })
             }
@@ -102,7 +103,7 @@ internal fun LazyListScope.updatesSection(ui: UpdatesUiState, actions: UpdateAct
                 val resources = LocalResources.current
                 ListRow(
                     title = stringResource(R.string.settings_updates_check_now),
-                    subtitle = updateStatusLine(info, ui.state, System.currentTimeMillis()) { t, n -> relativeTime(resources, t, n) },
+                    subtitle = updateStatusLine(resources, info, ui.state, System.currentTimeMillis()) { t, n -> relativeTime(resources, t, n) },
                     subtitleMaxLines = 2,
                     onClick = actions.checkNow,
                     enabled = !checking && !busy,
@@ -195,7 +196,7 @@ private fun ReleaseCard(release: Release, availability: UpdateAvailability, stat
                 is UpdateState.Downloading -> {
                     Meter(state.fraction, tone = Tone.Live, size = MeterSize.Medium, contentDescription = stringResource(R.string.settings_updates_progress_description))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        SupportingText(downloadProgress(state.bytes, state.total), Modifier.weight(1f).semantics { liveRegion = LiveRegionMode.Polite })
+                        SupportingText(downloadProgress(LocalResources.current, state.bytes, state.total), Modifier.weight(1f).semantics { liveRegion = LiveRegionMode.Polite })
                         TextButton(onClick = actions.cancel) { Text(stringResource(R.string.settings_updates_cancel)) }
                     }
                 }
@@ -272,7 +273,7 @@ private fun ProblemBanner(state: UpdateState.Failed, actions: UpdateActions) {
     val context = LocalContext.current
     val uri = LocalUriHandler.current
     val timeFormat = remember(context) { DateFormat.getTimeFormat(context) }
-    val message = problemMessage(state.problem) { timeFormat.format(java.util.Date(it)) }
+    val message = problemMessage(LocalResources.current, state.problem) { timeFormat.format(java.util.Date(it)) }
     val release = state.release
     val tone = when (state.problem) {
         UpdateProblem.InstallCancelled, is UpdateProblem.RateLimited, UpdateProblem.InstallNotAllowed -> Tone.Caution

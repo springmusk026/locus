@@ -165,10 +165,6 @@
     </plurals>
     <string name="designsystem_schedule_every_minutes">A cada %1$d min</string>
 
-    <string name="designsystem_trigger_noun_calendar">agenda</string>
-    <string name="designsystem_trigger_noun_ntfy">ntfy</string>
-    <string name="designsystem_trigger_noun_mail">e-mail</string>
-    <string name="designsystem_trigger_noun_app">outro app</string>
     <string name="designsystem_trigger_decision_fired">Executou</string>
     <string name="designsystem_trigger_decision_test">Teste: executou</string>
     <string name="designsystem_trigger_decision_no_match">Não correspondeu</string>
@@ -178,6 +174,15 @@
     <string name="designsystem_trigger_decision_busy">Já em execução</string>
     <string name="designsystem_trigger_decision_not_allowed">App não permitido</string>
     <string name="designsystem_trigger_decision_failed">Não foi possível executar</string>
+    <string name="designsystem_trigger_decision_fired_inline">executou</string>
+    <string name="designsystem_trigger_decision_test_inline">teste: executou</string>
+    <string name="designsystem_trigger_decision_no_match_inline">não correspondeu</string>
+    <string name="designsystem_trigger_decision_rate_limited_inline">limite de frequência</string>
+    <string name="designsystem_trigger_decision_quiet_hours_inline">horário silencioso</string>
+    <string name="designsystem_trigger_decision_disabled_inline">tarefa pausada</string>
+    <string name="designsystem_trigger_decision_busy_inline">já em execução</string>
+    <string name="designsystem_trigger_decision_not_allowed_inline">app não permitido</string>
+    <string name="designsystem_trigger_decision_failed_inline">não foi possível executar</string>
 
     <string name="designsystem_helper_prompt_title">Título do chat</string>
     <string name="designsystem_helper_prompt_suggestions">Sugestões de continuação</string>

@@ -53,6 +53,9 @@ import dev.locus.core.ondevice.DeviceMemory
 import dev.locus.core.ondevice.gguf.GgufImport
 import dev.locus.feature.settings.R
 import dev.locus.feature.settings.summaryJoin
+import androidx.compose.ui.platform.LocalResources
+import dev.locus.core.designsystem.UiText
+import dev.locus.core.designsystem.asString
 
 /** What the library screen asks to open. */
 class OnDeviceNavigation(
@@ -67,10 +70,11 @@ fun OnDeviceModelsScreen(nav: OnDeviceNavigation, viewModel: OnDeviceLibraryView
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val feedback = Locus.feedback
     val openLabel = stringResource(R.string.settings_ondevice_library_open)
+    val resources = LocalResources.current
     // A finished download is a transient outcome: one message, with Open.
     LaunchedEffect(viewModel) {
         viewModel.finished.collect { f ->
-            feedback.show(f.message, if (f.existing || f.verified) Tone.Live else Tone.Caution, openLabel) { nav.model(ModelKey.Installed(f.modelId)) }
+            feedback.show(f.message.asString(resources), if (f.existing || f.verified) Tone.Live else Tone.Caution, openLabel) { nav.model(ModelKey.Installed(f.modelId)) }
         }
     }
     // GGUF has no registered MIME type, so any file can be picked; the import reads its header and refuses non-GGUF files.
@@ -249,14 +253,17 @@ private fun DiscoverCard(items: List<DiscoverItem>, nav: OnDeviceNavigation, get
 
 @Composable
 internal fun InstalledRow(m: InstalledItem, onOpen: () -> Unit) {
+    val resources = LocalResources.current
+    val state = m.state.asString()
+    val name = if (m.inUse) stringResource(R.string.settings_ondevice_spoken_default, m.name) else m.name
     ListRow(
         title = m.name,
-        subtitle = summaryJoin(gb(m.sizeBytes), m.state),
+        subtitle = summaryJoin(gb(m.sizeBytes), state),
         subtitleMaxLines = 2,
         titleMaxLines = 3,
         onClick = onOpen,
         modifier = Modifier.semantics(mergeDescendants = true) {
-            contentDescription = spokenRow(m.name + if (m.inUse) ", default" else "", m.sizeBytes, m.fit, m.tools, m.state)
+            contentDescription = spokenRow(resources, name, m.sizeBytes, m.fit, m.tools, state)
         },
         leading = { EngineTile(m.engine) },
         meta = { ModelChips(m.engine, m.fit, m.tools, isDefault = m.inUse) },
@@ -267,6 +274,7 @@ internal fun InstalledRow(m: InstalledItem, onOpen: () -> Unit) {
 internal fun DiscoverRow(item: DiscoverItem, onOpen: () -> Unit, onGet: () -> Unit) {
     val canGet = item.fit != Fit.TooLarge
     val getLabel = stringResource(R.string.settings_ondevice_get)
+    val resources = LocalResources.current
     ListRow(
         title = item.name,
         subtitle = summaryJoin(listOfNotNull(gb(item.sizeBytes), item.quant, item.params, item.license)),
@@ -274,7 +282,7 @@ internal fun DiscoverRow(item: DiscoverItem, onOpen: () -> Unit, onGet: () -> Un
         titleMaxLines = 3,
         onClick = onOpen,
         modifier = Modifier.semantics(mergeDescendants = true) {
-            contentDescription = spokenRow(item.name, item.sizeBytes, item.fit, item.tools, if (canGet) getLabel else null)
+            contentDescription = spokenRow(resources, item.name, item.sizeBytes, item.fit, item.tools, if (canGet) getLabel else null)
         },
         leading = { EngineTile(item.engine) },
         meta = { ModelChips(item.engine, item.fit, item.tools, onGet = if (canGet) onGet else null, getDescription = stringResource(R.string.settings_ondevice_get_name, item.name)) },
@@ -333,7 +341,7 @@ private val previewItems = listOf(
 
 private val previewState = LibraryUiState(
     loading = false,
-    installed = listOf(InstalledItem(ModelKey.Installed("gguf:qwen"), "gguf:qwen", "Qwen3.5 0.8B", Engine.LlamaCpp, 532_517_120, true, "Idle", Fit.Fits, inUse = true)),
+    installed = listOf(InstalledItem(ModelKey.Installed("gguf:qwen"), "gguf:qwen", "Qwen3.5 0.8B", Engine.LlamaCpp, 532_517_120, true, UiText.Res(R.string.settings_ondevice_state_idle), Fit.Fits, inUse = true)),
     downloads = listOf(ActiveDownload(ModelKey.Catalog("smollm3-3b"), "smollm3", "SmolLM3 3B", Engine.LlamaCpp, DownloadUi.Running(800_000_000, 1_915_305_312, 5_000_000, 223))),
     discover = previewItems,
     discoverAll = previewItems,

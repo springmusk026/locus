@@ -36,6 +36,7 @@ import dev.locus.core.designsystem.Tone
 import dev.locus.core.model.ApiFormat
 import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.RowChevron
+import androidx.compose.ui.platform.LocalResources
 
 /** The top of Settings: one row per area, each with a one-line summary of its current state. */
 @Composable
@@ -79,7 +80,7 @@ internal fun SettingsHub(state: SettingsUiState, onBack: () -> Unit, onOpen: (Se
                 HubRow(stringResource(R.string.settings_hub_extras_title), summary(extrasSummary(state)), LocusIcons.Chats) { onOpen(SettingsPage.Extras) }
                 GroupDivider(inset = Insets.iconRow)
                 // Proxy and certificates apply to model providers only.
-                HubRow(stringResource(R.string.settings_hub_network_title), summary(networkHubSummary(state.network)), LocusIcons.Globe) { onOpen(SettingsPage.Network) }
+                HubRow(stringResource(R.string.settings_hub_network_title), summary(networkHubSummary(LocalResources.current, state.network)), LocusIcons.Globe) { onOpen(SettingsPage.Network) }
             }
         }
 

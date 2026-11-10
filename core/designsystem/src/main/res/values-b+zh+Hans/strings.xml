@@ -157,10 +157,6 @@
     </plurals>
     <string name="designsystem_schedule_every_minutes">每 %1$d 分钟</string>
 
-    <string name="designsystem_trigger_noun_calendar">日历</string>
-    <string name="designsystem_trigger_noun_ntfy">ntfy</string>
-    <string name="designsystem_trigger_noun_mail">邮件</string>
-    <string name="designsystem_trigger_noun_app">其他应用</string>
     <string name="designsystem_trigger_decision_fired">已运行</string>
     <string name="designsystem_trigger_decision_test">测试：已运行</string>
     <string name="designsystem_trigger_decision_no_match">不匹配</string>
@@ -170,6 +166,15 @@
     <string name="designsystem_trigger_decision_busy">已在运行</string>
     <string name="designsystem_trigger_decision_not_allowed">应用不在允许列表中</string>
     <string name="designsystem_trigger_decision_failed">无法运行</string>
+    <string name="designsystem_trigger_decision_fired_inline">已运行</string>
+    <string name="designsystem_trigger_decision_test_inline">测试：已运行</string>
+    <string name="designsystem_trigger_decision_no_match_inline">不匹配</string>
+    <string name="designsystem_trigger_decision_rate_limited_inline">受频率限制</string>
+    <string name="designsystem_trigger_decision_quiet_hours_inline">免打扰时段</string>
+    <string name="designsystem_trigger_decision_disabled_inline">任务已暂停</string>
+    <string name="designsystem_trigger_decision_busy_inline">已在运行</string>
+    <string name="designsystem_trigger_decision_not_allowed_inline">应用不在允许列表中</string>
+    <string name="designsystem_trigger_decision_failed_inline">无法运行</string>
 
     <string name="designsystem_helper_prompt_title">对话标题</string>
     <string name="designsystem_helper_prompt_suggestions">后续建议</string>

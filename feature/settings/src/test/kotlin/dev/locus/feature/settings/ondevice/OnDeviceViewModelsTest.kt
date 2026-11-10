@@ -17,6 +17,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import dev.locus.core.designsystem.UiText
+import dev.locus.feature.settings.R
 
 /** The library's and the detail's view of the managers' states (OnDeviceLibraryViewModel.library, OnDeviceDetailViewModel.recommend). */
 class OnDeviceViewModelsTest {
@@ -66,9 +68,9 @@ class OnDeviceViewModelsTest {
             default = installed.id,
         )
         assertEquals(listOf(Engine.LiteRt, Engine.LlamaCpp), s.installed.map { it.engine })
-        assertEquals("Loaded", s.installed.last().state)
+        assertEquals(UiText.Res(R.string.settings_ondevice_state_loaded), s.installed.last().state)
         assertTrue(s.installed.last().inUse)
-        assertEquals("Idle", s.installed.first().state)
+        assertEquals(UiText.Res(R.string.settings_ondevice_state_idle), s.installed.first().state)
         // Installed models leave Discover: the LiteRT one, and the catalogue file with the same checksum.
         assertFalse(s.discoverAll.any { it.key == ModelKey.LiteRt(liteRt.id) || it.key == ModelKey.Catalog(small.id) })
         assertFalse(s.empty)
@@ -97,8 +99,8 @@ class OnDeviceViewModelsTest {
     fun aFinishedDownloadIsAMessageNotARow() {
         val done = GgufDownload("d", offer(null, "ab"), unmeteredOnly = true, state = GgufDownloadState.Installed("gguf:m", "ab", true, existing = true))
         assertTrue(library(gguf = listOf(model("gguf:m", "ab")), downloads = listOf(done)).downloads.isEmpty(), "Downloads lists only what's still to finish")
-        assertEquals("Qwen3.5 0.8B is already on this phone", Finished("Qwen3.5 0.8B", "gguf:m", existing = true, verified = true).message)
-        assertEquals("Qwen3.5 0.8B installed and verified", Finished("Qwen3.5 0.8B", "gguf:m", existing = false, verified = true).message)
+        assertEquals(UiText.Res(R.string.settings_ondevice_finished_existing, "Qwen3.5 0.8B"), Finished("Qwen3.5 0.8B", "gguf:m", existing = true, verified = true).message)
+        assertEquals(UiText.Res(R.string.settings_ondevice_finished_verified, "Qwen3.5 0.8B"), Finished("Qwen3.5 0.8B", "gguf:m", existing = false, verified = true).message)
     }
 
     @Test

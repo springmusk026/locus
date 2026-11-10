@@ -62,6 +62,10 @@ import javax.inject.Inject
 import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.AddRow
 import dev.locus.core.designsystem.RowChevron
+import android.content.res.Resources
+import androidx.compose.ui.platform.LocalResources
+import dev.locus.core.designsystem.UiText
+import dev.locus.core.designsystem.asString
 
 data class NetworkUiState(
     val defaults: NetworkDefaults = NetworkDefaults(),
@@ -69,12 +73,12 @@ data class NetworkUiState(
     /** Provider names that tick each certificate, by certificate id. */
     val usedBy: Map<String, List<String>> = emptyMap(),
     /** The last import's outcome: a message and whether it failed. */
-    val message: Pair<String, Boolean>? = null,
+    val message: Pair<UiText, Boolean>? = null,
 )
 
 @HiltViewModel
 class NetworkViewModel @Inject constructor(private val network: NetworkSettingsRepository) : ViewModel() {
-    private val message = MutableStateFlow<Pair<String, Boolean>?>(null)
+    private val message = MutableStateFlow<Pair<UiText, Boolean>?>(null)
 
     val state: StateFlow<NetworkUiState> = combine(network.defaults, network.saved, network.providersByCertificate, message) { d, s, used, m ->
         NetworkUiState(d, s, used, m)
@@ -88,14 +92,14 @@ class NetworkViewModel @Inject constructor(private val network: NetworkSettingsR
         viewModelScope.launch {
             message.value = try {
                 when (val n = network.importCertificates(uri)) {
-                    0 -> "That certificate is already imported." to false
-                    1 -> "Imported. Tick it in a provider's Network settings to trust it there." to false
-                    else -> "Imported $n certificates. Tick them in a provider's Network settings to trust them there." to false
+                    0 -> UiText.Res(R.string.settings_network_import_already) to false
+                    1 -> UiText.Res(R.string.settings_network_import_one) to false
+                    else -> UiText.Plural(R.plurals.settings_network_import_many, n) to false
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                (e.message ?: "Couldn't read that file.") to true
+                (e.message?.let(UiText::Plain) ?: UiText.Res(R.string.settings_network_import_read_failed)) to true
             }
         }
     }
@@ -163,8 +167,9 @@ internal fun NetworkSettings(
         item { SettingsLink(SettingsDestination.Models, Modifier.padding(start = Spacing.md)) }
 
         item { SectionLabel(stringResource(R.string.settings_network_certificates_section), SectionPadding) }
-        state.message?.let { (text, failed) ->
+        state.message?.let { (message, failed) ->
             item {
+                val text = message.asString()
                 Banner(
                     if (failed) stringResource(R.string.settings_network_import_failed_hint, text) else text,
                     if (failed) Tone.Critical else Tone.Brand,
@@ -181,7 +186,7 @@ internal fun NetworkSettings(
                     val users = state.usedBy[cert.id].orEmpty()
                     ListRow(
                         title = cert.subject,
-                        subtitle = certificateUse(cert, users),
+                        subtitle = certificateUse(LocalResources.current, cert, users),
                         onClick = { openCert = cert.id },
                         leading = { IconTile(LocusIcons.Shield) },
                         trailing = {
@@ -226,11 +231,12 @@ internal fun NetworkSettings(
     }
 }
 
-internal fun certificateUse(cert: TrustedCertificate, users: List<String>): String = when {
-    cert.allProviders -> "Trusted by every provider"
-    users.isEmpty() -> "Not used by any provider yet"
-    users.size <= 2 -> "Trusted by ${users.joinToString(", ")}"
-    else -> "Trusted by ${users.size} providers"
+internal fun certificateUse(res: Resources, cert: TrustedCertificate, users: List<String>): String = when {
+    cert.allProviders -> res.getString(R.string.settings_network_cert_use_all)
+    users.isEmpty() -> res.getString(R.string.settings_network_cert_use_none)
+    // Provider names, as the user named them.
+    users.size <= 2 -> res.getString(R.string.settings_network_cert_use_named, users.joinToString(", "))
+    else -> res.getQuantityString(R.plurals.settings_network_cert_use_count, users.size, users.size)
 }
 
 @Composable
@@ -279,7 +285,7 @@ private fun CertificateSheet(
 ) {
     var confirmAll by remember { mutableStateOf(false) }
     var confirmRemove by remember { mutableStateOf(false) }
-    LocusSheet(title = cert.subject, subtitle = certificateUse(cert, users), onDismiss = onDismiss) {
+    LocusSheet(title = cert.subject, subtitle = certificateUse(LocalResources.current, cert, users), onDismiss = onDismiss) {
         val expired = cert.notAfter < System.currentTimeMillis()
         val date = DateFormat.getDateInstance(DateFormat.LONG).format(Date(cert.notAfter))
         if (expired) {
@@ -345,12 +351,12 @@ private fun Detail(label: String, value: String) {
 }
 
 /** For the Settings hub: "HTTP proxy · 2 certificates", or "Direct". */
-internal fun networkHubSummary(defaults: NetworkDefaults): String {
+internal fun networkHubSummary(res: Resources, defaults: NetworkDefaults): String {
     val parts = mutableListOf<String>()
-    parts += defaults.proxy?.let { "${it.type.label()} proxy" } ?: "Direct"
+    parts += defaults.proxy?.let { res.getString(R.string.settings_network_hub_proxy, it.type.label()) } ?: res.getString(R.string.settings_network_hub_direct)
     val n = defaults.certificates.size
-    if (n > 0) parts += "$n certificate${if (n == 1) "" else "s"}"
+    if (n > 0) parts += res.getQuantityString(R.plurals.settings_network_certificates_count, n, n)
     val everywhere = defaults.certificates.count { it.allProviders }
-    if (everywhere > 0) parts += "$everywhere for all providers"
-    return parts.joinToString(" · ")
+    if (everywhere > 0) parts += res.getQuantityString(R.plurals.settings_network_hub_all_providers, everywhere, everywhere)
+    return summaryJoin(res, parts)
 }

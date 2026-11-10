@@ -43,6 +43,8 @@ import dev.locus.core.designsystem.TransferProgress
 import dev.locus.core.ondevice.MemoryGate
 import dev.locus.core.ondevice.gguf.GgufDownloadText
 import dev.locus.feature.settings.R
+import androidx.compose.ui.platform.LocalResources
+import dev.locus.core.designsystem.asString
 
 /*
  * The on-device screens' shared pieces, all built from core/designsystem: an engine's icon tile,
@@ -71,8 +73,8 @@ internal fun ModelChips(engine: Engine, fit: Fit?, tools: Boolean?, isDefault: B
         // Neutral when it's the usual case; colour only for what needs attention (Chat only, a tight fit).
         tools?.let { LocusChip(stringResource(if (it) R.string.settings_ondevice_tools else R.string.settings_ondevice_chat_only), tone = if (it) Tone.Neutral else Tone.Caution) }
         when (fit) {
-            Fit.Tight -> LocusChip(fit.label, tone = Tone.Caution)
-            Fit.TooLarge -> LocusChip(fit.label, tone = Tone.Critical)
+            Fit.Tight -> LocusChip(stringResource(fit.labelRes), tone = Tone.Caution)
+            Fit.TooLarge -> LocusChip(stringResource(fit.labelRes), tone = Tone.Critical)
             else -> Unit
         }
     }
@@ -81,7 +83,7 @@ internal fun ModelChips(engine: Engine, fit: Fit?, tools: Boolean?, isDefault: B
 /** A fit chip for a file in the detail's list, where every file's fit is the point. */
 @Composable
 internal fun FitChip(fit: Fit) = LocusChip(
-    fit.label,
+    stringResource(fit.labelRes),
     tone = when (fit) {
         Fit.Fits -> Tone.Neutral
         Fit.Tight -> Tone.Caution
@@ -133,7 +135,7 @@ internal fun DownloadRows(d: ActiveDownload, onPause: () -> Unit, onResume: () -
             val step = announceStep(ui.fraction)
             TransferProgress(
                 fraction = ui.fraction,
-                status = statusLines(ui),
+                status = statusLines(LocalResources.current, ui),
                 start = Insets.iconRow,
                 announcement = when (ui) {
                     is DownloadUi.Paused ->
@@ -169,9 +171,9 @@ internal fun DownloadRows(d: ActiveDownload, onPause: () -> Unit, onResume: () -
 internal fun ProblemBanner(problem: Problem, title: String? = null, onRetry: (() -> Unit)?, modifier: Modifier = Modifier) {
     Banner(
         modifier = modifier,
-        text = listOfNotNull(problem.message, problem.advice).joinToString("\n\n"),
+        text = listOfNotNull(problem.message.asString(), problem.adviceRes?.let { stringResource(it) }).joinToString("\n\n"),
         tone = if (problem.kind == Problem.Kind.Other) Tone.Critical else Tone.Caution,
-        title = title ?: problem.title,
+        title = title ?: problem.titleRes?.let { stringResource(it) },
         actionsBelow = true,
     ) {
         if (onRetry != null && problem.kind != Problem.Kind.Gated) TextButton(onClick = onRetry) { Text(stringResource(R.string.settings_ondevice_try_again)) }
@@ -217,13 +219,13 @@ internal fun OfferSheet(check: OfferCheck, onDownload: () -> Unit, onDismiss: ()
                     )
                 }
                 o.problem?.let { Banner(text = it, tone = Tone.Critical, title = stringResource(R.string.settings_ondevice_offer_cant_run)) }
-                check.warning?.let { Banner(text = it, tone = if (check.fit == Fit.TooLarge) Tone.Critical else Tone.Caution, title = check.fit.label) }
+                check.warning?.let { Banner(text = it, tone = if (check.fit == Fit.TooLarge) Tone.Critical else Tone.Caution, title = stringResource(check.fit.labelRes)) }
                 // The fit is the banner's when it's a warning; the chips don't repeat it.
                 ModelChips(Engine.LlamaCpp, if (check.warning != null) null else check.fit, o.callsTools)
                 // The facts in a card, so they share the banners' and chips' left edge.
                 CardGroup {
                     Column(Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.sm)) {
-                        KeyValueRow(stringResource(R.string.settings_ondevice_offer_download), o.sizeBytes?.let(::gb) ?: stringResource(R.string.settings_ondevice_offer_size_unknown), dense = true)
+                        KeyValueRow(stringResource(R.string.settings_ondevice_offer_download), o.sizeBytes?.let { gb(it) } ?: stringResource(R.string.settings_ondevice_offer_size_unknown), dense = true)
                         o.ramBytes?.let { KeyValueRow(stringResource(R.string.settings_ondevice_offer_memory), stringResource(R.string.settings_ondevice_offer_memory_value, MemoryGate.gb(it / MemoryGate.GIB)), dense = true) }
                         o.sizeLabel?.let { KeyValueRow(stringResource(R.string.settings_ondevice_offer_parameters), it, dense = true) }
                         o.quant?.let { KeyValueRow(stringResource(R.string.settings_ondevice_offer_quantisation), it, mono = true, dense = true) }
@@ -268,7 +270,7 @@ internal fun UrlSheet(onCheck: (String) -> Unit, onDismiss: () -> Unit) {
             onValueChange = { url = it },
             label = { Text(stringResource(R.string.settings_ondevice_url_label)) },
             isError = warning != null,
-            supportingText = { Text(warning ?: stringResource(R.string.settings_ondevice_url_hint)) },
+            supportingText = { Text(stringResource(warning ?: R.string.settings_ondevice_url_hint)) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
             keyboardActions = KeyboardActions(onGo = { if (ok) onCheck(url.trim()) }),
             modifier = Modifier.fillMaxWidth(),

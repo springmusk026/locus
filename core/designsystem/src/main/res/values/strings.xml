@@ -205,11 +205,6 @@
     </plurals>
     <string name="designsystem_schedule_every_minutes">Every %1$d min</string>
 
-    <!-- What one event of a task's trigger is called, inside "Goes through …'s filter as a %2$s". -->
-    <string name="designsystem_trigger_noun_calendar">calendar entry</string>
-    <string name="designsystem_trigger_noun_ntfy">ntfy message</string>
-    <string name="designsystem_trigger_noun_mail">mail</string>
-    <string name="designsystem_trigger_noun_app">event from another app</string>
     <!-- What happened to an event a task's trigger received. -->
     <string name="designsystem_trigger_decision_fired">Ran</string>
     <string name="designsystem_trigger_decision_test">Test: ran</string>
@@ -220,6 +215,16 @@
     <string name="designsystem_trigger_decision_busy">Already running</string>
     <string name="designsystem_trigger_decision_not_allowed">App not allowed</string>
     <string name="designsystem_trigger_decision_failed">Couldn\'t run</string>
+    <!-- The same inside a sentence: “The test was recorded: %1$s.” (lower case where the language writes it so). -->
+    <string name="designsystem_trigger_decision_fired_inline">ran</string>
+    <string name="designsystem_trigger_decision_test_inline">test: ran</string>
+    <string name="designsystem_trigger_decision_no_match_inline">didn\'t match</string>
+    <string name="designsystem_trigger_decision_rate_limited_inline">rate-limited</string>
+    <string name="designsystem_trigger_decision_quiet_hours_inline">quiet hours</string>
+    <string name="designsystem_trigger_decision_disabled_inline">task paused</string>
+    <string name="designsystem_trigger_decision_busy_inline">already running</string>
+    <string name="designsystem_trigger_decision_not_allowed_inline">app not allowed</string>
+    <string name="designsystem_trigger_decision_failed_inline">couldn\'t run</string>
 
     <!-- The helper prompts a user can edit (Settings → Helper model & extras). -->
     <string name="designsystem_helper_prompt_title">Chat title</string>

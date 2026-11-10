@@ -832,7 +832,7 @@
     <string name="settings_models_use_http">Use um endereço http:// ou https://.</string>
     <string name="settings_models_unencrypted">Conexão sem criptografia com um endereço público. Seus prompts e sua chave ficariam legíveis em trânsito.</string>
     <plurals name="settings_models_count">
-        <item quantity="one">%1$d modelos</item>
+        <item quantity="one">%1$d modelo</item>
         <item quantity="many">%1$d modelos</item>
         <item quantity="other">%1$d modelos</item>
     </plurals>
@@ -1050,4 +1050,192 @@
         <item quantity="many">%1$d tokens</item>
         <item quantity="other">%1$d tokens</item>
     </plurals>
+    <!-- Settings → Network: summaries and import messages -->
+    <string name="settings_network_import_already">Esse certificado já foi importado.</string>
+    <string name="settings_network_import_one">Importado. Marque-o nas configurações de Rede de um provedor para confiar nele lá.</string>
+    <plurals name="settings_network_import_many">
+        <item quantity="one">%1$d certificado importado. Marque-o nas configurações de Rede de um provedor para confiar nele lá.</item>
+        <item quantity="many">%1$d certificados importados. Marque-os nas configurações de Rede de um provedor para confiar neles lá.</item>
+        <item quantity="other">%1$d certificados importados. Marque-os nas configurações de Rede de um provedor para confiar neles lá.</item>
+    </plurals>
+    <string name="settings_network_import_read_failed">Não foi possível ler esse arquivo.</string>
+    <string name="settings_network_cert_use_all">Confiável para todos os provedores</string>
+    <string name="settings_network_cert_use_none">Ainda não usado por nenhum provedor</string>
+    <string name="settings_network_cert_use_named">Confiável para %1$s</string>
+    <plurals name="settings_network_cert_use_count">
+        <item quantity="one">Confiável para %1$d provedor</item>
+        <item quantity="many">Confiável para %1$d provedores</item>
+        <item quantity="other">Confiável para %1$d provedores</item>
+    </plurals>
+    <string name="settings_network_hub_proxy">Proxy %1$s</string>
+    <string name="settings_network_hub_direct">Direta</string>
+    <plurals name="settings_network_certificates_count">
+        <item quantity="one">%1$d certificado</item>
+        <item quantity="many">%1$d certificados</item>
+        <item quantity="other">%1$d certificados</item>
+    </plurals>
+    <plurals name="settings_network_hub_all_providers">
+        <item quantity="one">%1$d para todos os provedores</item>
+        <item quantity="many">%1$d para todos os provedores</item>
+        <item quantity="other">%1$d para todos os provedores</item>
+    </plurals>
+    <plurals name="settings_pnet_summary_headers">
+        <item quantity="one">%1$d cabeçalho</item>
+        <item quantity="many">%1$d cabeçalhos</item>
+        <item quantity="other">%1$d cabeçalhos</item>
+    </plurals>
+    <string name="settings_pnet_summary_default_proxy">Proxy padrão</string>
+    <string name="settings_pnet_summary_custom_proxy">Proxy %1$s</string>
+
+    <!-- Settings → Permissions: remembered rules and the reviewer -->
+    <string name="settings_permissions_remembered_your_calendar">sua agenda</string>
+    <string name="settings_permissions_remembered_calendar_change">Alterar eventos em %1$s</string>
+    <string name="settings_permissions_remembered_calendar_add">Adicionar eventos a %1$s</string>
+    <string name="settings_permissions_remembered_this_chat">Só este chat</string>
+    <string name="settings_permissions_remembered_always">Sempre</string>
+    <string name="settings_permissions_remembered_ends_today">Sempre · termina hoje</string>
+    <plurals name="settings_permissions_remembered_days_left">
+        <item quantity="one">Sempre · resta %1$d dia</item>
+        <item quantity="many">Sempre · restam %1$d dias</item>
+        <item quantity="other">Sempre · restam %1$d dias</item>
+    </plurals>
+    <string name="settings_permissions_remembered_in_project">%1$s · no projeto dela</string>
+    <string name="settings_permissions_reviewer_hint_off">As ações definidas como Perguntar sempre perguntam a você.</string>
+    <string name="settings_permissions_reviewer_hint_asks">Verifica as ações definidas como Perguntar: executa as claramente corretas, bloqueia as claramente erradas e pergunta a você sobre o resto. Usa %1$s.</string>
+    <string name="settings_permissions_reviewer_hint_all">Também verifica as ações permitidas que alteram algo; as que ele não liberar vêm para você. Usa %1$s.</string>
+    <string name="settings_permissions_reviewer_own_model">o modelo de cada chat (defina um modelo auxiliar em Configurações → Modelo auxiliar e extras para um mais rápido)</string>
+
+    <!-- Settings → Backup & restore: progress, outcomes and errors -->
+    <string name="settings_backup_progress_backing_up">Fazendo o backup</string>
+    <string name="settings_backup_progress_checking">Verificando o backup</string>
+    <string name="settings_backup_saved">Backup salvo: %1$s antes da compactação.</string>
+    <string name="settings_backup_saved_with_keys">Backup salvo: %1$s antes da compactação, com chaves.</string>
+    <string name="settings_backup_cancelled">Backup cancelado. Exclua o arquivo incompleto.</string>
+    <string name="settings_backup_error_not_a_backup">Este não é um arquivo de backup do Locus.</string>
+    <string name="settings_backup_error_wrong_password">Essa senha não abre este backup.</string>
+    <string name="settings_backup_error_damaged">Este arquivo está danificado ou foi alterado depois de criado, então o Locus não vai restaurá-lo.</string>
+    <string name="settings_backup_error_database_damaged">O banco de dados deste backup (chats, tarefas e projetos) está danificado, então o Locus não vai restaurá-lo. Nada mudou neste telefone. Tente um backup mais antigo.</string>
+    <string name="settings_backup_error_newer_format">Este backup foi feito por uma versão mais nova do Locus. Atualize o Locus e tente de novo.</string>
+    <string name="settings_backup_error_newer_schema">Os dados deste backup são de uma versão mais nova do Locus. Atualize o Locus e tente de novo.</string>
+    <string name="settings_backup_error_run_active">Uma tarefa está em execução. Pare-a primeiro e depois restaure.</string>
+    <string name="settings_backup_error_no_space">Não há espaço livre suficiente neste telefone para restaurar este backup. Libere espaço e tente de novo.</string>
+    <string name="settings_backup_error_read">Não foi possível ler o arquivo: %1$s</string>
+    <string name="settings_backup_error_unknown">erro desconhecido</string>
+    <string name="settings_backup_failed_no_space">O backup falhou: o telefone ficou sem espaço. Libere espaço e faça o backup de novo; Configurações → Sobre e privacidade → Diagnóstico → Armazenamento mostra o que o Locus usa. Exclua o arquivo incompleto onde você o salvou.</string>
+    <string name="settings_backup_failed_write">O backup falhou: o Locus não conseguiu gravar o arquivo. Tente de novo ou salve em outra pasta. Exclua o arquivo incompleto onde você o salvou.</string>
+    <string name="settings_backup_no_space_text">Não há espaço livre suficiente para restaurar este backup. Ele precisa de cerca de %1$s e há %2$s livres: libere pelo menos %3$s e tente de novo.</string>
+    <plurals name="settings_backup_section_entries">
+        <item quantity="one">%1$d entrada</item>
+        <item quantity="many">%1$d entradas</item>
+        <item quantity="other">%1$d entradas</item>
+    </plurals>
+    <plurals name="settings_backup_section_files">
+        <item quantity="one">%1$d arquivo</item>
+        <item quantity="many">%1$d arquivos</item>
+        <item quantity="other">%1$d arquivos</item>
+    </plurals>
+    <string name="settings_backup_restore_warning">%1$s %2$s %3$s %4$s</string>
+    <string name="settings_backup_restore_warning_replaces">Isso substitui os chats, a atividade, as configurações, a memória, as habilidades e os ajudantes deste telefone pelos do backup.</string>
+    <string name="settings_backup_restore_warning_workspace">O espaço de trabalho também é substituído.</string>
+    <string name="settings_backup_restore_warning_workspace_kept">Os arquivos do seu espaço de trabalho ficam como estão.</string>
+    <string name="settings_backup_restore_warning_keys">As chaves salvas são substituídas pelas do backup.</string>
+    <string name="settings_backup_restore_warning_keys_kept">As chaves salvas neste telefone são mantidas; adicione as que faltarem.</string>
+    <string name="settings_backup_restore_warning_restarts">Depois, o Locus reinicia.</string>
+
+    <!-- Settings → About & privacy → Updates: status lines and problems -->
+    <string name="settings_updates_status_checked">verificado %1$s</string>
+    <string name="settings_updates_status_checked_start">Verificado %1$s</string>
+    <string name="settings_updates_status_checking">Verificando o GitHub…</string>
+    <string name="settings_updates_status_no_release">Nenhuma versão publicada ainda</string>
+    <string name="settings_updates_status_up_to_date">Atualizado (%1$s)</string>
+    <string name="settings_updates_status_skipped">%1$s ignorada</string>
+    <string name="settings_updates_status_beta_available">Beta %1$s disponível</string>
+    <string name="settings_updates_status_available">%1$s disponível</string>
+    <string name="settings_updates_status_updating">Atualizando para %1$s</string>
+    <string name="settings_updates_status_not_checked">Ainda não verificado</string>
+    <string name="settings_updates_status_waiting_wifi">Aguardando Wi-Fi para verificar</string>
+    <string name="settings_updates_note_disabled">Esta versão não procura atualizações. Elas vêm de onde você instalou o Locus (F-Droid ou IzzyOnDroid).</string>
+    <string name="settings_updates_note_debug">Versão de depuração: as atualizações vêm das suas próprias compilações. Verificar agora ainda mostra a versão mais recente.</string>
+    <string name="settings_updates_note_store">Instalado pelo %1$s, que mantém o Locus atualizado.</string>
+    <string name="settings_updates_problem_no_network">Não foi possível acessar o GitHub. Verifique sua conexão e tente de novo.</string>
+    <string name="settings_updates_problem_rate_limited">O GitHub limita quantas vezes uma rede pode consultar sem login, e esta consultou vezes demais. Tente de novo depois das %1$s.</string>
+    <string name="settings_updates_problem_unreadable">Não foi possível ler a resposta do GitHub. Tente de novo mais tarde.</string>
+    <string name="settings_updates_problem_server">O GitHub respondeu com um erro (HTTP %1$d). Tente de novo mais tarde.</string>
+    <string name="settings_updates_problem_no_apk">Esta versão não tem um APK para este telefone (%1$s). Veja a página da versão.</string>
+    <string name="settings_updates_problem_unknown_abi">ABI desconhecida</string>
+    <string name="settings_updates_problem_no_checksum">Esta versão não publica um checksum SHA-256 com o qual o Locus possa verificar o APK, então o Locus não vai instalá-la. Você pode baixá-la na página da versão.</string>
+    <string name="settings_updates_problem_checksum_mismatch">O download não correspondeu ao checksum SHA-256 da versão, então o Locus o excluiu. Tente de novo; se acontecer outra vez, relate no GitHub.</string>
+    <string name="settings_updates_problem_signature_mismatch">Este APK foi assinado com uma chave diferente da do Locus neste telefone, então o Android não vai instalá-lo como atualização. Para trocar, faça um backup em Configurações → Backup e restauração, desinstale o Locus, instale o novo APK e restaure o backup.</string>
+    <string name="settings_updates_problem_bad_apk">O download não é um Locus mais novo, então o Locus o excluiu.</string>
+    <string name="settings_updates_problem_install_not_allowed">O Android precisa da sua permissão para o Locus instalar apps. Ative \"Permitir desta fonte\" para o Locus e volte aqui.</string>
+    <string name="settings_updates_problem_install_cancelled">A atualização foi cancelada no instalador do Android. O download verificado foi mantido.</string>
+    <string name="settings_updates_problem_storage">Não há espaço livre suficiente para a atualização. Libere espaço e tente de novo.</string>
+    <string name="settings_updates_problem_install_failed">O Android não conseguiu instalar a atualização.</string>
+    <string name="settings_updates_problem_install_failed_reason">O Android não conseguiu instalar a atualização: %1$s</string>
+    <string name="settings_updates_progress_of">%1$s de %2$s MB</string>
+    <string name="settings_updates_progress">%1$s MB</string>
+
+    <!-- Settings → Integrations: the built-in tools or the vendor's MCP server -->
+    <string name="settings_integrations_mcpfirst_the_server">o servidor MCP</string>
+    <string name="settings_integrations_mcpfirst_using">Usando o servidor MCP em novos chats</string>
+    <string name="settings_integrations_mcpfirst_kept">Usando as ferramentas integradas em novos chats</string>
+    <string name="settings_integrations_mcpfirst_failing">O servidor MCP não está funcionando</string>
+    <string name="settings_integrations_mcpfirst_body_using">Os novos chats deixam de fora as ferramentas integradas de %1$s e usam “%2$s”. Os chats que você já tem mantêm as ferramentas com que começaram.</string>
+    <string name="settings_integrations_mcpfirst_body_using_keeps">Os novos chats deixam de fora as ferramentas integradas de %1$s e usam “%2$s”. %3$s Os chats que você já tem mantêm as ferramentas com que começaram.</string>
+    <plurals name="settings_integrations_mcpfirst_body_kept">
+        <item quantity="one">%1$s continua, porque envia arquivos do seu espaço de trabalho.</item>
+        <item quantity="many">%1$s continuam, porque enviam arquivos do seu espaço de trabalho.</item>
+        <item quantity="other">%1$s continuam, porque enviam arquivos do seu espaço de trabalho.</item>
+    </plurals>
+    <string name="settings_integrations_mcpfirst_body_kept_builtin">“%1$s” também está conectado, mas os novos chats usam as ferramentas integradas de %2$s, como você escolheu.</string>
+    <string name="settings_integrations_mcpfirst_body_failed">“%1$s” falhou: %2$s. Até funcionar, os novos chats usam as ferramentas integradas de %3$s.</string>
+    <string name="settings_integrations_mcpfirst_body_not_ready">“%1$s” ainda não pode ser usado. Até funcionar, os novos chats usam as ferramentas integradas de %2$s.</string>
+
+    <!-- Settings: agent cost note, saved logins and self-test messages -->
+    <string name="settings_agent_cost_note">O custo precisa dos preços dos modelos: ative os detalhes de modelos (models.dev) em Configurações → Modelos.</string>
+    <string name="settings_logins_problem">Os logins salvos não podem ser abertos agora: %1$s.</string>
+    <string name="settings_logins_problem_locked">o cofre está bloqueado</string>
+    <string name="settings_logins_save_failed">Não foi possível salvar o login.</string>
+    <string name="settings_selftest_check_crashed">A própria verificação falhou (%1$s).</string>
+
+    <!-- Settings → Models → On-device models: fit, states, problems and file kinds -->
+    <string name="settings_ondevice_fitchip_fits">Cabe neste telefone</string>
+    <string name="settings_ondevice_fitchip_fits_spoken">cabe neste telefone</string>
+    <string name="settings_ondevice_fitchip_tight">No limite</string>
+    <string name="settings_ondevice_fitchip_tight_spoken">no limite para este telefone</string>
+    <string name="settings_ondevice_fitchip_too_large">Grande demais</string>
+    <string name="settings_ondevice_fitchip_too_large_spoken">grande demais para este telefone</string>
+    <string name="settings_ondevice_fitchip_unknown">Compatibilidade desconhecida</string>
+    <string name="settings_ondevice_fitchip_unknown_spoken">compatibilidade desconhecida</string>
+    <string name="settings_ondevice_status_waiting_wifi">Aguardando Wi-Fi</string>
+    <string name="settings_ondevice_status_waiting">Aguardando para começar</string>
+    <string name="settings_ondevice_status_paused">Pausado</string>
+    <string name="settings_ondevice_spoken_tools">aceita ferramentas</string>
+    <string name="settings_ondevice_spoken_chat_only">só chat</string>
+    <string name="settings_ondevice_spoken_separator">", "</string>
+    <string name="settings_ondevice_spoken_default">%1$s, padrão</string>
+    <string name="settings_ondevice_problem_offline">Offline</string>
+    <string name="settings_ondevice_problem_rate_limited">Solicitações demais</string>
+    <string name="settings_ondevice_problem_gated">Requer login no Hugging Face</string>
+    <string name="settings_ondevice_problem_gated_advice">O Locus baixa sem conta. Procure o mesmo modelo de outro publicador (unsloth, bartowski e ggml-org costumam ter cópias sem restrição) ou baixe o arquivo em um computador e importe-o.</string>
+    <string name="settings_ondevice_problem_other">Algo deu errado: %1$s</string>
+    <string name="settings_ondevice_url_warning_http">Só endereços https://: um download por http simples pode ser alterado no caminho.</string>
+    <string name="settings_ondevice_url_warning_full">Cole um endereço completo começando com https://.</string>
+    <string name="settings_ondevice_url_warning_spaces">Um endereço não pode conter espaços.</string>
+    <string name="settings_ondevice_finished_existing">%1$s já está neste telefone</string>
+    <string name="settings_ondevice_finished_verified">%1$s instalado e verificado</string>
+    <string name="settings_ondevice_finished_unverified">%1$s instalado de uma fonte não verificada</string>
+    <string name="settings_ondevice_state_idle">Inativo</string>
+    <string name="settings_ondevice_state_loading">Carregando</string>
+    <string name="settings_ondevice_state_replying">Respondendo</string>
+    <string name="settings_ondevice_state_loaded">Carregado</string>
+    <string name="settings_ondevice_state_crashed">Ficou sem memória da última vez</string>
+    <string name="settings_ondevice_detail_gone">Este modelo não está mais no telefone.</string>
+    <string name="settings_ondevice_detail_no_checksum">O Hugging Face não publica checksum para este arquivo.</string>
+    <string name="settings_ondevice_detail_imported">Arquivo importado</string>
+    <string name="settings_ondevice_detail_source_at">%1$s em %2$s</string>
+    <string name="settings_ondevice_kind_split">Parte %1$d de %2$d</string>
+    <string name="settings_ondevice_kind_projector">Projetor de visão</string>
+    <string name="settings_ondevice_kind_draft">Cabeça de rascunho</string>
+    <string name="settings_ondevice_kind_other">Não é um modelo</string>
 </resources>

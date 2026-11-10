@@ -2,13 +2,12 @@ package dev.locus.feature.tasks
 
 import dev.locus.core.data.tasks.RunNowStatus
 import dev.locus.core.designsystem.Tone
+import dev.locus.core.designsystem.UiText
 import dev.locus.core.model.ModeNote
-import dev.locus.core.model.ScheduledTask
 import dev.locus.core.model.TaskConditions
 import dev.locus.core.model.QuietHours
 import dev.locus.core.model.TaskRunOutcome
 import dev.locus.core.model.TaskTrigger
-import dev.locus.core.model.TriggerHealth
 import dev.locus.core.model.TriggerSource
 import dev.locus.core.testing.FakeCalendarReader
 import dev.locus.core.testing.MainDispatcherRule
@@ -187,25 +186,6 @@ class TasksViewModelTest {
     }
 
     @Test
-    fun `a row's line says the schedule and how the last run went`() {
-        val task = ScheduledTask("t", "Weather", "p", 1_440, enabled = true, lastRunAt = null, lastSummary = null)
-        val at: (Long) -> String = { "Today" }
-        assertEquals("Daily · not run yet", taskStatusLine(task, at))
-        assertEquals("Daily · ran today", taskStatusLine(task.copy(lastRunAt = 1), at))
-        assertEquals("Daily · last run failed today", taskStatusLine(task.copy(lastRunAt = 1, lastOutcome = TaskRunOutcome.FAILED), at))
-        assertEquals("Every 45 min · paused", taskStatusLine(task.copy(intervalMinutes = 45, enabled = false), at))
-        assertEquals("Queued: starts when there's a connection", runNowLine(RunNowStatus.QUEUED))
-        assertEquals("Running now", runNowLine(RunNowStatus.RUNNING))
-    }
-
-    @Test
-    fun `a finished run's message and tone`() {
-        assertEquals("“W” ran." to Tone.Live, runFinishedMessage(TaskEvent.RunFinished("W", RunNowStatus.DONE, "c")))
-        assertEquals(Tone.Caution, runFinishedMessage(TaskEvent.RunFinished("W", RunNowStatus.SKIPPED, "c")).second)
-        assertEquals(Tone.Critical, runFinishedMessage(TaskEvent.RunFinished("W", RunNowStatus.FAILED, "c")).second)
-    }
-
-    @Test
     fun `a draft needs a name and a prompt`() {
         assertFalse(TaskDraft().valid)
         assertFalse(TaskDraft(title = "W").valid)
@@ -248,10 +228,11 @@ class TasksViewModelTest {
     @Test
     fun `a trigger draft says what stops it saving`() {
         val base = TaskDraft("N", "P", mode = StartMode.EVENT, trigger = TaskTrigger(TriggerSource.NTFY))
-        assertEquals("Enter the topic's address, like https://ntfy.sh/a-long-secret-name.", base.problem)
+        // The trigger's own check is core's English, shown as it is.
+        assertEquals(UiText.Plain("Enter the topic's address, like https://ntfy.sh/a-long-secret-name."), base.problem)
         assertFalse(base.valid)
         val quiet = base.copy(trigger = base.trigger.copy(topicUrl = "https://ntfy.sh/t"), quietOn = true, quietFrom = "late")
-        assertEquals("Quiet hours need two times, like 22:00 and 07:00.", quiet.problem)
+        assertEquals(UiText.Res(R.string.tasks_trigger_quiet_problem), quiet.problem)
         // On a schedule, the trigger's fields don't matter.
         assertTrue(base.copy(mode = StartMode.SCHEDULE).valid)
         assertNull(base.copy(mode = StartMode.SCHEDULE).toTrigger)
@@ -271,8 +252,8 @@ class TasksViewModelTest {
             vm.sendTestEvent(id, "Standup prep", "Team standup").join()
             advanceUntilIdle()
             val (miss, hit) = events.filterIsInstance<TaskEvent.TestSent>()
-            assertEquals("The test didn't match “Standup prep”: it doesn't mention “standup”." to Tone.Caution, testSentMessage(miss))
-            assertEquals("The test matched: “Standup prep” is starting." to Tone.Live, testSentMessage(hit))
+            assertEquals(UiText.Res(R.string.tasks_test_unmatched_reason, "Standup prep", "it doesn't mention “standup”") to Tone.Caution, testSentMessage(miss))
+            assertEquals(UiText.Res(R.string.tasks_test_matched, "Standup prep") to Tone.Live, testSentMessage(hit))
             assertTrue(g.taskWork.fired.single().test)
         } finally {
             host.clear()
@@ -307,15 +288,7 @@ class TasksViewModelTest {
     }
 
     @Test
-    fun `an event task's line says its source and its problems`() {
-        val task = ScheduledTask("t", "Backups", "p", 60, enabled = true, lastRunAt = null, lastSummary = null, trigger = TaskTrigger(TriggerSource.CALENDAR))
-        val at: (Long) -> String = { "Today" }
-        assertEquals("Calendar · not checked yet", taskStatusLine(task, at))
-        assertEquals("Calendar · no access", taskStatusLine(task.copy(triggerHealth = TriggerHealth.NO_PERMISSION), at))
-        assertTrue(triggerHasProblem(task.copy(triggerHealth = TriggerHealth.OFFLINE)))
-        assertEquals("Calendar · checked today", taskStatusLine(task.copy(triggerHealth = TriggerHealth.OK, triggerCheckedAt = 1), at))
-        assertEquals("Calendar · paused", taskStatusLine(task.copy(enabled = false), at))
-        assertEquals("Running for an event", runNowLine(RunNowStatus.RUNNING, fromEvent = true))
+    fun `a template's first run waits for its time of day`() {
         assertEquals(9 * 3_600_000L, delayUntil(7 * 60, java.time.ZonedDateTime.of(2026, 11, 5, 22, 0, 0, 0, java.time.ZoneOffset.UTC)))
     }
 

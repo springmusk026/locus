@@ -3,6 +3,7 @@ package dev.locus.feature.tasks
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
@@ -50,9 +51,11 @@ import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.SwitchRow
 import dev.locus.core.designsystem.TextArea
 import dev.locus.core.designsystem.Tone
+import dev.locus.core.designsystem.UiText
+import dev.locus.core.designsystem.asString
 import dev.locus.core.designsystem.color
+import dev.locus.core.designsystem.inlineRes
 import dev.locus.core.designsystem.labelRes
-import dev.locus.core.designsystem.nounRes
 import dev.locus.core.designsystem.relativeTime
 import dev.locus.core.model.QuietHours
 import dev.locus.core.model.ScheduledTask
@@ -72,8 +75,23 @@ internal fun TriggerSource.icon(): ImageVector = when (this) {
     TriggerSource.APP -> LocusIcons.Plug
 }
 
-/** The source picker's short labels, in [TriggerSource] order. */
-internal val SOURCE_LABELS = listOf("Calendar", "ntfy", "Mail", "App")
+/** The source's short label, as the source picker and a row's status line show it. */
+@StringRes
+internal fun TriggerSource.labelRes(): Int = when (this) {
+    TriggerSource.CALENDAR -> R.string.tasks_trigger_source_calendar
+    TriggerSource.NTFY -> R.string.tasks_trigger_source_ntfy
+    TriggerSource.MAIL -> R.string.tasks_trigger_source_mail
+    TriggerSource.APP -> R.string.tasks_trigger_source_app
+}
+
+/** What one event from the source is called in a sentence ("… as a calendar entry"). */
+@StringRes
+internal fun TriggerSource.nounRes(): Int = when (this) {
+    TriggerSource.CALENDAR -> R.string.tasks_trigger_noun_calendar
+    TriggerSource.NTFY -> R.string.tasks_trigger_noun_ntfy
+    TriggerSource.MAIL -> R.string.tasks_trigger_noun_mail
+    TriggerSource.APP -> R.string.tasks_trigger_noun_app
+}
 
 /** What each source waits for, and how quickly Locus notices (docs/design/event-triggers.md, "Latency"). */
 @Composable
@@ -87,20 +105,21 @@ internal fun sourceHelp(source: TriggerSource): String = stringResource(
 )
 
 /** The line under an event-triggered task's name: what it waits for and how its source is. */
-internal fun triggerStatusLine(task: ScheduledTask, now: (Long) -> String): String {
-    val trigger = task.trigger ?: return ""
-    val source = SOURCE_LABELS[trigger.source.ordinal]
+internal fun triggerStatusLine(task: ScheduledTask, now: (Long) -> String): UiText {
+    val trigger = task.trigger ?: return UiText.Plain("")
+    val source = UiText.Res(trigger.source.labelRes())
     return when {
-        !task.enabled -> "$source · paused"
-        task.triggerHealth == TriggerHealth.NO_PERMISSION -> "$source · no access"
-        task.triggerHealth == TriggerHealth.NOT_SET_UP -> "$source · not set up"
-        task.triggerHealth == TriggerHealth.OFFLINE -> "$source · offline"
-        task.triggerHealth == TriggerHealth.ERROR -> "$source · check failed"
-        lastRunProblem(task) != null -> "$source · ${lastRunProblem(task)!!.lowercase()}"
-        task.lastRunAt != null -> "$source · ran ${now(task.lastRunAt!!).lowercase()}"
-        trigger.source == TriggerSource.APP -> "$source · waiting for an event"
-        task.triggerCheckedAt != null -> "$source · checked ${now(task.triggerCheckedAt!!).lowercase()}"
-        else -> "$source · not checked yet"
+        !task.enabled -> UiText.Res(R.string.tasks_status_paused, source)
+        task.triggerHealth == TriggerHealth.NO_PERMISSION -> UiText.Res(R.string.tasks_status_no_access, source)
+        task.triggerHealth == TriggerHealth.NOT_SET_UP -> UiText.Res(R.string.tasks_status_not_set_up, source)
+        task.triggerHealth == TriggerHealth.OFFLINE -> UiText.Res(R.string.tasks_status_offline, source)
+        task.triggerHealth == TriggerHealth.ERROR -> UiText.Res(R.string.tasks_status_check_failed, source)
+        task.lastOutcome == TaskRunOutcome.FAILED -> UiText.Res(R.string.tasks_status_last_failed, source)
+        task.lastOutcome == TaskRunOutcome.STOPPED -> UiText.Res(R.string.tasks_status_last_stopped, source)
+        task.lastRunAt != null -> UiText.Res(R.string.tasks_status_ran, source, now(task.lastRunAt!!).lowercase())
+        trigger.source == TriggerSource.APP -> UiText.Res(R.string.tasks_status_waiting, source)
+        task.triggerCheckedAt != null -> UiText.Res(R.string.tasks_status_checked, source, now(task.triggerCheckedAt!!).lowercase())
+        else -> UiText.Res(R.string.tasks_status_not_checked, source)
     }
 }
 
@@ -152,12 +171,7 @@ internal fun TriggerFields(
     val trigger = draft.trigger
     fun set(t: TaskTrigger) = onChange(draft.copy(trigger = t))
     Text(stringResource(R.string.tasks_trigger_when), style = LocusType.cardTitle)
-    val sourceLabels = listOf(
-        stringResource(R.string.tasks_trigger_source_calendar),
-        stringResource(R.string.tasks_trigger_source_ntfy),
-        stringResource(R.string.tasks_trigger_source_mail),
-        stringResource(R.string.tasks_trigger_source_app),
-    )
+    val sourceLabels = TriggerSource.entries.map { stringResource(it.labelRes()) }
     ChoiceChips(sourceLabels, trigger.source.ordinal) { set(trigger.copy(source = TriggerSource.entries[it])) }
     SupportingText(sourceHelp(trigger.source))
     when (trigger.source) {
@@ -304,7 +318,7 @@ internal fun TriggerFields(
             )
         }
     }
-    draft.problem?.let { Text(it, style = LocusType.rowSupporting, color = Locus.colors.critical) }
+    draft.problem?.let { Text(it.asString(), style = LocusType.rowSupporting, color = Locus.colors.critical) }
 }
 
 /** One choice of a few, as filter chips that wrap (a segmented row clips at large font sizes). */
@@ -322,7 +336,7 @@ internal fun TestEventSheet(task: ScheduledTask, onDismiss: () -> Unit, onSend: 
     var text by remember { mutableStateOf(trigger.contains.ifBlank { "" }) }
     LocusSheet(
         title = stringResource(R.string.tasks_test_title),
-        subtitle = stringResource(R.string.tasks_test_subtitle, task.title, stringResource(trigger.source.nounRes)),
+        subtitle = stringResource(R.string.tasks_test_subtitle, task.title, stringResource(trigger.source.nounRes())),
         onDismiss = onDismiss,
         action = stringResource(R.string.tasks_test_send),
         onAction = { onSend(text) },
@@ -409,11 +423,14 @@ private fun EventGlyph(event: TriggerEventRecord) {
 }
 
 /** The Run now / test / history messages, and their tone. */
-internal fun testSentMessage(event: TaskEvent.TestSent): Pair<String, Tone> = when (event.decision) {
-    null -> "The test didn't match “${event.title}”" + (event.reason?.let { ": $it." } ?: ".") to Tone.Caution
-    TriggerDecision.TEST -> "The test matched: “${event.title}” is starting." to Tone.Live
-    TriggerDecision.FAILED -> "The test matched, but Locus couldn't start the run." to Tone.Critical
-    else -> "The test was recorded: ${event.decision.label.lowercase()}." to Tone.Caution
+internal fun testSentMessage(event: TaskEvent.TestSent): Pair<UiText, Tone> = when (event.decision) {
+    // The reason is core's, in English.
+    null -> event.reason.let { reason ->
+        if (reason != null) UiText.Res(R.string.tasks_test_unmatched_reason, event.title, reason) else UiText.Res(R.string.tasks_test_unmatched, event.title)
+    } to Tone.Caution
+    TriggerDecision.TEST -> UiText.Res(R.string.tasks_test_matched, event.title) to Tone.Live
+    TriggerDecision.FAILED -> UiText.Res(R.string.tasks_test_matched_failed) to Tone.Critical
+    else -> UiText.Res(R.string.tasks_test_recorded, UiText.Res(event.decision.inlineRes)) to Tone.Caution
 }
 
 /** A short summary of the trigger, for the opened row. */
