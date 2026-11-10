@@ -39,8 +39,8 @@ import androidx.compose.ui.draw.clip
 import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.KeyValueRow
 import dev.locus.core.designsystem.LocusChip
-import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.compactCount
+import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.Sizes
@@ -139,8 +139,8 @@ internal fun replyMeta(resources: Resources, usage: TurnUsage?, speed: String?, 
             TaskReceipts.costLabel(r)?.let(::add)
         }
         usage?.let { u ->
-            add(resources.getString(R.string.chat_reply_meta_in, compactCount(u.lastInput.toLong())))
-            add(resources.getString(R.string.chat_reply_meta_out, compactCount(u.output)))
+            add(resources.getString(R.string.chat_reply_meta_in, compactCount(resources, u.lastInput.toLong())))
+            add(resources.getString(R.string.chat_reply_meta_out, compactCount(resources, u.output)))
             if (u.cacheRead > 0 && u.input > 0) add(resources.getString(R.string.chat_reply_meta_cached, u.cacheRead * 100 / u.input))
         }
         speed?.let(::add)

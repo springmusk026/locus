@@ -1,5 +1,6 @@
 package dev.locus.core.designsystem
 
+import android.content.res.Resources
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -8,11 +9,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -69,7 +71,7 @@ fun Meter(
     val value = meterFraction(fraction)
     val color = tone?.color() ?: levelColor(value)
     val shown by animateFloatAsState(value, Motion.slow(), label = "meter")
-    val percent = meterPercentValue(value).let { pluralStringResource(R.plurals.designsystem_meter_percent, it, it) }
+    val percent = meterPercent(LocalResources.current, value)
     Box(
         modifier
             .fillMaxWidth()
@@ -93,7 +95,13 @@ fun meterFraction(value: Float): Float = if (value.isNaN() || value.isInfinite()
 fun meterFraction(used: Long, total: Long): Float = if (total <= 0) 0f else meterFraction(used.toFloat() / total)
 
 /** What TalkBack says for a meter's value: "42 percent". */
-fun meterPercent(fraction: Float): String = "${meterPercentValue(fraction)} percent"
+fun meterPercent(resources: Resources, fraction: Float): String =
+    meterPercentValue(fraction).let { resources.getQuantityString(R.plurals.designsystem_meter_percent, it, it) }
+
+/** [meterPercent] in the composition's resources. */
+@Composable
+@ReadOnlyComposable
+fun meterPercent(fraction: Float): String = meterPercent(LocalResources.current, fraction)
 
 /** [fraction] as a whole percentage, 0..100. */
 private fun meterPercentValue(fraction: Float): Int = (meterFraction(fraction) * 100).roundToInt()

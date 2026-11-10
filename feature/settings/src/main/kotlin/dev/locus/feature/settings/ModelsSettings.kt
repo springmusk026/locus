@@ -12,6 +12,7 @@ import dev.locus.core.designsystem.Sizes
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.UiText
 import dev.locus.core.designsystem.asString
+import dev.locus.core.designsystem.labelRes
 import dev.locus.core.designsystem.meterFraction
 import dev.locus.core.designsystem.rememberLocalNetworkGate
 import dev.locus.core.designsystem.compactCount
@@ -541,7 +542,7 @@ private fun ProviderEditor(
             val modelDefault = dev.locus.core.model.Effort.modelDefault(initial.format, baseUrl, model)
             SupportingText(
                 if (modelDefault != null) {
-                    stringResource(R.string.settings_models_effort_note_model, modelDefault.label.lowercase())
+                    stringResource(R.string.settings_models_effort_note_model, stringResource(modelDefault.labelRes).lowercase())
                 } else {
                     stringResource(R.string.settings_models_effort_note)
                 },

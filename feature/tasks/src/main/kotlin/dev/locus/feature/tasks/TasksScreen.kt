@@ -79,6 +79,9 @@ import dev.locus.core.designsystem.asString
 import dev.locus.core.designsystem.color
 import dev.locus.core.designsystem.rememberLocusFeedbackState
 import dev.locus.core.designsystem.relativeTime
+import dev.locus.core.designsystem.scheduleLabel
+import dev.locus.core.designsystem.scheduleText
+import dev.locus.core.designsystem.shortRes
 import dev.locus.core.model.QuietHours
 import dev.locus.core.model.ScheduleIntervals
 import dev.locus.core.model.ScheduledTask
@@ -279,8 +282,7 @@ internal fun runFinishedMessage(event: TaskEvent.RunFinished): Pair<UiText, Tone
 /** The line under a scheduled task's name: its schedule and how its last run went, or that it's paused. */
 internal fun taskStatusLine(task: ScheduledTask, now: (Long) -> String): UiText {
     if (task.trigger != null) return triggerStatusLine(task, now)
-    // The schedule's label is core's, in English.
-    val schedule = ScheduleIntervals.label(task.intervalMinutes)
+    val schedule = scheduleText(task.intervalMinutes)
     val at = task.lastRunAt?.let { now(it).lowercase() }
     return when {
         !task.enabled -> UiText.Res(R.string.tasks_status_paused, schedule)
@@ -313,6 +315,7 @@ private fun TaskRow(
 ) {
     val task = item.task
     val trigger = task.trigger
+    val resources = LocalResources.current
     var expanded by rememberSaveable(task.id) { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     val calendar = rememberCalendarAccess(viewModel) { viewModel.checkNow(task.id) }
@@ -345,7 +348,7 @@ private fun TaskRow(
                     }
                 } else {
                     Text(
-                        taskStatusLine(task) { relativeTime(it) }.asString(),
+                        taskStatusLine(task) { relativeTime(resources, it) }.asString(),
                         style = LocusType.rowSupporting,
                         color = if (red) Tone.Critical.color() else MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -462,14 +465,14 @@ internal fun TaskSheet(initial: TaskDraft, editing: String?, viewModel: TasksVie
         if (draft.mode == StartMode.SCHEDULE) {
             Text(stringResource(R.string.tasks_sheet_how_often), style = LocusType.cardTitle)
             Segmented(
-                ScheduleIntervals.all.map { it.short },
+                ScheduleIntervals.all.map { stringResource(it.shortRes) },
                 selected = ScheduleIntervals.indexOf(draft.intervalMinutes),
                 onSelect = { draft = draft.copy(intervalMinutes = ScheduleIntervals.all[it].minutes) },
                 modifier = Modifier.fillMaxWidth(),
                 compact = true,
             )
             if (ScheduleIntervals.indexOf(draft.intervalMinutes) < 0) {
-                SupportingText(stringResource(R.string.tasks_sheet_custom_interval, ScheduleIntervals.label(draft.intervalMinutes).lowercase()))
+                SupportingText(stringResource(R.string.tasks_sheet_custom_interval, scheduleLabel(draft.intervalMinutes).lowercase()))
             }
             draft.firstRunAt?.takeIf { editing == null }?.let { at ->
                 SupportingText(stringResource(R.string.tasks_sheet_first_run, QuietHours.clock(at)))

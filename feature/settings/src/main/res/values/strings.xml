@@ -1024,6 +1024,36 @@
     <string name="settings_ondevice_notice_deleted">Deleted.</string>
     <string name="settings_ondevice_notice_delete_busy">It\'s replying now. Delete it when it finishes.</string>
 
+    <!-- On-device model page: the engine's state and speeds. tok/s is tokens per second. -->
+    <!-- The search's sort order. -->
+    <string name="settings_ondevice_sort_popular">Popular</string>
+    <string name="settings_ondevice_sort_trending">Trending</string>
+    <string name="settings_ondevice_engine_not_loaded">Not loaded</string>
+    <!-- %1$s is the reason, from the engine (often English). -->
+    <string name="settings_ondevice_engine_load_failed">Couldn\'t load: %1$s</string>
+    <!-- %1$s is GPU or CPU; %2$s why the GPU failed. -->
+    <string name="settings_ondevice_engine_running">Running on %1$s</string>
+    <string name="settings_ondevice_engine_running_gpu_failed">Running on %1$s (GPU failed: %2$s)</string>
+    <!-- A speed: %1$s is a number of tokens per second; the second one is an estimate. -->
+    <string name="settings_ondevice_rate">%1$s tok/s</string>
+    <string name="settings_ondevice_rate_estimate">≈%1$s tok/s</string>
+    <!-- %1$s is a speed (above), how fast the prompt was read. -->
+    <string name="settings_ondevice_prefill">prefill %1$s</string>
+    <!-- A time: %1$s is a number of seconds. -->
+    <string name="settings_ondevice_seconds">%1$s s</string>
+    <string name="settings_ondevice_loaded_in">Loaded in %1$s</string>
+    <!-- %1$s is a number of gigabytes. -->
+    <string name="settings_ondevice_memory">≈%1$s GB of memory</string>
+    <string name="settings_ondevice_benchmark_ran">Ran on %1$s</string>
+    <string name="settings_ondevice_benchmark_ran_gpu_failed">Ran on %1$s (GPU failed: %2$s)</string>
+    <!-- %1$s is the load time, %2$s a speed, %3$s a number of tokens (below). -->
+    <string name="settings_ondevice_benchmark_load">Load %1$s · prefill %2$s (%3$s)</string>
+    <!-- %1$s is a speed, %2$s a number of tokens (below). -->
+    <string name="settings_ondevice_benchmark_decode">Decode %1$s (%2$s)</string>
+    <plurals name="settings_ondevice_benchmark_tokens">
+        <item quantity="one">%1$d token</item>
+        <item quantity="other">%1$d tokens</item>
+    </plurals>
     <!-- Settings → Network: summaries and import messages -->
     <string name="settings_network_import_already">That certificate is already imported.</string>
     <string name="settings_network_import_one">Imported. Tick it in a provider\'s Network settings to trust it there.</string>

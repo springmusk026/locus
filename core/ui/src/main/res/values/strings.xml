@@ -208,4 +208,25 @@
     <string name="ui_workflow_can_on_its_own">Can %1$s on its own. Anything else asks first.</string>
     <string name="ui_workflow_run_title">Run a workflow</string>
     <string name="ui_workflow_none">No workflows yet. When a task goes well, open its receipt and tap Save as workflow.</string>
+
+    <!-- An SSH machine's line in a list: %1$s is user@host:port. -->
+    <string name="ui_ssh_host_no_auth">%1$s · no authentication</string>
+    <!-- What a tool lets a workflow do, as a verb phrase that fits “Can %1$s on its own” (ui_workflow_can_on_its_own). -->
+    <string name="ui_workflow_tool_list_files">list files</string>
+    <string name="ui_workflow_tool_read_files">read files</string>
+    <string name="ui_workflow_tool_view_images">look at images</string>
+    <string name="ui_workflow_tool_write_files">write files</string>
+    <string name="ui_workflow_tool_edit_files">edit files</string>
+    <string name="ui_workflow_tool_delete_files">delete files</string>
+    <string name="ui_workflow_tool_move_files">move files</string>
+    <string name="ui_workflow_tool_copy_files">copy files</string>
+    <string name="ui_workflow_tool_make_folders">make folders</string>
+    <string name="ui_workflow_tool_search_files">search files</string>
+    <string name="ui_workflow_tool_send_files">send you files</string>
+    <string name="ui_workflow_tool_run_commands">run commands</string>
+    <string name="ui_workflow_tool_search_web">search the web</string>
+    <string name="ui_workflow_tool_read_web">read web pages</string>
+    <string name="ui_workflow_tool_commit">commit changes</string>
+    <string name="ui_workflow_tool_look_at_changes">look at changes</string>
+    <string name="ui_workflow_tool_ask_questions">ask you questions</string>
 </resources>

@@ -1,5 +1,6 @@
 package dev.locus.feature.library
 
+import dev.locus.core.designsystem.shortRes
 import dev.locus.core.ui.workflowToolName
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -222,7 +223,7 @@ private fun WorkflowRow(saved: SavedWorkflow, project: String?, viewModel: Libra
         }
         w.steps.forEachIndexed { i, step -> Text("${i + 1}. $step", style = LocusType.supporting) }
         if (w.approvals.isNotEmpty()) {
-            Text(stringResource(R.string.library_workflows_asks_before, w.approvals.map(::workflowToolName).distinct().joinToString()), style = LocusType.supporting, color = Locus.colors.onCautionContainer)
+            Text(stringResource(R.string.library_workflows_asks_before, w.approvals.map { workflowToolName(it) }.distinct().joinToString()), style = LocusType.supporting, color = Locus.colors.onCautionContainer)
         }
         w.checks.forEach { c -> SupportingText(stringResource(R.string.library_workflows_check, c.label, checkHow(c))) }
         // Four actions: they wrap on a narrow phone instead of squeezing.
@@ -259,7 +260,7 @@ private fun ScheduleSheet(s: LibraryWorkflowSheet.Schedule, viewModel: LibraryWo
         extra = {
             Text(stringResource(R.string.library_workflows_how_often), style = LocusType.cardTitle)
             dev.locus.core.designsystem.Segmented(
-                INTERVALS.map { it.short },
+                INTERVALS.map { stringResource(it.shortRes) },
                 selected = dev.locus.core.model.ScheduleIntervals.indexOf(interval),
                 onSelect = { interval = INTERVALS[it].minutes },
                 modifier = Modifier.fillMaxWidth(),
@@ -267,8 +268,8 @@ private fun ScheduleSheet(s: LibraryWorkflowSheet.Schedule, viewModel: LibraryWo
             )
             val lines = buildList {
                 add(stringResource(R.string.library_workflows_schedule_read_only))
-                if (limits.needYou.isNotEmpty()) add(stringResource(R.string.library_workflows_schedule_need_you, limits.needYou.map(::workflowToolName).distinct().joinToString()))
-                if (limits.changes.isNotEmpty()) add(stringResource(R.string.library_workflows_schedule_changes, limits.changes.map(::workflowToolName).distinct().joinToString()))
+                if (limits.needYou.isNotEmpty()) add(stringResource(R.string.library_workflows_schedule_need_you, limits.needYou.map { workflowToolName(it) }.distinct().joinToString()))
+                if (limits.changes.isNotEmpty()) add(stringResource(R.string.library_workflows_schedule_changes, limits.changes.map { workflowToolName(it) }.distinct().joinToString()))
                 add(stringResource(if (limits.fullyRuns) R.string.library_workflows_schedule_only_reads else R.string.library_workflows_schedule_run_from_chat))
             }
             Text(

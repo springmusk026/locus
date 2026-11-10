@@ -64,7 +64,6 @@ import dev.locus.core.llm.Fit as ContextFit
 import dev.locus.core.ondevice.DeviceMemory
 import dev.locus.core.ondevice.EngineStatus
 import dev.locus.core.ondevice.MemoryGate
-import dev.locus.core.ondevice.OnDeviceFormat
 import dev.locus.core.designsystem.UiText
 import dev.locus.core.designsystem.asString
 
@@ -400,12 +399,13 @@ private fun EngineFacts(state: DetailUiState, m: InstalledInfo) {
     val engine = state.engine
     val mine = engine.modelId == m.modelId
     CardGroup {
-        KeyValueRow(stringResource(R.string.settings_ondevice_detail_engine), OnDeviceFormat.backendLine(engine, m.modelId))
+        val resources = LocalResources.current
+        KeyValueRow(stringResource(R.string.settings_ondevice_detail_engine), backendText(resources, engine, m.modelId))
         if (mine) {
-            OnDeviceFormat.loadedLine(engine)?.let { KeyValueRow(stringResource(R.string.settings_ondevice_detail_loaded), it) }
-            engine.lastTurn?.let { turn -> OnDeviceFormat.turnLine(turn)?.let { KeyValueRow(stringResource(R.string.settings_ondevice_detail_last_reply), it) } }
+            loadedText(resources, engine)?.let { KeyValueRow(stringResource(R.string.settings_ondevice_detail_loaded), it) }
+            engine.lastTurn?.let { turn -> turnText(resources, turn)?.let { KeyValueRow(stringResource(R.string.settings_ondevice_detail_last_reply), it) } }
         }
-        engine.benchmark?.takeIf { it.modelId == m.modelId }?.let { r -> KeyValueRow(stringResource(R.string.settings_ondevice_detail_benchmark_label), OnDeviceFormat.benchmark(r).joinToString("\n"), mono = true, valueMaxLines = 6) }
+        engine.benchmark?.takeIf { it.modelId == m.modelId }?.let { r -> KeyValueRow(stringResource(R.string.settings_ondevice_detail_benchmark_label), benchmarkText(resources, r).joinToString("\n"), mono = true, valueMaxLines = 6) }
     }
 }
 

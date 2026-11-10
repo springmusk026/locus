@@ -164,4 +164,22 @@
     <string name="ui_workflow_can_on_its_own">Pode %1$s sozinho. Todo o resto pergunta antes.</string>
     <string name="ui_workflow_run_title">Executar um fluxo de trabalho</string>
     <string name="ui_workflow_none">Nenhum fluxo de trabalho ainda. Quando uma tarefa der certo, abra o recibo dela e toque em Salvar como fluxo de trabalho.</string>
+    <string name="ui_ssh_host_no_auth">%1$s · sem autenticação</string>
+    <string name="ui_workflow_tool_list_files">listar arquivos</string>
+    <string name="ui_workflow_tool_read_files">ler arquivos</string>
+    <string name="ui_workflow_tool_view_images">ver imagens</string>
+    <string name="ui_workflow_tool_write_files">gravar arquivos</string>
+    <string name="ui_workflow_tool_edit_files">editar arquivos</string>
+    <string name="ui_workflow_tool_delete_files">excluir arquivos</string>
+    <string name="ui_workflow_tool_move_files">mover arquivos</string>
+    <string name="ui_workflow_tool_copy_files">copiar arquivos</string>
+    <string name="ui_workflow_tool_make_folders">criar pastas</string>
+    <string name="ui_workflow_tool_search_files">pesquisar arquivos</string>
+    <string name="ui_workflow_tool_send_files">enviar arquivos para você</string>
+    <string name="ui_workflow_tool_run_commands">executar comandos</string>
+    <string name="ui_workflow_tool_search_web">pesquisar na web</string>
+    <string name="ui_workflow_tool_read_web">ler páginas da web</string>
+    <string name="ui_workflow_tool_commit">fazer commit de alterações</string>
+    <string name="ui_workflow_tool_look_at_changes">ver as alterações</string>
+    <string name="ui_workflow_tool_ask_questions">fazer perguntas a você</string>
 </resources>

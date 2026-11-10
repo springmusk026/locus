@@ -1,5 +1,7 @@
 package dev.locus.core.designsystem
 
+import android.content.res.Resources
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -56,6 +58,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -695,13 +698,32 @@ private fun Modifier.verticalScrollCompat() = this.verticalScroll(androidx.compo
 // Tokens
 // ---------------------------------------------------------------------------------------------
 
-/** 942 → "942", 12_400 → "12.4k", 1_000_000 → "1M". */
-fun compactCount(n: Long): String = when {
+/** 942 → "942", 12_400 → "12.4k", 1_000_000 → "1M", in the app's language. */
+fun compactCount(resources: Resources, n: Long): String = when {
+    n < 1_000 -> "$n"
+    n < 100_000 -> resources.getString(R.string.designsystem_count_thousands, oneDecimal(n / 1_000.0))
+    n < 1_000_000 -> resources.getString(R.string.designsystem_count_thousands, "${n / 1_000}")
+    else -> resources.getString(R.string.designsystem_count_millions, oneDecimal(n / 1_000_000.0))
+}
+
+/**
+ * [compactCount] in English ("12.4k"), for a line that is still put together in English. Screens use
+ * [compactCount], which follows the app's language.
+ */
+fun compactCountEnglish(n: Long): String = when {
     n < 1_000 -> "$n"
     n < 100_000 -> "%.1fk".format(n / 1_000.0).replace(".0k", "k")
     n < 1_000_000 -> "${n / 1_000}k"
     else -> "%.1fM".format(n / 1_000_000.0).replace(".0M", "M")
 }
+
+/** [compactCount] in the composition's resources. */
+@Composable
+@ReadOnlyComposable
+fun compactCount(n: Long): String = compactCount(LocalResources.current, n)
+
+/** 12.4 → "12.4", 12.0 → "12", in the default locale ("12,4" in Spanish). */
+private fun oneDecimal(value: Double): String = "%.1f".format(value).let { s -> if (s.length > 2 && s[s.length - 1] == '0' && !s[s.length - 2].isDigit()) s.dropLast(2) else s }
 
 /** Colour for how full something is: brand, then caution from 80%, critical from 95%. */
 @Composable

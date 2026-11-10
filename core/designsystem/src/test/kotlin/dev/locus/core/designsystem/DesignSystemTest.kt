@@ -48,21 +48,7 @@ class DesignSystemTest {
         assertEquals(1f, meterFraction(9, 4))
     }
 
-    @Test
-    fun `a meter reads as a whole percentage`() {
-        assertEquals("42 percent", meterPercent(0.421f))
-        assertEquals("100 percent", meterPercent(3f))
-        assertEquals("0 percent", meterPercent(Float.NaN))
-    }
-
-    @Test
-    fun `counts cap so a chip never grows past two digits and a plus`() {
-        assertEquals("0", chipCount(-3))
-        assertEquals("7", chipCount(7))
-        assertEquals("99", chipCount(99))
-        assertEquals("99+", chipCount(100))
-        assertEquals("9+", chipCount(12, max = 9))
-    }
+    // The meter's percentage and chip counts are read from resources now: ModelTextTest.
 
     @Test
     fun `destinations are written with arrows and spoken without them`() {
@@ -78,7 +64,6 @@ class DesignSystemTest {
         assertEquals("Settings → Models", settingsPath(dev.locus.core.model.SettingsDestination.Models))
         assertEquals("Settings → About & privacy → Diagnostics", settingsPath(dev.locus.core.model.SettingsDestination.Diagnostics))
         assertEquals("Settings, SSH machines", destinationSpeech(settingsPath(dev.locus.core.model.SettingsDestination.Ssh)))
-        assertEquals("Open SSH machines", settingsActionLabel(dev.locus.core.model.SettingsDestination.Ssh))
         // A chat error that names a page gets a button; one that doesn't, doesn't.
         assertTrue(hasSettingsAction("OpenAI has no API key. Add it in Settings → Models."))
         assertTrue(!hasSettingsAction("The model didn't answer.") && !hasSettingsAction(null))
