@@ -178,7 +178,7 @@ object Taint {
      * builds could carry what it read: see [disclosureReason] and docs/design/taint.md, "Disclosure".
      */
     private val PRIVATE_READS = setOf(
-        "read_file", "search_files", "code_outline",
+        "read_file", "search_files", "code_outline", "view_image",
         "memory_read", "memory_search",
         "chat_history_search", "chat_history_read",
         "email_list", "email_read",

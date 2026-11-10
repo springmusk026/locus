@@ -59,6 +59,8 @@ class ToolCatalog @Inject constructor(
     calendar: dev.locus.core.data.device.CalendarData? = null,
     /** remind_me's reminders. */
     reminders: dev.locus.core.data.device.Reminders? = null,
+    /** view_image's decoder (docs/design/view-image.md). */
+    imagePreparer: dev.locus.core.data.images.AndroidImagePreparer = dev.locus.core.data.images.AndroidImagePreparer(),
 ) {
     val registry = ToolRegistry(
         allTools(
@@ -68,6 +70,7 @@ class ToolCatalog @Inject constructor(
             phone = phone ?: dev.locus.core.data.device.NoPhone,
             calendar = calendar ?: dev.locus.core.data.device.NoCalendar,
             reminders = reminders,
+            imagePreparer = imagePreparer,
         ) { subagents.get().engine },
     )
 
@@ -178,6 +181,7 @@ class ToolCatalog @Inject constructor(
             phone: dev.locus.core.data.device.PhoneIntegrations = dev.locus.core.data.device.NoPhone,
             calendar: dev.locus.core.data.device.CalendarData = dev.locus.core.data.device.NoCalendar,
             reminders: dev.locus.core.data.device.Reminders? = null,
+            imagePreparer: dev.locus.core.agent.tools.ImagePreparer = dev.locus.core.agent.tools.ImagePreparer.NONE,
             subagents: () -> dev.locus.core.agent.tools.SubagentEngine,
         ): List<Tool> =
             workspaceTools(workspace, dev.locus.core.linux.LinuxSyntaxCheck(linux, workspace), reads, changes) + webTools(http, fetchNetwork(settings, home, http)) + browserTools(browser, workspace) + linuxTools(linux, workspace, remote) + dev.locus.core.linux.codingLinuxTools(linux, workspace, remote) + homeTools(home, http, secrets, scripts, origins = { mcp.origins.allowed(it) }) + integrationTools(http, secrets, workspace) + emailTools(secrets) + openDataTools(http) + mcpTools(mcp) + sshTools(ssh, settings, workspace) + deviceTools(context) + dev.locus.core.data.device.deviceIntegrationTools(phone) +
@@ -187,6 +191,11 @@ class ToolCatalog @Inject constructor(
                 chatHistoryTools(conversations) { dev.locus.core.agent.SecretScrubber(knownSecrets()) } + dev.locus.core.agent.tools.agentControlTools() + dev.locus.core.agent.tools.AskUser(asker) +
                 dev.locus.core.agent.tools.deliveryTools(workspace) +
                 dev.locus.core.agent.tools.subagentTools(home, subagents) +
-                dev.locus.core.agent.tools.ProviderDraftTool(dev.locus.core.data.providers.SettingsProviderDrafts(settings, conversations, knownSecrets))
+                dev.locus.core.agent.tools.ProviderDraftTool(dev.locus.core.data.providers.SettingsProviderDrafts(settings, conversations, knownSecrets)) +
+                // Its copies live outside the workspace, so a chat's history never changes (docs/design/view-image.md).
+                dev.locus.core.agent.tools.ViewImage(workspace, imagePreparer, dev.locus.core.agent.tools.ToolImageStore { java.io.File(context.filesDir, TOOL_IMAGES_DIR) })
+
+        /** Where view_image keeps its prepared images, in the app's private files. */
+        const val TOOL_IMAGES_DIR = "tool-images"
     }
 }
