@@ -37,6 +37,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalResources
+import dev.locus.core.designsystem.asString
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -98,8 +100,9 @@ fun TerminalRoute(
     val currentFont by rememberUpdatedState(fontSp)
 
     LaunchedEffect(linux) { viewModel.openIfNone() }
+    val resources = LocalResources.current
     LaunchedEffect(message) {
-        message?.let { feedback.show(it); viewModel.messageShown() }
+        message?.let { feedback.show(it.asString(resources)); viewModel.messageShown() }
     }
     // What the sessions report from outside composition (a program's clipboard write), shown here.
     LaunchedEffect(viewModel) {

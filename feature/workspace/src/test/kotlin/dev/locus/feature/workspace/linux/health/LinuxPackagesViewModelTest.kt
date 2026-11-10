@@ -1,5 +1,7 @@
 package dev.locus.feature.workspace.linux.health
 
+import dev.locus.core.designsystem.UiText
+import dev.locus.feature.workspace.R
 import dev.locus.core.linux.LinuxInventory
 import dev.locus.core.testing.MainDispatcherRule
 import dev.locus.core.testing.TestGraph
@@ -82,7 +84,7 @@ class LinuxPackagesViewModelTest {
             vm.uninstall("lib-3")
             vm.uninstall("git")
             val done = vm.uiState.first { it.message != null }
-            assertEquals("Removed git.", done.message?.text)
+            assertEquals(UiText.Res(R.string.workspace_packages_removed, "git"), done.message?.text)
             assertEquals(listOf("git"), source.removed, "base and dependency packages are never removed")
             assertTrue(vm.uiState.first { it.packages?.none { p -> p.name == "git" } == true }.shown.none { it.name == "git" })
         } finally {

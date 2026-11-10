@@ -337,4 +337,49 @@
     <string name="workspace_preview_table_size">%1$s linhas × %2$d colunas</string>
     <string name="workspace_preview_code_lines_cut">%1$d linha(s) longa(s) são cortadas aqui em %2$s caracteres.</string>
     <string name="workspace_preview_code_plain">Grande demais para colorir; exibido sem formatação.</string>
+
+    <!-- Workspace: messages the view models make -->
+    <string name="workspace_files_reconnected">Reconectada.</string>
+    <string name="workspace_files_connected_message">%1$s conectada. O Locus a vê como folders/%1$s.</string>
+    <string name="workspace_files_disconnected_message">%1$s desconectada. Os arquivos dela não foram alterados.</string>
+    <string name="workspace_files_gone">%1$s não está mais no espaço de trabalho. Pode ter sido movido ou excluído.</string>
+    <plurals name="workspace_files_imported">
+        <item quantity="one">%1$d arquivo importado.</item>
+        <item quantity="many">%1$d arquivos importados.</item>
+        <item quantity="other">%1$d arquivos importados.</item>
+    </plurals>
+    <string name="workspace_files_exported">%1$s exportado.</string>
+    <string name="workspace_files_deleted_connected">Excluído da pasta conectada; há uma cópia na lixeira.</string>
+    <string name="workspace_files_moved_to_trash">Movido para a lixeira. Você pode restaurá-lo pela lixeira.</string>
+    <string name="workspace_files_restored">%1$s restaurado.</string>
+    <string name="workspace_files_folder_unreadable">Não é possível ler esta pasta.</string>
+    <string name="workspace_terminal_install_first">Instale o Linux primeiro, em %1$s.</string>
+    <string name="workspace_health_action_failed">Não funcionou: %1$s</string>
+    <string name="workspace_health_not_readable">Não foi possível ler o estado do Linux. Ele pode ter acabado de ser removido ou estar sendo reinstalado.</string>
+    <string name="workspace_health_network_failed">Não foi possível verificar a rede: %1$s</string>
+    <string name="workspace_health_freed">%1$s liberados.</string>
+    <string name="workspace_health_dns_reset">Servidores DNS redefinidos para 1.1.1.1 e 8.8.8.8.</string>
+    <string name="workspace_health_service_gone">O serviço “%1$s” não existe mais.</string>
+    <string name="workspace_health_service_started">“%1$s” iniciado.</string>
+    <string name="workspace_health_service_exited">“%1$s” foi encerrado logo em seguida. O log dele pode dizer o motivo.</string>
+    <string name="workspace_health_autostart_on">“%1$s” será iniciado sempre que o Locus abrir.</string>
+    <string name="workspace_health_autostart_off">“%1$s” não será iniciado sozinho.</string>
+    <string name="workspace_health_service_stopped">“%1$s” parado.</string>
+    <string name="workspace_health_service_already_stopped">“%1$s” já tinha parado.</string>
+    <string name="workspace_health_service_running">Em execução</string>
+    <string name="workspace_health_service_crashed">Falhou, %1$s</string>
+    <string name="workspace_health_service_killed">Encerrado pelo Android</string>
+    <string name="workspace_health_service_didnt_start">Não iniciou</string>
+    <string name="workspace_health_service_stopped_by_restart">Parado por reinício</string>
+    <string name="workspace_health_service_finished">Concluído</string>
+    <string name="workspace_health_packages_line">%1$d instalados por você · %2$d no total</string>
+    <string name="workspace_health_packages_unreadable">Não é possível ler o banco de dados de pacotes do apk</string>
+    <string name="workspace_health_memory_low">%1$s de %2$s disponíveis. O Android pode parar os programas do Linux, principalmente enquanto o Locus está em segundo plano.</string>
+    <string name="workspace_health_processes_none">Nenhum em execução</string>
+    <string name="workspace_health_processes">%1$d em execução · %2$s</string>
+    <string name="workspace_packages_database_unreadable">Não é possível ler o banco de dados de pacotes do apk. Reinstalar o Linux resolve.</string>
+    <string name="workspace_packages_removed">%1$s removido.</string>
+    <string name="workspace_packages_remove_failed">Não foi possível remover %1$s: %2$s</string>
+    <string name="workspace_preview_language_text">Texto</string>
+    <string name="workspace_preview_web_blocked">%1$s, então a página pode parecer simples.</string>
 </resources>

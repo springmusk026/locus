@@ -352,4 +352,48 @@
     <string name="workspace_preview_table_size">%1$s rows × %2$d columns</string>
     <string name="workspace_preview_code_lines_cut">%1$d long line(s) are cut at %2$s characters here.</string>
     <string name="workspace_preview_code_plain">Too large to colour; shown plain.</string>
+
+    <!-- Workspace: messages the view models make -->
+    <string name="workspace_files_reconnected">Reconnected.</string>
+    <string name="workspace_files_connected_message">Connected %1$s. Locus sees it as folders/%1$s.</string>
+    <string name="workspace_files_disconnected_message">Disconnected %1$s. Its files are untouched.</string>
+    <string name="workspace_files_gone">%1$s isn\'t in the workspace any more. It may have been moved or deleted.</string>
+    <plurals name="workspace_files_imported">
+        <item quantity="one">Imported %1$d file.</item>
+        <item quantity="other">Imported %1$d files.</item>
+    </plurals>
+    <string name="workspace_files_exported">Exported %1$s.</string>
+    <string name="workspace_files_deleted_connected">Deleted from the connected folder; a copy is in Trash.</string>
+    <string name="workspace_files_moved_to_trash">Moved to trash. You can restore it from Trash.</string>
+    <string name="workspace_files_restored">Restored %1$s.</string>
+    <string name="workspace_files_folder_unreadable">This folder can\'t be read.</string>
+    <string name="workspace_terminal_install_first">Install Linux first, from %1$s.</string>
+    <string name="workspace_health_action_failed">That didn\'t work: %1$s</string>
+    <string name="workspace_health_not_readable">Linux\'s state couldn\'t be read. It may have just been removed or be reinstalling.</string>
+    <string name="workspace_health_network_failed">Couldn\'t check the network: %1$s</string>
+    <string name="workspace_health_freed">Freed %1$s.</string>
+    <string name="workspace_health_dns_reset">DNS servers reset to 1.1.1.1 and 8.8.8.8.</string>
+    <string name="workspace_health_service_gone">There\'s no service “%1$s” any more.</string>
+    <string name="workspace_health_service_started">Started “%1$s”.</string>
+    <string name="workspace_health_service_exited">“%1$s” exited right away. Its log may say why.</string>
+    <string name="workspace_health_autostart_on">“%1$s” will start each time Locus opens.</string>
+    <string name="workspace_health_autostart_off">“%1$s” won\'t start on its own.</string>
+    <string name="workspace_health_service_stopped">Stopped “%1$s”.</string>
+    <string name="workspace_health_service_already_stopped">“%1$s” had already stopped.</string>
+    <string name="workspace_health_service_running">Running</string>
+    <string name="workspace_health_service_crashed">Crashed, %1$s</string>
+    <string name="workspace_health_service_killed">Killed by Android</string>
+    <string name="workspace_health_service_didnt_start">Didn\'t start</string>
+    <string name="workspace_health_service_stopped_by_restart">Stopped by restart</string>
+    <string name="workspace_health_service_finished">Finished</string>
+    <string name="workspace_health_packages_line">%1$d you installed · %2$d total</string>
+    <string name="workspace_health_packages_unreadable">Can\'t read apk\'s package database</string>
+    <string name="workspace_health_memory_low">%1$s of %2$s available. Android may stop Linux programs, especially while Locus is in the background.</string>
+    <string name="workspace_health_processes_none">None running</string>
+    <string name="workspace_health_processes">%1$d running · %2$s</string>
+    <string name="workspace_packages_database_unreadable">apk\'s package database can\'t be read. Reinstalling Linux fixes it.</string>
+    <string name="workspace_packages_removed">Removed %1$s.</string>
+    <string name="workspace_packages_remove_failed">Couldn\'t remove %1$s: %2$s</string>
+    <string name="workspace_preview_language_text">Text</string>
+    <string name="workspace_preview_web_blocked">%1$s, so the page may look plain.</string>
 </resources>

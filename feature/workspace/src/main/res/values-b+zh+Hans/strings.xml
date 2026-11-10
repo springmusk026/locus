@@ -325,4 +325,47 @@
     <string name="workspace_preview_table_size">%1$s 行 × %2$d 列</string>
     <string name="workspace_preview_code_lines_cut">有 %1$d 个长行在此处于 %2$s 个字符处被截断。</string>
     <string name="workspace_preview_code_plain">文件过大，无法着色，已按纯文本显示。</string>
+
+    <!-- Workspace: messages the view models make -->
+    <string name="workspace_files_reconnected">已重新连接。</string>
+    <string name="workspace_files_connected_message">已连接 %1$s。Locus 将其视为 folders/%1$s。</string>
+    <string name="workspace_files_disconnected_message">已断开 %1$s。其中的文件保持不变。</string>
+    <string name="workspace_files_gone">%1$s 已不在工作区中，可能已被移动或删除。</string>
+    <plurals name="workspace_files_imported">
+        <item quantity="other">已导入 %1$d 个文件。</item>
+    </plurals>
+    <string name="workspace_files_exported">已导出 %1$s。</string>
+    <string name="workspace_files_deleted_connected">已从连接的文件夹中删除；回收站中有一份副本。</string>
+    <string name="workspace_files_moved_to_trash">已移到回收站。你可以从回收站恢复。</string>
+    <string name="workspace_files_restored">已恢复 %1$s。</string>
+    <string name="workspace_files_folder_unreadable">无法读取此文件夹。</string>
+    <string name="workspace_terminal_install_first">请先安装 Linux，位置：%1$s。</string>
+    <string name="workspace_health_action_failed">操作未成功：%1$s</string>
+    <string name="workspace_health_not_readable">无法读取 Linux 的状态。它可能刚被移除，或正在重新安装。</string>
+    <string name="workspace_health_network_failed">无法检查网络：%1$s</string>
+    <string name="workspace_health_freed">已释放 %1$s。</string>
+    <string name="workspace_health_dns_reset">DNS 服务器已重置为 1.1.1.1 和 8.8.8.8。</string>
+    <string name="workspace_health_service_gone">服务“%1$s”已不存在。</string>
+    <string name="workspace_health_service_started">已启动“%1$s”。</string>
+    <string name="workspace_health_service_exited">“%1$s”启动后立即退出。它的日志可能说明了原因。</string>
+    <string name="workspace_health_autostart_on">每次打开 Locus 时都会启动“%1$s”。</string>
+    <string name="workspace_health_autostart_off">“%1$s”不会自动启动。</string>
+    <string name="workspace_health_service_stopped">已停止“%1$s”。</string>
+    <string name="workspace_health_service_already_stopped">“%1$s”已经停止了。</string>
+    <string name="workspace_health_service_running">运行中</string>
+    <string name="workspace_health_service_crashed">已崩溃，%1$s</string>
+    <string name="workspace_health_service_killed">被 Android 终止</string>
+    <string name="workspace_health_service_didnt_start">未启动</string>
+    <string name="workspace_health_service_stopped_by_restart">因重启而停止</string>
+    <string name="workspace_health_service_finished">已结束</string>
+    <string name="workspace_health_packages_line">你安装了 %1$d 个 · 共 %2$d 个</string>
+    <string name="workspace_health_packages_unreadable">无法读取 apk 的软件包数据库</string>
+    <string name="workspace_health_memory_low">可用 %1$s，共 %2$s。Android 可能会停止 Linux 程序，尤其是在 Locus 位于后台时。</string>
+    <string name="workspace_health_processes_none">没有运行中的程序</string>
+    <string name="workspace_health_processes">%1$d 个运行中 · %2$s</string>
+    <string name="workspace_packages_database_unreadable">无法读取 apk 的软件包数据库。重新安装 Linux 即可修复。</string>
+    <string name="workspace_packages_removed">已移除 %1$s。</string>
+    <string name="workspace_packages_remove_failed">无法移除 %1$s：%2$s</string>
+    <string name="workspace_preview_language_text">文本</string>
+    <string name="workspace_preview_web_blocked">%1$s，因此页面可能显得很简陋。</string>
 </resources>

@@ -1,5 +1,7 @@
 package dev.locus.feature.workspace.linux.health
 
+import androidx.compose.ui.platform.LocalResources
+import dev.locus.core.designsystem.asString
 import dev.locus.core.designsystem.AmountRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import dev.locus.core.designsystem.cardSegment
@@ -81,9 +83,10 @@ fun LinuxPackagesRoute(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val feedback = Locus.feedback
+    val resources = LocalResources.current
     LaunchedEffect(state.message) {
         val message = state.message ?: return@LaunchedEffect
-        feedback.show(message.text, if (message.problem) Tone.Critical else Tone.Neutral)
+        feedback.show(message.text.asString(resources), if (message.problem) Tone.Critical else Tone.Neutral)
         viewModel.messageShown()
     }
     var expanded by rememberSaveable { mutableStateOf<String?>(null) }
@@ -111,7 +114,7 @@ fun LinuxPackagesRoute(
                     { Button(onClick = onSetUpLinux, modifier = Modifier.heightIn(min = Sizes.touchTarget)) { Text(stringResource(R.string.workspace_packages_set_up)) } }
                 },
             )
-            pkgs == null && state.error != null -> ErrorState(stringResource(R.string.workspace_packages_error_title), state.error.orEmpty(), onRetry = viewModel::load, modifier = body, retrying = state.loading)
+            pkgs == null && state.error != null -> ErrorState(stringResource(R.string.workspace_packages_error_title), state.error?.asString().orEmpty(), onRetry = viewModel::load, modifier = body, retrying = state.loading)
             pkgs == null -> LoadingState(body)
             else -> LazyColumn(
                 body.fillMaxSize(),

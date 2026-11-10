@@ -1,6 +1,8 @@
 package dev.locus.feature.workspace.preview
 
 import android.webkit.MimeTypeMap
+import dev.locus.core.designsystem.UiText
+import dev.locus.feature.workspace.R
 import dev.locus.core.markdown.files.PreviewKind
 import dev.locus.core.markdown.files.basePreviewKind
 import dev.locus.core.markdown.files.extensionOf
@@ -56,10 +58,10 @@ fun syntaxFor(name: String): SyntaxLanguage? {
     }
 }
 
-/** A readable language name for the status line. */
-fun languageLabel(name: String): String {
+/** A readable language name for the status line: the language's own name, or "Text" for plain text. */
+fun languageLabel(name: String): UiText {
     val ext = extensionOf(name)
-    return when (syntaxFor(name)) {
+    val label = when (syntaxFor(name)) {
         SyntaxLanguage.PYTHON -> "Python"
         SyntaxLanguage.KOTLIN -> "Kotlin"
         SyntaxLanguage.JAVA -> if (ext == "java") "Java" else ext.replaceFirstChar { it.uppercase() }
@@ -78,13 +80,13 @@ fun languageLabel(name: String): String {
         SyntaxLanguage.COFFEESCRIPT -> "CoffeeScript"
         SyntaxLanguage.SHELL -> "Shell"
         else -> when (ext) {
-            "" -> "Text"
+            "", "txt", "text" -> return UiText.Res(R.string.workspace_preview_language_text)
             "yml" -> "YAML"
             "md", "markdown" -> "Markdown"
-            "txt", "text" -> "Text"
             else -> ext.uppercase()
         }
     }
+    return UiText.Plain(label)
 }
 
 /** MIME type for Share / Open with. Falls back to text/plain for text kinds and octet-stream otherwise. */

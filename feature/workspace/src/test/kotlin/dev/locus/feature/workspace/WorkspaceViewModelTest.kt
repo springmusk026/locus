@@ -1,5 +1,6 @@
 package dev.locus.feature.workspace
 
+import dev.locus.core.designsystem.UiText
 import dev.locus.core.testing.MainDispatcherRule
 import dev.locus.core.testing.TestGraph
 import dev.locus.core.testing.ViewModelHost
@@ -73,7 +74,7 @@ class WorkspaceViewModelTest {
             vm.openFromOutside("old/report.pdf")
             val gone = vm.uiState.first { it.message != null && it.opening == null }
             assertNull(gone.openFile)
-            assertTrue("report.pdf" in gone.message!! && "moved or deleted" in gone.message!!, gone.message)
+            assertEquals(UiText.Res(R.string.workspace_files_gone, "report.pdf"), gone.message)
             // The list is there to pick from, and back leaves as from the root.
             assertTrue(vm.uiState.first { !it.loading }.entries.any { it.path == "kept.txt" })
             assertFalse(vm.up())
@@ -100,12 +101,12 @@ class WorkspaceViewModelTest {
             val deleted = vm.uiState.first { it.undoTrashId != null }
             assertFalse(file.exists())
             val undo = assertNotNull(deleted.undoTrashId)
-            assertTrue(deleted.message!!.startsWith("Moved to trash"))
+            assertEquals(UiText.Res(R.string.workspace_files_moved_to_trash), deleted.message)
 
             vm.messageShown()
             assertNull(vm.uiState.value.undoTrashId)
             vm.restore(undo)
-            val restored = vm.uiState.first { it.message?.startsWith("Restored") == true }
+            val restored = vm.uiState.first { it.message == UiText.Res(R.string.workspace_files_restored, "notes.txt") }
             assertEquals("buy milk", file.readText())
             assertNull(restored.undoTrashId)
         } finally {

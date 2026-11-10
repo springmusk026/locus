@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.locus.core.agent.tools.TrashEntry
 import dev.locus.core.agent.tools.Workspace
+import dev.locus.core.designsystem.UiText
 import dev.locus.feature.workspace.preview.FileLoader
 import dev.locus.feature.workspace.preview.OpenFile
 import dev.locus.core.data.repository.WorkspaceEntry
@@ -29,7 +30,7 @@ data class WorkspaceUiState(
     val openFile: OpenFile? = null,
     val showTrash: Boolean = false,
     val trash: List<TrashEntry> = emptyList(),
-    val message: String? = null,
+    val message: UiText? = null,
     /** The trash entry the [message] can undo (a delete just made), offered as Undo on the snackbar. */
     val undoTrashId: String? = null,
     val loading: Boolean = true,
@@ -44,7 +45,7 @@ data class WorkspaceUiState(
     /** The connected folder whose sheet is open. */
     val managing: String? = null,
     /** Why the open connected folder can't be listed (its grant was lost, it's gone); null when it can. */
-    val folderError: String? = null,
+    val folderError: UiText? = null,
 ) {
     /** The connected folder [folder] is in, or null for a workspace folder. */
     val connectedFolder: dev.locus.core.model.ConnectedFolder?
@@ -151,7 +152,7 @@ class WorkspaceViewModel @Inject constructor(
         val repo = folders ?: return@launchSafely
         if (reconnectId != null) {
             repo.reconnect(reconnectId, uri)
-            _uiState.update { it.copy(message = "Reconnected.") }
+            _uiState.update { it.copy(message = UiText.Res(R.string.workspace_files_reconnected)) }
             checkFolders()
             refresh()
             return@launchSafely
@@ -167,7 +168,7 @@ class WorkspaceViewModel @Inject constructor(
     fun connect(name: String, readOnly: Boolean) = launchSafely {
         val pending = _uiState.value.pendingConnect ?: return@launchSafely
         val folder = folders?.connect(pending.picked.uri, name.trim(), readOnly, pending.picked.source) ?: return@launchSafely
-        _uiState.update { it.copy(pendingConnect = null, message = "Connected ${folder.name}. Locus sees it as folders/${folder.name}.") }
+        _uiState.update { it.copy(pendingConnect = null, message = UiText.Res(R.string.workspace_files_connected_message, folder.name)) }
     }
 
     fun manage(id: String?) = _uiState.update { it.copy(managing = id) }
@@ -180,7 +181,7 @@ class WorkspaceViewModel @Inject constructor(
         val name = _uiState.value.connected.firstOrNull { it.folder.id == id }?.folder?.name
         folders?.remove(id)
         val leaving = _uiState.value.connectedFolder?.id == id
-        _uiState.update { it.copy(managing = null, message = "Disconnected $name. Its files are untouched.", folder = if (leaving) "." else it.folder) }
+        _uiState.update { it.copy(managing = null, message = UiText.Res(R.string.workspace_files_disconnected_message, name.orEmpty()), folder = if (leaving) "." else it.folder) }
         if (leaving) refresh()
     }
 
@@ -220,7 +221,7 @@ class WorkspaceViewModel @Inject constructor(
             try {
                 val file = runCatching { workspace.resolve(path) }.getOrNull()
                 if (file == null || !file.isFile) {
-                    _uiState.update { it.copy(message = "${path.substringAfterLast('/')} isn't in the workspace any more. It may have been moved or deleted.") }
+                    _uiState.update { it.copy(message = UiText.Res(R.string.workspace_files_gone, path.substringAfterLast('/'))) }
                     return@launchSafely
                 }
                 val loaded = FileLoader.load(path, file, io)
@@ -257,26 +258,26 @@ class WorkspaceViewModel @Inject constructor(
 
     fun import(uris: List<Uri>) = launchSafely {
         uris.forEach { repository.import(it, _uiState.value.folder) }
-        _uiState.update { it.copy(message = "Imported ${uris.size} file(s).") }
+        _uiState.update { it.copy(message = UiText.Plural(R.plurals.workspace_files_imported, uris.size)) }
         refresh()
     }
 
     fun export(path: String, uri: Uri) = launchSafely {
         repository.export(path, uri)
-        _uiState.update { it.copy(message = "Exported ${path.substringAfterLast('/')}.") }
+        _uiState.update { it.copy(message = UiText.Res(R.string.workspace_files_exported, path.substringAfterLast('/'))) }
     }
 
     fun delete(path: String) = launchSafely {
         openedFromOutside = false
         val entry = repository.delete(path)
-        val what = if (entry.folderId != null) "Deleted from the connected folder; a copy is in Trash." else "Moved to trash. You can restore it from Trash."
+        val what = UiText.Res(if (entry.folderId != null) R.string.workspace_files_deleted_connected else R.string.workspace_files_moved_to_trash)
         _uiState.update { it.copy(openFile = null, message = what, undoTrashId = entry.id) }
         refresh()
     }
 
     fun restore(id: String) = launchSafely {
         val path = repository.restore(id)
-        _uiState.update { it.copy(message = "Restored $path.", undoTrashId = null) }
+        _uiState.update { it.copy(message = UiText.Res(R.string.workspace_files_restored, path), undoTrashId = null) }
         refresh()
     }
 
@@ -295,12 +296,15 @@ class WorkspaceViewModel @Inject constructor(
             throw e
         } catch (e: Throwable) {
             // Anything else (a file too big to read included) shows as a message, as before.
-            _uiState.update { it.copy(message = e.message ?: "Something went wrong.", loading = false) }
+            _uiState.update { it.copy(message = e.message?.let(UiText::Plain) ?: UiText.Res(dev.locus.core.designsystem.R.string.common_error_generic), loading = false) }
         }
     }
 }
 
-/** The file layer's message (written for the agent) as the person reads it, beside a Reconnect button. */
-internal fun forUser(message: String?): String =
-    (message ?: "This folder can't be read.")
-        .replace("Ask the user to reconnect it in Workspace → Connected folders.", "Tap Reconnect and pick the folder again.")
+/**
+ * The file layer's message (written for the agent, in English: it's core's) as the person reads it, beside a
+ * Reconnect button: its advice for the agent becomes advice for the person, in the same language.
+ */
+internal fun forUser(message: String?): UiText =
+    message?.let { UiText.Plain(it.replace("Ask the user to reconnect it in Workspace → Connected folders.", "Tap Reconnect and pick the folder again.")) }
+        ?: UiText.Res(R.string.workspace_files_folder_unreadable)

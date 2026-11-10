@@ -1,5 +1,6 @@
 package dev.locus.feature.workspace.preview
 
+import dev.locus.core.designsystem.asString
 import dev.locus.core.markdown.files.PreviewKind
 import dev.locus.core.markdown.artifact.ArtifactSandbox
 import dev.locus.core.markdown.files.extensionOf
@@ -60,7 +61,7 @@ internal fun FilePreview(
                 val context = LocalContext.current
                 val feedback = Locus.feedback
                 // Seeing it whole means the network: the user's call, in an app of their choosing.
-                Banner(notice, Tone.Info, Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.sm)) {
+                Banner(notice.asString(), Tone.Info, Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.sm)) {
                     TextButton(onClick = { openWith(context, file, feedback) }) { Text(stringResource(R.string.workspace_preview_open_with)) }
                 }
             }
@@ -75,8 +76,8 @@ internal fun FilePreview(
  * For a page that loads styles, scripts or files from the web, which this viewer never fetches: what's
  * missing, in plain words. The banner showing it offers Open with… to see the page whole.
  */
-internal fun webNotice(html: String): String? =
-    ArtifactSandbox.blockedNotice(ArtifactSandbox.webResources(html))?.let { "$it, so the page may look plain." }
+internal fun webNotice(html: String): UiText? =
+    ArtifactSandbox.blockedNoticeRes(ArtifactSandbox.webResources(html))?.let { UiText.Res(R.string.workspace_preview_web_blocked, UiText.Res(it)) }
 
 @Composable
 internal fun textNotices(file: OpenFile): List<String> = buildList {
@@ -90,5 +91,5 @@ internal fun textDetail(file: OpenFile): String? {
     val text = file.text ?: return null
     if (file.kind != PreviewKind.Code && file.kind != PreviewKind.Text && file.kind != PreviewKind.Json) return null
     val lines = text.count { it == '\n' } + if (text.endsWith("\n") || text.isEmpty()) 0 else 1
-    return pluralStringResource(R.plurals.workspace_preview_text_detail, lines, languageLabel(file.name), "%,d".format(lines), if (file.truncated) "+" else "")
+    return pluralStringResource(R.plurals.workspace_preview_text_detail, lines, languageLabel(file.name).asString(), "%,d".format(lines), if (file.truncated) "+" else "")
 }
