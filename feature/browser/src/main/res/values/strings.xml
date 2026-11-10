@@ -84,4 +84,10 @@
     <string name="browser_menu_open_elsewhere">Open in another app</string>
     <string name="browser_menu_saved_logins">Saved logins</string>
     <string name="browser_menu_clear_data">Clear browsing data</string>
+
+    <!-- Browser: what TalkBack hears when something waits -->
+    <string name="browser_dock_announce_approval">Locus needs your approval. %1$s</string>
+    <string name="browser_dock_announce_question">Locus asks: %1$s</string>
+    <string name="browser_dock_announce_end">.</string>
+    <string name="browser_dock_announce_queue">%1$s %2$s waiting.</string>
 </resources>
