@@ -39,8 +39,8 @@ import androidx.compose.ui.draw.clip
 import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.KeyValueRow
 import dev.locus.core.designsystem.LocusChip
-import dev.locus.core.designsystem.compactCount
 import dev.locus.core.designsystem.LocusSheet
+import dev.locus.core.designsystem.compactCount
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.Sizes
@@ -81,14 +81,14 @@ internal fun receiptLineTone(r: TaskReceipt): Tone =
 
 /**
  * The receipt's Outcome row, with a provider's raw failure ("HTTP 529: Overloaded") said in words. The
- * outcome's own label comes from core/agent ([TaskReceipts.outcomeLabel]).
+ * outcome's label is [TaskReceipts.outcomeLabel]'s in the user's language; the reason is the run's own (stored) words.
  */
 internal fun receiptOutcomeText(resources: Resources, r: TaskReceipt): String {
     val detail = r.detail?.lineSequence()?.firstOrNull { it.isNotBlank() }?.trim()
     return if (r.outcome == TaskOutcome.FAILED && detail != null) {
-        resources.getString(R.string.chat_receipt_outcome_failed, TaskReceipts.outcomeLabel(r), providerFailureInWords(resources, detail).removeSuffix("."))
+        resources.getString(R.string.chat_receipt_outcome_failed, receiptOutcomeLabel(resources, r), providerFailureInWords(resources, detail).removeSuffix("."))
     } else {
-        TaskReceipts.outcomeLine(r)
+        receiptOutcomeLine(resources, r)
     }
 }
 
@@ -132,18 +132,18 @@ internal fun approvalLinks(resources: Resources, r: TaskReceipt): List<ApprovalL
  * tokens ("8.7k in · 15 out · 64% cached") and an on-device reply's [speed]. One line instead of a line
  * and a receipt card; null when there's nothing to say.
  */
-internal fun replyMeta(resources: Resources, usage: TurnUsage?, speed: String?, receipt: TaskReceipt?): String? {
+internal fun replyMeta(resources: Resources, usage: TurnUsage?, speed: dev.locus.core.ondevice.TurnSpeed?, receipt: TaskReceipt?): String? {
     val parts = buildList {
         receipt?.let { r ->
-            add(TaskReceipts.duration(r))
-            TaskReceipts.costLabel(r)?.let(::add)
+            add(durationInWords(resources, r.durationMs))
+            receiptCost(resources, r)?.let(::add)
         }
         usage?.let { u ->
             add(resources.getString(R.string.chat_reply_meta_in, compactCount(resources, u.lastInput.toLong())))
             add(resources.getString(R.string.chat_reply_meta_out, compactCount(resources, u.output)))
             if (u.cacheRead > 0 && u.input > 0) add(resources.getString(R.string.chat_reply_meta_cached, u.cacheRead * 100 / u.input))
         }
-        speed?.let(::add)
+        speed?.let { speedLine(resources, it) }?.let(::add)
     }
     return parts.takeIf { it.isNotEmpty() }?.joinToString(" · ")
 }
@@ -159,7 +159,7 @@ internal fun ReceiptLine(item: ChatItem.Receipt, actions: ReceiptActions, modifi
     val r = item.receipt
     var open by rememberSaveable(item.key) { mutableStateOf(false) }
     val tone = receiptLineTone(r)
-    val summary = TaskReceipts.summary(r)
+    val summary = receiptSummary(LocalResources.current, r)
     val taskLabel = stringResource(R.string.chat_receipt_task, summary)
     Row(
         modifier.fillMaxWidth()
@@ -201,13 +201,13 @@ internal fun ReceiptSheet(r: TaskReceipt, actions: ReceiptActions, onDismiss: ()
     val resources = LocalResources.current
     val tone = receiptTone(r.outcome)
     val item = ChatItem.Receipt("receipt:${r.taskId}", r)
-    LocusSheet(title = stringResource(R.string.chat_receipt_title), subtitle = TaskReceipts.summary(r), onDismiss = onDismiss) {
+    LocusSheet(title = stringResource(R.string.chat_receipt_title), subtitle = receiptSummary(resources, r), onDismiss = onDismiss) {
         Column(Modifier.fillMaxWidth()) {
                 Field(stringResource(R.string.chat_receipt_outcome), receiptOutcomeText(resources, r), color = if (tone == Tone.Neutral) null else tone)
-                Field(stringResource(R.string.chat_receipt_time), TaskReceipts.duration(r) + if (r.steps > 0) " · " + pluralStringResource(R.plurals.chat_receipt_steps, r.steps, r.steps) else "")
-                TaskReceipts.modelsLabel(r)?.let { Field(stringResource(R.string.chat_receipt_models), it) }
-                if (r.tokens.requests > 0) Field(stringResource(R.string.chat_receipt_tokens), TaskReceipts.tokensLabel(r))
-                TaskReceipts.costLabel(r)?.let { cost ->
+                Field(stringResource(R.string.chat_receipt_time), durationInWords(resources, r.durationMs) + if (r.steps > 0) " · " + pluralStringResource(R.plurals.chat_receipt_steps, r.steps, r.steps) else "")
+                receiptModels(resources, r)?.let { Field(stringResource(R.string.chat_receipt_models), it) }
+                if (r.tokens.requests > 0) Field(stringResource(R.string.chat_receipt_tokens), receiptTokens(resources, r))
+                receiptCost(resources, r)?.let { cost ->
                     Field(stringResource(R.string.chat_receipt_cost), stringResource(if (r.cost == null) R.string.chat_receipt_cost_unknown else R.string.chat_receipt_cost_estimate, cost))
                 }
                 if (r.files > 0) {
@@ -215,7 +215,7 @@ internal fun ReceiptSheet(r: TaskReceipt, actions: ReceiptActions, onDismiss: ()
                 }
                 if (r.checks.isNotEmpty()) {
                     Field(
-                        stringResource(R.string.chat_receipt_checks), TaskReceipts.checksDetail(r),
+                        stringResource(R.string.chat_receipt_checks), receiptChecksDetail(resources, r),
                         // All failed: critical. Some passed: caution, so the passed count doesn't read as failed.
                         color = when {
                             r.checks.none { it.passed == false } -> null
@@ -236,13 +236,13 @@ internal fun ReceiptSheet(r: TaskReceipt, actions: ReceiptActions, onDismiss: ()
                 if (r.tainted) {
                     Field(
                         stringResource(R.string.chat_receipt_outside),
-                        r.outsideContent.joinToString(", ") + if (r.taintedFromStart) " · " + stringResource(R.string.chat_receipt_outside_earlier) else "",
+                        receiptOutside(resources, r) + if (r.taintedFromStart) " · " + stringResource(R.string.chat_receipt_outside_earlier) else "",
                         color = Tone.Caution,
                     )
                 }
                 // One helper a line: its model and what it cost.
-                TaskReceipts.helpersLabel(r, separator = "\n")?.let { Field(stringResource(R.string.chat_receipt_helpers), it) }
-                TaskReceipts.completionCheckLabel(r)?.let { Field(stringResource(R.string.chat_receipt_completion), it) }
+                receiptHelpers(resources, r, separator = "\n")?.let { Field(stringResource(R.string.chat_receipt_helpers), it) }
+                receiptCompletionCheck(resources, r)?.let { Field(stringResource(R.string.chat_receipt_completion), it) }
                 r.workflow?.let { w ->
                     Field(stringResource(R.string.chat_receipt_workflow), w.name)
                     w.checks.forEach { c ->

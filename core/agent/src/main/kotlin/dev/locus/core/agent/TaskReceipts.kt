@@ -193,17 +193,39 @@ object TaskReceipts {
     }.distinct()
 
     /** A taint source (a tool name, or a note from [Taint.sourcesIn]) in plain words. */
-    fun sourceLabel(source: String): String = when {
-        source == "web_search" -> "web search"
-        source == "fetch_url" || source == "web_read" || source.startsWith("browser_") -> "web pages"
-        source == "wikipedia" -> "Wikipedia"
-        source.startsWith("mcp_") || source.startsWith("connector_") -> "connectors"
-        source.startsWith("email_") -> "email"
-        source.startsWith("github_") -> "GitHub"
-        source == "run_command" || source.startsWith("linux_") -> "command output"
-        source.startsWith("ssh_") -> "remote machines"
-        SubagentTools.isAgentTool(source) || source == "a helper's report" -> "helpers' reports"
-        else -> source
+    fun sourceLabel(source: String): String = OutsideSource.of(source)?.label ?: source
+
+    /** The kinds of outside content a receipt names, by their [label] ([TaskReceipt.outsideContent] holds the labels). */
+    enum class OutsideSource(val label: String) {
+        WEB_SEARCH("web search"),
+        WEB_PAGES("web pages"),
+        WIKIPEDIA("Wikipedia"),
+        CONNECTORS("connectors"),
+        EMAIL("email"),
+        GITHUB("GitHub"),
+        COMMAND_OUTPUT("command output"),
+        REMOTE_MACHINES("remote machines"),
+        HELPER_REPORTS("helpers' reports"),
+        ;
+
+        companion object {
+            /** The kind of [source] (a tool name or a note), or null for one with no words of its own. */
+            fun of(source: String): OutsideSource? = when {
+                source == "web_search" -> WEB_SEARCH
+                source == "fetch_url" || source == "web_read" || source.startsWith("browser_") -> WEB_PAGES
+                source == "wikipedia" -> WIKIPEDIA
+                source.startsWith("mcp_") || source.startsWith("connector_") -> CONNECTORS
+                source.startsWith("email_") -> EMAIL
+                source.startsWith("github_") -> GITHUB
+                source == "run_command" || source.startsWith("linux_") -> COMMAND_OUTPUT
+                source.startsWith("ssh_") -> REMOTE_MACHINES
+                SubagentTools.isAgentTool(source) || source == "a helper's report" -> HELPER_REPORTS
+                else -> null
+            }
+
+            /** The kind a receipt's [label] names, or null for a source shown as it is. */
+            fun ofLabel(label: String): OutsideSource? = entries.firstOrNull { it.label == label }
+        }
     }
 
     // ---- Words -----------------------------------------------------------------------------------

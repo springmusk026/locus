@@ -20,9 +20,12 @@ object ProviderErrorText {
     private const val MAX_MESSAGE_CHARS = 500
 
     /** The message for a failed response from [provider]. */
-    fun message(provider: String, status: Int, body: String): String {
+    fun message(provider: String, status: Int, body: String): String = messageText(provider, status, body).english
+
+    /** [message] as data, for the chat to word in the user's language. */
+    fun messageText(provider: String, status: Int, body: String): LlmErrorText {
         val words = providerWords(body)
-        return if (words != null) "$provider returned HTTP $status: $words" else statusText(provider, status, htmlTitle(body))
+        return if (words != null) LlmErrorText(LlmErrorText.Kind.PROVIDER_WORDS, listOf(provider, status.toString(), words)) else statusMessage(provider, status, htmlTitle(body))
     }
 
     /**
@@ -50,26 +53,32 @@ object ProviderErrorText {
      * from a proxy in front of the model, not from the model's API, so they say so. [title] is a page's
      * `<title>`, used only for a status with no words of its own.
      */
-    fun statusText(provider: String, status: Int, title: String? = null): String = when (status) {
-        400 -> "$provider couldn't accept the request (HTTP 400)."
-        401 -> "$provider didn't accept the API key (HTTP 401). Check it in Settings → Models."
-        403 -> "$provider refused the request (HTTP 403). The key may not have access to this model. Check it in Settings → Models."
-        404 -> "$provider couldn't find the model or the address (HTTP 404). Check the base URL and model in Settings → Models."
-        408 -> "The request to $provider timed out (HTTP 408). Try again."
-        413 -> "The request was too large for $provider (HTTP 413). Try a shorter message or fewer attachments."
-        429 -> "$provider is limiting how often requests can be made (HTTP 429). Wait a moment and try again."
-        500 -> "$provider had an internal error (HTTP 500). This is usually temporary. Try again."
-        502 -> "$provider's gateway got no valid answer from the model server (HTTP 502). This is usually temporary. Try again."
-        503 -> "$provider is unavailable or overloaded right now (HTTP 503). This is usually temporary. Try again in a moment."
-        504 -> "$provider's gateway timed out (HTTP 504). This is usually temporary. Try again."
-        520, 521, 523 -> "$provider's gateway couldn't reach the model server (HTTP $status). This is usually temporary. Try again."
-        522 -> "$provider's gateway timed out connecting to the model server (HTTP 522). This is usually temporary. Try again."
-        524 -> "$provider's gateway timed out waiting for the model (HTTP 524). This is usually temporary. Try again."
-        529 -> "$provider is overloaded right now (HTTP 529). Try again in a moment."
-        else -> if (status >= 500) {
-            "$provider had a server error (HTTP $status). This is usually temporary. Try again."
-        } else {
-            "$provider returned HTTP $status" + (title?.let { " ($it)" }.orEmpty()) + "."
+    fun statusText(provider: String, status: Int, title: String? = null): String = statusMessage(provider, status, title).english
+
+    /** [statusText] as data, for the chat to word in the user's language. */
+    fun statusMessage(provider: String, status: Int, title: String? = null): LlmErrorText {
+        fun of(kind: LlmErrorText.Kind, vararg more: String) = LlmErrorText(kind, listOf(provider, *more))
+        return when (status) {
+            400 -> of(LlmErrorText.Kind.BAD_REQUEST)
+            401 -> of(LlmErrorText.Kind.KEY_REFUSED)
+            403 -> of(LlmErrorText.Kind.FORBIDDEN)
+            404 -> of(LlmErrorText.Kind.NOT_FOUND)
+            408 -> of(LlmErrorText.Kind.TIMED_OUT)
+            413 -> of(LlmErrorText.Kind.TOO_LARGE)
+            429 -> of(LlmErrorText.Kind.RATE_LIMITED)
+            500 -> of(LlmErrorText.Kind.INTERNAL_ERROR)
+            502 -> of(LlmErrorText.Kind.BAD_GATEWAY)
+            503 -> of(LlmErrorText.Kind.UNAVAILABLE)
+            504 -> of(LlmErrorText.Kind.GATEWAY_TIMEOUT)
+            520, 521, 523 -> of(LlmErrorText.Kind.GATEWAY_UNREACHABLE, status.toString())
+            522 -> of(LlmErrorText.Kind.GATEWAY_CONNECT_TIMEOUT)
+            524 -> of(LlmErrorText.Kind.GATEWAY_MODEL_TIMEOUT)
+            529 -> of(LlmErrorText.Kind.OVERLOADED)
+            else -> when {
+                status >= 500 -> of(LlmErrorText.Kind.SERVER_ERROR, status.toString())
+                title != null -> of(LlmErrorText.Kind.STATUS_TITLE, status.toString(), title)
+                else -> of(LlmErrorText.Kind.STATUS, status.toString())
+            }
         }
     }
 

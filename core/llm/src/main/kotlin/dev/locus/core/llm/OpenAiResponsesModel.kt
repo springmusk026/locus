@@ -143,12 +143,13 @@ class OpenAiResponsesModel(
             ChatGptErrors.fromCode(code, error.message, error.status, error.param, error.resetsAt, requestId)
         } else {
             val retryable = code in RETRYABLE_CODES || error.unexplained
+            val text = when {
+                error.unexplained -> ChatGptErrors.unexplained(config.name, requestId)
+                error.message != null -> null
+                else -> LlmErrorText(LlmErrorText.Kind.RESPONSE_FAILED_CODE, listOf(config.name, "$code"))
+            }
             LlmException(
-                when {
-                    error.unexplained -> ChatGptErrors.unexplainedText(config.name, requestId)
-                    error.message != null -> "${config.name}: ${error.message}"
-                    else -> "${config.name}: the response failed with “$code”."
-                },
+                text?.english ?: "${config.name}: ${error.message}",
                 error.status,
                 retryable = retryable,
                 kind = when {
@@ -156,11 +157,12 @@ class OpenAiResponsesModel(
                     else -> responsesFailure(code, error.message)
                 },
                 errorCode = code,
+                text = text,
             )
         }
         return LlmException(
             base.message.orEmpty(), base.httpStatus ?: error.status, base.retryable, kind = base.kind, retryAfterMs = base.retryAfterMs,
-            rawBody = raw, errorCode = base.errorCode ?: code, requestId = requestId, responseId = responseId,
+            rawBody = raw, errorCode = base.errorCode ?: code, requestId = requestId, responseId = responseId, text = base.text,
         )
     }
 

@@ -62,8 +62,8 @@ internal fun FailureDetailsSheet(failure: RunFailure, message: String, onDismiss
         },
     ) {
         // In words: the ids are in the table below, and the next step follows when the advice doesn't give one.
-        SupportingText(failureMessageInWords(resources, message), style = LocusType.rowSupporting)
-        (failure.advice ?: failureNextStep(failure, message)?.asString())?.let { SupportingText(it, style = LocusType.rowSupporting) }
+        SupportingText(runErrorInWords(resources, message, failure), style = LocusType.rowSupporting)
+        (failureAdviceInWords(resources, failure) ?: failureNextStep(failure, message)?.asString())?.let { SupportingText(it, style = LocusType.rowSupporting) }
         SelectionContainer {
             CardGroup {
                 Column(Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.xs)) {
