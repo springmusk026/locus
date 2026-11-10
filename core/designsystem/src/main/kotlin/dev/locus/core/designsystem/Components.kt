@@ -643,13 +643,22 @@ fun LocusSheet(
     scrollable: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    // The sheet is a window of its own: a secret field in it ([SecretContent]) makes this window secure.
+    val secrets = androidx.compose.runtime.remember { SecureWindow() }
     androidx.compose.material3.ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(topStart = Radius.sheet, topEnd = Radius.sheet),
         modifier = modifier,
+        properties = androidx.compose.material3.ModalBottomSheetProperties(
+            securePolicy = if (secrets.secure) androidx.compose.ui.window.SecureFlagPolicy.SecureOn else androidx.compose.ui.window.SecureFlagPolicy.Inherit,
+        ),
     ) {
+        val sheetView = androidx.compose.ui.platform.LocalView.current
+        val secure = secrets.secure
+        androidx.compose.runtime.LaunchedEffect(secure) { markSensitive(sheetView, secure) }
+        CompositionLocalProvider(LocalSecureWindow provides secrets) {
         Column(Modifier.fillMaxWidth().imePaddingCompat()) {
             // The action sits beside the title while the title keeps most of the width, and under it
             // otherwise (a long label, a large font), so the title is never squeezed to a column.
@@ -685,6 +694,7 @@ fun LocusSheet(
                     content = content,
                 )
             }
+        }
         }
     }
 }

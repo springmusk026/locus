@@ -1,20 +1,16 @@
 package dev.locus.feature.settings
 
-import android.os.Build
-import android.view.View
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -25,6 +21,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.locus.core.data.logins.SiteLoginStore
+import dev.locus.core.designsystem.SecretContent
 import dev.locus.core.designsystem.AddRow
 import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.CardGroup
@@ -106,7 +103,7 @@ internal fun SavedLoginsSettings(
     /** The login open in the editor at first; for screenshots. */
     initialEditing: SiteLogin? = null,
 ) {
-    MarkSensitive()
+    SecretContent()
     var editing by remember { mutableStateOf(initialEditing) }
 
     SettingsPageScaffold(stringResource(R.string.settings_logins_title), onBack) {
@@ -259,17 +256,3 @@ private fun LoginEditor(
     }
 }
 
-/** Marks the window's content sensitive while this page shows (Android 15+): screen sharing and recording hide it. */
-@Composable
-private fun MarkSensitive() {
-    val view = LocalView.current
-    DisposableEffect(view) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            val before = view.contentSensitivity
-            view.contentSensitivity = View.CONTENT_SENSITIVITY_SENSITIVE
-            onDispose { view.contentSensitivity = before }
-        } else {
-            onDispose { }
-        }
-    }
-}

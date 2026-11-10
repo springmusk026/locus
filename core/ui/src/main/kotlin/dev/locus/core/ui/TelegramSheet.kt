@@ -16,6 +16,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import dev.locus.core.agent.integrations.TelegramRemote
+import dev.locus.core.designsystem.SecretContent
 import dev.locus.core.designsystem.ConfirmSheet
 import dev.locus.core.designsystem.R as DesignR
 import dev.locus.core.designsystem.UiText
@@ -128,6 +129,7 @@ fun TelegramSheet(integration: Integration, hasKey: Boolean, actions: TelegramAc
     ) {
         // A word joiner after the slash: "/newbot" is a command and never breaks into "/ newbot".
         Text(stringResource(R.string.ui_telegram_steps), style = LocusType.rowSupporting)
+        SecretContent()
         OutlinedTextField(
             token, { token = it.trim(); error = null },
             label = { Text(if (hasKey) stringResource(R.string.ui_telegram_bot_token) else integration.keyLabelText(LocalResources.current)) },

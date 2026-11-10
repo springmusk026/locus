@@ -1,6 +1,7 @@
 package dev.locus.feature.onboarding
 
 import androidx.compose.ui.platform.LocalResources
+import dev.locus.core.designsystem.SecretContent
 import dev.locus.core.designsystem.asString
 import dev.locus.core.designsystem.UiText
 import androidx.compose.foundation.clickable
@@ -312,6 +313,7 @@ internal fun ColumnScope.ConnectorsStep(state: OnboardingUiState, viewModel: Onb
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri), modifier = Modifier.fillMaxWidth(),
             )
             LocalNetworkNote(url, localNetwork)
+            SecretContent()
             OutlinedTextField(
                 token, { token = it }, label = { Text(stringResource(R.string.onboarding_connectors_mcp_token)) }, singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
@@ -354,6 +356,7 @@ private fun IntegrationKeySheet(integration: Integration, hasKey: Boolean, onSav
         actionEnabled = key.isNotBlank() && problem == null,
         onAction = { onSave(key) },
     ) {
+        SecretContent()
         OutlinedTextField(
             key,
             { key = it },
