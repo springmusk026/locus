@@ -158,7 +158,8 @@ def main(argv):
     modules = sorted(
         p.parent.parent.parent.parent.parent
         for p in ROOT.glob("**/src/main/res/values/strings.xml")
-        if "build" not in p.relative_to(ROOT).parts
+        # Skip build output and hidden folders (.git, .gradle, agent worktrees under .claude).
+        if not any(part == "build" or part.startswith(".") for part in p.relative_to(ROOT).parts)
     )
     if names:
         modules = [m for m in modules if str(m.relative_to(ROOT)) in names]

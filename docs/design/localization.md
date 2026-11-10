@@ -1,6 +1,6 @@
 # Localisation
 
-Status: groundwork built 2026-11-09. Settings → Language and the per-app language work; the app's text is still English and hardcoded, and moves to resources module by module (see [Migration order](#migration-order)). Not yet tried on the phone. Code: `LanguageSettings.kt` (feature/settings), `UiText` (core/designsystem), `HardcodedTextGuardTest` (core/designsystem), `androidResources` in `app/build.gradle.kts`, `lint.xml`.
+Status: shipped in main 2026-11-10. Every module's own UI text is in resources and translated into es, pt (Brazilian) and zh-Hans; `MissingTranslation` and `ExtraTranslation` are lint errors. Not yet tried on the phone or by native speakers. What is still English is listed under [Still English](#still-english). Code: `AppLocale` and `UiText` (core/designsystem), `LanguageSettings.kt` (feature/settings), `HardcodedTextGuardTest` (core/designsystem), `tools/i18n_check.py`, `androidResources` in `app/build.gradle.kts`, `lint.xml`.
 
 Locus ships in English, Spanish, Portuguese (Brazil) and Simplified Chinese. The user picks a language for Locus alone in Settings → Language, or in App info → Language on Android 13 and later.
 
@@ -53,22 +53,39 @@ The model answers in the user's language when the user writes in it; the scaffol
 ## Guardrails
 
 - `HardcodedTextGuardTest` (core/designsystem) counts string literals handed to Compose text APIs (`Text("…")`, `text =`, `title =`, `subtitle =`, `label =`, `summary =`, `contentDescription =`, `placeholder =`, `LocusChip("…")`, `SectionLabel("…")`, `feedback.show("…")`, `showSnackbar("…")`) per module in app, every feature and core/designsystem, ui, browser, markdown and terminal. A module may not go above its line in `core/designsystem/hardcoded-text-baseline.properties`. When it goes down, the test says so; lower the line with `LOCUS_HARDCODED_TEXT_UPDATE=1 ./gradlew :core:designsystem:testDebugUnitTest --tests '*HardcodedTextGuardTest*'`. The heuristic is a line-level pattern: it misses literals in an `if`, and counts a few that are fine. It only has to be stable.
-- Lint: `MissingTranslation` and `ExtraTranslation` are warnings in `lint.xml` while the translations arrive. The last PR makes them errors.
+- Lint: `MissingTranslation` and `ExtraTranslation` are errors (`lint.xml`): a new English string needs its es, pt and zh-Hans translations (or `translatable="false"`) in the same PR, and a removed one goes from every language.
+- `python3 tools/i18n_check.py` (`--strict` also fails on a module with English strings and no translations) compares every translation with English: keys, placeholders, plural categories, escaping. Run it with every strings change.
 
 ## Migration order
 
 1. **Groundwork** (this): the per-app language, the picker, `UiText`, the guard, lint and this note.
 2. **English extraction**, one module per PR: the module's literals move to its `strings.xml` with the keys above, and its baseline line goes down. The English text doesn't change, so the module's screenshots render the same.
 3. **Translations**, one module per PR: `values-es`, `values-pt` and `values-b+zh+Hans` for that module, reviewed with the checklist below.
-4. **Final PR**: the baseline is zero, `MissingTranslation` and `ExtraTranslation` become errors, and the guard fails on any literal.
+4. **Final PR** (2026-11-10): `MissingTranslation` and `ExtraTranslation` became errors and core/terminal got its three strings. The guard's baseline isn't zero: what is left is preview and sample data, animation labels and number formats, plus the text listed under [Still English](#still-english); each later move lowers it.
 
 ## Review checklist
 
 - Every key has the same placeholders, by number and type, in every language.
 - Every plural has all the categories its language uses (es and pt: `one`, `many`, `other`; zh: `other`).
-- Nothing is cut off or squeezed in es and pt, which often run longer than English: render the module's screens (`recordRoborazziDebug`) in each language, at 200% font too.
+- Nothing is cut off or squeezed in es and pt, which often run longer than English: render the module's screens in each language, at 200% font too. The language goes in front of the density qualifier: `tools/render-screens.sh` or `-Plocus.screenshots.dir=<dir> -Plocus.screenshots.density=es-xhdpi` (`pt-xhdpi`, `b+zh+Hans-xhdpi`) with `-Proborazzi.test.record=true`. The render guard writes cut-off titles to `build/reports/render-guard/findings.txt`. Screenshots that tap a button by its English label before capturing only render in English.
 - Chinese wraps at any character, and buttons and chips with Chinese text keep their line breaks sensible: check the renders.
 - `translatable="false"` is on brand names, URLs, commands and ids, and on nothing a person reads as a sentence.
+
+## Still English
+
+- **Text from the engine** (core/agent, core/data, core/linux, core/model): Linux health checks, package labels, tool names and activity lines, relative times ("3 minutes ago"), schedule and trigger labels, integration and template descriptions, errors from the agent and providers. They are shared with what the model reads, so they need a display/model split first.
+- **View-model messages and helpers that tests compare in English** in chat, settings and tasks (notes in each extraction PR). They move with their tests.
+- **The voice-mode spoken layer** in chat.
+
+## Native-speaker review
+
+Translated by AI with a second review pass, not yet by native speakers. Worth a native look first:
+
+- The approval buttons Allow, Deny, Always and Never in each language: they must be unambiguous.
+- Spanish "Equipos" for SSH machines (it can read as "teams"); maybe "Máquinas" or "Servidores".
+- Sentences that insert another string: a policy word into the project editor text, "helper"/"skill" into Library's changed-outside banners, verb phrases into workflow text. Gender and word order may not always agree in es and pt.
+- Short chips at 200% font in es and pt ("Predeterminado", "Por revisar").
+- Brazilian wording: "Saúde do Linux", "Status do Locus".
 
 ## Glossary
 
