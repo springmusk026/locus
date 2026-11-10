@@ -172,7 +172,9 @@ data class ModelRequirements(
             structuredOutput: Boolean = false,
         ): ModelRequirements = ModelRequirements(
             tools = request.tools.isNotEmpty(),
-            images = request.messages.any { m -> m.attachments.any(::isImage) } || pending.any { it is Part.Attachment && isImage(it) },
+            // A tool's images (view_image) need vision as much as the user's own.
+            images = request.messages.any { m -> m.attachments.any(::isImage) || m.toolResults.any { r -> r.images.any(::isImage) } } ||
+                pending.any { it is Part.Attachment && isImage(it) },
             reasoning = reasoning,
             structuredOutput = structuredOutput,
             contextTokens = estimateTokens(request) + estimate(pending),
@@ -202,7 +204,7 @@ data class ModelRequirements(
             when (p) {
                 is Part.Text -> chars(p.text)
                 is Part.ToolCall -> chars(p.name) + chars(p.argumentsJson)
-                is Part.ToolResult -> chars(p.content)
+                is Part.ToolResult -> chars(p.content) + p.images.sumOf { if (isImage(it)) IMAGE_TOKENS else 50 }
                 is Part.Attachment -> if (isImage(p)) IMAGE_TOKENS else 50
                 is Part.Checkpoint -> chars(p.summary) + p.recentUserMessages.sumOf(::chars) + chars(p.todos.orEmpty())
                 is Part.Reasoning -> 0

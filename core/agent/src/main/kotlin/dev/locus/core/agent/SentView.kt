@@ -325,9 +325,20 @@ data class SentView(
 
         private fun contentText(e: JsonElement?): String = when (e) {
             is JsonPrimitive -> e.contentOrNull.orEmpty()
-            is JsonArray -> e.mapNotNull { (it as? JsonObject)?.let { o -> o.str("text") ?: o.str("data") } ?: (it as? JsonPrimitive)?.contentOrNull }.joinToString("\n")
+            is JsonArray -> e.mapNotNull { (it as? JsonObject)?.let(::partText) ?: (it as? JsonPrimitive)?.contentOrNull }.joinToString("\n")
             null -> ""
             else -> e.toString()
+        }
+
+        /**
+         * One part of an array content as text. An image inside a tool result (view_image) shows as the label
+         * the scrubber already put in place of its bytes (`[image, 312.4 KB]`), never the base64.
+         */
+        private fun partText(o: JsonObject): String? = when (o.str("type")) {
+            "image" -> (o["source"] as? JsonObject)?.str("data") ?: "[image]"
+            "input_image" -> o.str("image_url") ?: "[image]"
+            "image_url" -> (o["image_url"] as? JsonObject)?.str("url") ?: "[image]"
+            else -> o.str("text") ?: o.str("data")
         }
 
         private fun prettyOf(e: JsonElement?): String = e?.let { pretty.encodeToString(JsonElement.serializer(), it) }.orEmpty()

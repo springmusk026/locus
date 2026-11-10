@@ -605,7 +605,7 @@ internal class OnDeviceChatModel(private val engines: OnDeviceEngines, private v
         )
         Role.TOOL -> listOf(
             com.google.ai.edge.litertlm.Message.tool(
-                Contents.of(message.toolResults.map { Content.ToolResponse(it.toolName, if (it.isError) "Error: ${it.content}" else it.content) }),
+                Contents.of(message.toolResults.map { Content.ToolResponse(it.toolName, OnDeviceText.toolText(it)) }),
             ),
         )
     }

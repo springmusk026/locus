@@ -23,6 +23,10 @@ fun toolLabel(name: String, argumentsJson: String, done: Boolean = true): String
     return when (name) {
         "list_files" -> "${say("Listed", "List")} ${opt("path") ?: "workspace"}"
         "read_file" -> "${say("Read", "Read")} ${arg("path")}"
+        ViewImages.TOOL -> {
+            val all = ViewImages.paths(argumentsJson)
+            "${say("Looked at", "Look at")} ${if (all.size == 1) all[0] else if (all.isEmpty()) "an image" else "${all.size} images"}"
+        }
         "search_files" -> "${say("Searched", "Search")} for “${arg("pattern")}”"
         "find_files" -> "${say("Found", "Find")} ${arg("pattern")}${opt("path")?.let { " in $it" }.orEmpty()}"
         "code_outline" -> "${say("Outlined", "Outline")} ${opt("path") ?: "the workspace"}"

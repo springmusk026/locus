@@ -218,7 +218,16 @@ class OpenAiChatModel(
     }
 
     internal fun toWireMessages(messages: List<Message>): List<JsonObject> = buildList {
+        // A tool message takes text only, so a step's tool images (view_image) follow its last tool message
+        // as one user message (docs/design/view-image.md). Results that carry none add nothing.
+        val pendingImages = mutableListOf<Part.ToolResult>()
+        fun flushImages() {
+            if (pendingImages.isEmpty()) return
+            add(toolImagesMessage(pendingImages))
+            pendingImages.clear()
+        }
         for (message in messages) {
+            if (message.role != Role.TOOL) flushImages()
             when (message.role) {
                 Role.USER -> add(buildJsonObject {
                     put("role", "user")
@@ -269,6 +278,36 @@ class OpenAiChatModel(
                         put("tool_call_id", result.callId)
                         put("content", if (result.isError) "ERROR: ${result.content}" else result.content)
                     })
+                    if (result.images.isNotEmpty()) pendingImages += result
+                }
+            }
+        }
+        flushImages()
+    }
+
+    /**
+     * The user message that carries tool images: for each result, a short label naming the call and its
+     * images, then the images as data URLs. A copy that's gone becomes a note.
+     */
+    private fun toolImagesMessage(results: List<Part.ToolResult>): JsonObject = buildJsonObject {
+        put("role", "user")
+        putJsonArray("content") {
+            results.forEach { result ->
+                add(buildJsonObject {
+                    put("type", "text")
+                    put("text", "Images from ${result.toolName} (call ${result.callId}): ${result.images.joinToString("; ") { toolImageLabel(it) }}")
+                })
+                result.images.forEach { a ->
+                    when (val p = payload(a, allowPdf = false)) {
+                        is AttachmentPayload.Image -> add(buildJsonObject {
+                            put("type", "image_url")
+                            putJsonObject("image_url") {
+                                put("url", "data:${p.mimeType};base64,${p.base64}")
+                                put("detail", "auto")
+                            }
+                        })
+                        is AttachmentPayload.Pdf, is AttachmentPayload.Note -> add(buildJsonObject { put("type", "text"); put("text", note(a)) })
+                    }
                 }
             }
         }

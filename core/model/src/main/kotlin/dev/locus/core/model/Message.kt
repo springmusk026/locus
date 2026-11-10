@@ -16,10 +16,22 @@ sealed interface Part {
     @SerialName("tool_call")
     data class ToolCall(val id: String, val name: String, val argumentsJson: String) : Part
 
-    /** A file the user attached. [path] is absolute on the device; [workspacePath] is how the agent refers to it. */
+    /**
+     * A file the user attached, or an image a tool showed the model ([ToolResult.images]). [path] is
+     * absolute on the device; [workspacePath] is how the agent refers to it. [width] and [height] are the
+     * pixels of the bytes at [path], when known (tool images); null for user attachments.
+     */
     @Serializable
     @SerialName("attachment")
-    data class Attachment(val name: String, val mimeType: String, val path: String, val workspacePath: String, val sizeBytes: Long) : Part
+    data class Attachment(
+        val name: String,
+        val mimeType: String,
+        val path: String,
+        val workspacePath: String,
+        val sizeBytes: Long,
+        val width: Int? = null,
+        val height: Int? = null,
+    ) : Part
 
     @Serializable
     @SerialName("tool_result")
@@ -30,6 +42,13 @@ sealed interface Part {
         val isError: Boolean = false,
         /** How the call was authorised; for display only, never sent to providers. Null when not run. */
         val decision: ApprovalDecision? = null,
+        /**
+         * Images the tool showed the model (view_image), sent with [content] in the provider's own shape
+         * (docs/design/view-image.md). Each [Attachment.path] is a private copy Locus wrote once and never
+         * changes, so the request stays byte-stable for the prompt cache. Empty for every other result,
+         * and then left out of the stored JSON, so older chats read and encode exactly as before.
+         */
+        val images: List<Attachment> = emptyList(),
     ) : Part
 
     /**
