@@ -3,6 +3,7 @@ package dev.locus.feature.chat
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import dev.locus.core.ui.ApprovalCard
+import dev.locus.core.ui.asString
 import dev.locus.core.ui.QuestionCard
 import dev.locus.core.ui.largeFont
 import androidx.compose.runtime.getValue
@@ -891,7 +892,7 @@ internal fun ChatScreen(
                     }
                     if (heatServices.isNotEmpty()) {
                         // The body says the phone is hot; the title says what to do about it. The actions wrap at a large font.
-                        Banner(dev.locus.core.data.device.LinuxHeatAdvice.message(heatServices), Tone.Caution, bannerModifier, title = stringResource(R.string.chat_screen_cool_title), actionsBelow = true) {
+                        Banner(dev.locus.core.data.device.LinuxHeatAdvice.messageText(heatServices).asString(), Tone.Caution, bannerModifier, title = stringResource(R.string.chat_screen_cool_title), actionsBelow = true) {
                             androidx.compose.foundation.layout.FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.End, itemVerticalAlignment = Alignment.CenterVertically) {
                                 TextButton(onClick = heatActions.dismissServices) { Text(stringResource(R.string.chat_screen_not_now)) }
                                 TextButton(onClick = heatActions.stopServices) { Text(stringResource(R.string.chat_screen_stop_services)) }

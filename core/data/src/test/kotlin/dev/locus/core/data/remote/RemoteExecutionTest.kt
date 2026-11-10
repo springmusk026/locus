@@ -69,7 +69,8 @@ class RemoteExecutionTest {
         // Jobs left running (a service) end with the test.
         runCatching { ProcessBuilder("pkill", "-f", sshHome.path).start().waitFor() }
         scope.cancel()
-        dir.deleteRecursively()
+        // Never deleteRecursively: it would follow the link a test plants on the machine.
+        dev.locus.core.model.FileTrees.delete(dir)
     }
 
     private fun server(keyless: Boolean = false, publicKey: java.security.PublicKey? = null, port: Int = 0) =
@@ -305,7 +306,9 @@ class RemoteExecutionTest {
         assertTrue(File(sshHome, "fresh/dir/run.sh").isFile)
 
         // A link on the machine isn't followed into the phone.
-        Files.createSymbolicLink(File(out, "etc").toPath(), File("/etc").toPath())
+        // The target stands for a folder outside what was asked for; a real system folder isn't needed.
+        val outside = File(dir, "outside").apply { mkdirs(); File(this, "passwd").writeText("secret") }
+        Files.createSymbolicLink(File(out, "etc").toPath(), outside.toPath())
         val down = call("sftp_download", "host" to "build", "remote_path" to out.path, "workspace_path" to "back")
         assertTrue("Downloaded 32 files" in down.content, down.content)
         kotlin.test.assertContentEquals(big, File(local(), "back/big.bin").readBytes())
