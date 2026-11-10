@@ -86,4 +86,16 @@
     <string name="analytics_tasks_removed">已移除</string>
     <string name="analytics_chart_week_of">%1$s 当周</string>
     <string name="analytics_chart_today">今天</string>
+
+    <!-- Analytics: the spend card's figures and note -->
+    <string name="analytics_cost_unknown">未知</string>
+    <string name="analytics_cost_note_fetching">正在从 models.dev 获取价格…</string>
+    <string name="analytics_cost_note_off">花费根据 models.dev 的公开价格表估算，目前已关闭。开启后会下载这份价格表（约 0.6 MB，每天最多一次）；不会发送任何关于你或你的对话的信息。</string>
+    <string name="analytics_cost_note_failed">无法从 models.dev 下载价格。请检查网络连接后重试。</string>
+    <string name="analytics_cost_note_not_loaded">models.dev 的价格尚未加载，因此花费未知。</string>
+    <string name="analytics_cost_note_no_price">models.dev 没有列出所用模型的价格，因此花费未知。</string>
+    <plurals name="analytics_cost_note_unpriced">
+        <item quantity="other">基于 models.dev 的价格。30 天内的 %2$d 次请求中有 %1$d 次没有价格，因此标有 + 的总额是最低值。</item>
+    </plurals>
+    <string name="analytics_cost_note_priced">基于 models.dev 的标价；你的提供商账单可能有所不同。</string>
 </resources>

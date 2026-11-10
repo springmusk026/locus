@@ -1,34 +1,45 @@
 package dev.locus.feature.analytics
 
+import android.content.Context
+import android.content.res.Resources
+import androidx.test.core.app.ApplicationProvider
 import dev.locus.core.data.repository.CostEstimate
 import dev.locus.core.data.repository.CostReport
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+/** Runs on Robolectric so the labels and notes are checked in the module's English strings. */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36])
 class CostLabelTest {
+    private val res: Resources get() = ApplicationProvider.getApplicationContext<Context>().resources
+
     @Test
     fun `a spend with no prices is unknown, never zero`() {
-        assertEquals("Unknown", costLabel(CostEstimate(unpriced = 3)))
-        assertEquals("–", costLabel(CostEstimate()))
+        assertEquals("Unknown", costLabel(res, CostEstimate(unpriced = 3)))
+        assertEquals("–", costLabel(res, CostEstimate()))
     }
 
     @Test
     fun `priced spends are marked as estimates, and as a floor when some requests had no price`() {
-        assertEquals("≈$1.24", costLabel(CostEstimate(usd = 1.237, priced = 2)))
-        assertEquals("≈$1.24+", costLabel(CostEstimate(usd = 1.237, priced = 2, unpriced = 1)))
-        assertEquals("<$0.01", costLabel(CostEstimate(usd = 0.004, priced = 1)))
+        assertEquals("≈$1.24", costLabel(res, CostEstimate(usd = 1.237, priced = 2)))
+        assertEquals("≈$1.24+", costLabel(res, CostEstimate(usd = 1.237, priced = 2, unpriced = 1)))
+        assertEquals("<$0.01", costLabel(res, CostEstimate(usd = 0.004, priced = 1)))
         // A model on the phone: priced, and free.
-        assertEquals("$0.00", costLabel(CostEstimate(usd = 0.0, priced = 1)))
+        assertEquals("$0.00", costLabel(res, CostEstimate(usd = 0.0, priced = 1)))
     }
 
     @Test
     fun `the note says why the spend reads as it does`() {
-        assertTrue(costNote(CostReport(pricesOn = false))!!.contains("which is off"))
-        assertTrue(costNote(CostReport(pricesOn = true, month = CostEstimate(unpriced = 2)))!!.contains("unknown"))
-        assertTrue(costNote(CostReport(pricesOn = true, month = CostEstimate(usd = 1.0, priced = 3, unpriced = 1)))!!.contains("1 of 4 requests"))
-        assertNull(costNote(CostReport(pricesOn = true)))
+        assertTrue(costNote(res, CostReport(pricesOn = false))!!.contains("which is off"))
+        assertTrue(costNote(res, CostReport(pricesOn = true, month = CostEstimate(unpriced = 2)))!!.contains("unknown"))
+        assertTrue(costNote(res, CostReport(pricesOn = true, month = CostEstimate(usd = 1.0, priced = 3, unpriced = 1)))!!.contains("1 of 4 requests"))
+        assertNull(costNote(res, CostReport(pricesOn = true)))
     }
 
     @Test
@@ -38,12 +49,12 @@ class CostLabelTest {
         assertEquals(CostAction.TurnOn, costAction(off, catalogLoaded = false, setup = PricesSetup.Idle))
         // While fetching there's nothing to tap twice; the note says what's happening.
         assertNull(costAction(off, catalogLoaded = false, setup = PricesSetup.Fetching))
-        assertTrue(costNote(off, catalogLoaded = false, setup = PricesSetup.Fetching)!!.startsWith("Fetching"))
+        assertTrue(costNote(res, off, catalogLoaded = false, setup = PricesSetup.Fetching)!!.startsWith("Fetching"))
         assertEquals(CostAction.TryAgain, costAction(on, catalogLoaded = false, setup = PricesSetup.Failed))
-        assertTrue(costNote(on, catalogLoaded = false, setup = PricesSetup.Failed)!!.startsWith("Couldn't download"))
+        assertTrue(costNote(res, on, catalogLoaded = false, setup = PricesSetup.Failed)!!.startsWith("Couldn't download"))
         // On but not loaded yet (or a fetch at start failed quietly): unknown, with a way to fetch again.
         assertEquals(CostAction.TryAgain, costAction(on, catalogLoaded = false, setup = PricesSetup.Idle))
-        assertTrue(costNote(on, catalogLoaded = false)!!.contains("haven't loaded"))
+        assertTrue(costNote(res, on, catalogLoaded = false)!!.contains("haven't loaded"))
         assertNull(costAction(on, catalogLoaded = true, setup = PricesSetup.Idle))
     }
 }
