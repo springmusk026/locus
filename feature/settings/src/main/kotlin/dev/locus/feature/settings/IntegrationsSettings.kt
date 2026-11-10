@@ -12,6 +12,7 @@ import dev.locus.core.data.mcp.McpTemplates
 import dev.locus.core.data.mcp.McpFirstStatus
 import dev.locus.core.agent.integrations.McpFirst
 import androidx.compose.runtime.LaunchedEffect
+import dev.locus.core.designsystem.SecretContent
 import dev.locus.core.designsystem.ConfirmSheet
 import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.LocusType
@@ -285,6 +286,7 @@ private fun IntegrationKeySheet(
         SupportingText(integration.descriptionText(res))
         if (mcpFirst != null) McpFirstCard(integration, mcpFirst, onSetUseMcp)
         else officialMcp(integration.id)?.let { template -> onUseMcp?.let { UseMcpCard(integration, template, it) } }
+        SecretContent()
         OutlinedTextField(
             value, { value = it },
             label = { Text(integration.keyLabelText(res).let { if (hasKey) stringResource(R.string.settings_integrations_key_saved, it) else it }) },

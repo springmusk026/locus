@@ -22,6 +22,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import dev.locus.core.designsystem.SecretContent
 import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.LocalNetworkGate
 import dev.locus.core.designsystem.LocalNetworkNote
@@ -132,6 +133,7 @@ private fun RemoteFields(viewModel: OnboardingViewModel, localNetwork: LocalNetw
         LocalNetworkNote(draft.baseUrl, localNetwork)
     }
     if (draft.preset.requiresKey) {
+        SecretContent()
         OutlinedTextField(
             draft.key,
             { v -> viewModel.editProvider { it.copy(key = v) } },

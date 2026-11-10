@@ -28,6 +28,7 @@ import dev.locus.core.agent.integrations.Integration
 import dev.locus.core.data.mcp.McpTemplate
 import dev.locus.core.data.mcp.McpTemplates
 import dev.locus.core.data.mcp.SavedKeys
+import dev.locus.core.designsystem.SecretContent
 import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.ConnectorIcon
@@ -185,6 +186,7 @@ internal fun McpTemplateSheet(
             val savedFrom = savedKeyFrom?.takeIf { template.key != null }
             if (savedFrom != null) SavedKeyChoice(savedFrom, template, form)
             template.key?.takeUnless { form.useSavedKey }?.let { key ->
+                SecretContent()
                 OutlinedTextField(
                     form.key, { form.key = it },
                     label = { Text(key.labelText(res).let { if (key.optional || template.signIn) stringResource(R.string.library_mcp_sheet_key_optional, it) else it }) },
@@ -252,6 +254,7 @@ private fun ColumnScope.LocalTemplateFields(local: McpTemplate.Local, form: Temp
     val res = LocalResources.current
     SupportingText(stringResource(R.string.library_mcp_local_needs, local.needsText(res)))
     local.env.forEach { name ->
+        SecretContent()
         OutlinedTextField(
             form.env[name].orEmpty(), { v -> form.env = form.env + (name to v) },
             label = { Text(local.fieldLabel(res, name)) },

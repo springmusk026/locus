@@ -18,6 +18,8 @@ class ComponentCoverageTest {
         "SettingsLinkIn", "SettingsActionFor", "LocalNetworkNote",
         // A full-screen dialog over the app's own pictures; a render can't draw a dialog's window.
         "ImageGallery",
+        // Make a window secure while a secret field shows (SecretContentGuardTest); nothing to see.
+        "SecretContent", "ProvideSecureWindow",
     )
 
     @Test

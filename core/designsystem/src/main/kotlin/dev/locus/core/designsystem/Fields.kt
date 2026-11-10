@@ -1,16 +1,12 @@
 package dev.locus.core.designsystem
 
 import android.content.res.Configuration
-import android.os.Build
-import android.view.View
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.autofill.ContentType
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentType
 import androidx.compose.ui.semantics.semantics
@@ -255,8 +251,8 @@ fun TextArea(
 
 /**
  * A password or app-password field: masked, with a show/hide button, a password keyboard that doesn't
- * learn or correct what's typed, and the autofill hint for a password. On Android 15+ the screen is
- * marked sensitive while it shows, so screen sharing and recording hide it.
+ * learn or correct what's typed, and the autofill hint for a password. Its window is secure while it
+ * shows ([SecretContent]).
  */
 @Composable
 fun PasswordField(
@@ -271,16 +267,7 @@ fun PasswordField(
     keyboardActions: KeyboardActions = KeyboardActions.Default,
 ) {
     var shown by rememberSaveable { mutableStateOf(false) }
-    val view = LocalView.current
-    DisposableEffect(view) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            val before = view.contentSensitivity
-            view.contentSensitivity = View.CONTENT_SENSITIVITY_SENSITIVE
-            onDispose { view.contentSensitivity = before }
-        } else {
-            onDispose { }
-        }
-    }
+    SecretContent()
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,

@@ -61,6 +61,7 @@ import dev.locus.core.designsystem.SettingsLinks
 import dev.locus.core.designsystem.SettingsLinkIn
 import androidx.compose.runtime.remember
 import dev.locus.core.designsystem.LocusTheme
+import dev.locus.core.designsystem.ProvideSecureWindow
 import dev.locus.feature.activity.ActivityRoute as ActivityScreen
 import dev.locus.feature.browser.BrowserRoute as BrowserScreen
 import dev.locus.feature.library.LibraryRoute as LibraryScreen
@@ -92,7 +93,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent {
-            LocusTheme { AppFeedback { LocusNavigation(shareIntents) } }
+            LocusTheme { ProvideSecureWindow(window) { AppFeedback { LocusNavigation(shareIntents) } } }
         }
         // Only on a fresh start: after recreation the back stack already holds what this intent opened.
         if (savedInstanceState == null) intent?.let { shareIntents.tryEmit(it) }
