@@ -139,8 +139,8 @@ internal fun replyMeta(resources: Resources, usage: TurnUsage?, speed: dev.locus
             receiptCost(resources, r)?.let(::add)
         }
         usage?.let { u ->
-            add(resources.getString(R.string.chat_reply_meta_in, compactCount(u.lastInput.toLong())))
-            add(resources.getString(R.string.chat_reply_meta_out, compactCount(u.output)))
+            add(resources.getString(R.string.chat_reply_meta_in, compactCount(resources, u.lastInput.toLong())))
+            add(resources.getString(R.string.chat_reply_meta_out, compactCount(resources, u.output)))
             if (u.cacheRead > 0 && u.input > 0) add(resources.getString(R.string.chat_reply_meta_cached, u.cacheRead * 100 / u.input))
         }
         speed?.let { speedLine(resources, it) }?.let(::add)

@@ -86,7 +86,9 @@ import dev.locus.core.designsystem.Radius
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.container
+import dev.locus.core.designsystem.descriptionRes
 import dev.locus.core.designsystem.floatingSurface
+import dev.locus.core.designsystem.labelRes
 import dev.locus.core.model.ChatMode
 import dev.locus.core.model.Effort
 import dev.locus.core.model.ModelNames
@@ -325,12 +327,12 @@ internal fun LocusComposer(
                 // narrow phones, while they differ from the default. Each opens where it's changed.
                 if (controls.mode != ChatMode.FULL) {
                     BarPill(
-                        label = controls.mode.label,
+                        label = stringResource(controls.mode.labelRes),
                         icon = LocusIcons.Shield,
                         active = true,
                         enabled = controlsEnabled,
                         description = stringResource(R.string.chat_composer_mode),
-                        state = controls.mode.label,
+                        state = stringResource(controls.mode.labelRes),
                         onClickLabel = stringResource(R.string.chat_composer_mode_change),
                         onClick = { onSheet(ControlSheet.Mode) },
                     )
@@ -374,11 +376,11 @@ internal fun LocusComposer(
                     )
                     if (provider.supportsEffort) {
                         BarPill(
-                            label = controls.effort.label.takeIf { controls.effortOverridden },
+                            label = stringResource(controls.effort.labelRes).takeIf { controls.effortOverridden },
                             icon = ChatGlyphs.Thought,
                             active = controls.effortOverridden,
                             enabled = controlsEnabled,
-                            description = stringResource(R.string.chat_composer_thinking, controls.effort.label),
+                            description = stringResource(R.string.chat_composer_thinking, stringResource(controls.effort.labelRes)),
                             onClickLabel = stringResource(R.string.chat_composer_thinking_change),
                             onClick = { onSheet(ControlSheet.Effort) },
                         )
@@ -546,8 +548,8 @@ private fun MoreSheet(
             GroupDivider(inset = Insets.iconRow)
             SheetRow(
                 LocusIcons.Shield,
-                stringResource(R.string.chat_composer_mode_row, controls.mode.label),
-                controls.mode.description,
+                stringResource(R.string.chat_composer_mode_row, stringResource(controls.mode.labelRes)),
+                stringResource(controls.mode.descriptionRes),
                 onClick = onMode,
             ) { RowChevron() }
             GroupDivider(inset = Insets.iconRow)

@@ -488,4 +488,149 @@
     <string name="designsystem_budget_cost">Costo estimado</string>
     <string name="designsystem_budget_time">Tiempo</string>
     <string name="designsystem_budget_cost_hint">%1$s de entrada</string>
+
+    <string name="designsystem_time_just_now">Ahora mismo</string>
+    <string name="designsystem_time_minutes_ago_short">hace %1$d min</string>
+    <string name="designsystem_time_hours_ago_short">hace %1$d h</string>
+    <string name="designsystem_time_days_ago_short">hace %1$d d</string>
+    <string name="designsystem_duration_ms">%1$d ms</string>
+    <string name="designsystem_duration_seconds">%1$s s</string>
+    <string name="designsystem_duration_minutes_seconds">%1$d min %2$02d s</string>
+    <string name="designsystem_amount_minutes">%1$d min</string>
+    <string name="designsystem_amount_hours">%1$d h</string>
+
+    <string name="designsystem_count_thousands">%1$s mil</string>
+    <string name="designsystem_count_millions">%1$s M</string>
+    <string name="designsystem_count_over">%1$d+</string>
+    <string name="designsystem_budget_tokens_amount">%1$s tokens</string>
+
+    <string name="designsystem_settings">Ajustes</string>
+    <string name="designsystem_settings_models">Modelos</string>
+    <string name="designsystem_settings_on_device_models">Modelos en el dispositivo</string>
+    <string name="designsystem_settings_extras">Modelo auxiliar y extras</string>
+    <string name="designsystem_settings_network">Red</string>
+    <string name="designsystem_settings_agent">Agente</string>
+    <string name="designsystem_settings_permissions">Permisos</string>
+    <string name="designsystem_settings_battery">Batería y calor</string>
+    <string name="designsystem_settings_voice">Voz</string>
+    <string name="designsystem_settings_automation">Automatización</string>
+    <string name="designsystem_settings_phone">Teléfono</string>
+    <string name="designsystem_settings_integrations">Integraciones</string>
+    <string name="designsystem_settings_ssh">Máquinas SSH</string>
+    <string name="designsystem_settings_logins">Inicios de sesión guardados</string>
+    <string name="designsystem_settings_backup">Copia de seguridad y restauración</string>
+    <string name="designsystem_settings_about">Acerca de y privacidad</string>
+    <string name="designsystem_settings_diagnostics">Diagnóstico</string>
+    <string name="designsystem_settings_self_test">Autoprueba</string>
+    <string name="designsystem_settings_storage">Almacenamiento</string>
+    <string name="designsystem_settings_open">Abrir %1$s</string>
+
+    <string name="designsystem_chat_mode_read_only">Solo lectura</string>
+    <string name="designsystem_chat_mode_read_only_description">Solo lee y mira: archivos, la web, el correo y el historial. No cambia ni envía nada.</string>
+    <string name="designsystem_chat_mode_workspace">Espacio de trabajo</string>
+    <string name="designsystem_chat_mode_workspace_description">Cambia archivos del espacio de trabajo y ejecuta Linux, pero no envía, publica ni despliega nada.</string>
+    <string name="designsystem_chat_mode_full">Completo</string>
+    <string name="designsystem_chat_mode_full_description">Todo lo que permiten tus permisos de herramientas.</string>
+
+    <string name="designsystem_effort_off">Desactivado</string>
+    <string name="designsystem_effort_off_description">Lo más rápido. Poco o ningún razonamiento.</string>
+    <string name="designsystem_effort_low">Bajo</string>
+    <string name="designsystem_effort_low_description">Respuestas rápidas y tareas sencillas.</string>
+    <string name="designsystem_effort_medium">Medio</string>
+    <string name="designsystem_effort_medium_description">Equilibrio entre velocidad y profundidad.</string>
+    <string name="designsystem_effort_high">Alto</string>
+    <string name="designsystem_effort_high_description">Trabajo minucioso en tareas más difíciles.</string>
+    <string name="designsystem_effort_max">Máximo</string>
+    <string name="designsystem_effort_max_description">El razonamiento más profundo. Lo más lento y con más tokens.</string>
+
+    <string name="designsystem_tool_group_web">Búsqueda web</string>
+    <string name="designsystem_tool_group_web_description">Buscar y leer la web, Wikipedia, el tiempo</string>
+    <string name="designsystem_tool_group_browser">Navegador</string>
+    <string name="designsystem_tool_group_browser_description">Abrir y usar sitios web</string>
+    <string name="designsystem_tool_group_linux">Shell de Linux</string>
+    <string name="designsystem_tool_group_linux_description">Ejecutar comandos y servicios en el teléfono</string>
+    <string name="designsystem_tool_group_ssh">Máquinas SSH</string>
+    <string name="designsystem_tool_group_ssh_description">Ejecutar comandos y copiar archivos en tus máquinas</string>
+    <string name="designsystem_tool_group_phone">Apps del teléfono</string>
+    <string name="designsystem_tool_group_phone_description">Calendario, contactos, fotos, alarmas, mensajes y otras apps</string>
+    <string name="designsystem_tool_group_email">Correo</string>
+    <string name="designsystem_tool_group_email_description">Leer y enviar correo</string>
+    <string name="designsystem_tool_group_github_description">Repositorios, issues y archivos</string>
+    <string name="designsystem_tool_group_memory">Memoria y habilidades</string>
+    <string name="designsystem_tool_group_memory_description">Recordar y guardar lo que aprende</string>
+
+    <string name="designsystem_memory_scope_project_and_general">Proyecto y general</string>
+    <string name="designsystem_memory_scope_project_only">Solo el proyecto</string>
+
+    <string name="designsystem_pause_hot">En pausa: el teléfono está caliente</string>
+    <string name="designsystem_pause_battery_saver">En pausa: ahorro de batería</string>
+
+    <string name="designsystem_thermal_normal">Temperatura normal</string>
+    <string name="designsystem_thermal_light">Algo templado</string>
+    <string name="designsystem_thermal_moderate">Templado</string>
+    <string name="designsystem_thermal_severe">Caliente</string>
+    <string name="designsystem_thermal_critical">Muy caliente</string>
+    <string name="designsystem_thermal_overheating">Sobrecalentado</string>
+
+    <string name="designsystem_schedule_hourly">Cada hora</string>
+    <string name="designsystem_schedule_six_hours">Cada 6 horas</string>
+    <string name="designsystem_schedule_six_hours_short">6 horas</string>
+    <string name="designsystem_schedule_daily">A diario</string>
+    <string name="designsystem_schedule_weekly">Semanal</string>
+    <string name="designsystem_schedule_every_day">Cada día</string>
+    <string name="designsystem_schedule_every_hour">Cada hora</string>
+    <plurals name="designsystem_schedule_every_days">
+        <item quantity="one">Cada %1$d día</item>
+        <item quantity="many">Cada %1$d días</item>
+        <item quantity="other">Cada %1$d días</item>
+    </plurals>
+    <plurals name="designsystem_schedule_every_hours">
+        <item quantity="one">Cada %1$d hora</item>
+        <item quantity="many">Cada %1$d horas</item>
+        <item quantity="other">Cada %1$d horas</item>
+    </plurals>
+    <string name="designsystem_schedule_every_minutes">Cada %1$d min</string>
+
+    <string name="designsystem_trigger_decision_fired">Se ejecutó</string>
+    <string name="designsystem_trigger_decision_test">Prueba: se ejecutó</string>
+    <string name="designsystem_trigger_decision_no_match">No coincidió</string>
+    <string name="designsystem_trigger_decision_rate_limited">Límite de frecuencia</string>
+    <string name="designsystem_trigger_decision_quiet_hours">Horas de silencio</string>
+    <string name="designsystem_trigger_decision_disabled">Tarea en pausa</string>
+    <string name="designsystem_trigger_decision_busy">Ya en ejecución</string>
+    <string name="designsystem_trigger_decision_not_allowed">App no permitida</string>
+    <string name="designsystem_trigger_decision_failed">No se pudo ejecutar</string>
+    <string name="designsystem_trigger_decision_fired_inline">se ejecutó</string>
+    <string name="designsystem_trigger_decision_test_inline">prueba: se ejecutó</string>
+    <string name="designsystem_trigger_decision_no_match_inline">no coincidió</string>
+    <string name="designsystem_trigger_decision_rate_limited_inline">límite de frecuencia</string>
+    <string name="designsystem_trigger_decision_quiet_hours_inline">horas de silencio</string>
+    <string name="designsystem_trigger_decision_disabled_inline">tarea en pausa</string>
+    <string name="designsystem_trigger_decision_busy_inline">ya en ejecución</string>
+    <string name="designsystem_trigger_decision_not_allowed_inline">app no permitida</string>
+    <string name="designsystem_trigger_decision_failed_inline">no se pudo ejecutar</string>
+
+    <string name="designsystem_helper_prompt_title">Título del chat</string>
+    <string name="designsystem_helper_prompt_suggestions">Sugerencias de seguimiento</string>
+    <string name="designsystem_helper_prompt_compaction">Resumen de chats largos</string>
+
+    <string name="designsystem_helper_status_running">Trabajando</string>
+    <string name="designsystem_helper_status_completed">Listo</string>
+    <string name="designsystem_helper_status_partial">Se detuvo antes</string>
+    <string name="designsystem_helper_status_failed">Con error</string>
+    <string name="designsystem_helper_status_cancelled">Detenido</string>
+    <string name="designsystem_helper_status_interrupted">Interrumpido</string>
+
+    <string name="designsystem_check_tests_passed">Las pruebas pasaron</string>
+    <string name="designsystem_check_tests_failed">Las pruebas fallaron</string>
+    <string name="designsystem_check_tests_timed_out">Las pruebas agotaron el tiempo</string>
+    <string name="designsystem_check_tests_finished">Las pruebas terminaron</string>
+    <string name="designsystem_check_build_passed">La compilación funcionó</string>
+    <string name="designsystem_check_build_failed">La compilación falló</string>
+    <string name="designsystem_check_build_timed_out">La compilación agotó el tiempo</string>
+    <string name="designsystem_check_build_finished">La compilación terminó</string>
+    <string name="designsystem_check_check_passed">La comprobación pasó</string>
+    <string name="designsystem_check_check_failed">La comprobación falló</string>
+    <string name="designsystem_check_check_timed_out">La comprobación agotó el tiempo</string>
+    <string name="designsystem_check_check_finished">La comprobación terminó</string>
 </resources>

@@ -1029,6 +1029,27 @@
     <string name="settings_ondevice_notice_deleted">Eliminado.</string>
     <string name="settings_ondevice_notice_delete_busy">Está respondiendo ahora. Elimínalo cuando termine.</string>
 
+    <string name="settings_ondevice_sort_popular">Populares</string>
+    <string name="settings_ondevice_sort_trending">Tendencia</string>
+    <string name="settings_ondevice_engine_not_loaded">Sin cargar</string>
+    <string name="settings_ondevice_engine_load_failed">No se pudo cargar: %1$s</string>
+    <string name="settings_ondevice_engine_running">Funcionando en %1$s</string>
+    <string name="settings_ondevice_engine_running_gpu_failed">Funcionando en %1$s (falló la GPU: %2$s)</string>
+    <string name="settings_ondevice_rate">%1$s tok/s</string>
+    <string name="settings_ondevice_rate_estimate">≈%1$s tok/s</string>
+    <string name="settings_ondevice_prefill">lectura del prompt %1$s</string>
+    <string name="settings_ondevice_seconds">%1$s s</string>
+    <string name="settings_ondevice_loaded_in">Cargado en %1$s</string>
+    <string name="settings_ondevice_memory">≈%1$s GB de memoria</string>
+    <string name="settings_ondevice_benchmark_ran">Se ejecutó en %1$s</string>
+    <string name="settings_ondevice_benchmark_ran_gpu_failed">Se ejecutó en %1$s (falló la GPU: %2$s)</string>
+    <string name="settings_ondevice_benchmark_load">Carga %1$s · lectura del prompt %2$s (%3$s)</string>
+    <string name="settings_ondevice_benchmark_decode">Generación %1$s (%2$s)</string>
+    <plurals name="settings_ondevice_benchmark_tokens">
+        <item quantity="one">%1$d token</item>
+        <item quantity="many">%1$d tokens</item>
+        <item quantity="other">%1$d tokens</item>
+    </plurals>
     <!-- Settings → Network: summaries and import messages -->
     <string name="settings_network_import_already">Ese certificado ya está importado.</string>
     <string name="settings_network_import_one">Importado. Márcalo en los ajustes de Red de un proveedor para confiar en él allí.</string>

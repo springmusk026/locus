@@ -76,6 +76,17 @@ class TaskLinesTest {
         assertEquals("The test didn't match “Standup prep”." to Tone.Caution, testSentMessage(TaskEvent.TestSent("Standup prep", null, null)))
         assertEquals("The test matched: “Standup prep” is starting." to Tone.Live, testSentMessage(TaskEvent.TestSent("Standup prep", TriggerDecision.TEST, null)))
         assertEquals(Tone.Critical, testSentMessage(TaskEvent.TestSent("Standup prep", TriggerDecision.FAILED, null)).second)
+        assertEquals("The test was recorded: didn't match." to Tone.Caution, testSentMessage(TaskEvent.TestSent("Standup prep", TriggerDecision.NO_MATCH, null)))
+        assertEquals("The test was recorded: quiet hours." to Tone.Caution, testSentMessage(TaskEvent.TestSent("Standup prep", TriggerDecision.QUIET_HOURS, null)))
+    }
+
+    @Test
+    @Config(qualifiers = "es")
+    fun `in Spanish the schedule and the decision are Spanish too`() {
+        val task = ScheduledTask("t", "Weather", "p", 1_440, enabled = false, lastRunAt = null, lastSummary = null)
+        assertEquals("A diario · en pausa", taskStatusLine(task) { "Hoy" })
+        assertEquals("Cada 2 días · en pausa", taskStatusLine(task.copy(intervalMinutes = 2_880)) { "Hoy" })
+        assertEquals("La prueba se registró: no coincidió.", testSentMessage(TaskEvent.TestSent("W", TriggerDecision.NO_MATCH, null)).first)
     }
 
     @Test

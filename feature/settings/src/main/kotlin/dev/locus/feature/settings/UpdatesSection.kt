@@ -21,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -99,9 +100,10 @@ internal fun LazyListScope.updatesSection(ui: UpdatesUiState, actions: UpdateAct
                 GroupDivider(Insets.iconRow)
                 val checking = ui.state == UpdateState.Checking
                 val busy = ui.state is UpdateState.Downloading || ui.state is UpdateState.Verifying || ui.state is UpdateState.Installing
+                val resources = LocalResources.current
                 ListRow(
                     title = stringResource(R.string.settings_updates_check_now),
-                    subtitle = updateStatusLine(LocalResources.current, info, ui.state, System.currentTimeMillis()) { t, n -> relativeTime(t, n) },
+                    subtitle = updateStatusLine(resources, info, ui.state, System.currentTimeMillis()) { t, n -> relativeTime(resources, t, n) },
                     subtitleMaxLines = 2,
                     onClick = actions.checkNow,
                     enabled = !checking && !busy,

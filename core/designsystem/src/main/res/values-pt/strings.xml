@@ -488,4 +488,149 @@
     <string name="designsystem_budget_cost">Custo estimado</string>
     <string name="designsystem_budget_time">Tempo</string>
     <string name="designsystem_budget_cost_hint">%1$s de entrada</string>
+
+    <string name="designsystem_time_just_now">Agora mesmo</string>
+    <string name="designsystem_time_minutes_ago_short">há %1$d min</string>
+    <string name="designsystem_time_hours_ago_short">há %1$d h</string>
+    <string name="designsystem_time_days_ago_short">há %1$d d</string>
+    <string name="designsystem_duration_ms">%1$d ms</string>
+    <string name="designsystem_duration_seconds">%1$s s</string>
+    <string name="designsystem_duration_minutes_seconds">%1$d min %2$02d s</string>
+    <string name="designsystem_amount_minutes">%1$d min</string>
+    <string name="designsystem_amount_hours">%1$d h</string>
+
+    <string name="designsystem_count_thousands">%1$s mil</string>
+    <string name="designsystem_count_millions">%1$s mi</string>
+    <string name="designsystem_count_over">%1$d+</string>
+    <string name="designsystem_budget_tokens_amount">%1$s tokens</string>
+
+    <string name="designsystem_settings">Configurações</string>
+    <string name="designsystem_settings_models">Modelos</string>
+    <string name="designsystem_settings_on_device_models">Modelos no dispositivo</string>
+    <string name="designsystem_settings_extras">Modelo auxiliar e extras</string>
+    <string name="designsystem_settings_network">Rede</string>
+    <string name="designsystem_settings_agent">Agente</string>
+    <string name="designsystem_settings_permissions">Permissões</string>
+    <string name="designsystem_settings_battery">Bateria e calor</string>
+    <string name="designsystem_settings_voice">Voz</string>
+    <string name="designsystem_settings_automation">Automação</string>
+    <string name="designsystem_settings_phone">Telefone</string>
+    <string name="designsystem_settings_integrations">Integrações</string>
+    <string name="designsystem_settings_ssh">Máquinas SSH</string>
+    <string name="designsystem_settings_logins">Logins salvos</string>
+    <string name="designsystem_settings_backup">Backup e restauração</string>
+    <string name="designsystem_settings_about">Sobre e privacidade</string>
+    <string name="designsystem_settings_diagnostics">Diagnóstico</string>
+    <string name="designsystem_settings_self_test">Autoteste</string>
+    <string name="designsystem_settings_storage">Armazenamento</string>
+    <string name="designsystem_settings_open">Abrir %1$s</string>
+
+    <string name="designsystem_chat_mode_read_only">Somente leitura</string>
+    <string name="designsystem_chat_mode_read_only_description">Só lê e olha: arquivos, a web, o e-mail e o histórico. Nada é alterado nem enviado.</string>
+    <string name="designsystem_chat_mode_workspace">Espaço de trabalho</string>
+    <string name="designsystem_chat_mode_workspace_description">Altera arquivos no espaço de trabalho e executa o Linux, mas não envia, publica nem implanta nada.</string>
+    <string name="designsystem_chat_mode_full">Completo</string>
+    <string name="designsystem_chat_mode_full_description">Tudo o que suas permissões de ferramentas permitem.</string>
+
+    <string name="designsystem_effort_off">Desativado</string>
+    <string name="designsystem_effort_off_description">O mais rápido. Pouco ou nenhum raciocínio.</string>
+    <string name="designsystem_effort_low">Baixo</string>
+    <string name="designsystem_effort_low_description">Respostas rápidas e tarefas simples.</string>
+    <string name="designsystem_effort_medium">Médio</string>
+    <string name="designsystem_effort_medium_description">Equilíbrio entre velocidade e profundidade.</string>
+    <string name="designsystem_effort_high">Alto</string>
+    <string name="designsystem_effort_high_description">Trabalho cuidadoso em tarefas mais difíceis.</string>
+    <string name="designsystem_effort_max">Máximo</string>
+    <string name="designsystem_effort_max_description">O raciocínio mais profundo. O mais lento e com mais tokens.</string>
+
+    <string name="designsystem_tool_group_web">Pesquisa na web</string>
+    <string name="designsystem_tool_group_web_description">Pesquisar e ler a web, Wikipédia, previsão do tempo</string>
+    <string name="designsystem_tool_group_browser">Navegador</string>
+    <string name="designsystem_tool_group_browser_description">Abrir e usar sites</string>
+    <string name="designsystem_tool_group_linux">Shell do Linux</string>
+    <string name="designsystem_tool_group_linux_description">Executar comandos e serviços no telefone</string>
+    <string name="designsystem_tool_group_ssh">Máquinas SSH</string>
+    <string name="designsystem_tool_group_ssh_description">Executar comandos e copiar arquivos nas suas máquinas</string>
+    <string name="designsystem_tool_group_phone">Apps do telefone</string>
+    <string name="designsystem_tool_group_phone_description">Agenda, contatos, fotos, alarmes, mensagens e outros apps</string>
+    <string name="designsystem_tool_group_email">E-mail</string>
+    <string name="designsystem_tool_group_email_description">Ler e enviar e-mails</string>
+    <string name="designsystem_tool_group_github_description">Repositórios, issues e arquivos</string>
+    <string name="designsystem_tool_group_memory">Memória e habilidades</string>
+    <string name="designsystem_tool_group_memory_description">Lembrar e salvar o que aprende</string>
+
+    <string name="designsystem_memory_scope_project_and_general">Projeto e geral</string>
+    <string name="designsystem_memory_scope_project_only">Só o projeto</string>
+
+    <string name="designsystem_pause_hot">Pausado: telefone quente</string>
+    <string name="designsystem_pause_battery_saver">Pausado: economia de bateria</string>
+
+    <string name="designsystem_thermal_normal">Temperatura normal</string>
+    <string name="designsystem_thermal_light">Um pouco morno</string>
+    <string name="designsystem_thermal_moderate">Morno</string>
+    <string name="designsystem_thermal_severe">Quente</string>
+    <string name="designsystem_thermal_critical">Muito quente</string>
+    <string name="designsystem_thermal_overheating">Superaquecendo</string>
+
+    <string name="designsystem_schedule_hourly">A cada hora</string>
+    <string name="designsystem_schedule_six_hours">A cada 6 horas</string>
+    <string name="designsystem_schedule_six_hours_short">6 horas</string>
+    <string name="designsystem_schedule_daily">Diariamente</string>
+    <string name="designsystem_schedule_weekly">Semanalmente</string>
+    <string name="designsystem_schedule_every_day">Todo dia</string>
+    <string name="designsystem_schedule_every_hour">A cada hora</string>
+    <plurals name="designsystem_schedule_every_days">
+        <item quantity="one">A cada %1$d dia</item>
+        <item quantity="many">A cada %1$d dias</item>
+        <item quantity="other">A cada %1$d dias</item>
+    </plurals>
+    <plurals name="designsystem_schedule_every_hours">
+        <item quantity="one">A cada %1$d hora</item>
+        <item quantity="many">A cada %1$d horas</item>
+        <item quantity="other">A cada %1$d horas</item>
+    </plurals>
+    <string name="designsystem_schedule_every_minutes">A cada %1$d min</string>
+
+    <string name="designsystem_trigger_decision_fired">Executou</string>
+    <string name="designsystem_trigger_decision_test">Teste: executou</string>
+    <string name="designsystem_trigger_decision_no_match">Não correspondeu</string>
+    <string name="designsystem_trigger_decision_rate_limited">Limite de frequência</string>
+    <string name="designsystem_trigger_decision_quiet_hours">Horário silencioso</string>
+    <string name="designsystem_trigger_decision_disabled">Tarefa pausada</string>
+    <string name="designsystem_trigger_decision_busy">Já em execução</string>
+    <string name="designsystem_trigger_decision_not_allowed">App não permitido</string>
+    <string name="designsystem_trigger_decision_failed">Não foi possível executar</string>
+    <string name="designsystem_trigger_decision_fired_inline">executou</string>
+    <string name="designsystem_trigger_decision_test_inline">teste: executou</string>
+    <string name="designsystem_trigger_decision_no_match_inline">não correspondeu</string>
+    <string name="designsystem_trigger_decision_rate_limited_inline">limite de frequência</string>
+    <string name="designsystem_trigger_decision_quiet_hours_inline">horário silencioso</string>
+    <string name="designsystem_trigger_decision_disabled_inline">tarefa pausada</string>
+    <string name="designsystem_trigger_decision_busy_inline">já em execução</string>
+    <string name="designsystem_trigger_decision_not_allowed_inline">app não permitido</string>
+    <string name="designsystem_trigger_decision_failed_inline">não foi possível executar</string>
+
+    <string name="designsystem_helper_prompt_title">Título do chat</string>
+    <string name="designsystem_helper_prompt_suggestions">Sugestões de continuação</string>
+    <string name="designsystem_helper_prompt_compaction">Resumo de chats longos</string>
+
+    <string name="designsystem_helper_status_running">Trabalhando</string>
+    <string name="designsystem_helper_status_completed">Concluído</string>
+    <string name="designsystem_helper_status_partial">Parou antes</string>
+    <string name="designsystem_helper_status_failed">Com falha</string>
+    <string name="designsystem_helper_status_cancelled">Parado</string>
+    <string name="designsystem_helper_status_interrupted">Interrompido</string>
+
+    <string name="designsystem_check_tests_passed">Os testes passaram</string>
+    <string name="designsystem_check_tests_failed">Os testes falharam</string>
+    <string name="designsystem_check_tests_timed_out">Os testes excederam o tempo</string>
+    <string name="designsystem_check_tests_finished">Os testes terminaram</string>
+    <string name="designsystem_check_build_passed">O build passou</string>
+    <string name="designsystem_check_build_failed">O build falhou</string>
+    <string name="designsystem_check_build_timed_out">O build excedeu o tempo</string>
+    <string name="designsystem_check_build_finished">O build terminou</string>
+    <string name="designsystem_check_check_passed">A verificação passou</string>
+    <string name="designsystem_check_check_failed">A verificação falhou</string>
+    <string name="designsystem_check_check_timed_out">A verificação excedeu o tempo</string>
+    <string name="designsystem_check_check_finished">A verificação terminou</string>
 </resources>

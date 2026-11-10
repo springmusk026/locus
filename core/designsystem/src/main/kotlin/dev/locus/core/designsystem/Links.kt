@@ -1,5 +1,6 @@
 package dev.locus.core.designsystem
 
+import android.content.res.Resources
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -8,6 +9,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalResources
 import dev.locus.core.model.SettingsDestination
 import kotlinx.coroutines.delay
 
@@ -36,7 +38,7 @@ fun ProvideSettingsLinks(links: SettingsLinks, content: @Composable () -> Unit) 
 fun SettingsLink(destination: SettingsDestination, modifier: Modifier = Modifier, hint: String? = null, beforeOpen: () -> Unit = {}) {
     val links = LocalSettingsLinks.current
     DestinationLink(
-        destination = settingsPath(destination),
+        destination = settingsPath(LocalResources.current, destination),
         onNavigate = { beforeOpen(); links?.open(destination) },
         modifier = modifier,
         hint = hint,
@@ -73,17 +75,25 @@ fun SettingsLinkIn(
 fun SettingsActionFor(message: String?, destination: SettingsDestination? = SettingsDestination.inText(message)) {
     val page = destination ?: return
     val links = LocalSettingsLinks.current ?: return
-    TextButton(onClick = { links.open(page) }) { Text(settingsActionLabel(page)) }
+    TextButton(onClick = { links.open(page) }) { Text(settingsActionLabel(LocalResources.current, page)) }
 }
 
 /** Whether [message] gets a [SettingsActionFor] button: [destination], the same one passed to it, isn't null. */
 fun hasSettingsAction(message: String?, destination: SettingsDestination? = SettingsDestination.inText(message)): Boolean = destination != null
 
-/** "Settings → About & privacy → Diagnostics", the way a link to [destination] is written. */
+/**
+ * "Settings → About & privacy → Diagnostics" in English, the way messages from core/agent and core/data
+ * name a page ([SettingsDestination.inText] reads it back). Screens show [settingsPath] with resources.
+ */
 fun settingsPath(destination: SettingsDestination): String = destinationPath("Settings", *destination.path.toTypedArray())
 
+/** "Settings → About & privacy → Diagnostics" in the app's language, the way a link to [destination] is written. */
+fun settingsPath(resources: Resources, destination: SettingsDestination): String =
+    destinationPath(resources.getString(R.string.designsystem_settings), *destination.pathRes().map(resources::getString).toTypedArray())
+
 /** What a button that opens [destination] says: "Open Models", "Open SSH machines". */
-fun settingsActionLabel(destination: SettingsDestination): String = "Open ${destination.title}"
+fun settingsActionLabel(resources: Resources, destination: SettingsDestination): String =
+    resources.getString(R.string.designsystem_settings_open, resources.getString(destination.pathRes().last()))
 
 /**
  * Whether the clock is still before [deadline] (epoch ms), updated the moment it passes, so "On until

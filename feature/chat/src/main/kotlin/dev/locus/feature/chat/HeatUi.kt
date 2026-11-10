@@ -18,6 +18,7 @@ import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.UiText
 import dev.locus.core.designsystem.asString
+import dev.locus.core.designsystem.chipRes
 import dev.locus.core.model.LocalWarning
 import dev.locus.core.model.PauseReason
 import dev.locus.core.ondevice.LIGHT_CPU_THREADS
@@ -82,7 +83,7 @@ internal fun HeatHoldSheet(hold: HeatHold, onLight: () -> Unit, onSendAnyway: ()
 @Composable
 internal fun PausedChip(reason: PauseReason, onRunAnyway: () -> Unit, modifier: Modifier = Modifier) {
     Row(modifier.fillMaxWidth().padding(horizontal = Spacing.lg), verticalAlignment = Alignment.CenterVertically) {
-        StatusLine(reason.chip, Tone.Caution, Modifier.weight(1f))
+        StatusLine(stringResource(reason.chipRes), Tone.Caution, Modifier.weight(1f))
         TextButton(onClick = onRunAnyway) { Text(stringResource(R.string.chat_heat_run_anyway)) }
     }
 }

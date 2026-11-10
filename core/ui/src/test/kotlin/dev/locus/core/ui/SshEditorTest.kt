@@ -1,13 +1,23 @@
 package dev.locus.core.ui
 
+import android.content.Context
+import android.content.res.Resources
+import androidx.test.core.app.ApplicationProvider
 import dev.locus.core.model.SshAuth
 import dev.locus.core.model.SshHost
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36])
 class SshEditorTest {
+    private val res: Resources = ApplicationProvider.getApplicationContext<Context>().resources
     private fun host(auth: SshAuth) = SshHost("h", "box", "10.0.0.5", 22, "me", auth = auth.id, fingerprint = "SHA256:abc")
 
     @Test
@@ -53,7 +63,31 @@ class SshEditorTest {
 
     @Test
     fun `the host subtitle flags machines without authentication`() {
-        assertEquals("me@10.0.0.5:22", sshHostSubtitle(host(SshAuth.KEY)))
-        assertEquals("me@10.0.0.5:22 · no authentication", sshHostSubtitle(host(SshAuth.NONE)))
+        assertEquals("me@10.0.0.5:22", sshHostSubtitle(res, host(SshAuth.KEY)))
+        assertEquals("me@10.0.0.5:22 · no authentication", sshHostSubtitle(res, host(SshAuth.NONE)))
+    }
+
+    @Test
+    fun `workflow tools read as plain verb phrases`() {
+        // The English the sheets showed before the words moved to resources.
+        val english = mapOf(
+            "list_files" to "list files", "read_file" to "read files", "view_image" to "look at images",
+            "write_file" to "write files", "edit_file" to "edit files", "multi_edit" to "edit files",
+            "delete_path" to "delete files", "move_path" to "move files", "copy_path" to "copy files",
+            "make_directory" to "make folders", "search_files" to "search files", "find_files" to "search files",
+            "send_file" to "send you files", "run_command" to "run commands", "web_search" to "search the web",
+            "web_read" to "read web pages", "fetch_url" to "read web pages", "git_commit" to "commit changes",
+            "git_inspect" to "look at changes", "ask_user" to "ask you questions",
+        )
+        english.forEach { (tool, words) -> assertEquals(words, workflowToolName(res, tool), tool) }
+        assertNull(workflowToolNameRes("linux_status"))
+        assertEquals("linux status", workflowToolName(res, "linux_status"))
+    }
+
+    @Test
+    @Config(qualifiers = "es")
+    fun `in Spanish the words are Spanish`() {
+        assertEquals("me@10.0.0.5:22 · sin autenticación", sshHostSubtitle(res, host(SshAuth.NONE)))
+        assertEquals("ejecutar comandos", workflowToolName(res, "run_command"))
     }
 }

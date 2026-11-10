@@ -1,5 +1,6 @@
 package dev.locus.core.designsystem
 
+import android.content.res.Resources
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,12 +18,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -144,8 +147,13 @@ fun LocusChip(
 private val DotSize = 6.dp
 
 /** A count for a [ChipVariant.Count] chip: the number, or "99+" past [max]. */
-fun chipCount(n: Int, max: Int = 99): String = when {
+fun chipCount(resources: Resources, n: Int, max: Int = 99): String = when {
     n < 0 -> "0"
-    n > max -> "$max+"
+    n > max -> resources.getString(R.string.designsystem_count_over, max)
     else -> n.toString()
 }
+
+/** [chipCount] in the composition's resources. */
+@Composable
+@ReadOnlyComposable
+fun chipCount(n: Int, max: Int = 99): String = chipCount(LocalResources.current, n, max)
