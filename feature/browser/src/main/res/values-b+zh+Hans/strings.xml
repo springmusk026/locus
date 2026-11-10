@@ -61,4 +61,10 @@
     <string name="browser_menu_open_elsewhere">在其他应用中打开</string>
     <string name="browser_menu_saved_logins">已保存的登录信息</string>
     <string name="browser_menu_clear_data">清除浏览数据</string>
+
+    <!-- Browser: what TalkBack hears when something waits -->
+    <string name="browser_dock_announce_approval">Locus 需要你的批准。%1$s</string>
+    <string name="browser_dock_announce_question">Locus 问：%1$s</string>
+    <string name="browser_dock_announce_end">。</string>
+    <string name="browser_dock_announce_queue">%1$s 等待中：%2$s。</string>
 </resources>

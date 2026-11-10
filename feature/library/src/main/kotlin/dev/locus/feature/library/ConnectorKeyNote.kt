@@ -1,5 +1,6 @@
 package dev.locus.feature.library
 
+import android.content.res.Resources
 import dev.locus.core.data.repository.ConnectorEntry
 import dev.locus.core.data.repository.KeyState
 
@@ -8,25 +9,33 @@ import dev.locus.core.data.repository.KeyState
  * "Saved": a key that exists was saved for something the user already set up, so the card says
  * whose it is and where it goes (docs/design/mcp-connectors.md, "Keys belong to an address").
  */
-internal fun connectorKeyNote(entry: ConnectorEntry): String? {
+internal fun connectorKeyNote(resources: Resources, entry: ConnectorEntry): String? {
     val c = entry.connector
     val key = entry.key
     if (c.auth.type == "none") return null
     if (c.auth.type == "oauth") {
         return when {
-            key is KeyState.Elsewhere -> "The saved sign-in is for ${key.where.joinToString()}, not ${c.host}, so Locus won't use it here. Sign in again" +
-                if (entry.draft) " after approving." else "."
-            key != KeyState.Ready -> "This server needs you to sign in with your account in the browser" + if (entry.draft) " after approving." else "."
-            entry.draft -> "Would use the sign-in you already made for ${c.host}. Approve only if you meant to set this server up again."
-            else -> "Signed in. Locus keeps the sign-in encrypted on this phone and renews it automatically."
+            key is KeyState.Elsewhere -> resources.getString(
+                if (entry.draft) R.string.library_connectors_key_signin_elsewhere_draft else R.string.library_connectors_key_signin_elsewhere,
+                key.where.joinToString(), c.host,
+            )
+            key != KeyState.Ready ->
+                resources.getString(if (entry.draft) R.string.library_connectors_key_signin_needed_draft else R.string.library_connectors_key_signin_needed)
+            entry.draft -> resources.getString(R.string.library_connectors_key_signin_draft_ready, c.host)
+            else -> resources.getString(R.string.library_connectors_key_signed_in)
         }
     }
-    val how = if (c.auth.type == "bearer") "a bearer token" else "${c.auth.type} ${c.auth.name}"
-    val shared = entry.sharedWith.takeIf { it.isNotEmpty() }?.let { " It's also ${it.joinToString()}'s key." }.orEmpty()
-    return "Key “${c.auth.secret}”, sent to ${c.host} as $how. " + when (key) {
-        KeyState.Missing -> "Not added yet."
-        KeyState.Unconfirmed -> "A key with this name is saved, but from before Locus recorded where each key goes, so it isn't sent until you confirm it's for ${c.host}.$shared"
-        is KeyState.Elsewhere -> "A key with this name is saved for ${key.where.joinToString()}, so Locus won't send it here. Add a key for this connector."
-        KeyState.Ready -> if (entry.draft) "Would use the key you already saved for ${c.host}.$shared" else "Saved.$shared"
+    // The header or query parameter it goes in is named as the connector spells it.
+    val how = if (c.auth.type == "bearer") resources.getString(R.string.library_connectors_key_bearer) else "${c.auth.type} ${c.auth.name}"
+    val shared = entry.sharedWith.takeIf { it.isNotEmpty() }?.let { resources.getString(R.string.library_connectors_key_shared, it.joinToString()) }
+    val state = when (key) {
+        KeyState.Missing -> listOf(resources.getString(R.string.library_connectors_key_missing))
+        KeyState.Unconfirmed -> listOfNotNull(resources.getString(R.string.library_connectors_key_unconfirmed, c.host), shared)
+        is KeyState.Elsewhere -> listOf(resources.getString(R.string.library_connectors_key_elsewhere, key.where.joinToString()))
+        KeyState.Ready -> listOfNotNull(
+            if (entry.draft) resources.getString(R.string.library_connectors_key_draft_ready, c.host) else resources.getString(R.string.library_connectors_key_saved),
+            shared,
+        )
     }
+    return (listOf(resources.getString(R.string.library_connectors_key_intro, c.auth.secret, c.host, how)) + state).joinToString(" ")
 }

@@ -1,5 +1,8 @@
 package dev.locus.feature.workspace.linux.health
 
+import android.content.Context
+import android.content.res.Resources
+import androidx.test.core.app.ApplicationProvider
 import dev.locus.core.linux.HealthCheck
 import dev.locus.core.linux.HealthLevel
 import dev.locus.core.linux.LinuxFix
@@ -7,13 +10,20 @@ import dev.locus.core.linux.LinuxHealth
 import dev.locus.core.linux.LinuxInventory
 import dev.locus.core.linux.LinuxReport
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
+/** Runs on Robolectric so the lines are checked in the module's English strings. */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36])
 class HealthSummaryTest {
+    private val res: Resources get() = ApplicationProvider.getApplicationContext<Context>().resources
     private val gb = 1024L * 1024 * 1024
     private val mb = 1024L * 1024
 
@@ -61,25 +71,25 @@ class HealthSummaryTest {
         val pkgs = LinuxInventory.BASE_SYSTEM.map { LinuxInventory.Package(it, "1-r0", explicit = true) } +
             listOf(LinuxInventory.Package("python3", "3.12.8-r1", explicit = true), LinuxInventory.Package("git", "2.49.0-r0", explicit = true)) +
             (0 until 500).map { LinuxInventory.Package("lib-$it", "1.0-r0") }
-        assertEquals("2 you installed · ${pkgs.size} total", HealthSummary.packagesLine(pkgs))
-        assertEquals("Can't read apk's package database", HealthSummary.packagesLine(null))
+        assertEquals("2 you installed · ${pkgs.size} total", HealthSummary.packagesLine(res, pkgs))
+        assertEquals("Can't read apk's package database", HealthSummary.packagesLine(res, null))
     }
 
     @Test
     fun `memory is a warning only when it's low`() {
-        assertNull(HealthSummary.memoryWarning(LinuxReport.Memory(8 * gb, 3 * gb)))
-        assertNull(HealthSummary.memoryWarning(null))
-        val low = assertNotNull(HealthSummary.memoryWarning(LinuxReport.Memory(8 * gb, 500 * mb)))
-        assertTrue(low.startsWith("500 MB of 8.0 GB available."), low)
-        assertNotNull(HealthSummary.memoryWarning(LinuxReport.Memory(8 * gb, 3 * gb, lowMemory = true)), "Android's own low-memory flag counts")
+        assertNull(HealthSummary.memoryWarning(res, LinuxReport.Memory(8 * gb, 3 * gb)))
+        assertNull(HealthSummary.memoryWarning(res, null))
+        val low = assertNotNull(HealthSummary.memoryWarning(res, LinuxReport.Memory(8 * gb, 500 * mb)))
+        assertEquals("500 MB of 8.0 GB available. Android may stop Linux programs, especially while Locus is in the background.", low)
+        assertNotNull(HealthSummary.memoryWarning(res, LinuxReport.Memory(8 * gb, 3 * gb, lowMemory = true)), "Android's own low-memory flag counts")
     }
 
     @Test
     fun `processes are one line`() {
-        assertEquals("None running", HealthSummary.processesLine(emptyList()))
+        assertEquals("None running", HealthSummary.processesLine(res, emptyList()))
         assertEquals(
             "2 running · 84 MB",
-            HealthSummary.processesLine(listOf(LinuxReport.GuestProcess(1, "proot", 4 * mb), LinuxReport.GuestProcess(2, "node", 80 * mb))),
+            HealthSummary.processesLine(res, listOf(LinuxReport.GuestProcess(1, "proot", 4 * mb), LinuxReport.GuestProcess(2, "node", 80 * mb))),
         )
     }
 }

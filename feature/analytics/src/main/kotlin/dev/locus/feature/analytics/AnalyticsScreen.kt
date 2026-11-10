@@ -1,5 +1,7 @@
 package dev.locus.feature.analytics
 
+import android.content.res.Resources
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -269,6 +271,7 @@ private fun SpeedRow(report: AnalyticsReport, modifier: Modifier = Modifier) {
 @Composable
 private fun CostCard(report: AnalyticsReport, catalogLoaded: Boolean, prices: PricesSetup, onTurnOnPrices: () -> Unit, modifier: Modifier = Modifier) {
     val cost = report.cost
+    val resources = LocalResources.current
     val brand = MaterialTheme.colorScheme.primary
     var selected by remember(report.period, report.buckets.size) { mutableStateOf<Int?>(null) }
     LocusCard(modifier) {
@@ -278,12 +281,12 @@ private fun CostCard(report: AnalyticsReport, catalogLoaded: Boolean, prices: Pr
         }
         FigureRow(Modifier.padding(top = Spacing.sm)) {
             // With prices off every span reads the same "–"; the note under them says why.
-            val spend = { c: CostEstimate -> if (cost.pricesOn) costLabel(c) else "–" }
+            val spend = { c: CostEstimate -> if (cost.pricesOn) costLabel(resources, c) else "–" }
             Figure(stringResource(R.string.analytics_cost_today), spend(cost.today), Modifier.weight(1f))
             Figure(stringResource(R.string.analytics_cost_week), spend(cost.week), Modifier.weight(1f))
             Figure(stringResource(R.string.analytics_cost_month), spend(cost.month), Modifier.weight(1f))
         }
-        costNote(cost, catalogLoaded, prices)?.let { note ->
+        costNote(resources, cost, catalogLoaded, prices)?.let { note ->
             Row(Modifier.padding(top = Spacing.sm), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 if (prices == PricesSetup.Fetching) InlineSpinner(size = IconSize.small)
                 Text(
@@ -310,11 +313,11 @@ private fun CostCard(report: AnalyticsReport, catalogLoaded: Boolean, prices: Pr
                 colors = listOf(brand),
                 selected = selected,
                 onSelect = { selected = it },
-                description = stringResource(if (report.bucketDays == 1) R.string.analytics_cost_chart_day else R.string.analytics_cost_chart_week, costLabel(cost.period)),
+                description = stringResource(if (report.bucketDays == 1) R.string.analytics_cost_chart_day else R.string.analytics_cost_chart_week, costLabel(resources, cost.period)),
                 modifier = Modifier.padding(top = Spacing.lg),
                 size = ChartSize.Compact,
             )
-            ChartCaption(report, selected) { b -> costLabel(cost.buckets[report.buckets.indexOf(b)]) }
+            ChartCaption(report, selected) { b -> costLabel(resources, cost.buckets[report.buckets.indexOf(b)]) }
         }
     }
 }
@@ -331,7 +334,7 @@ private fun CostRows(rows: List<Pair<String, CostEstimate>>, modifier: Modifier 
                 meta = { if (c.priced > 0) ShareBar((c.usd / max).toFloat()) },
                 trailing = {
                     Column(horizontalAlignment = Alignment.End) {
-                        Text(costLabel(c), style = RowFigure)
+                        Text(costLabel(LocalResources.current, c), style = RowFigure)
                         SupportingText(
                             if (c.unpriced > 0 && c.priced > 0) {
                                 stringResource(R.string.analytics_cost_row_unpriced, c.unpriced, c.requests)
@@ -620,9 +623,9 @@ private fun date(millis: Long): String =
  * An estimated spend in words: "≈$1.24", "≈$1.24+" when some requests had no price, "<$0.01",
  * "Unknown" when none had one (never $0), and "–" when nothing ran.
  */
-internal fun costLabel(c: CostEstimate): String = when {
+internal fun costLabel(resources: Resources, c: CostEstimate): String = when {
     c.requests == 0 -> "–"
-    c.unknown -> "Unknown"
+    c.unknown -> resources.getString(R.string.analytics_cost_unknown)
     else -> {
         val amount = when {
             c.usd <= 0.0 -> "$0.00"
@@ -638,15 +641,15 @@ internal fun costLabel(c: CostEstimate): String = when {
  * or some requests unpriced. [catalogLoaded]: the models.dev list is in memory; [setup]: the card's
  * "Turn on prices" action.
  */
-internal fun costNote(cost: CostReport, catalogLoaded: Boolean = true, setup: PricesSetup = PricesSetup.Idle): String? = when {
-    setup == PricesSetup.Fetching -> "Fetching prices from models.dev…"
-    !cost.pricesOn -> "Spend is estimated from models.dev's public price list, which is off. Turning it on downloads the list " +
-        "(about 0.6 MB, at most once a day); nothing about you or your chats is sent."
-    setup == PricesSetup.Failed -> "Couldn't download prices from models.dev. Check the connection and try again."
-    !catalogLoaded -> "Prices from models.dev haven't loaded yet, so the spend is unknown."
-    cost.month.unknown -> "models.dev lists no price for the models used, so the spend is unknown."
-    cost.month.unpriced > 0 -> "From models.dev prices. ${cost.month.unpriced} of ${cost.month.requests} requests in 30 days had no price, so totals marked + are at least that."
-    cost.month.requests > 0 -> "From models.dev list prices; your provider's bill may differ."
+internal fun costNote(resources: Resources, cost: CostReport, catalogLoaded: Boolean = true, setup: PricesSetup = PricesSetup.Idle): String? = when {
+    setup == PricesSetup.Fetching -> resources.getString(R.string.analytics_cost_note_fetching)
+    !cost.pricesOn -> resources.getString(R.string.analytics_cost_note_off)
+    setup == PricesSetup.Failed -> resources.getString(R.string.analytics_cost_note_failed)
+    !catalogLoaded -> resources.getString(R.string.analytics_cost_note_not_loaded)
+    cost.month.unknown -> resources.getString(R.string.analytics_cost_note_no_price)
+    cost.month.unpriced > 0 ->
+        resources.getQuantityString(R.plurals.analytics_cost_note_unpriced, cost.month.requests, cost.month.unpriced, cost.month.requests)
+    cost.month.requests > 0 -> resources.getString(R.string.analytics_cost_note_priced)
     else -> null
 }
 

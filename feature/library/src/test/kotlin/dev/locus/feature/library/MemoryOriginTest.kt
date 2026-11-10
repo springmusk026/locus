@@ -1,9 +1,15 @@
 package dev.locus.feature.library
 
+import android.content.Context
+import android.content.res.Resources
+import androidx.test.core.app.ApplicationProvider
 import dev.locus.core.agent.home.MemoryAuthor
 import dev.locus.core.agent.home.MemoryProvenance
 import dev.locus.core.data.repository.MemoryChat
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.time.ZoneOffset
 import java.util.Locale
 import kotlin.test.assertEquals
@@ -12,13 +18,16 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /** Library → Memory: where each note came from. */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36])
 class MemoryOriginTest {
+    private val res: Resources get() = ApplicationProvider.getApplicationContext<Context>().resources
     /** 2 Nov 2026, 14:05 UTC. */
     private val at = 1_793_628_300_000L
     private val chat = MemoryChat("c1", "Planning the trip")
 
     private fun view(origin: MemoryProvenance, chat: MemoryChat? = this.chat) =
-        memoryOriginView(origin, chat, ZoneOffset.UTC, Locale.UK)
+        memoryOriginView(res, origin, chat, ZoneOffset.UTC, Locale.UK)
 
     @Test
     fun `saved by the agent in a chat links to that chat`() {
@@ -60,7 +69,7 @@ class MemoryOriginTest {
 
     @Test
     fun `unknown tools are named plainly`() {
-        assertEquals("web search results, some tool", taintSources(listOf("web_search", "some_tool")))
-        assertEquals("outside content", taintSources(emptyList()))
+        assertEquals("web search results, some tool", taintSources(res, listOf("web_search", "some_tool")))
+        assertEquals("outside content", taintSources(res, emptyList()))
     }
 }

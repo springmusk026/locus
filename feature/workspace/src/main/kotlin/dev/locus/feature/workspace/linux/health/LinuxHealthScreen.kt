@@ -1,5 +1,8 @@
 package dev.locus.feature.workspace.linux.health
 
+import androidx.compose.ui.platform.LocalResources
+import dev.locus.core.designsystem.UiText
+import dev.locus.core.designsystem.asString
 import androidx.compose.runtime.remember
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.rememberScrollState
@@ -111,9 +114,10 @@ fun LinuxHealthRoute(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val feedback = Locus.feedback
+    val resources = LocalResources.current
     LaunchedEffect(state.message) {
         val message = state.message ?: return@LaunchedEffect
-        feedback.show(message.text, if (message.problem) Tone.Critical else Tone.Neutral)
+        feedback.show(message.text.asString(resources), if (message.problem) Tone.Critical else Tone.Neutral)
         viewModel.messageShown()
     }
     var confirm by rememberSaveable { mutableStateOf<String?>(null) }
@@ -189,7 +193,7 @@ fun LinuxHealthRoute(
                 report == null && state.error != null -> ErrorState(
                     title = stringResource(R.string.workspace_health_no_answer_title),
                     // What to do first; the raw reason stays, last, for anyone reporting it.
-                    message = state.error?.takeIf { it.isNotBlank() }
+                    message = state.error?.asString()?.takeIf { it.isNotBlank() }
                         ?.let { stringResource(R.string.workspace_health_no_answer_with_details, it) }
                         ?: stringResource(R.string.workspace_health_no_answer_message),
                     onRetry = { viewModel.refresh() },
@@ -288,7 +292,7 @@ private fun PackagesRow(packages: List<LinuxInventory.Package>?, onOpen: () -> U
     CardGroup(modifier) {
         ListRow(
             title = stringResource(R.string.workspace_health_packages),
-            subtitle = HealthSummary.packagesLine(packages),
+            subtitle = HealthSummary.packagesLine(LocalResources.current, packages),
             leading = { Icon(LocusIcons.Library, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(IconSize.medium)) },
             onClick = onOpen,
             trailing = { RowChevron() },
@@ -469,13 +473,14 @@ private fun StorageCard(storage: LinuxReport.Storage, cleaning: Boolean, enabled
 @Composable
 private fun MemorySection(memory: LinuxReport.Memory?, processes: List<LinuxReport.GuestProcess>) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-        val warning = HealthSummary.memoryWarning(memory)
+        val resources = LocalResources.current
+        val warning = HealthSummary.memoryWarning(resources, memory)
         if (warning != null) Banner(warning, Tone.Caution, title = stringResource(R.string.workspace_health_low_memory))
         LocusCard {
             if (memory != null && warning == null) {
                 AmountRow(stringResource(R.string.workspace_health_phone_memory), stringResource(R.string.workspace_health_memory_available, LinuxHealth.bytes(memory.availableBytes)))
             }
-            AmountRow(stringResource(R.string.workspace_health_linux_programs), HealthSummary.processesLine(processes))
+            AmountRow(stringResource(R.string.workspace_health_linux_programs), HealthSummary.processesLine(resources, processes))
             var allProcesses by rememberSaveable { mutableStateOf(false) }
             HealthSummary.visible(processes, allProcesses).forEach { AmountRow(it.name, LinuxHealth.bytes(it.rssBytes), monoLabel = true) }
             if (HealthSummary.hasMore(processes)) ShowAll(allProcesses, processes.size) { allProcesses = !allProcesses }
@@ -487,7 +492,7 @@ private fun MemorySection(memory: LinuxReport.Memory?, processes: List<LinuxRepo
  * What a service's chip says, its tone, and its button. A service a restart ended is neutral: services
  * end with Locus, so that's expected, not a problem (unless it was set to start when Locus opens).
  */
-internal data class ServiceView(val label: String, val tone: Tone, val action: ServiceAction)
+internal data class ServiceView(val label: UiText, val tone: Tone, val action: ServiceAction)
 
 internal enum class ServiceAction(@StringRes val label: Int) {
     Stop(R.string.workspace_health_service_stop),
@@ -496,13 +501,16 @@ internal enum class ServiceAction(@StringRes val label: Int) {
 }
 
 internal fun serviceView(s: LinuxEnvironment.ServiceStatus): ServiceView = when (s.state) {
-    LinuxEnvironment.ServiceState.Running -> ServiceView("Running", Tone.Live, ServiceAction.Stop)
-    LinuxEnvironment.ServiceState.Crashed -> ServiceView("Crashed, ${LinuxHealth.exitDescription(s.exitCode)}", Tone.Critical, ServiceAction.Restart)
-    LinuxEnvironment.ServiceState.KilledByAndroid -> ServiceView("Killed by Android", Tone.Caution, ServiceAction.Restart)
+    LinuxEnvironment.ServiceState.Running -> ServiceView(UiText.Res(R.string.workspace_health_service_running), Tone.Live, ServiceAction.Stop)
+    // The exit's description is core's (LinuxHealth), in English.
+    LinuxEnvironment.ServiceState.Crashed ->
+        ServiceView(UiText.Res(R.string.workspace_health_service_crashed, LinuxHealth.exitDescription(s.exitCode)), Tone.Critical, ServiceAction.Restart)
+    LinuxEnvironment.ServiceState.KilledByAndroid -> ServiceView(UiText.Res(R.string.workspace_health_service_killed), Tone.Caution, ServiceAction.Restart)
     LinuxEnvironment.ServiceState.StoppedByRestart ->
-        if (s.autostart) ServiceView("Didn't start", Tone.Caution, ServiceAction.Start) else ServiceView("Stopped by restart", Tone.Neutral, ServiceAction.Start)
+        if (s.autostart) ServiceView(UiText.Res(R.string.workspace_health_service_didnt_start), Tone.Caution, ServiceAction.Start)
+        else ServiceView(UiText.Res(R.string.workspace_health_service_stopped_by_restart), Tone.Neutral, ServiceAction.Start)
     LinuxEnvironment.ServiceState.Finished ->
-        ServiceView("Finished", if (s.autostart) Tone.Caution else Tone.Neutral, ServiceAction.Start)
+        ServiceView(UiText.Res(R.string.workspace_health_service_finished), if (s.autostart) Tone.Caution else Tone.Neutral, ServiceAction.Start)
 }
 
 @Composable
@@ -524,11 +532,12 @@ private fun Services(
         services.forEachIndexed { i, s ->
             if (i > 0) GroupDivider()
             val view = serviceView(s)
+            val label = view.label.asString()
             ListRow(
                 title = s.name,
                 subtitle = s.command,
                 subtitleMaxLines = 2,
-                meta = { LocusChip(view.label, tone = view.tone, dot = s.running, contentDescription = stringResource(R.string.workspace_health_service_description, s.name, view.label)) },
+                meta = { LocusChip(label, tone = view.tone, dot = s.running, contentDescription = stringResource(R.string.workspace_health_service_description, s.name, label)) },
                 trailing = {
                     if (busy) {
                         InlineSpinner(contentDescription = stringResource(R.string.workspace_health_service_working, s.name))

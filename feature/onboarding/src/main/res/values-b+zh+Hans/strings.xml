@@ -241,4 +241,30 @@
     <string name="onboarding_done_integrations">集成</string>
     <string name="onboarding_done_none">无</string>
     <string name="onboarding_done_checked">完成</string>
+
+    <!-- Onboarding: results and errors of the steps' actions -->
+    <string name="onboarding_provider_no_models">提供商没有列出任何模型。请直接输入模型 ID。</string>
+    <plurals name="onboarding_provider_models_found">
+        <item quantity="other">%1$d 个模型</item>
+    </plurals>
+    <string name="onboarding_provider_signed_in_as">已登录为 %1$s</string>
+    <string name="onboarding_provider_signed_in">已登录</string>
+    <string name="onboarding_provider_saved_default">已保存为默认模型</string>
+    <string name="onboarding_identity_change_kept">已保留 %1$s。新对话会使用它。</string>
+    <string name="onboarding_identity_change_discarded">已舍弃对 %1$s 的更改。新对话继续使用你保存的版本。</string>
+    <string name="onboarding_identity_polish_no_model">请先设置一个模型。</string>
+    <string name="onboarding_identity_polish_no_answer">你的模型没有回应，因此保留模板文本。请在设置中检查模型，或直接使用模板。</string>
+    <string name="onboarding_identity_polish_bad_reply">你的模型回复的格式不符合预期，因此保留模板文本。</string>
+    <string name="onboarding_identity_polished">已由你的模型改写。请在下方查看。</string>
+    <string name="onboarding_identity_saved">已保存。新对话会使用它。</string>
+    <string name="onboarding_job_timed_out">已超时。请重试，或检查网络连接。</string>
+    <string name="onboarding_added">已添加 %1$s</string>
+    <string name="onboarding_test_no_model">还没有设置模型。请返回“模型”步骤。</string>
+    <string name="onboarding_test_model_downloading">手机上的模型尚未下载完成。</string>
+    <string name="onboarding_test_empty_reply">（空回复）</string>
+    <string name="onboarding_test_model_reply">%1$s：“%2$s” · %3$.1f 秒</string>
+    <string name="onboarding_test_linux_timed_out">已超时</string>
+    <string name="onboarding_test_linux_exited">退出代码 %1$s</string>
+    <string name="onboarding_connectors_ntfy_problem">这不是主题 URL，例如 https://ntfy.sh/your-topic（后面可以跟一个 tk_ 令牌）。</string>
+    <string name="onboarding_connectors_email_problem">这不是 Locus 能读取的邮件服务器设置。</string>
 </resources>

@@ -1,5 +1,7 @@
 package dev.locus.feature.browser
 
+import android.content.res.Resources
+import androidx.compose.ui.platform.LocalResources
 import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.ClipData
@@ -544,6 +546,7 @@ private fun WaitingDock(ui: BrowserUi, actions: BrowserActions, onDetails: (Stri
     Column(Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite }) {
         if (approval != null || question != null) {
             val spoken = waitingAnnouncement(
+                LocalResources.current,
                 approval?.let { it.origin?.let { o -> stringResource(R.string.browser_dock_origin_wants, o.label, it.summary) } ?: it.summary },
                 question?.question,
                 total,
@@ -579,19 +582,22 @@ private fun WaitingDock(ui: BrowserUi, actions: BrowserActions, onDetails: (Stri
 private const val DOCK_MAX_SHARE = 0.55f
 
 /** "1 of 3": the request on show is the oldest; the rest follow as each is answered. */
-internal fun queueText(total: Int): String = "1 of $total"
+internal fun queueText(resources: Resources, total: Int): String = resources.getString(R.string.browser_dock_queue, total)
 
 /** What TalkBack says when something new waits: what it is, and how many wait in all. */
-internal fun waitingAnnouncement(approvalSummary: String?, question: String?, total: Int): String {
+internal fun waitingAnnouncement(resources: Resources, approvalSummary: String?, question: String?, total: Int): String {
     val what = when {
-        approvalSummary != null -> "Locus needs your approval. $approvalSummary"
-        question != null -> "Locus asks: $question"
+        approvalSummary != null -> resources.getString(R.string.browser_dock_announce_approval, approvalSummary)
+        question != null -> resources.getString(R.string.browser_dock_announce_question, question)
         else -> return ""
     }
     if (total <= 1) return what
-    val end = if (what.trimEnd().lastOrNull() in listOf('.', '?', '!')) "" else "."
-    return "${what.trimEnd()}$end ${queueText(total)} waiting."
+    // The summary or question may end a sentence already (in any of the languages' punctuation); else it gets the end mark.
+    val ended = what.trimEnd().let { if (it.lastOrNull() in SENTENCE_ENDS) it else it + resources.getString(R.string.browser_dock_announce_end) }
+    return resources.getString(R.string.browser_dock_announce_queue, ended, queueText(resources, total))
 }
+
+private val SENTENCE_ENDS = listOf('.', '?', '!', '。', '？', '！')
 
 /**
  * The overflow menu: what the page is (its title and full address, which the bar no longer shows),

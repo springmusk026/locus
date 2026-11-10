@@ -28,6 +28,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
+import dev.locus.core.designsystem.asString
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -127,8 +129,9 @@ fun WorkspaceRoute(
     }
     val inConnected = state.connectedFolder
 
+    val resources = LocalResources.current
     LaunchedEffect(state.message, state.undoTrashId) {
-        val message = state.message ?: return@LaunchedEffect
+        val message = state.message?.asString(resources) ?: return@LaunchedEffect
         val undo = state.undoTrashId
         // Undo runs in the host's scope, so it still restores after the message has gone.
         feedback.show(message, action = undo?.let { undoLabel }, onAction = undo?.let { id -> { viewModel.restore(id) } })
@@ -251,7 +254,7 @@ fun WorkspaceRoute(
             state.loading -> LoadingState(Modifier.padding(padding))
             state.folderError != null -> dev.locus.core.designsystem.ErrorState(
                 title = stringResource(R.string.workspace_files_folder_error_title),
-                message = state.folderError.orEmpty(),
+                message = state.folderError?.asString().orEmpty(),
                 onRetry = viewModel::refresh,
                 modifier = Modifier.padding(padding),
                 action = if (inConnected != null) ({ TextButton(onClick = { pickFolder(inConnected.id) }) { Text(stringResource(R.string.workspace_files_reconnect)) } }) else null,

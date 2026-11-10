@@ -1,5 +1,7 @@
 package dev.locus.feature.library
 
+import dev.locus.core.designsystem.asString
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.Arrangement
@@ -120,7 +122,7 @@ fun LibraryRoute(
             LibraryUiState.Loading -> LoadingState(modifier)
             is LibraryUiState.Failed -> EmptyState(
                 stringResource(R.string.library_load_failed_title),
-                s.message,
+                s.message.asString(),
                 modifier,
                 icon = LocusIcons.Library,
                 action = { Button(onClick = viewModel::retryLoad) { Text(stringResource(R.string.library_action_try_again)) } },
@@ -156,15 +158,16 @@ internal fun pendingReviewLine(skills: Int, connectors: Int, helpers: Int): Stri
 /** A Library action that failed: what and why, with Try again when it can be retried. */
 @Composable
 private fun ActionErrorBanner(error: LibraryError, onDismiss: () -> Unit) {
+    val message = error.message.asString()
     Banner(
-        error.message,
+        message,
         Tone.Critical,
         Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.sm),
-        title = error.title,
-        actionsBelow = dev.locus.core.designsystem.hasSettingsAction(error.message),
+        title = error.title.asString(),
+        actionsBelow = dev.locus.core.designsystem.hasSettingsAction(message),
     ) {
         // "… a GitHub token in Settings → Integrations → GitHub": a button that opens it.
-        dev.locus.core.designsystem.SettingsActionFor(error.message)
+        dev.locus.core.designsystem.SettingsActionFor(message)
         TextButton(onClick = onDismiss) { Text(stringResource(R.string.library_action_dismiss)) }
         error.retry?.let { retry -> TextButton(onClick = retry) { Text(stringResource(R.string.library_action_try_again)) } }
     }
@@ -261,11 +264,12 @@ private fun MemoryCard(
     /** Null for general memory, which has nowhere to move to. */
     onMove: ((MemoryTarget) -> Unit)?,
 ) {
+    val resources = LocalResources.current
     CardGroup {
         topics.forEachIndexed { i, target ->
             if (i > 0) GroupDivider(inset = Insets.iconRow)
             val topic = target.topic
-            val origin = topic.provenance?.let { memoryOriginView(it, it.chatId?.let(library.memoryChats::get)) }
+            val origin = topic.provenance?.let { memoryOriginView(resources, it, it.chatId?.let(library.memoryChats::get)) }
             ExpandableRow(
                 title = topic.name.replace('-', ' '),
                 subtitle = topic.summary.ifBlank { stringResource(R.string.library_memory_no_summary) },
@@ -351,7 +355,7 @@ private fun ConnectorsTab(
                         Modifier.padding(bottom = Spacing.md),
                         title = stringResource(R.string.library_connectors_signing_in_title),
                     ) { TextButton(onClick = viewModel::cancelSignIn) { Text(stringResource(R.string.library_action_cancel)) } }
-                    is SignInStatus.Failed -> Banner(status.message, Tone.Critical, Modifier.padding(bottom = Spacing.md), title = status.title) {
+                    is SignInStatus.Failed -> Banner(status.message.asString(), Tone.Critical, Modifier.padding(bottom = Spacing.md), title = status.title.asString()) {
                         TextButton(onClick = viewModel::dismissSignIn) { Text(stringResource(R.string.library_action_ok)) }
                     }
                 }
@@ -410,7 +414,7 @@ private fun ConnectorsTab(
                             style = CodeTextStyle,
                         )
                     }
-                    connectorKeyNote(entry)?.let { Text(it, style = LocusType.supporting) }
+                    connectorKeyNote(LocalResources.current, entry)?.let { Text(it, style = LocusType.supporting) }
                     // Actions wrap to a second line at a large font instead of running off the card.
                     @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
                     androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {

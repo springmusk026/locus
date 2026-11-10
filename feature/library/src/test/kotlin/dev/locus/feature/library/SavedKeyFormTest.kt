@@ -1,14 +1,23 @@
 package dev.locus.feature.library
 
+import android.content.Context
+import android.content.res.Resources
+import androidx.test.core.app.ApplicationProvider
 import dev.locus.core.agent.integrations.Integrations
 import dev.locus.core.data.mcp.McpTemplates
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /** The template sheet's "Use the key saved for …" choice: off by default, says where the key goes, and holds no key. */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36])
 class SavedKeyFormTest {
+    private val res: Resources get() = ApplicationProvider.getApplicationContext<Context>().resources
     @Test
     fun `off until tapped, then valid without a pasted key while the host is the template's`() {
         val form = TemplateForm(McpTemplates.byId("render")!!)
@@ -27,10 +36,10 @@ class SavedKeyFormTest {
     @Test
     fun `the confirmation names the host and how the key is sent`() {
         val github = McpTemplates.byId("github")!!
-        val note = savedKeyNote(Integrations.github, github)
+        val note = savedKeyNote(res, Integrations.github, github)
         assertTrue("GitHub key will also be sent to api.githubcopilot.com" in note, note)
         assertTrue("a bearer token" in note)
-        val exa = savedKeyNote(Integrations.exa, McpTemplates.byId("exa")!!)
+        val exa = savedKeyNote(res, Integrations.exa, McpTemplates.byId("exa")!!)
         assertTrue("mcp.exa.ai, as the x-api-key header" in exa, exa)
     }
 }

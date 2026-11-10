@@ -3,7 +3,9 @@ package dev.locus.feature.workspace.terminal
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.locus.core.designsystem.UiText
 import dev.locus.core.linux.LinuxNotInstalledException
+import dev.locus.feature.workspace.R
 import dev.locus.core.linux.LinuxStatus
 import dev.locus.core.terminal.TerminalSessions
 import dev.locus.core.terminal.TerminalTab
@@ -24,8 +26,8 @@ class TerminalViewModel @Inject constructor(val sessions: TerminalSessions) : Vi
     val fontSize: StateFlow<Int> = sessions.fontSize
     val linuxStatus: StateFlow<LinuxStatus> = sessions.linuxStatus
 
-    private val _message = MutableStateFlow<String?>(null)
-    val message: StateFlow<String?> = _message.asStateFlow()
+    private val _message = MutableStateFlow<UiText?>(null)
+    val message: StateFlow<UiText?> = _message.asStateFlow()
 
     private var opening = false
 
@@ -41,9 +43,9 @@ class TerminalViewModel @Inject constructor(val sessions: TerminalSessions) : Vi
             try {
                 sessions.open()
             } catch (e: LinuxNotInstalledException) {
-                _message.value = e.unavailableReason ?: "Install Linux first, from ${dev.locus.core.model.LINUX_INSTALL_PATH}."
+                _message.value = e.unavailableReason?.let(UiText::Plain) ?: UiText.Res(R.string.workspace_terminal_install_first, dev.locus.core.model.LINUX_INSTALL_PATH)
             } catch (e: IllegalStateException) {
-                _message.value = e.message
+                _message.value = e.message?.let(UiText::Plain)
             } finally {
                 opening = false
             }

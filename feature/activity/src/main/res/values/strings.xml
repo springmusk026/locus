@@ -89,4 +89,9 @@
     <string name="activity_detail_error">Error</string>
     <string name="activity_detail_result">Result</string>
     <string name="activity_detail_empty">(empty)</string>
+
+    <!-- Activity: chats a run belongs to -->
+    <string name="activity_deleted_chat">Deleted chat</string>
+    <string name="activity_helper_chat">%1$s helper · %2$s</string>
+    <string name="activity_helper_chat_untyped">Helper · %1$s</string>
 </resources>
