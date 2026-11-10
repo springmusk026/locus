@@ -1,6 +1,7 @@
 package dev.locus.feature.settings.ondevice
 
 import android.content.res.Configuration
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,11 +20,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.runtime.rememberCoroutineScope
+import dev.locus.feature.settings.R
+import dev.locus.feature.settings.summaryJoin
 import kotlinx.coroutines.launch
 import dev.locus.core.designsystem.ChipFlow
 import dev.locus.core.designsystem.ErrorState
@@ -72,7 +78,8 @@ fun OnDeviceModelScreen(
     LaunchedEffect(key) { viewModel.load(key) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val feedback = Locus.feedback
-    LaunchedEffect(state.notice) { state.notice?.let { feedback.show(it); viewModel.clearNotice() } }
+    val resources = LocalResources.current
+    LaunchedEffect(state.notice) { state.notice?.let { feedback.show(it.asString(resources)); viewModel.clearNotice() } }
     LaunchedEffect(state.gone) { if (state.gone) onBack() }
     OnDeviceModelDetail(
         state,
@@ -119,14 +126,16 @@ class DetailActions(
 )
 
 /** The verdict sentence under the chips. */
+@Composable
 internal fun fitSentence(fit: Fit, ramBytes: Long?, memory: DeviceMemory): String {
-    val need = ramBytes?.let { "about ${MemoryGate.gb(it / MemoryGate.GIB)} GB" }
-    val have = if (memory.totalBytes > 0) "${MemoryGate.gb(memory.totalBytes / MemoryGate.GIB)} GB" else null
+    // The figures, in GB, when both the model's need and the phone's memory are known.
+    val need = ramBytes?.let { MemoryGate.gb(it / MemoryGate.GIB) }
+    val have = if (memory.totalBytes > 0) MemoryGate.gb(memory.totalBytes / MemoryGate.GIB) else null
     return when (fit) {
-        Fit.Fits -> "Fits this phone" + (if (need != null && have != null) ": needs $need of its $have." else ".")
-        Fit.Tight -> "A tight fit" + (if (need != null && have != null) ": needs $need of this phone's $have" else "") + ". It may be slow, or Android may stop Locus to free memory."
-        Fit.TooLarge -> "Too large for this phone" + (if (need != null && have != null) ": needs $need and it has $have" else "") + ". Pick a smaller file."
-        Fit.Unknown -> "Locus couldn't read this phone's memory, so it can't say whether this fits."
+        Fit.Fits -> if (need != null && have != null) stringResource(R.string.settings_ondevice_fit_fits_figures, need, have) else stringResource(R.string.settings_ondevice_fit_fits)
+        Fit.Tight -> if (need != null && have != null) stringResource(R.string.settings_ondevice_fit_tight_figures, need, have) else stringResource(R.string.settings_ondevice_fit_tight)
+        Fit.TooLarge -> if (need != null && have != null) stringResource(R.string.settings_ondevice_fit_too_large_figures, need, have) else stringResource(R.string.settings_ondevice_fit_too_large)
+        Fit.Unknown -> stringResource(R.string.settings_ondevice_fit_unknown)
     }
 }
 
@@ -137,29 +146,28 @@ internal fun OnDeviceModelDetail(state: DetailUiState, onBack: () -> Unit, actio
     val info = state.info
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        topBar = { LocusTopBar(info?.name ?: "Model", onBack = onBack) },
+        topBar = { LocusTopBar(info?.name ?: stringResource(R.string.settings_ondevice_detail_model), onBack = onBack) },
     ) { padding ->
         val problem = state.problem
         when {
             // The model couldn't be looked up at all (offline, rate-limited, gated, gone): the screen's own error.
             problem != null && problem.kind == Problem.Kind.Gated -> {
                 // A login wall, not a failure: caution, the model's name first, and a way on.
-                val name = info?.name?.let(dev.locus.core.ondevice.gguf.GgufNames::display) ?: "This model"
+                val name = info?.name?.let(dev.locus.core.ondevice.gguf.GgufNames::display) ?: stringResource(R.string.settings_ondevice_detail_this_model)
                 ErrorState(
-                    title = "Needs a Hugging Face login",
-                    message = "Only Hugging Face accounts that accepted its licence can download it, and Locus doesn't use an account. " +
-                        "Another publisher often has a copy anyone can download.",
+                    title = stringResource(R.string.settings_ondevice_detail_gated_title),
+                    message = stringResource(R.string.settings_ondevice_detail_gated_message),
                     onRetry = null,
                     modifier = Modifier.padding(padding),
                     icon = LocusIcons.Key,
                     tone = Tone.Caution,
-                    action = { Button(onClick = { actions.search(name.removeSuffix(" GGUF")) }) { Text("Search for $name", textAlign = TextAlign.Center) } },
+                    action = { Button(onClick = { actions.search(name.removeSuffix(" GGUF")) }) { Text(stringResource(R.string.settings_ondevice_detail_gated_search, name), textAlign = TextAlign.Center) } },
                 )
                 return@Scaffold
             }
             problem != null -> {
                 ErrorState(
-                    title = problem.title ?: "Couldn't open this model",
+                    title = problem.title ?: stringResource(R.string.settings_ondevice_detail_error),
                     message = listOfNotNull(problem.message, problem.advice).joinToString("\n\n"),
                     onRetry = actions.retry,
                     modifier = Modifier.padding(padding),
@@ -190,12 +198,12 @@ internal fun OnDeviceModelDetail(state: DetailUiState, onBack: () -> Unit, actio
             val installed = state.installed
             if (installed != null) {
                 if (installed.loadCrashed) item { LoadCrashedBanner() }
-                item { SectionLabel("On this phone") }
+                item { SectionLabel(stringResource(R.string.settings_ondevice_detail_on_phone)) }
                 item { InstalledActions(state, installed, actions, onDelete = { confirmDelete = true }) }
-                item { SectionLabel("Engine") }
+                item { SectionLabel(stringResource(R.string.settings_ondevice_detail_engine)) }
                 item { EngineFacts(state, installed) }
             } else {
-                item { SectionLabel("Files") }
+                item { SectionLabel(stringResource(R.string.settings_ondevice_detail_files)) }
                 item { Files(state, actions.select) }
                 val hidden = state.options.count { !it.usable }
                 if (hidden > 0) {
@@ -214,22 +222,22 @@ internal fun OnDeviceModelDetail(state: DetailUiState, onBack: () -> Unit, actio
                     }
                 } else {
                     item { DownloadButton(state) { if (state.fit == Fit.Tight) confirmTight = true else actions.download() } }
-                    downloadNote(state)?.let { note -> item { SectionNote(note, Modifier.padding(top = Spacing.sm)) } }
+                    downloadNote(state)?.let { note -> item { SectionNote(stringResource(note), Modifier.padding(top = Spacing.sm)) } }
                 }
             }
-            item { SectionLabel("Details") }
+            item { SectionLabel(stringResource(R.string.settings_ondevice_detail_details)) }
             item { Facts(info, state) }
             if (installed != null && !installed.hasTemplate) {
-                item { SectionNote("The file has no chat template, so llama.cpp formats the chat in the common ChatML layout. Replies may be poor if the model was trained on another.", Modifier.padding(top = Spacing.sm)) }
+                item { SectionNote(stringResource(R.string.settings_ondevice_detail_no_template), Modifier.padding(top = Spacing.sm)) }
             }
         }
     }
     OfferSheet(state.check, onDownload = actions.downloadChecked, onDismiss = actions.dismissCheck)
     if (confirmDelete) {
         ConfirmSheet(
-            title = "Delete ${info?.name}?",
-            message = "Frees ${state.installed?.sizeBytes?.let(::gb)} on this phone. Chats that use it need another model; download it again to use it.",
-            confirmLabel = "Delete",
+            title = stringResource(R.string.settings_ondevice_detail_delete_title, info?.name.toString()),
+            message = stringResource(R.string.settings_ondevice_detail_delete_message, state.installed?.sizeBytes?.let(::gb).toString()),
+            confirmLabel = stringResource(R.string.settings_ondevice_detail_delete),
             tone = Tone.Critical,
             onConfirm = { confirmDelete = false; actions.delete() },
             onDismiss = { confirmDelete = false },
@@ -237,9 +245,9 @@ internal fun OnDeviceModelDetail(state: DetailUiState, onBack: () -> Unit, actio
     }
     if (confirmTight) {
         ConfirmSheet(
-            title = "Download anyway?",
+            title = stringResource(R.string.settings_ondevice_detail_download_anyway_title),
             message = fitSentence(state.fit, state.selectedOption?.ramBytes, state.memory),
-            confirmLabel = "Download anyway",
+            confirmLabel = stringResource(R.string.settings_ondevice_download_anyway),
             onConfirm = { confirmTight = false; actions.download() },
             onDismiss = { confirmTight = false },
         )
@@ -264,20 +272,23 @@ private fun Files(state: DetailUiState, onSelect: (String) -> Unit) {
         state.options.filter { it.usable }.forEachIndexed { i, o ->
             if (i > 0) GroupDivider(inset = Insets.iconRow)
             val chosen = o.path == state.selected
+            val spoken = listOfNotNull(o.quant ?: o.fileName, gb(o.sizeBytes), o.fit.spoken, if (o.recommended) stringResource(R.string.settings_ondevice_detail_spoken_recommended) else null, o.problem).joinToString(", ")
             ListRow(
                 title = o.quant ?: o.fileName,
-                subtitle = listOfNotNull(
-                    gb(o.sizeBytes),
-                    o.ramBytes?.let { "≈${MemoryGate.gb(it / MemoryGate.GIB)} GB memory" },
-                    if (o.recommended) "Recommended" else null,
-                    o.problem,
-                ).joinToString(" · "),
+                subtitle = summaryJoin(
+                    listOfNotNull(
+                        gb(o.sizeBytes),
+                        o.ramBytes?.let { stringResource(R.string.settings_ondevice_detail_file_memory, MemoryGate.gb(it / MemoryGate.GIB)) },
+                        if (o.recommended) stringResource(R.string.settings_ondevice_detail_recommended) else null,
+                        o.problem,
+                    ),
+                ),
                 subtitleMaxLines = 3,
                 enabled = o.usable,
                 modifier = Modifier
                     .selectable(selected = chosen, enabled = o.usable, role = Role.RadioButton) { onSelect(o.path) }
                     .semantics(mergeDescendants = true) {
-                        contentDescription = listOfNotNull(o.quant ?: o.fileName, gb(o.sizeBytes), o.fit.spoken, if (o.recommended) "recommended" else null, o.problem).joinToString(", ")
+                        contentDescription = spoken
                     },
                 leading = { RadioButton(selected = chosen, onClick = null, enabled = o.usable) },
                 meta = if (o.usable) ({ ChipFlow { FitChip(o.fit) } }) else null,
@@ -285,13 +296,17 @@ private fun Files(state: DetailUiState, onSelect: (String) -> Unit) {
         }
         if (state.optionsLoading) {
             GroupDivider(inset = Insets.iconRow)
-            ListRow(title = "Listing other quantisations", leading = { IconTile(LocusIcons.Layers) }, trailing = { InlineSpinner(contentDescription = "Loading") })
+            ListRow(
+                title = stringResource(R.string.settings_ondevice_detail_listing),
+                leading = { IconTile(LocusIcons.Layers) },
+                trailing = { InlineSpinner(contentDescription = stringResource(R.string.settings_ondevice_detail_loading)) },
+            )
         }
         state.optionsProblem?.let {
             GroupDivider(inset = Insets.iconRow)
-            ListRow(title = "Other quantisations couldn't be listed", subtitle = it.message, subtitleMaxLines = 3, leading = { IconTile(LocusIcons.Alert) })
+            ListRow(title = stringResource(R.string.settings_ondevice_detail_listing_failed), subtitle = it.message, subtitleMaxLines = 3, leading = { IconTile(LocusIcons.Alert) })
         }
-        if (state.options.none { it.usable } && !state.optionsLoading) ListRow(title = "No file here that Locus can run", leading = { IconTile(LocusIcons.Layers) })
+        if (state.options.none { it.usable } && !state.optionsLoading) ListRow(title = stringResource(R.string.settings_ondevice_detail_no_file), leading = { IconTile(LocusIcons.Layers) })
     }
 }
 
@@ -300,30 +315,30 @@ private fun DownloadButton(state: DetailUiState, onClick: () -> Unit) {
     val o = state.selectedOption
     val blocked = o == null || !o.usable || o.fit == Fit.TooLarge
     Button(onClick = onClick, enabled = !blocked, modifier = Modifier.fillMaxWidth().padding(top = Spacing.md)) {
-        Text(if (o == null) "Pick a file" else "Download ${gb(o.sizeBytes)}")
+        Text(if (o == null) stringResource(R.string.settings_ondevice_detail_pick_file) else stringResource(R.string.settings_ondevice_detail_download_size, gb(o.sizeBytes)))
     }
 }
 
 /** "1 more file isn't listed: a vision projector or a split part, which Locus can't run on its own." */
-internal fun hiddenFilesNote(count: Int): String =
-    if (count == 1) "1 more file isn't listed: a vision projector or a split part, which Locus can't run on its own."
-    else "$count more files aren't listed: vision projectors or split parts, which Locus can't run on their own."
+@Composable
+internal fun hiddenFilesNote(count: Int): String = pluralStringResource(R.plurals.settings_ondevice_detail_hidden_files, count, count)
 
 /** The line under Download: why it can't, or what happens to the file. */
-private fun downloadNote(state: DetailUiState): String? {
+@StringRes
+private fun downloadNote(state: DetailUiState): Int? {
     val o = state.selectedOption ?: return null
     return when {
-        o.fit == Fit.TooLarge -> "Too large for this phone. Pick a smaller file."
-        o.sha256 != null -> "Locus checks the file is exactly the one the publisher released before it's used."
+        o.fit == Fit.TooLarge -> R.string.settings_ondevice_detail_note_too_large
+        o.sha256 != null -> R.string.settings_ondevice_detail_note_checked
         else -> null
     }
 }
 
 @Composable
 private fun LoadCrashedBanner() = Banner(
-    text = "Android stopped Locus while it was loading this model last time, most likely because memory ran out. Close other apps and try again, or pick a smaller quantisation.",
+    text = stringResource(R.string.settings_ondevice_detail_crashed_text),
     tone = Tone.Critical,
-    title = "The last load didn't finish",
+    title = stringResource(R.string.settings_ondevice_detail_crashed_title),
     actionsBelow = true,
     modifier = Modifier.padding(top = Spacing.md),
 )
@@ -334,18 +349,18 @@ private fun InstalledActions(state: DetailUiState, m: InstalledInfo, actions: De
     val engine = state.engine
     val mine = engine.modelId == m.modelId
     CardGroup {
-        ListRow(title = "Use in a new chat", onClick = actions.newChat, leading = { IconTile(LocusIcons.Chats) })
+        ListRow(title = stringResource(R.string.settings_ondevice_detail_new_chat), onClick = actions.newChat, leading = { IconTile(LocusIcons.Chats) })
         GroupDivider(inset = Insets.iconRow)
         if (state.isDefault) {
-            ListRow(title = "Default for new chats", subtitle = "New chats start with this model", subtitleMaxLines = 2, leading = { IconTile(LocusIcons.StarFilled) })
+            ListRow(title = stringResource(R.string.settings_ondevice_detail_is_default), subtitle = stringResource(R.string.settings_ondevice_detail_is_default_subtitle), subtitleMaxLines = 2, leading = { IconTile(LocusIcons.StarFilled) })
         } else {
-            ListRow(title = "Set as default", subtitle = "New chats use this model", subtitleMaxLines = 2, onClick = actions.setDefault, leading = { IconTile(LocusIcons.Star) })
+            ListRow(title = stringResource(R.string.settings_ondevice_detail_set_default), subtitle = stringResource(R.string.settings_ondevice_detail_set_default_subtitle), subtitleMaxLines = 2, onClick = actions.setDefault, leading = { IconTile(LocusIcons.Star) })
         }
         if (mine && engine.loaded) {
             GroupDivider(inset = Insets.iconRow)
             ListRow(
-                title = "Unload",
-                subtitle = if (engine.busy) "Replying now. Unload when it finishes." else "Frees its memory; the next message loads it again",
+                title = stringResource(R.string.settings_ondevice_detail_unload),
+                subtitle = stringResource(if (engine.busy) R.string.settings_ondevice_detail_unload_busy else R.string.settings_ondevice_detail_unload_subtitle),
                 subtitleMaxLines = 2,
                 onClick = actions.unload,
                 enabled = !engine.busy,
@@ -355,17 +370,17 @@ private fun InstalledActions(state: DetailUiState, m: InstalledInfo, actions: De
         if (state.info?.engine == Engine.LiteRt) {
             GroupDivider(inset = Insets.iconRow)
             ListRow(
-                title = if (engine.benchmarking) "Benchmark running…" else "Run benchmark",
-                subtitle = "256 tokens in, 128 out; results stay on this phone",
+                title = stringResource(if (engine.benchmarking) R.string.settings_ondevice_detail_benchmark_running else R.string.settings_ondevice_detail_benchmark),
+                subtitle = stringResource(R.string.settings_ondevice_detail_benchmark_subtitle),
                 subtitleMaxLines = 2,
                 onClick = actions.benchmark,
                 enabled = !engine.benchmarking && !(mine && engine.busy),
                 leading = { IconTile(LocusIcons.Gauge) },
-                trailing = { if (engine.benchmarking) InlineSpinner(contentDescription = "Benchmark running") },
+                trailing = { if (engine.benchmarking) InlineSpinner(contentDescription = stringResource(R.string.settings_ondevice_detail_benchmark_description)) },
             )
         }
         GroupDivider(inset = Insets.iconRow)
-        ListRow(title = "Delete", subtitle = "Frees ${gb(m.sizeBytes)}", onClick = onDelete, enabled = !(mine && engine.busy), leading = { IconTile(LocusIcons.Trash, tint = Locus.colors.critical) })
+        ListRow(title = stringResource(R.string.settings_ondevice_detail_delete), subtitle = stringResource(R.string.settings_ondevice_detail_frees, gb(m.sizeBytes)), onClick = onDelete, enabled = !(mine && engine.busy), leading = { IconTile(LocusIcons.Trash, tint = Locus.colors.critical) })
     }
 }
 
@@ -375,12 +390,12 @@ private fun EngineFacts(state: DetailUiState, m: InstalledInfo) {
     val engine = state.engine
     val mine = engine.modelId == m.modelId
     CardGroup {
-        KeyValueRow("Engine", OnDeviceFormat.backendLine(engine, m.modelId))
+        KeyValueRow(stringResource(R.string.settings_ondevice_detail_engine), OnDeviceFormat.backendLine(engine, m.modelId))
         if (mine) {
-            OnDeviceFormat.loadedLine(engine)?.let { KeyValueRow("Loaded", it) }
-            engine.lastTurn?.let { turn -> OnDeviceFormat.turnLine(turn)?.let { KeyValueRow("Last reply", it) } }
+            OnDeviceFormat.loadedLine(engine)?.let { KeyValueRow(stringResource(R.string.settings_ondevice_detail_loaded), it) }
+            engine.lastTurn?.let { turn -> OnDeviceFormat.turnLine(turn)?.let { KeyValueRow(stringResource(R.string.settings_ondevice_detail_last_reply), it) } }
         }
-        engine.benchmark?.takeIf { it.modelId == m.modelId }?.let { r -> KeyValueRow("Benchmark", OnDeviceFormat.benchmark(r).joinToString("\n"), mono = true, valueMaxLines = 6) }
+        engine.benchmark?.takeIf { it.modelId == m.modelId }?.let { r -> KeyValueRow(stringResource(R.string.settings_ondevice_detail_benchmark_label), OnDeviceFormat.benchmark(r).joinToString("\n"), mono = true, valueMaxLines = 6) }
     }
 }
 
@@ -391,45 +406,54 @@ private fun Facts(info: ModelInfo, state: DetailUiState) {
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     val feedback = Locus.feedback
+    val copied = stringResource(R.string.settings_ondevice_detail_sha_copied)
     val m = state.installed
     CardGroup {
-        KeyValueRow("Publisher", info.publisher)
-        KeyValueRow("Licence", dev.locus.core.ondevice.gguf.Licences.name(info.license) ?: "Not stated: check the model card")
-        info.params?.let { KeyValueRow("Parameters", it) }
+        KeyValueRow(stringResource(R.string.settings_ondevice_detail_publisher), info.publisher)
+        KeyValueRow(stringResource(R.string.settings_ondevice_offer_licence), dev.locus.core.ondevice.gguf.Licences.name(info.license) ?: stringResource(R.string.settings_ondevice_detail_licence_unknown))
+        info.params?.let { KeyValueRow(stringResource(R.string.settings_ondevice_offer_parameters), it) }
         (m?.contextTokens ?: info.contextTokens)?.let { ctx ->
-            KeyValueRow("Context", ContextFit.tokensLabel(ctx) + " tokens" + (m?.trainedContext?.takeIf { it > ctx }?.let { " (trained for ${ContextFit.tokensLabel(it)})" } ?: ""))
+            val trained = m?.trainedContext?.takeIf { it > ctx }
+            KeyValueRow(
+                stringResource(R.string.settings_ondevice_detail_context),
+                if (trained != null) {
+                    stringResource(R.string.settings_ondevice_detail_context_trained, ContextFit.tokensLabel(ctx), ContextFit.tokensLabel(trained))
+                } else {
+                    stringResource(R.string.settings_ondevice_detail_context_tokens, ContextFit.tokensLabel(ctx))
+                },
+            )
         }
         info.tools?.let {
             KeyValueRow(
-                "Tools",
+                stringResource(R.string.settings_ondevice_tools),
                 when {
-                    it -> "Yes"
-                    dev.locus.core.model.SmallModels.tooSmallForTools(info.params) -> "No, chat only. ${dev.locus.core.model.SmallModels.TOO_SMALL}."
-                    else -> "No, chat only. Its chat template has no tools."
+                    it -> stringResource(R.string.settings_ondevice_detail_tools_yes)
+                    dev.locus.core.model.SmallModels.tooSmallForTools(info.params) -> stringResource(R.string.settings_ondevice_detail_tools_too_small, dev.locus.core.model.SmallModels.TOO_SMALL)
+                    else -> stringResource(R.string.settings_ondevice_detail_tools_no_template)
                 },
             )
         }
         m?.let {
-            KeyValueRow("Size", gb(it.sizeBytes))
-            it.ramBytes?.let { r -> KeyValueRow("Memory", "≈${MemoryGate.gb(r / MemoryGate.GIB)} GB while running") }
-            it.quant?.let { q -> KeyValueRow("Quantisation", q, mono = true) }
+            KeyValueRow(stringResource(R.string.settings_ondevice_detail_size), gb(it.sizeBytes))
+            it.ramBytes?.let { r -> KeyValueRow(stringResource(R.string.settings_ondevice_offer_memory), stringResource(R.string.settings_ondevice_detail_memory_value, MemoryGate.gb(r / MemoryGate.GIB))) }
+            it.quant?.let { q -> KeyValueRow(stringResource(R.string.settings_ondevice_offer_quantisation), q, mono = true) }
             it.sha256?.let { sha ->
                 KeyValueRow(
-                    if (it.verified) "SHA-256, verified" else "SHA-256, unverified",
+                    stringResource(if (it.verified) R.string.settings_ondevice_detail_sha_verified else R.string.settings_ondevice_detail_sha_unverified),
                     sha,
                     mono = true,
                     onClick = {
                         scope.launch {
                             clipboard.setClipEntry(ClipEntry(android.content.ClipData.newPlainText("SHA-256", sha)))
-                            feedback.show("SHA-256 copied")
+                            feedback.show(copied)
                         }
                     },
                 )
             }
         }
-        (m?.source ?: info.source)?.let { KeyValueRow("Source", it, mono = true) }
+        (m?.source ?: info.source)?.let { KeyValueRow(stringResource(R.string.settings_ondevice_detail_source), it, mono = true) }
         // One row anatomy per card: the model card is a value that opens, like the SHA-256 above.
-        info.licenseUrl?.let { url -> KeyValueRow("Model card", url.removePrefix("https://"), onClick = { runCatching { uri.openUri(url) } }) }
+        info.licenseUrl?.let { url -> KeyValueRow(stringResource(R.string.settings_ondevice_detail_model_card), url.removePrefix("https://"), onClick = { runCatching { uri.openUri(url) } }) }
     }
 }
 

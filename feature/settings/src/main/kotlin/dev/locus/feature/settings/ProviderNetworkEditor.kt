@@ -19,11 +19,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import dev.locus.core.data.network.NetworkSecretEdits
 import dev.locus.core.data.network.SavedNetworkSecrets
 import dev.locus.core.designsystem.Banner
+import dev.locus.core.designsystem.UiText
+import dev.locus.core.designsystem.asString
 import dev.locus.core.model.SettingsDestination
 import dev.locus.core.designsystem.SettingsLink
 import dev.locus.core.designsystem.CardGroup
@@ -75,11 +78,11 @@ internal class NetworkDraft(initial: ProviderNetwork) {
         get() = ProxyConfig(proxyType, proxyHost.trim(), proxyPort.toIntOrNull() ?: 0, hasCredentials = proxyAuth).takeIf { it.isValid }
 
     /** Why the draft can't be saved yet, or null. */
-    val problem: String?
+    val problem: UiText?
         get() = when {
-            proxyMode == ProxyMode.CUSTOM && customProxy == null -> "Enter the proxy's host and port, or pick another proxy option."
+            proxyMode == ProxyMode.CUSTOM && customProxy == null -> UiText.Res(R.string.settings_pnet_problem_proxy)
             headers.any { HeaderRules.check(it.name) is HeaderVerdict.Credential } && !allowAuthOverride ->
-                "Allow replacing the key header, or remove that header."
+                UiText.Res(R.string.settings_pnet_problem_header)
             else -> null
         }
 
@@ -116,13 +119,13 @@ internal fun networkSummary(network: ProviderNetwork, defaults: NetworkDefaults)
 internal fun ProviderNetworkRow(draft: NetworkDraft, defaults: NetworkDefaults, onOpen: () -> Unit) {
     CardGroup {
         ListRow(
-            title = "Network",
+            title = stringResource(R.string.settings_pnet_title),
             subtitle = networkSummary(draft.network(), defaults),
             subtitleMaxLines = 2,
             onClick = onOpen,
             leading = { IconTile(LocusIcons.Globe) },
             trailing = {
-                if (draft.problem != null) StatusPill("Check", Tone.Caution)
+                if (draft.problem != null) StatusPill(stringResource(R.string.settings_pnet_check), Tone.Caution)
                 RowChevron()
             },
         )
@@ -141,17 +144,17 @@ internal fun ProviderNetworkSheet(
 ) {
     var addingHeader by remember { mutableStateOf(false) }
     LocusSheet(
-        title = "Network",
-        subtitle = "For $providerName only. Saved when you save the provider.",
+        title = stringResource(R.string.settings_pnet_title),
+        subtitle = stringResource(R.string.settings_pnet_subtitle, providerName),
         onDismiss = onDismiss,
-        action = "Done",
+        action = stringResource(R.string.settings_pnet_done),
         onAction = onDismiss,
     ) {
         // What stops Done from saving, at the top where it's seen first.
-        draft.problem?.let { Banner(it, Tone.Caution, title = "Can't save yet") }
+        draft.problem?.let { Banner(it.asString(), Tone.Caution, title = stringResource(R.string.settings_pnet_cant_save)) }
 
         // ---- Extra headers
-        SectionLabel("Extra headers")
+        SectionLabel(stringResource(R.string.settings_pnet_headers_section))
         CardGroup {
             draft.headers.forEachIndexed { i, header ->
                 if (i > 0) GroupDivider()
@@ -161,35 +164,33 @@ internal fun ProviderNetworkSheet(
                     titleMaxLines = 2,
                     // With no value yet the chip says so; a subtitle would repeat it.
                     subtitle = when {
-                        header.newValue != null -> "New value, saved with the provider"
-                        saved -> "Value saved in the vault"
+                        header.newValue != null -> stringResource(R.string.settings_pnet_header_new_value)
+                        saved -> stringResource(R.string.settings_pnet_header_saved)
                         else -> null
                     },
                     trailing = {
-                        if (header.newValue == null && !saved) StatusPill("No value", Tone.Caution)
+                        if (header.newValue == null && !saved) StatusPill(stringResource(R.string.settings_pnet_header_no_value), Tone.Caution)
                         IconButton(onClick = { draft.headers.removeAt(i) }) {
-                            Icon(LocusIcons.Trash, contentDescription = "Remove ${header.name}")
+                            Icon(LocusIcons.Trash, contentDescription = stringResource(R.string.settings_pnet_header_remove, header.name))
                         }
                     },
                 )
             }
             if (draft.headers.isNotEmpty()) GroupDivider()
-            if (draft.headers.size < HeaderRules.MAX_HEADERS) AddRow("Add a header") { addingHeader = true }
+            if (draft.headers.size < HeaderRules.MAX_HEADERS) AddRow(stringResource(R.string.settings_pnet_header_add)) { addingHeader = true }
         }
         SupportingText(
-            "For example HTTP-Referer and X-Title for OpenRouter, or cf-aig-authorization for Cloudflare AI Gateway. Values are encrypted like keys and never shown again. " +
-                "Redirects aren't followed while headers are set, so they can't reach another server.",
+            stringResource(R.string.settings_pnet_headers_note),
         )
         if (!signsIn && draft.headers.any { HeaderRules.isCredential(it.name) }) {
             Banner(
-                title = "Replace the key header?",
-                text = "A header named Authorization or x-api-key replaces the key Locus sends for this provider. Only turn this on for a gateway that signs requests itself; " +
-                    "otherwise your key and this value both go to the same server.",
+                title = stringResource(R.string.settings_pnet_override_title),
+                text = stringResource(R.string.settings_pnet_override_text),
                 tone = Tone.Caution,
             )
             CardGroup {
                 SwitchRow(
-                    title = "Replace the key with this header",
+                    title = stringResource(R.string.settings_pnet_override_switch),
                     checked = draft.allowAuthOverride,
                     onCheckedChange = { draft.allowAuthOverride = it },
                 )
@@ -197,10 +198,14 @@ internal fun ProviderNetworkSheet(
         }
 
         // ---- Proxy
-        SectionLabel("Proxy")
+        SectionLabel(stringResource(R.string.settings_pnet_proxy_section))
         val modes = listOf(ProxyMode.DEFAULT, ProxyMode.DIRECT, ProxyMode.CUSTOM)
         Segmented(
-            listOf(if (defaults.proxy != null) "Default" else "Default (none)", "No proxy", "Custom"),
+            listOf(
+                stringResource(if (defaults.proxy != null) R.string.settings_pnet_proxy_default else R.string.settings_pnet_proxy_default_none),
+                stringResource(R.string.settings_pnet_proxy_none),
+                stringResource(R.string.settings_pnet_proxy_custom),
+            ),
             selected = modes.indexOf(draft.proxyMode),
             onSelect = { draft.proxyMode = modes[it] },
             modifier = Modifier.fillMaxWidth(),
@@ -209,11 +214,11 @@ internal fun ProviderNetworkSheet(
             // The default lives on the Network page: a link there, not a path to find by hand.
             ProxyMode.DEFAULT -> SettingsLink(
                 SettingsDestination.Network,
-                hint = defaults.proxy?.let { "Uses the default proxy, ${it.type.label()} ${it.host}:${it.port}. Change it in" }
-                    ?: "No default proxy is set, so this provider connects directly. Set one in",
+                hint = defaults.proxy?.let { stringResource(R.string.settings_pnet_proxy_default_hint, it.type.label(), it.host, it.port) }
+                    ?: stringResource(R.string.settings_pnet_proxy_default_none_hint),
             )
             ProxyMode.DIRECT -> SupportingText(
-                "Connects directly, even when a default proxy is set. Use this for servers on your own network.",
+                stringResource(R.string.settings_pnet_proxy_direct_hint),
             )
             ProxyMode.CUSTOM -> ProxyFields(
                 type = draft.proxyType, onType = { draft.proxyType = it },
@@ -227,9 +232,9 @@ internal fun ProviderNetworkSheet(
         }
 
         // ---- Certificates
-        SectionLabel("Trusted certificates")
+        SectionLabel(stringResource(R.string.settings_pnet_certs_section))
         if (defaults.certificates.isEmpty()) {
-            SettingsLink(SettingsDestination.Network, hint = "To trust a private server or a company gateway, import a CA certificate in")
+            SettingsLink(SettingsDestination.Network, hint = stringResource(R.string.settings_pnet_certs_import_hint))
         } else {
             CardGroup {
                 defaults.certificates.forEachIndexed { i, cert ->
@@ -238,7 +243,7 @@ internal fun ProviderNetworkSheet(
                     ListRow(
                         title = cert.subject,
                         // Who trusts it, or when it runs out; the fingerprint is in the certificate's own sheet.
-                        subtitle = if (cert.allProviders) "Trusted by every provider" else certificateExpiry(cert.notAfter, System.currentTimeMillis()),
+                        subtitle = if (cert.allProviders) stringResource(R.string.settings_pnet_certs_all) else certificateExpiry(cert.notAfter, System.currentTimeMillis()),
                         onClick = if (cert.allProviders) null else ({ if (checked) draft.certificateIds.remove(cert.id) else draft.certificateIds.add(cert.id) }),
                         trailing = {
                             Checkbox(
@@ -251,7 +256,7 @@ internal fun ProviderNetworkSheet(
                 }
             }
             SupportingText(
-                "Connections to this provider also trust the certificates you tick, on top of the system's. Nothing else in the app does.",
+                stringResource(R.string.settings_pnet_certs_note),
             )
         }
     }
@@ -275,25 +280,25 @@ private fun AddHeaderSheet(existing: Set<String>, onAdd: (String, String) -> Uni
     val verdict = HeaderRules.check(name)
     val nameError = when {
         name.isBlank() -> null
-        name.trim().lowercase() in existing -> "That header is already in the list."
+        name.trim().lowercase() in existing -> stringResource(R.string.settings_pnet_add_duplicate)
         verdict is HeaderVerdict.Forbidden -> verdict.reason
         else -> null
     }
     val valueError = if (value.isEmpty()) null else HeaderRules.checkValue(value)
     val canAdd = name.isNotBlank() && nameError == null && value.isNotEmpty() && valueError == null
-    LocusSheet(title = "Add a header", onDismiss = onDismiss, action = "Add", actionEnabled = canAdd, onAction = { onAdd(name.trim(), value) }) {
+    LocusSheet(title = stringResource(R.string.settings_pnet_header_add), onDismiss = onDismiss, action = stringResource(R.string.settings_pnet_add), actionEnabled = canAdd, onAction = { onAdd(name.trim(), value) }) {
         OutlinedTextField(
             name,
             { name = it.trim() },
-            label = { Text("Name") },
-            placeholder = { Text("X-Title") },
+            label = { Text(stringResource(R.string.settings_pnet_add_name)) },
+            placeholder = { Text(stringResource(R.string.settings_pnet_add_name_placeholder)) },
             singleLine = true,
             isError = nameError != null,
             supportingText = when {
                 nameError != null -> ({ Text(nameError) })
                 verdict is HeaderVerdict.Credential -> ({
                     Text(
-                        "${verdict.warning} After adding it, turn on “Replace the key with this header” in the Network sheet.",
+                        stringResource(R.string.settings_pnet_add_credential_warning, verdict.warning),
                         color = Locus.colors.onCautionContainer,
                     )
                 })
@@ -304,12 +309,12 @@ private fun AddHeaderSheet(existing: Set<String>, onAdd: (String, String) -> Uni
         OutlinedTextField(
             value,
             { value = it },
-            label = { Text("Value") },
+            label = { Text(stringResource(R.string.settings_pnet_add_value)) },
             singleLine = true,
             isError = valueError != null,
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            supportingText = { Text(valueError ?: "Encrypted on this phone. It won't be shown again.") },
+            supportingText = { Text(valueError ?: stringResource(R.string.settings_pnet_add_value_hint)) },
             modifier = Modifier.fillMaxWidth(),
         )
     }
@@ -338,8 +343,8 @@ internal fun ProxyFields(
         OutlinedTextField(
             host,
             { onHost(it.trim()) },
-            label = { Text("Host") },
-            placeholder = { Text("proxy.example.com") },
+            label = { Text(stringResource(R.string.settings_pnet_host)) },
+            placeholder = { Text(stringResource(R.string.settings_pnet_host_placeholder)) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
             modifier = modifier,
@@ -349,8 +354,8 @@ internal fun ProxyFields(
         OutlinedTextField(
             port,
             { onPort(it.filter(Char::isDigit).take(5)) },
-            label = { Text("Port") },
-            placeholder = { Text(if (type == ProxyType.SOCKS5) "1080" else "8080") },
+            label = { Text(stringResource(R.string.settings_pnet_port)) },
+            placeholder = { Text(stringResource(if (type == ProxyType.SOCKS5) R.string.settings_pnet_port_socks else R.string.settings_pnet_port_http)) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = modifier,
@@ -366,19 +371,19 @@ internal fun ProxyFields(
             portField(Modifier.padding(start = Spacing.sm).weight(0.45f))
         }
     }
-    SwitchLine("Proxy needs a sign-in", auth, onAuth)
+    SwitchLine(stringResource(R.string.settings_pnet_auth), auth, onAuth)
     if (auth) {
         OutlinedTextField(
             user,
             onUser,
-            label = { Text(if (credentialsSaved) "Username (saved — type to replace)" else "Username") },
+            label = { Text(stringResource(if (credentialsSaved) R.string.settings_pnet_username_saved else R.string.settings_pnet_username)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
         OutlinedTextField(
             password,
             onPassword,
-            label = { Text(if (credentialsSaved) "Password (saved — type to replace)" else "Password") },
+            label = { Text(stringResource(if (credentialsSaved) R.string.settings_pnet_password_saved else R.string.settings_pnet_password)) },
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -386,7 +391,7 @@ internal fun ProxyFields(
         )
     }
     SupportingText(
-        "Only model requests use this proxy. Addresses on this phone (localhost, 127.0.0.1) always connect directly.",
+        stringResource(R.string.settings_pnet_proxy_note),
     )
 }
 
@@ -394,8 +399,12 @@ internal fun ProxyFields(
 internal const val STACK_FIELDS_FONT = 1.3f
 
 /** "Expires 3 March 2027", or "Expired 9 October 2025". */
+@Composable
 internal fun certificateExpiry(notAfter: Long, now: Long): String =
-    (if (notAfter < now) "Expired " else "Expires ") + java.text.DateFormat.getDateInstance(java.text.DateFormat.LONG).format(java.util.Date(notAfter))
+    stringResource(
+        if (notAfter < now) R.string.settings_pnet_certs_expired else R.string.settings_pnet_certs_expires,
+        java.text.DateFormat.getDateInstance(java.text.DateFormat.LONG).format(java.util.Date(notAfter)),
+    )
 
 @Composable
 private fun SwitchLine(text: String, checked: Boolean, onChange: (Boolean) -> Unit) {

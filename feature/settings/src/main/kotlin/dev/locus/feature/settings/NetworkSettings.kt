@@ -1,5 +1,6 @@
 package dev.locus.feature.settings
 
+import androidx.compose.ui.res.stringResource
 import dev.locus.core.designsystem.ConfirmSheet
 import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.SupportingText
@@ -138,13 +139,14 @@ internal fun NetworkSettings(
     var openCert by remember { mutableStateOf<String?>(null) }
     val proxy = state.defaults.proxy
 
-    SettingsPageScaffold("Network", onBack) {
-        item { SectionLabel("Default proxy", SectionPadding) }
+    SettingsPageScaffold(stringResource(R.string.settings_network_title), onBack) {
+        item { SectionLabel(stringResource(R.string.settings_network_proxy_section), SectionPadding) }
         item {
             CardGroup {
                 ListRow(
-                    title = proxy?.let { "${it.type.label()} ${it.host}:${it.port}" } ?: "No proxy",
-                    subtitle = proxy?.let { if (it.hasCredentials) "With a sign-in" else "No sign-in" } ?: "Model providers connect directly",
+                    title = proxy?.let { stringResource(R.string.settings_network_proxy_address, it.type.label(), it.host, it.port) } ?: stringResource(R.string.settings_network_no_proxy),
+                    subtitle = proxy?.let { stringResource(if (it.hasCredentials) R.string.settings_network_with_sign_in else R.string.settings_network_no_sign_in) }
+                        ?: stringResource(R.string.settings_network_direct),
                     onClick = { editingProxy = true },
                     leading = { IconTile(LocusIcons.Server) },
                     trailing = { RowChevron() },
@@ -153,23 +155,22 @@ internal fun NetworkSettings(
         }
         item {
             SectionNote(
-                "Used by every model provider set to Default. Addresses on this phone always connect directly. " +
-                    "Integrations, MCP servers and web fetches don't use it. A provider can pick No proxy or its own proxy under Network when you edit it.",
+                stringResource(R.string.settings_network_proxy_note),
                 NotePadding,
             )
         }
         // The link's text lines up with the note above (its button has an xs inset of its own).
         item { SettingsLink(SettingsDestination.Models, Modifier.padding(start = Spacing.md)) }
 
-        item { SectionLabel("Trusted certificates", SectionPadding) }
+        item { SectionLabel(stringResource(R.string.settings_network_certificates_section), SectionPadding) }
         state.message?.let { (text, failed) ->
             item {
                 Banner(
-                    if (failed) "$text Export the CA certificate as a .pem, .crt or .cer file and import that." else text,
+                    if (failed) stringResource(R.string.settings_network_import_failed_hint, text) else text,
                     if (failed) Tone.Critical else Tone.Brand,
                     modifier = Modifier.padding(bottom = Spacing.md),
-                    title = if (failed) "Couldn't import the certificate" else null,
-                    actions = { TextButton(onClick = onDismissMessage) { Text("Dismiss") } },
+                    title = if (failed) stringResource(R.string.settings_network_import_failed_title) else null,
+                    actions = { TextButton(onClick = onDismissMessage) { Text(stringResource(R.string.settings_network_dismiss)) } },
                 )
             }
         }
@@ -186,21 +187,20 @@ internal fun NetworkSettings(
                         trailing = {
                             when {
                                 // A choice the user made, worth noticing, not an error.
-                                cert.allProviders -> StatusPill("All providers", Tone.Caution)
-                                cert.notAfter < System.currentTimeMillis() -> StatusPill("Expired", Tone.Caution)
+                                cert.allProviders -> StatusPill(stringResource(R.string.settings_network_all_providers), Tone.Caution)
+                                cert.notAfter < System.currentTimeMillis() -> StatusPill(stringResource(R.string.settings_network_expired), Tone.Caution)
                             }
                             RowChevron()
                         },
                     )
                 }
                 if (state.defaults.certificates.isNotEmpty()) GroupDivider(inset = Insets.iconRow)
-                AddRow("Import a certificate") { onImport() }
+                AddRow(stringResource(R.string.settings_network_import)) { onImport() }
             }
         }
         item {
             SectionNote(
-                "For a private server or a company gateway with its own CA. Pick a .pem, .crt or .cer file. A certificate is trusted only by the providers that tick it, " +
-                    "on top of the system's certificates; the rest of the app and other apps are not affected.",
+                stringResource(R.string.settings_network_certificates_note),
                 NotePadding,
             )
         }
@@ -245,16 +245,16 @@ private fun DefaultProxySheet(proxy: ProxyConfig?, credentialsSaved: Boolean, on
     val config = ProxyConfig(type, host.trim(), port.toIntOrNull() ?: 0, hasCredentials = auth).takeIf { it.isValid }
     val needsCredentials = auth && !credentialsSaved && user.isEmpty() && password.isEmpty()
     LocusSheet(
-        title = "Default proxy",
-        subtitle = "For model providers set to Default.",
+        title = stringResource(R.string.settings_network_proxy_section),
+        subtitle = stringResource(R.string.settings_network_sheet_subtitle),
         onDismiss = onDismiss,
-        action = "Save",
+        action = stringResource(R.string.settings_network_save),
         actionEnabled = !enabled || (config != null && !needsCredentials),
         onAction = {
             onSave(if (enabled) config else null, if (enabled && auth && (user.isNotEmpty() || password.isNotEmpty())) user to password else null)
         },
     ) {
-        Segmented(listOf("No proxy", "Use a proxy"), selected = if (enabled) 1 else 0, onSelect = { enabled = it == 1 }, modifier = Modifier.fillMaxWidth())
+        Segmented(listOf(stringResource(R.string.settings_network_no_proxy), stringResource(R.string.settings_network_use_proxy)), selected = if (enabled) 1 else 0, onSelect = { enabled = it == 1 }, modifier = Modifier.fillMaxWidth())
         if (enabled) {
             ProxyFields(
                 type = type, onType = { type = it },
@@ -284,38 +284,37 @@ private fun CertificateSheet(
         val date = DateFormat.getDateInstance(DateFormat.LONG).format(Date(cert.notAfter))
         if (expired) {
             Banner(
-                title = "Expired $date",
-                text = "Servers that still use it fail to connect. Import the CA's new certificate, then remove this one.",
+                title = stringResource(R.string.settings_network_cert_expired_title, date),
+                text = stringResource(R.string.settings_network_cert_expired_text),
                 tone = Tone.Caution,
             )
         }
-        Detail("SHA-256 fingerprint", fingerprintLines(cert.sha256))
-        if (!expired) Detail("Expires", date)
+        Detail(stringResource(R.string.settings_network_cert_fingerprint), fingerprintLines(cert.sha256))
+        if (!expired) Detail(stringResource(R.string.settings_network_cert_expires), date)
         SupportingText(
-            "Check the fingerprint with whoever runs the server before you trust it.",
+            stringResource(R.string.settings_network_cert_check),
         )
         CardGroup {
             SwitchRow(
-                title = "Trust for every provider",
+                title = stringResource(R.string.settings_network_cert_trust_all),
                 checked = cert.allProviders,
                 onCheckedChange = { on -> if (on) confirmAll = true else onSetTrustedByAll(false) },
             )
         }
         if (cert.allProviders) {
             Banner(
-                "Whoever holds this CA's key can read and change your traffic to every model provider, including your API keys. Turn this off unless you need it.",
+                stringResource(R.string.settings_network_cert_trust_all_warning),
                 Tone.Critical,
             )
         }
-        CriticalOutlinedButton("Remove certificate", onClick = { confirmRemove = true })
+        CriticalOutlinedButton(stringResource(R.string.settings_network_cert_remove), onClick = { confirmRemove = true })
     }
 
     if (confirmAll) {
         ConfirmSheet(
-            title = "Trust for every provider?",
-            message = "Every model provider will accept servers signed by ${cert.subject}. Whoever holds its key could then read and change those connections, " +
-                "including your API keys and chats. Only do this for a CA you control, such as your company's gateway.",
-            confirmLabel = "Trust everywhere",
+            title = stringResource(R.string.settings_network_cert_trust_all_title),
+            message = stringResource(R.string.settings_network_cert_trust_all_message, cert.subject),
+            confirmLabel = stringResource(R.string.settings_network_cert_trust_all_confirm),
             tone = Tone.Critical,
             onConfirm = {
                 onSetTrustedByAll(true)
@@ -326,9 +325,9 @@ private fun CertificateSheet(
     }
     if (confirmRemove) {
         ConfirmSheet(
-            title = "Remove ${cert.subject}?",
-            message = "Providers that trust it stop connecting to servers it signed.",
-            confirmLabel = "Remove",
+            title = stringResource(R.string.settings_network_cert_remove_title, cert.subject),
+            message = stringResource(R.string.settings_network_cert_remove_message),
+            confirmLabel = stringResource(R.string.settings_network_cert_remove_confirm),
             tone = Tone.Critical,
             onConfirm = onRemove,
             onDismiss = { confirmRemove = false },

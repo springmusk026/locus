@@ -4,6 +4,8 @@ import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.core.net.toUri
 import android.os.Build
 import android.provider.Settings
@@ -168,20 +170,29 @@ object PhoneSystemPages {
 
 /** Locus's explanation before Android's calendar prompt, here and when a calendar tool first needs it. */
 @Composable
-fun CalendarRationaleSheet(onContinue: () -> Unit, onDismiss: () -> Unit, title: String = CALENDAR_RATIONALE_TITLE, message: String = CALENDAR_RATIONALE_TEXT) {
-    ConfirmSheet(title = title, confirmLabel = "Continue", onConfirm = onContinue, onDismiss = onDismiss, message = message, dismissLabel = "Not now")
+fun CalendarRationaleSheet(onContinue: () -> Unit, onDismiss: () -> Unit, title: String = stringResource(R.string.settings_phone_rationale_title), message: String = stringResource(R.string.settings_phone_rationale_text)) {
+    ConfirmSheet(
+        title = title,
+        confirmLabel = stringResource(R.string.settings_phone_rationale_continue),
+        onConfirm = onContinue,
+        onDismiss = onDismiss,
+        message = message,
+        dismissLabel = stringResource(R.string.settings_phone_not_now),
+    )
 }
 
 /** When Android won't show its prompt again: what to do, with a way to App info. */
 @Composable
 fun PermissionBlockedSheet(message: String, onAppInfo: () -> Unit, onDismiss: () -> Unit) {
-    ConfirmSheet(title = "Turned off in Android", confirmLabel = "Open App info", onConfirm = onAppInfo, onDismiss = onDismiss, message = message, dismissLabel = "Not now")
+    ConfirmSheet(
+        title = stringResource(R.string.settings_phone_blocked_title),
+        confirmLabel = stringResource(R.string.settings_phone_blocked_open),
+        onConfirm = onAppInfo,
+        onDismiss = onDismiss,
+        message = message,
+        dismissLabel = stringResource(R.string.settings_phone_not_now),
+    )
 }
-
-internal const val CALENDAR_RATIONALE_TITLE = "Let Locus change your calendar?"
-internal const val CALENDAR_RATIONALE_TEXT =
-    "Locus needs calendar access to add, change or delete events when you ask. It only writes to the one calendar you pick " +
-        "here, and each change shows you the event first. Events sync to that calendar's account."
 
 @Composable
 internal fun PhoneSettings(
@@ -194,16 +205,16 @@ internal fun PhoneSettings(
     onNotifications: () -> Unit,
 ) {
     val probe = state.probe
-    SettingsPageScaffold("Phone", onBack) {
-        item { SectionLabel("Calendar Locus may change", SectionPadding) }
+    SettingsPageScaffold(stringResource(R.string.settings_phone_title), onBack) {
+        item { SectionLabel(stringResource(R.string.settings_phone_calendar_section), SectionPadding) }
         item {
             CardGroup {
                 when {
-                    !probe.loaded -> ListRow("Checking calendar access…", leading = { IconTile(LocusIcons.Calendar) })
+                    !probe.loaded -> ListRow(stringResource(R.string.settings_phone_checking), leading = { IconTile(LocusIcons.Calendar) })
                     // Whole rows are the buttons (with a chevron): a text button beside the words squeezes them at a large font.
                     probe.access == CalendarAccess.NOT_ASKED -> ListRow(
-                        title = "Allow calendar access",
-                        subtitle = "Then pick the calendar Locus adds events to.",
+                        title = stringResource(R.string.settings_phone_allow_title),
+                        subtitle = stringResource(R.string.settings_phone_allow_subtitle),
                         titleMaxLines = 2,
                         subtitleMaxLines = Int.MAX_VALUE,
                         onClick = onAllowCalendar,
@@ -211,8 +222,8 @@ internal fun PhoneSettings(
                         trailing = { RowChevron() },
                     )
                     probe.access == CalendarAccess.BLOCKED -> ListRow(
-                        title = "Calendar access is off",
-                        subtitle = "Android won't ask again. Open App info → Permissions → Calendar to allow it.",
+                        title = stringResource(R.string.settings_phone_off_title),
+                        subtitle = stringResource(R.string.settings_phone_off_subtitle),
                         titleMaxLines = 2,
                         subtitleMaxLines = Int.MAX_VALUE,
                         onClick = onAppInfo,
@@ -220,8 +231,8 @@ internal fun PhoneSettings(
                         trailing = { RowChevron() },
                     )
                     probe.calendars.isEmpty() -> ListRow(
-                        title = "No calendar can be changed",
-                        subtitle = "Every calendar on this phone is read-only or not synced. Add an account in your calendar app, then come back.",
+                        title = stringResource(R.string.settings_phone_none_title),
+                        subtitle = stringResource(R.string.settings_phone_none_subtitle),
                         subtitleMaxLines = Int.MAX_VALUE,
                         leading = { IconTile(LocusIcons.Calendar) },
                     )
@@ -230,7 +241,10 @@ internal fun PhoneSettings(
                         val selected = c.id == state.selectedId
                         ListRow(
                             title = c.name,
-                            subtitle = listOfNotNull(c.account.takeIf { it.isNotBlank() && it != c.name }, "default".takeIf { c.primary && state.chosenId == null }).joinToString(" · ").ifEmpty { null },
+                            subtitle = listOfNotNull(
+                                c.account.takeIf { it.isNotBlank() && it != c.name },
+                                stringResource(R.string.settings_phone_calendar_default).takeIf { c.primary && state.chosenId == null },
+                            ).takeIf { it.isNotEmpty() }?.let { summaryJoin(it) },
                             titleMaxLines = 2,
                             onClick = { onPick(c) },
                             leading = { IconTile(LocusIcons.Calendar) },
@@ -243,25 +257,23 @@ internal fun PhoneSettings(
         // A picked calendar that has gone (account removed, made read-only) is said plainly.
         if (probe.access == CalendarAccess.ALLOWED && state.chosenId != null && probe.calendars.none { it.id == state.chosenId }) {
             item {
-                SectionNote("“${state.chosenName.ifBlank { "The calendar you picked" }}” can't be changed any more. Pick another, or Locus won't write to the calendar.", NotePadding)
+                SectionNote(stringResource(R.string.settings_phone_gone_note, state.chosenName.ifBlank { stringResource(R.string.settings_phone_gone_name) }), NotePadding)
             }
         }
         item {
             SectionNote(
-                "Locus adds and changes events only in this calendar; others stay read-only to it. Adding or changing an event asks you " +
-                    "first (you can say “don't ask again” for this calendar). Deleting an event or inviting guests always asks, because " +
-                    "the calendar's server emails the guests.",
+                stringResource(R.string.settings_phone_calendar_note),
                 NotePadding,
             )
         }
-        item { SectionLabel("Reminders", SectionPadding) }
+        item { SectionLabel(stringResource(R.string.settings_phone_reminders_section), SectionPadding) }
         item {
             CardGroup {
                 // Below Android 12 exact alarms need no grant, so there's nothing to open.
                 val canChangeExact = Build.VERSION.SDK_INT >= 31
                 ListRow(
-                    title = "Exact timing",
-                    subtitle = if (probe.exactAlarms) "On: reminders show on the minute." else "Off: reminders can show up to 10 minutes late. Turn on Alarms & reminders for Locus.",
+                    title = stringResource(R.string.settings_phone_exact_title),
+                    subtitle = stringResource(if (probe.exactAlarms) R.string.settings_phone_exact_on else R.string.settings_phone_exact_off),
                     subtitleMaxLines = Int.MAX_VALUE,
                     onClick = onExactAlarms.takeIf { canChangeExact },
                     leading = { IconTile(LocusIcons.Clock) },
@@ -269,8 +281,8 @@ internal fun PhoneSettings(
                 )
                 GroupDivider(inset = Insets.iconRow)
                 ListRow(
-                    title = "Notifications",
-                    subtitle = if (probe.notifications) "On: reminders appear with Snooze and Done." else "Off: reminders won't show until you allow notifications for Locus.",
+                    title = stringResource(R.string.settings_phone_notifications_title),
+                    subtitle = stringResource(if (probe.notifications) R.string.settings_phone_notifications_on else R.string.settings_phone_notifications_off),
                     subtitleMaxLines = Int.MAX_VALUE,
                     onClick = onNotifications,
                     leading = { if (probe.notifications) IconTile(LocusIcons.Check) else IconTile(LocusIcons.Alert, tint = Tone.Critical.color()) },
@@ -280,9 +292,11 @@ internal fun PhoneSettings(
         }
         item {
             SectionNote(
-                (if (state.upcoming > 0) "${state.upcoming} reminder${if (state.upcoming == 1) "" else "s"} to come; see and cancel them in Scheduled tasks. " else "") +
-                    "A reminder is a notification from Locus: nothing runs when it shows. Exact timing uses Android's “Alarms & reminders” " +
-                    "access; without it Android may hold a reminder for up to 10 minutes to save battery.",
+                if (state.upcoming > 0) {
+                    pluralStringResource(R.plurals.settings_phone_reminders_note_upcoming, state.upcoming, state.upcoming)
+                } else {
+                    stringResource(R.string.settings_phone_reminders_note)
+                },
                 NotePadding,
             )
         }

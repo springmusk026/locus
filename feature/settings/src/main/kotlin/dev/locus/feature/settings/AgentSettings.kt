@@ -13,6 +13,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.ListRow
@@ -37,13 +38,13 @@ internal fun AgentSettings(
     onSetHelperReports: (Boolean) -> Unit = {},
     onSetHelperTimeout: (Int) -> Unit = {},
 ) {
-    SettingsPageScaffold("Agent", onBack) {
-        item { SectionLabel("Identity", SectionPadding) }
+    SettingsPageScaffold(stringResource(R.string.settings_agent_title), onBack) {
+        item { SectionLabel(stringResource(R.string.settings_agent_identity_section), SectionPadding) }
         item {
             CardGroup {
                 ListRow(
-                    title = "Agent identity",
-                    subtitle = "Name and personality, from setup",
+                    title = stringResource(R.string.settings_agent_identity_title),
+                    subtitle = stringResource(R.string.settings_agent_identity_subtitle),
                     subtitleMaxLines = 2,
                     onClick = onOpenAgentSetup,
                     leading = { IconTile(LocusIcons.Edit) },
@@ -51,10 +52,10 @@ internal fun AgentSettings(
                 )
             }
         }
-        item { SectionLabel("Custom instructions", SectionPadding) }
+        item { SectionLabel(stringResource(R.string.settings_agent_instructions_section), SectionPadding) }
         item { InstructionsEditor(state.customInstructions, onSaveInstructions) }
-        item { SectionNote("Added to every new chat. Keep it short; Locus also learns from memory and skills.", NotePadding) }
-        item { SectionLabel("Task budget", SectionPadding) }
+        item { SectionNote(stringResource(R.string.settings_agent_instructions_note), NotePadding) }
+        item { SectionLabel(stringResource(R.string.settings_agent_budget_section), SectionPadding) }
         item {
             LocusCard {
                 dev.locus.core.designsystem.TaskBudgetEditor(
@@ -67,24 +68,23 @@ internal fun AgentSettings(
         }
         item {
             SectionNote(
-                "The default limit for each task and the helpers it starts. At a limit Locus pauses between steps and asks whether to go on. " +
-                    "Cached input counts at a tenth, and time waiting for you doesn't count. A chat can set its own in the composer's options.",
+                stringResource(R.string.settings_agent_budget_note),
                 NotePadding,
             )
         }
-        item { SectionLabel("Helpers", SectionPadding) }
+        item { SectionLabel(stringResource(R.string.settings_agent_helpers_section), SectionPadding) }
         item {
             CardGroup {
                 SwitchRow(
-                    title = "Continue when a helper reports back",
+                    title = stringResource(R.string.settings_agent_helper_reports_title),
                     checked = state.subagentReportsContinue,
                     onCheckedChange = onSetHelperReports,
-                    subtitle = "When a background helper finishes after the reply, Locus picks the chat up again with its report",
+                    subtitle = stringResource(R.string.settings_agent_helper_reports_subtitle),
                     icon = LocusIcons.Branch,
                 )
             }
         }
-        item { SectionLabel("Helper time limit", SectionPadding) }
+        item { SectionLabel(stringResource(R.string.settings_agent_time_limit_section), SectionPadding) }
         item {
             val choices = HelperTimeLimit.CHOICES
             LocusCard {
@@ -98,9 +98,7 @@ internal fun AgentSettings(
         }
         item {
             SectionNote(
-                "How long one helper may work, including time waiting for your approval. When it runs out, or you stop a helper, it " +
-                    "hands back what it had: its last reply, its tool results and the files it changed, marked as a partial result. The " +
-                    "agent can continue it from there. Applies to helpers started from now on.",
+                stringResource(R.string.settings_agent_time_limit_note),
                 NotePadding,
             )
         }
@@ -114,12 +112,12 @@ private fun InstructionsEditor(saved: String, onSave: (String) -> Unit) {
         TextArea(
             value = text,
             onValueChange = { text = it },
-            placeholder = "e.g. Reply briefly. Keep notes in notes/. I work in UTC+5:45.",
+            placeholder = stringResource(R.string.settings_agent_instructions_placeholder),
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
             // The note under the card says what this is; here only the button.
             Box(Modifier.weight(1f))
-            TextButton(onClick = { onSave(text) }, enabled = text != saved) { Text("Save") }
+            TextButton(onClick = { onSave(text) }, enabled = text != saved) { Text(stringResource(R.string.settings_agent_instructions_save)) }
         }
     }
 }

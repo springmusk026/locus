@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.ui.res.stringResource
 import dev.locus.core.data.mcp.McpTemplate
 import dev.locus.core.data.mcp.McpTemplates
 import dev.locus.core.data.mcp.McpFirstStatus
@@ -69,20 +70,20 @@ internal fun IntegrationsSettings(
     var keyFor by remember { mutableStateOf<Integration?>(null) }
     LaunchedEffect(Unit) { onCheckMcp() }
 
-    SettingsPageScaffold("Integrations & connectors", onBack) {
-        item { SectionLabel("Integrations", SectionPadding) }
+    SettingsPageScaffold(stringResource(R.string.settings_integrations_title), onBack) {
+        item { SectionLabel(stringResource(R.string.settings_integrations_section), SectionPadding) }
         item {
             CardGroup {
                 state.integrations.forEachIndexed { i, (integration, hasKey) ->
                     if (i > 0) GroupDivider(inset = Insets.iconRow)
                     val mcpHint: (@Composable () -> Unit)? = when {
-                        state.mcpFirst[integration.id]?.usingMcp == true -> ({ McpHint("Using its MCP server", Tone.Brand) })
-                        officialMcp(integration.id) != null -> ({ McpHint("MCP server available", Tone.Neutral) })
+                        state.mcpFirst[integration.id]?.usingMcp == true -> ({ McpHint(stringResource(R.string.settings_integrations_mcp_using), Tone.Brand) })
+                        officialMcp(integration.id) != null -> ({ McpHint(stringResource(R.string.settings_integrations_mcp_available), Tone.Neutral) })
                         else -> null
                     }
                     val status = @Composable {
-                        if (hasKey) StatusPill("Connected", Tone.Live, dot = true)
-                        else StatusPill(if (integration.id in SET_UP) "Set up" else "Add key", Tone.Neutral)
+                        if (hasKey) StatusPill(stringResource(R.string.settings_integrations_connected), Tone.Live, dot = true)
+                        else StatusPill(stringResource(if (integration.id in SET_UP) R.string.settings_integrations_set_up else R.string.settings_integrations_add_key), Tone.Neutral)
                     }
                     // At a large font the status joins the chips under the text, so the name keeps the row's width.
                     val large = LocalDensity.current.fontScale > LARGE_FONT
@@ -109,20 +110,20 @@ internal fun IntegrationsSettings(
             }
         }
         item { SectionNote(searchOrderNote(), NotePadding) }
-        item { SectionLabel("Connectors", SectionPadding) }
+        item { SectionLabel(stringResource(R.string.settings_integrations_connectors_section), SectionPadding) }
         item {
             CardGroup {
                 ListRow(
-                    title = "Connectors & MCP servers",
-                    subtitle = "Add MCP servers and review connectors Locus drafted",
+                    title = stringResource(R.string.settings_integrations_connectors_title),
+                    subtitle = stringResource(R.string.settings_integrations_connectors_subtitle),
                     onClick = onOpenConnectors,
                     leading = { IconTile(LocusIcons.Plug) },
                     trailing = { RowChevron() },
                 )
                 GroupDivider(inset = Insets.iconRow)
                 ListRow(
-                    title = "Home & self-hosted services",
-                    subtitle = "Home Assistant, Miniflux, Paperless, Immich, Mastodon, Todoist and more",
+                    title = stringResource(R.string.settings_integrations_home_title),
+                    subtitle = stringResource(R.string.settings_integrations_home_subtitle),
                     subtitleMaxLines = 2,
                     onClick = { onUseMcpTemplate(dev.locus.core.data.connectors.ConnectorTemplates.PICKER) },
                     leading = { IconTile(LocusIcons.Server) },
@@ -180,8 +181,8 @@ private fun McpFirstCard(integration: Integration, status: McpFirstStatus, onSet
             Text(mcpFirstTitle(status), style = LocusType.cardTitle)
             SupportingText(mcpFirstBody(integration, status, server))
             when {
-                status.usingMcp -> TextButton(onClick = { onSetUseMcp(false) }) { Text("Use the built-in tools instead") }
-                status.keptBuiltIn -> TextButton(onClick = { onSetUseMcp(true) }) { Text("Use the MCP server in new chats") }
+                status.usingMcp -> TextButton(onClick = { onSetUseMcp(false) }) { Text(stringResource(R.string.settings_integrations_use_builtin)) }
+                status.keptBuiltIn -> TextButton(onClick = { onSetUseMcp(true) }) { Text(stringResource(R.string.settings_integrations_use_mcp)) }
             }
         }
     }
@@ -211,18 +212,17 @@ private fun UseMcpCard(integration: Integration, template: McpTemplate, onUse: (
             // Search keys also power web_search's fallback chain, which an MCP server can't join.
             val search = integration in Integrations.searchOrder
             Text(
-                if (search) "Also available: ${template.vendor}'s MCP server" else "Recommended: ${template.vendor}'s MCP server",
+                stringResource(if (search) R.string.settings_integrations_card_also else R.string.settings_integrations_card_recommended, template.vendor),
                 style = LocusType.cardTitle,
             )
             SupportingText(
                 if (search) {
-                    "Adds the rest of ${template.vendor}'s tools, such as fetching and crawling pages. Web search keeps using the key saved here. ${template.authSummary}."
+                    stringResource(R.string.settings_integrations_card_search_body, template.vendor, template.authSummary)
                 } else {
-                    "Maintained by ${template.vendor} and covers more than these built-in tools. ${template.authSummary}. " +
-                        "The built-in ${integration.name} tools keep working if you stay with them."
+                    stringResource(R.string.settings_integrations_card_body, template.vendor, template.authSummary, integration.name)
                 },
             )
-            Button(onClick = onUse) { Text("Use the official MCP server") }
+            Button(onClick = onUse) { Text(stringResource(R.string.settings_integrations_card_use)) }
         }
     }
 }
@@ -234,9 +234,9 @@ private const val LARGE_FONT = 1.3f
 private val SET_UP = setOf("telegram", "ntfy", "email")
 
 /** The web search fallback order, named from [Integrations.searchOrder]. */
+@Composable
 internal fun searchOrderNote(): String =
-    "Web search uses the first connected search service, in this order: ${Integrations.searchOrder.joinToString { it.name }}. " +
-        "Keys and tokens stay encrypted on this phone; the AI never sees them."
+    stringResource(R.string.settings_integrations_search_order, Integrations.searchOrder.joinToString { it.name })
 
 /** Adds, replaces or removes one integration's key; [onSave] with null removes it. */
 @Composable
@@ -258,7 +258,7 @@ private fun IntegrationKeySheet(
         // No subtitle: the description below starts with the same words.
         title = integration.name,
         onDismiss = onDismiss,
-        action = "Save",
+        action = stringResource(R.string.settings_integrations_save),
         actionEnabled = value.isNotBlank(),
         onAction = { onSave(value) },
     ) {
@@ -267,23 +267,23 @@ private fun IntegrationKeySheet(
         else officialMcp(integration.id)?.let { template -> onUseMcp?.let { UseMcpCard(integration, template, it) } }
         OutlinedTextField(
             value, { value = it },
-            label = { Text(if (hasKey) "${integration.keyLabel} (saved — type to replace)" else integration.keyLabel) },
+            label = { Text(if (hasKey) stringResource(R.string.settings_integrations_key_saved, integration.keyLabel) else integration.keyLabel) },
             supportingText = integration.keyHelp?.let { { Text(it) } },
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
         )
-        SupportingText("Stored encrypted on this phone. The AI never sees it.")
+        SupportingText(stringResource(R.string.settings_integrations_key_stored))
         // Side by side while they fit; at a large font "Remove key" moves to its own line instead of breaking.
         FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             TextButton(onClick = { uriHandler.openUri(integration.signupUrl) }) { Text(integration.linkLabel) }
-            if (hasKey) TextButton(onClick = { confirmRemove = true }) { Text("Remove key", color = Locus.colors.critical) }
+            if (hasKey) TextButton(onClick = { confirmRemove = true }) { Text(stringResource(R.string.settings_integrations_remove_key), color = Locus.colors.critical) }
         }
     }
     if (confirmRemove) {
         ConfirmSheet(
-            title = "Remove the ${integration.name} key?",
-            message = "It's deleted from this phone, and the agent can't use ${integration.name} until you add one again.",
-            confirmLabel = "Remove",
+            title = stringResource(R.string.settings_integrations_remove_title, integration.name),
+            message = stringResource(R.string.settings_integrations_remove_message, integration.name),
+            confirmLabel = stringResource(R.string.settings_integrations_remove_confirm),
             tone = Tone.Critical,
             onConfirm = { confirmRemove = false; onSave(null) },
             onDismiss = { confirmRemove = false },

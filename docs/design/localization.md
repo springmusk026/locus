@@ -69,3 +69,62 @@ The model answers in the user's language when the user writes in it; the scaffol
 - Nothing is cut off or squeezed in es and pt, which often run longer than English: render the module's screens (`recordRoborazziDebug`) in each language, at 200% font too.
 - Chinese wraps at any character, and buttons and chips with Chinese text keep their line breaks sensible: check the renders.
 - `translatable="false"` is on brand names, URLs, commands and ids, and on nothing a person reads as a sentence.
+
+## Glossary
+
+One term per concept, reused across modules. New translations follow this table; change a row only together with every string that uses it.
+
+| English | Español | Português | 简体中文 |
+|---|---|---|---|
+| workspace | espacio de trabajo | espaço de trabalho | 工作区 |
+| task (scheduled) | tarea | tarefa | 任务 |
+| scheduled task | tarea programada | tarefa agendada | 定时任务 |
+| schedule (verb) | programar | agendar | 设置定时 |
+| skill | habilidad | habilidade | 技能 |
+| memory | memoria | memória | 记忆 |
+| connector | conector | conector | 连接器 |
+| helper (sub-agent) | ayudante | ajudante | 助手 |
+| agent | agente | agente | 智能体 |
+| workflow | flujo de trabajo | fluxo de trabalho | 工作流 |
+| provider | proveedor | provedor | 提供商 |
+| model | modelo | modelo | 模型 |
+| chat | chat | chat | 对话 |
+| run (noun) / run (verb) | ejecución / ejecutar | execução / executar | 运行 |
+| action (a tool call) | acción | ação | 操作 |
+| tool | herramienta | ferramenta | 工具 |
+| approval / approve | aprobación / aprobar | aprovação / aprovar | 批准 |
+| allow | permitir | permitir | 允许 |
+| deny | rechazar | negar | 拒绝 |
+| reject (a draft) | rechazar | rejeitar | 驳回 |
+| dismiss | descartar | dispensar | 忽略 |
+| reviewer (safety) | revisor | revisor | 审查器 |
+| trash | papelera | lixeira | 回收站 |
+| delete | eliminar | excluir | 删除 |
+| remove | quitar | remover | 移除 |
+| save | guardar | salvar | 保存 |
+| settings | ajustes | configurações | 设置 |
+| sign in / login (saved) | iniciar sesión / inicio de sesión | entrar / login | 登录 |
+| password | contraseña | senha | 密码 |
+| key (API key) | clave | chave | 密钥 |
+| token | token | token | 令牌 |
+| phone | teléfono | telefone | 手机 |
+| file / folder | archivo / carpeta | arquivo / pasta | 文件 / 文件夹 |
+| tab (browser) | pestaña | aba | 标签页 |
+| terminal | terminal | terminal | 终端 |
+| package (apk) | paquete | pacote | 软件包 |
+| digest | resumen | resumo | 摘要 |
+| event (task trigger) | evento | evento | 事件 |
+| quiet hours | horas de silencio | horário silencioso | 免打扰时段 |
+| reminder | recordatorio | lembrete | 提醒 |
+| receipt (of a run) | recibo | recibo | 回执 |
+| failed | con error | com falha | 失败 |
+| preview | vista previa | prévia | 预览 |
+| library | biblioteca | biblioteca | 资料库 |
+| insights | estadísticas | estatísticas | 统计 |
+| take over / hand back (browser) | tomar control / devolver | assumir / devolver | 接管 / 交还 |
+
+Notes:
+
+- Plurals in Spanish and Portuguese copy `other` into `many` where the noun needs no change ("1 000 000 acciones"); fix any `many` that needs "de" ("1 000 000 de acciones") when a string is next reviewed.
+- Stepper chips and other tight spots may use a shorter word than the table (onboarding: "Espacio" / "Espaço" for the Workspace step).
+- Phrases where English builds a sentence around another string (see the fragments listed in the translation PR) keep the English word order only where the target language allows it.

@@ -1,9 +1,11 @@
 package dev.locus.feature.settings
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.ListRow
@@ -16,14 +18,15 @@ import java.util.Locale
  * [dev.locus.core.designsystem.AppLocale.set], empty for "Same as phone"; the others are the tags in the
  * generated LocaleConfig, so the choice matches App info → Language on Android 13+.
  */
-internal data class AppLanguage(val tag: String, val name: String)
+internal data class AppLanguage(val tag: String, val name: String, @StringRes val nameRes: Int = 0)
 
 /**
  * Not translated: each language is named in its own language, so whoever set the wrong one can find
  * theirs. They stay literals (or `translatable="false"`) when the screen's strings move to resources.
  */
 internal val AppLanguages = listOf(
-    AppLanguage("", "Same as phone"),
+    // The name is only the fallback for code without a Context ([languageSummary]); screens show nameRes.
+    AppLanguage("", "Same as phone", R.string.settings_language_same_as_phone),
     AppLanguage("en-US", "English"),
     AppLanguage("es", "Español"),
     // values-pt holds Brazilian Portuguese.
@@ -56,22 +59,27 @@ private val TRADITIONAL_REGIONS = setOf("TW", "HK", "MO")
 internal fun languageSummary(tags: String): String =
     appLanguageFor(tags)?.name ?: Locale.forLanguageTag(tags.substringBefore(',').trim()).let { it.getDisplayName(it) }
 
+/** [languageSummary] for a screen: "Same as phone" comes from resources, so it follows the language. */
+@Composable
+internal fun languageSummaryText(tags: String): String =
+    if (tags.substringBefore(',').trim().isEmpty()) stringResource(R.string.settings_language_same_as_phone) else languageSummary(tags)
+
 /** Settings → Language: one row per language, the current one checked. Picking one closes the sheet. */
 @Composable
 internal fun LanguageSheet(current: String, onPick: (String) -> Unit, onDismiss: () -> Unit) {
     val selected = appLanguageFor(current)
-    LocusSheet(title = "Language", onDismiss = onDismiss) {
+    LocusSheet(title = stringResource(R.string.settings_language_title), onDismiss = onDismiss) {
         Column {
             CardGroup {
                 AppLanguages.forEachIndexed { i, language ->
                     if (i > 0) GroupDivider()
                     ListRow(
-                        title = language.name,
+                        title = if (language.nameRes != 0) stringResource(language.nameRes) else language.name,
                         titleMaxLines = 2,
                         onClick = { onPick(language.tag) },
                         trailing = {
                             if (language == selected) {
-                                Icon(LocusIcons.Check, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary)
+                                Icon(LocusIcons.Check, contentDescription = stringResource(R.string.settings_language_selected), tint = MaterialTheme.colorScheme.primary)
                             }
                         },
                     )

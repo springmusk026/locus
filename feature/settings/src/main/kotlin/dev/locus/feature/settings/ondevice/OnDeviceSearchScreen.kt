@@ -12,6 +12,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
@@ -36,6 +37,7 @@ import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.compactCount
 import dev.locus.core.ondevice.gguf.HfHub
 import dev.locus.core.ondevice.gguf.HfRepo
+import dev.locus.feature.settings.R
 
 /** Search Hugging Face for GGUF models: its own route (`OnDeviceSearchRoute` in the app). */
 @Composable
@@ -55,13 +57,13 @@ internal fun OnDeviceSearch(
     onSearch: () -> Unit,
     onSort: (HfHub.Sort) -> Unit,
 ) {
-    Scaffold(containerColor = MaterialTheme.colorScheme.background, topBar = { LocusTopBar("Search Hugging Face", onBack = onBack) }) { padding ->
+    Scaffold(containerColor = MaterialTheme.colorScheme.background, topBar = { LocusTopBar(stringResource(R.string.settings_ondevice_search_title), onBack = onBack) }) { padding ->
         LazyColumn(
             Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + Spacing.xxl),
         ) {
             item {
-                SearchField(state.query, onQueryChange = onQuery, placeholder = "Model name, e.g. qwen 2b", requestFocus = state.results is SearchResults.Idle, onSearch = onSearch)
+                SearchField(state.query, onQueryChange = onQuery, placeholder = stringResource(R.string.settings_ondevice_search_placeholder), requestFocus = state.results is SearchResults.Idle, onSearch = onSearch)
             }
             item {
                 // One choice of two: the segmented control, not filter chips.
@@ -78,17 +80,21 @@ internal fun OnDeviceSearch(
                     SearchResults.Idle -> SectionNote(
                         modifier = Modifier.padding(top = Spacing.md),
                         text =
-                        "Only models with files Locus can run are listed. Open one to pick a size. Searching sends only your words to huggingface.co.",
+                        stringResource(R.string.settings_ondevice_search_note),
                     )
                     is SearchResults.Loading -> CardGroup(Modifier.padding(top = Spacing.md)) {
-                        ListRow(title = "Searching for \"${r.query}\"", leading = { IconTile(LocusIcons.Search) }, trailing = { InlineSpinner(contentDescription = "Searching") })
+                        ListRow(
+                            title = stringResource(R.string.settings_ondevice_search_searching, r.query),
+                            leading = { IconTile(LocusIcons.Search) },
+                            trailing = { InlineSpinner(contentDescription = stringResource(R.string.settings_ondevice_search_spinner)) },
+                        )
                     }
-                    is SearchResults.Failed -> ProblemBanner(r.problem, title = r.problem.title ?: "Search didn't work", onRetry = onSearch, modifier = Modifier.padding(top = Spacing.md))
+                    is SearchResults.Failed -> ProblemBanner(r.problem, title = r.problem.title ?: stringResource(R.string.settings_ondevice_search_failed), onRetry = onSearch, modifier = Modifier.padding(top = Spacing.md))
                     is SearchResults.Results -> if (r.repos.isEmpty()) {
                         CardGroup(Modifier.padding(top = Spacing.md)) {
                             ListRow(
-                                title = "No GGUF models match \"${r.query}\"",
-                                subtitle = "Try fewer words, or the model's family name: qwen, llama, gemma, smollm",
+                                title = stringResource(R.string.settings_ondevice_search_empty_title, r.query),
+                                subtitle = stringResource(R.string.settings_ondevice_search_empty_subtitle),
                                 subtitleMaxLines = 3,
                                 leading = { IconTile(LocusIcons.Search) },
                             )
@@ -113,21 +119,29 @@ private fun RepoRow(repo: HfRepo, onOpen: () -> Unit) {
     // "Llama-3.2-1B-Instruct-GGUF" reads as "Llama 3.2 1B Instruct".
     val name = repoDisplayName(repo.id)
     val licence = dev.locus.core.ondevice.gguf.Licences.name(repo.license)
+    val downloads = compactCount(repo.downloads)
+    val spoken = listOfNotNull(
+        name,
+        stringResource(R.string.settings_ondevice_search_by, publisher),
+        stringResource(R.string.settings_ondevice_search_spoken_downloads, downloads),
+        licence,
+        if (repo.gated) stringResource(R.string.settings_ondevice_search_spoken_gated) else null,
+    ).joinToString(", ")
     ListRow(
         title = name,
         // The figure stays with its word at 200% font.
-        subtitle = "$publisher\u00A0· ${compactCount(repo.downloads)}\u00A0downloads",
+        subtitle = stringResource(R.string.settings_ondevice_search_row_subtitle, publisher, downloads),
         subtitleMaxLines = 2,
         // A display name has spaces, so a second line breaks between words, never inside one.
         titleMaxLines = 2,
         onClick = onOpen,
         modifier = Modifier.semantics(mergeDescendants = true) {
-            contentDescription = listOfNotNull(name, "by $publisher", "${compactCount(repo.downloads)} downloads", licence, if (repo.gated) "needs a Hugging Face login" else null).joinToString(", ")
+            contentDescription = spoken
         },
         leading = { IconTile(LocusIcons.Layers) },
         meta = if (licence == null && !repo.gated) null else ({
             ChipFlow {
-                if (repo.gated) LocusChip("Needs login", tone = Tone.Caution)
+                if (repo.gated) LocusChip(stringResource(R.string.settings_ondevice_search_needs_login), tone = Tone.Caution)
                 licence?.let { LocusChip(it) }
             }
         }),

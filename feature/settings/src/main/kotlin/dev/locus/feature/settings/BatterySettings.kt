@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -58,22 +59,28 @@ internal fun BatteryRoute(onBack: () -> Unit, viewModel: BatteryViewModel = hilt
 }
 
 /** Heat, battery saver and low memory, each as a chip in its tone; empty when none applies. */
+@Composable
 internal fun conditionAlerts(now: DeviceState): List<Pair<String, Tone>> = listOfNotNull(
     now.thermal.label.takeIf { now.hot }?.let { it to if (now.critical) Tone.Critical else Tone.Caution },
-    ("Battery saver" to Tone.Caution).takeIf { now.powerSave },
-    ("Memory low" to Tone.Caution).takeIf { now.lowMemory },
+    (stringResource(R.string.settings_battery_alert_saver) to Tone.Caution).takeIf { now.powerSave },
+    (stringResource(R.string.settings_battery_alert_memory) to Tone.Caution).takeIf { now.lowMemory },
 )
 
 /** What's fine or merely a fact: the temperature when it isn't hot, the battery, the network. */
-internal fun calmConditions(now: DeviceState): String = listOfNotNull(
-    now.thermal.label.takeIf { !now.hot },
-    now.batteryPercent?.let { "Battery $it%" + if (now.charging) ", charging" else "" },
-    when (now.network) {
-        NetworkKind.NONE -> "Offline"
-        NetworkKind.METERED -> "Metered network"
-        NetworkKind.UNMETERED -> "Wi-Fi"
-    },
-).joinToString(" · ")
+@Composable
+internal fun calmConditions(now: DeviceState): String = summaryJoin(
+    listOfNotNull(
+        now.thermal.label.takeIf { !now.hot },
+        now.batteryPercent?.let { stringResource(if (now.charging) R.string.settings_battery_level_charging else R.string.settings_battery_level, it) },
+        stringResource(
+            when (now.network) {
+                NetworkKind.NONE -> R.string.settings_battery_network_offline
+                NetworkKind.METERED -> R.string.settings_battery_network_metered
+                NetworkKind.UNMETERED -> R.string.settings_battery_network_wifi
+            },
+        ),
+    ),
+)
 
 @Composable
 internal fun BatterySettings(state: BatteryUiState, onBack: () -> Unit, onChange: (transform: (PowerSettings) -> PowerSettings) -> Unit) {
@@ -81,12 +88,12 @@ internal fun BatterySettings(state: BatteryUiState, onBack: () -> Unit, onChange
     val tasks = power.taskDefaults
     fun setTasks(c: TaskConditions) = onChange { it.copy(taskDefaults = c) }
 
-    SettingsPageScaffold("Battery & heat", onBack) {
+    SettingsPageScaffold(stringResource(R.string.settings_battery_title), onBack) {
         item {
             CardGroup {
                 val alerts = conditionAlerts(state.now)
                 ListRow(
-                    title = "Right now",
+                    title = stringResource(R.string.settings_battery_now_title),
                     subtitle = calmConditions(state.now),
                     subtitleMaxLines = Int.MAX_VALUE,
                     leading = { IconTile(LocusIcons.Gauge) },
@@ -99,70 +106,69 @@ internal fun BatterySettings(state: BatteryUiState, onBack: () -> Unit, onChange
                 )
             }
         }
-        item { SectionLabel("When the phone is hot or in battery saver", SectionPadding) }
+        item { SectionLabel(stringResource(R.string.settings_battery_hot_section), SectionPadding) }
         item {
             CardGroup {
                 SwitchRow(
-                    title = "Pause extras",
+                    title = stringResource(R.string.settings_battery_pause_title),
                     checked = power.deferWhenHot,
                     onCheckedChange = { on -> onChange { it.copy(deferWhenHot = on) } },
-                    subtitle = "Titles, suggestions, lessons and the model catalogue wait; scheduled tasks wait while it's hot. A chat shows Run anyway",
+                    subtitle = stringResource(R.string.settings_battery_pause_subtitle),
                     icon = LocusIcons.Clock,
                 )
                 GroupDivider(inset = Insets.iconRow)
                 SwitchRow(
-                    title = "Ask before on-device replies",
+                    title = stringResource(R.string.settings_battery_ask_title),
                     checked = power.warnOnDevice,
                     onCheckedChange = { on -> onChange { it.copy(warnOnDevice = on) } },
-                    subtitle = "Offers light mode (shorter replies, fewer processor cores) or waiting until the phone cools",
+                    subtitle = stringResource(R.string.settings_battery_ask_subtitle),
                     icon = LocusIcons.Phone,
                 )
             }
         }
         item {
             SectionNote(
-                "“Hot” means Android is already slowing the phone down. Hotter still, Locus ends an on-device reply early and keeps what it wrote. " +
-                    "An unused on-device model is unloaded sooner when it's hot or memory is short. A task you are watching is never paused.",
+                stringResource(R.string.settings_battery_hot_note),
                 NotePadding,
             )
         }
-        item { SectionLabel("New scheduled tasks run only", SectionPadding) }
+        item { SectionLabel(stringResource(R.string.settings_battery_tasks_section), SectionPadding) }
         item {
             CardGroup {
                 SwitchRow(
-                    title = "When the battery isn't low",
+                    title = stringResource(R.string.settings_battery_not_low_title),
                     checked = tasks.batteryNotLow,
                     onCheckedChange = { setTasks(tasks.copy(batteryNotLow = it)) },
-                    subtitle = "Skips the time Android shows its low-battery warning.",
+                    subtitle = stringResource(R.string.settings_battery_not_low_subtitle),
                     icon = LocusIcons.Gauge,
                 )
                 GroupDivider(inset = Insets.iconRow)
                 SwitchRow(
-                    title = "When charging",
+                    title = stringResource(R.string.settings_battery_charging_title),
                     checked = tasks.requiresCharging,
                     onCheckedChange = { setTasks(tasks.copy(requiresCharging = it)) },
-                    subtitle = "Waits until the phone is plugged in.",
+                    subtitle = stringResource(R.string.settings_battery_charging_subtitle),
                     icon = LocusIcons.Plug,
                 )
                 GroupDivider(inset = Insets.iconRow)
                 SwitchRow(
-                    title = "On Wi-Fi",
+                    title = stringResource(R.string.settings_battery_wifi_title),
                     checked = tasks.unmeteredOnly,
                     onCheckedChange = { setTasks(tasks.copy(unmeteredOnly = it)) },
-                    subtitle = "Not on mobile data or another metered network.",
+                    subtitle = stringResource(R.string.settings_battery_wifi_subtitle),
                     icon = LocusIcons.Globe,
                 )
             }
         }
-        item { SectionNote("Each task can change these under Scheduled tasks → Conditions. Run now ignores them.", NotePadding) }
-        item { SectionLabel("Downloads", SectionPadding) }
+        item { SectionNote(stringResource(R.string.settings_battery_tasks_note), NotePadding) }
+        item { SectionLabel(stringResource(R.string.settings_battery_downloads_section), SectionPadding) }
         item {
             CardGroup {
                 SwitchRow(
-                    title = "Download models on Wi-Fi only",
+                    title = stringResource(R.string.settings_battery_downloads_title),
                     checked = power.downloadsUnmeteredOnly,
                     onCheckedChange = { on -> onChange { it.copy(downloadsUnmeteredOnly = on) } },
-                    subtitle = "On-device models are 2.6–3.7 GB. A download on mobile data waits, with Use mobile data to go ahead.",
+                    subtitle = stringResource(R.string.settings_battery_downloads_subtitle),
                     icon = LocusIcons.Import,
                 )
             }
