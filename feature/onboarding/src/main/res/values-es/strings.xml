@@ -243,4 +243,32 @@
     <string name="onboarding_done_integrations">Integraciones</string>
     <string name="onboarding_done_none">Ninguno</string>
     <string name="onboarding_done_checked">Listo</string>
+
+    <!-- Onboarding: results and errors of the steps' actions -->
+    <string name="onboarding_provider_no_models">El proveedor no mostró ningún modelo. Escribe el ID de un modelo.</string>
+    <plurals name="onboarding_provider_models_found">
+        <item quantity="one">%1$d modelo</item>
+        <item quantity="many">%1$d modelos</item>
+        <item quantity="other">%1$d modelos</item>
+    </plurals>
+    <string name="onboarding_provider_signed_in_as">Sesión iniciada como %1$s</string>
+    <string name="onboarding_provider_signed_in">Sesión iniciada</string>
+    <string name="onboarding_provider_saved_default">Guardado como tu modelo predeterminado</string>
+    <string name="onboarding_identity_change_kept">Se conservó %1$s. Los chats nuevos lo usan.</string>
+    <string name="onboarding_identity_change_discarded">Se descartó el cambio en %1$s. Los chats nuevos siguen usando la versión que guardaste.</string>
+    <string name="onboarding_identity_polish_no_model">Primero configura un modelo.</string>
+    <string name="onboarding_identity_polish_no_answer">Tu modelo no respondió, así que se conserva el texto de las plantillas. Revisa el modelo en Ajustes o usa las plantillas tal cual.</string>
+    <string name="onboarding_identity_polish_bad_reply">La respuesta de tu modelo no tenía el formato esperado, así que se conserva el texto de las plantillas.</string>
+    <string name="onboarding_identity_polished">Tu modelo lo reescribió. Revísalo abajo.</string>
+    <string name="onboarding_identity_saved">Guardado. Los chats nuevos lo usan.</string>
+    <string name="onboarding_job_timed_out">Se agotó el tiempo. Inténtalo de nuevo o revisa la conexión.</string>
+    <string name="onboarding_added">Se agregó %1$s</string>
+    <string name="onboarding_test_no_model">Aún no hay ningún modelo configurado. Vuelve al paso Modelo.</string>
+    <string name="onboarding_test_model_downloading">El modelo del teléfono aún no terminó de descargarse.</string>
+    <string name="onboarding_test_empty_reply">(respuesta vacía)</string>
+    <string name="onboarding_test_model_reply">%1$s: “%2$s” · %3$.1f s</string>
+    <string name="onboarding_test_linux_timed_out">Se agotó el tiempo</string>
+    <string name="onboarding_test_linux_exited">Terminó con el código %1$s</string>
+    <string name="onboarding_connectors_ntfy_problem">Eso no es una URL de tema como https://ntfy.sh/tu-tema (opcionalmente seguida de un token tk_).</string>
+    <string name="onboarding_connectors_email_problem">Eso no es una configuración de servidor de correo que Locus pueda leer.</string>
 </resources>

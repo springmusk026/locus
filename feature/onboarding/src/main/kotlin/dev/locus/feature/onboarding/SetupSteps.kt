@@ -1,5 +1,7 @@
 package dev.locus.feature.onboarding
 
+import dev.locus.core.designsystem.asString
+import dev.locus.core.designsystem.UiText
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -169,8 +171,9 @@ internal fun ColumnScope.LinuxStep(state: OnboardingUiState, viewModel: Onboardi
             Hint(stringResource(R.string.onboarding_linux_background_note))
             if (setup.cancellable) TextButton(onClick = viewModel::cancelLinux) { Text(stringResource(R.string.onboarding_linux_cancel_install)) }
         }
-        setup.error != null -> JobStatus(Job(error = setup.error), "")
-        setup.message != null -> JobStatus(Job(result = setup.message), "")
+        // LinuxSetup's words are core's.
+        setup.error != null -> JobStatus(Job(error = setup.error?.let(UiText::Plain)), "")
+        setup.message != null -> JobStatus(Job(result = setup.message?.let(UiText::Plain)), "")
     }
     Hint(stringResource(R.string.onboarding_linux_packages_note))
 }
@@ -350,7 +353,7 @@ private fun IntegrationKeySheet(integration: Integration, hasKey: Boolean, onSav
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             isError = problem != null,
-            supportingText = (problem ?: integration.keyHelp)?.let { { Text(it) } },
+            supportingText = (problem?.asString() ?: integration.keyHelp)?.let { { Text(it) } },
             modifier = Modifier.fillMaxWidth(),
         )
         Row {
@@ -402,7 +405,7 @@ internal fun ColumnScope.TestStep(state: OnboardingUiState, viewModel: Onboardin
                 if (state.linux == LinuxStatus.Ready) TextButton(onClick = viewModel::testLinux, enabled = !viewModel.linuxTest.running) { Text(stringResource(R.string.onboarding_test_run_again)) }
             }
             val job = viewModel.linuxTest
-            if (job.result != null) OutputBlock(job.result) else JobStatus(job, stringResource(R.string.onboarding_test_linux_running))
+            if (job.result != null) OutputBlock(job.result.asString()) else JobStatus(job, stringResource(R.string.onboarding_test_linux_running))
         }
     }
 }

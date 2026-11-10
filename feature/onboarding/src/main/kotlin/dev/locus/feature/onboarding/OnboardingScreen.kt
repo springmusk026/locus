@@ -1,5 +1,6 @@
 package dev.locus.feature.onboarding
 
+import dev.locus.core.designsystem.asString
 import dev.locus.core.designsystem.CodeSurface
 import dev.locus.core.designsystem.Emphasis
 import dev.locus.core.designsystem.LocusType
@@ -337,13 +338,15 @@ private fun Summary(
 internal fun JobStatus(job: Job, running: String, modifier: Modifier = Modifier) {
     when {
         job.running -> StatusLine(running, Tone.Live, modifier)
-        job.error != null -> Text(job.error, modifier, style = LocusType.supporting, color = Locus.colors.critical)
+        job.error != null -> Text(job.error.asString(), modifier, style = LocusType.supporting, color = Locus.colors.critical)
         job.result != null -> Row(modifier, verticalAlignment = Alignment.Top) {
             Icon(LocusIcons.Check, null, Modifier.padding(top = Spacing.xxs).size(IconSize.small), tint = Locus.colors.live)
+            val result = job.result.asString()
             SupportingText(
-                job.result,
+                result,
                 Modifier.padding(start = Spacing.sm),
-                style = if ('\n' in job.result) LocusType.mono else LocusType.supporting,
+                // Several lines are command output or the like: monospaced.
+                style = if ('\n' in result) LocusType.mono else LocusType.supporting,
             )
         }
     }
