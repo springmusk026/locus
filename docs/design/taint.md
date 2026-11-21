@@ -189,6 +189,10 @@ So after any private read (`read_file`, `email_read`, `memory_read`, …; the di
 
 A skill imported from GitHub or a zip, or drafted by the agent (`skill_create`, even after the user approved it), was written by someone else. `skill_use` and `skill_read_file` now return its text inside `<untrusted_web_content>` with a note naming where it came from (`SkillTrust` in `home/HomeTools.kt`). The `<skill_content name="…">` wrapper stays first, so `SkillScope` still sees which skill was loaded. Because the result is marked, it is a taint source (`Taint.isSource`): after loading such a skill, opening a host the user didn't name, sending, or saving memory asks, as after reading a web page. A skill the user wrote themselves (no import record, not drafted by Locus) stays trusted and unmarked.
 
+## Imported chats
+
+Chats imported from a ChatGPT or Claude export ([import chats](import-chats.md)) were written outside Locus. `chat_history_read` returns an imported chat inside `<untrusted_web_content>`, and `chat_history_search` lists imported chats inside the markers after the user's own, so reading or finding one taints the run like a web page. Their titles stay out of new chats' `<recent_chats>`, and nothing ever runs in an imported chat itself.
+
 ## What the Activity log shows
 
 The audit log stores a call's arguments as the model sent them. The Activity screen shows them through `AuditRedactor` (`ActivityRepository.observe`), and so does every label built from them. It reuses `SecretScrubber` (the vault's values and the credential patterns of the "What was sent" viewer) and adds what arguments carry: values under secret-shaped keys (`Authorization`, `Cookie`, `password`, `api_key`, `*token*`, `*secret*`), form fields named or labelled as a password, card or one-time code, the password in `scheme://user:password@host`, and secret-looking query values (`token`, `key`, `sig`, `code`, …). Each is replaced by a label of its kind, such as `[redacted: Authorization header]` or `[redacted: saved secret]`. The stored rows and what the model gets are unchanged. Activity has no export of its own; chat exports already redact tool labels (`ChatExport`).

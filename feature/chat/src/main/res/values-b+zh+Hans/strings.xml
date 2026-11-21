@@ -1172,4 +1172,12 @@
     <string name="chat_composer_slash_none_title">保存的提示词</string>
     <string name="chat_composer_slash_none_body">还没有。在这里新建一个，之后输入 / 即可插入。</string>
     <string name="chat_prompt_save_failed">无法保存提示词。请重试。</string>
+
+    <!-- Imported chats (docs/design/import-chats.md) -->
+    <string name="chat_imported_row_meta">从 %1$s 导入 · %2$s</string>
+    <string name="chat_imported_marker">从 %1$s 导入</string>
+    <string name="chat_imported_title">只读存档</string>
+    <string name="chat_imported_body">从 %1$s 导入，开始于 %2$s。无法在这里继续，但新对话可以读取它。</string>
+    <string name="chat_imported_continue">在 Locus 中继续</string>
+    <string name="chat_imported_continue_draft">接着我从 %2$s 导入的对话“%1$s”（id %3$s）继续：先用 chat_history_read 读取它。</string>
 </resources>

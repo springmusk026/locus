@@ -32,7 +32,7 @@
     <string name="settings_hub_logins_summary">Sites Locus can sign in to for you</string>
     <string name="settings_hub_section_data">Data</string>
     <string name="settings_hub_backup_title">Backup &amp; restore</string>
-    <string name="settings_hub_backup_summary">An encrypted file you keep</string>
+    <string name="settings_hub_backup_summary">Encrypted backups; ChatGPT and Claude imports</string>
     <string name="settings_hub_language_title">Language</string>
     <string name="settings_hub_about_title">About &amp; privacy</string>
     <string name="settings_hub_about_summary">What leaves this phone, and setup</string>
@@ -1237,4 +1237,93 @@
     <string name="settings_ondevice_kind_projector">Vision projector</string>
     <string name="settings_ondevice_kind_draft">Draft head</string>
     <string name="settings_ondevice_kind_other">Not a model</string>
+
+    <!-- Import chats from ChatGPT or Claude (docs/design/import-chats.md) -->
+    <string name="settings_import_section">Chats from other apps</string>
+    <string name="settings_import_title">Import from ChatGPT or Claude</string>
+    <string name="settings_import_subtitle">Their data export (.zip), as read-only chats</string>
+    <string name="settings_import_ok">OK</string>
+    <string name="settings_import_note">The file is read on this phone and nothing is uploaded. Only the text of chats is imported; files and images are listed by name. Imported chats can\'t be continued, but a new chat can read them.</string>
+    <string name="settings_import_outcome_nothing">Nothing new to import: those chats are already here.</string>
+    <string name="settings_import_untitled">Imported chat</string>
+    <string name="settings_import_attached">Attached: %1$s</string>
+    <string name="settings_import_not_imported_line">(Not imported: %1$s)</string>
+    <string name="settings_import_reading_title">Reading your export</string>
+    <string name="settings_import_reading_subtitle">Nothing is imported until you choose.</string>
+    <string name="settings_import_choose_another">Choose another file</string>
+    <string name="settings_import_importing_title">Importing chats</string>
+    <string name="settings_import_importing_subtitle">Stay on this page until it\'s done. Chats imported so far are kept if you cancel.</string>
+    <string name="settings_import_importing_amount">%1$s of %2$s chats</string>
+    <string name="settings_import_cancel">Cancel</string>
+    <string name="settings_import_preview_title">Import chats</string>
+    <string name="settings_import_truncated">The file ends early or is damaged part-way. The chats before that point can still be imported.</string>
+    <string name="settings_import_none_found">No chats with text in this export</string>
+    <string name="settings_import_skipped_subtitle">Not a conversation Locus can read</string>
+    <string name="settings_import_already_subtitle">Imported before, unchanged since: skipped</string>
+    <string name="settings_import_files_left_subtitle">Only text is imported; their names stay in the chat</string>
+    <string name="settings_import_which">Which chats</string>
+    <string name="settings_import_which_all">All</string>
+    <string name="settings_import_which_years">By year</string>
+    <string name="settings_import_year_chip">%1$s · %2$s</string>
+    <string name="settings_import_action_nothing">Nothing new to import</string>
+    <string name="settings_import_read_only_note">Imported chats are read-only. They appear in your chat list with their original dates, and search finds them.</string>
+    <string name="settings_import_years">%1$s to %2$s</string>
+    <string name="settings_import_problem_not_export_title">This isn\'t a ChatGPT or Claude export</string>
+    <string name="settings_import_problem_not_export_text">Pick the .zip file from the link ChatGPT or Claude emailed you, or the conversations.json inside it.</string>
+    <string name="settings_import_problem_no_chats_title">No chats in this file</string>
+    <string name="settings_import_problem_no_chats_text">It\'s part of an export, but not the part with your chats. For a split ChatGPT download, pick the first part; for Claude, pick the conversations zip.</string>
+    <string name="settings_import_problem_unreadable_title">Couldn\'t read this file</string>
+    <string name="settings_import_problem_unreadable_text">It may be damaged or still downloading. Download the export again, then pick it.</string>
+    <plurals name="settings_import_outcome_cancelled">
+        <item quantity="one">Stopped. %1$s chat was imported before you cancelled.</item>
+        <item quantity="other">Stopped. %1$s chats were imported before you cancelled.</item>
+    </plurals>
+    <plurals name="settings_import_outcome_imported">
+        <item quantity="one">Imported %1$s chat. It\'s in your chat list, read-only.</item>
+        <item quantity="other">Imported %1$s chats. They\'re in your chat list, read-only.</item>
+    </plurals>
+    <plurals name="settings_import_outcome_updated">
+        <item quantity="one">%1$s updated</item>
+        <item quantity="other">%1$s updated</item>
+    </plurals>
+    <plurals name="settings_import_outcome_failed">
+        <item quantity="one">%1$s couldn\'t be saved</item>
+        <item quantity="other">%1$s couldn\'t be saved</item>
+    </plurals>
+    <plurals name="settings_import_images">
+        <item quantity="one">%1$d image</item>
+        <item quantity="other">%1$d images</item>
+    </plurals>
+    <plurals name="settings_import_reading_found">
+        <item quantity="one">%1$s chat found so far</item>
+        <item quantity="other">%1$s chats found so far</item>
+    </plurals>
+    <plurals name="settings_import_found">
+        <item quantity="one">%1$s %2$s chat</item>
+        <item quantity="other">%1$s %2$s chats</item>
+    </plurals>
+    <plurals name="settings_import_skipped">
+        <item quantity="one">%1$s skipped: couldn\'t be read</item>
+        <item quantity="other">%1$s skipped: couldn\'t be read</item>
+    </plurals>
+    <plurals name="settings_import_empty">
+        <item quantity="one">%1$s empty chat left out</item>
+        <item quantity="other">%1$s empty chats left out</item>
+    </plurals>
+    <plurals name="settings_import_already">
+        <item quantity="one">%1$s already in Locus</item>
+        <item quantity="other">%1$s already in Locus</item>
+    </plurals>
+    <plurals name="settings_import_files_left">
+        <item quantity="one">%1$s file or image not imported</item>
+        <item quantity="other">%1$s files and images not imported</item>
+    </plurals>
+    <plurals name="settings_import_updated_note">
+        <item quantity="one">%1$s chat changed since it was imported: it will be replaced with the newer copy.</item>
+        <item quantity="other">%1$s chats changed since they were imported: they will be replaced with the newer copies.</item>
+    </plurals>
+    <plurals name="settings_import_action">
+        <item quantity="one">Import %1$s chat</item>
+        <item quantity="other">Import %1$s chats</item>
+    </plurals>
 </resources>

@@ -32,7 +32,7 @@
     <string name="settings_hub_logins_summary">Sites em que o Locus pode entrar por você</string>
     <string name="settings_hub_section_data">Dados</string>
     <string name="settings_hub_backup_title">Backup e restauração</string>
-    <string name="settings_hub_backup_summary">Um arquivo criptografado que fica com você</string>
+    <string name="settings_hub_backup_summary">Backups criptografados; importar do ChatGPT e Claude</string>
     <string name="settings_hub_language_title">Idioma</string>
     <string name="settings_hub_about_title">Sobre e privacidade</string>
     <string name="settings_hub_about_summary">O que sai deste telefone e a configuração inicial</string>
@@ -1242,4 +1242,106 @@
     <string name="settings_ondevice_kind_projector">Projetor de visão</string>
     <string name="settings_ondevice_kind_draft">Cabeça de rascunho</string>
     <string name="settings_ondevice_kind_other">Não é um modelo</string>
+
+    <!-- Import chats from ChatGPT or Claude (docs/design/import-chats.md) -->
+    <string name="settings_import_section">Chats de outros apps</string>
+    <string name="settings_import_title">Importar do ChatGPT ou do Claude</string>
+    <string name="settings_import_subtitle">A exportação de dados (.zip), como chats somente leitura</string>
+    <string name="settings_import_ok">OK</string>
+    <string name="settings_import_note">O arquivo é lido neste celular e nada é enviado. Só o texto dos chats é importado; arquivos e imagens aparecem pelo nome. Chats importados não podem ser continuados, mas um chat novo pode lê-los.</string>
+    <string name="settings_import_outcome_nothing">Nada de novo para importar: esses chats já estão aqui.</string>
+    <string name="settings_import_untitled">Chat importado</string>
+    <string name="settings_import_attached">Anexo: %1$s</string>
+    <string name="settings_import_not_imported_line">(Não importado: %1$s)</string>
+    <string name="settings_import_reading_title">Lendo sua exportação</string>
+    <string name="settings_import_reading_subtitle">Nada é importado até você escolher.</string>
+    <string name="settings_import_choose_another">Escolher outro arquivo</string>
+    <string name="settings_import_importing_title">Importando chats</string>
+    <string name="settings_import_importing_subtitle">Fique nesta página até terminar. Se cancelar, os chats já importados são mantidos.</string>
+    <string name="settings_import_importing_amount">%1$s de %2$s chats</string>
+    <string name="settings_import_cancel">Cancelar</string>
+    <string name="settings_import_preview_title">Importar chats</string>
+    <string name="settings_import_truncated">O arquivo termina antes do esperado ou está danificado em parte. Os chats antes desse ponto ainda podem ser importados.</string>
+    <string name="settings_import_none_found">Nenhum chat com texto nesta exportação</string>
+    <string name="settings_import_skipped_subtitle">Não é uma conversa que o Locus consiga ler</string>
+    <string name="settings_import_already_subtitle">Importados antes e sem mudanças desde então: ignorados</string>
+    <string name="settings_import_files_left_subtitle">Só o texto é importado; os nomes ficam no chat</string>
+    <string name="settings_import_which">Quais chats</string>
+    <string name="settings_import_which_all">Todos</string>
+    <string name="settings_import_which_years">Por ano</string>
+    <string name="settings_import_year_chip">%1$s · %2$s</string>
+    <string name="settings_import_action_nothing">Nada de novo para importar</string>
+    <string name="settings_import_read_only_note">Chats importados são somente leitura. Eles aparecem na sua lista de chats com as datas originais, e a busca os encontra.</string>
+    <string name="settings_import_years">De %1$s a %2$s</string>
+    <string name="settings_import_problem_not_export_title">Não é uma exportação do ChatGPT nem do Claude</string>
+    <string name="settings_import_problem_not_export_text">Escolha o arquivo .zip do link que o ChatGPT ou o Claude enviou por e-mail, ou o conversations.json dentro dele.</string>
+    <string name="settings_import_problem_no_chats_title">Nenhum chat neste arquivo</string>
+    <string name="settings_import_problem_no_chats_text">É parte de uma exportação, mas não a que tem seus chats. Se o download do ChatGPT estiver dividido, escolha a primeira parte; no Claude, escolha o zip de conversas.</string>
+    <string name="settings_import_problem_unreadable_title">Não foi possível ler este arquivo</string>
+    <string name="settings_import_problem_unreadable_text">Ele pode estar danificado ou ainda baixando. Baixe a exportação de novo e escolha-a.</string>
+    <plurals name="settings_import_outcome_cancelled">
+        <item quantity="one">Interrompido. %1$s chat foi importado antes de cancelar.</item>
+        <item quantity="many">Interrompido. %1$s chats foram importados antes de cancelar.</item>
+        <item quantity="other">Interrompido. %1$s chats foram importados antes de cancelar.</item>
+    </plurals>
+    <plurals name="settings_import_outcome_imported">
+        <item quantity="one">%1$s chat importado. Ele está na sua lista de chats, somente leitura.</item>
+        <item quantity="many">%1$s chats importados. Eles estão na sua lista de chats, somente leitura.</item>
+        <item quantity="other">%1$s chats importados. Eles estão na sua lista de chats, somente leitura.</item>
+    </plurals>
+    <plurals name="settings_import_outcome_updated">
+        <item quantity="one">%1$s atualizado</item>
+        <item quantity="many">%1$s atualizados</item>
+        <item quantity="other">%1$s atualizados</item>
+    </plurals>
+    <plurals name="settings_import_outcome_failed">
+        <item quantity="one">%1$s não pôde ser salvo</item>
+        <item quantity="many">%1$s não puderam ser salvos</item>
+        <item quantity="other">%1$s não puderam ser salvos</item>
+    </plurals>
+    <plurals name="settings_import_images">
+        <item quantity="one">%1$d imagem</item>
+        <item quantity="many">%1$d imagens</item>
+        <item quantity="other">%1$d imagens</item>
+    </plurals>
+    <plurals name="settings_import_reading_found">
+        <item quantity="one">%1$s chat encontrado até agora</item>
+        <item quantity="many">%1$s chats encontrados até agora</item>
+        <item quantity="other">%1$s chats encontrados até agora</item>
+    </plurals>
+    <plurals name="settings_import_found">
+        <item quantity="one">%1$s chat do %2$s</item>
+        <item quantity="many">%1$s chats do %2$s</item>
+        <item quantity="other">%1$s chats do %2$s</item>
+    </plurals>
+    <plurals name="settings_import_skipped">
+        <item quantity="one">%1$s ignorado: não pôde ser lido</item>
+        <item quantity="many">%1$s ignorados: não puderam ser lidos</item>
+        <item quantity="other">%1$s ignorados: não puderam ser lidos</item>
+    </plurals>
+    <plurals name="settings_import_empty">
+        <item quantity="one">%1$s chat vazio deixado de fora</item>
+        <item quantity="many">%1$s chats vazios deixados de fora</item>
+        <item quantity="other">%1$s chats vazios deixados de fora</item>
+    </plurals>
+    <plurals name="settings_import_already">
+        <item quantity="one">%1$s já está no Locus</item>
+        <item quantity="many">%1$s já estão no Locus</item>
+        <item quantity="other">%1$s já estão no Locus</item>
+    </plurals>
+    <plurals name="settings_import_files_left">
+        <item quantity="one">%1$s arquivo ou imagem não importado</item>
+        <item quantity="many">%1$s arquivos e imagens não importados</item>
+        <item quantity="other">%1$s arquivos e imagens não importados</item>
+    </plurals>
+    <plurals name="settings_import_updated_note">
+        <item quantity="one">%1$s chat mudou desde que foi importado: será substituído pela cópia mais recente.</item>
+        <item quantity="many">%1$s chats mudaram desde que foram importados: serão substituídos pelas cópias mais recentes.</item>
+        <item quantity="other">%1$s chats mudaram desde que foram importados: serão substituídos pelas cópias mais recentes.</item>
+    </plurals>
+    <plurals name="settings_import_action">
+        <item quantity="one">Importar %1$s chat</item>
+        <item quantity="many">Importar %1$s chats</item>
+        <item quantity="other">Importar %1$s chats</item>
+    </plurals>
 </resources>

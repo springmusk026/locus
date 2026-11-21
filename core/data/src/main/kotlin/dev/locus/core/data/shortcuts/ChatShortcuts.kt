@@ -43,7 +43,8 @@ object ChatShortcutPlan {
 
     fun plan(chats: List<Conversation>, max: Int = DEFAULT_MAX): List<ChatShortcut> {
         if (max <= 0) return emptyList()
-        val eligible = chats.filter { c -> !c.hidden && c.parentConversationId == null && !c.title.startsWith("Scheduled: ") }
+        // Imported archives are read-only: a shortcut or share target into one would have nowhere to type.
+        val eligible = chats.filter { c -> !c.hidden && c.parentConversationId == null && !c.title.startsWith("Scheduled: ") && !dev.locus.core.model.ImportedChats.isImported(c.id) }
         val (pinned, rest) = eligible.partition { it.pinned }
         return (pinned.sortedByDescending { it.updatedAt } + rest.sortedByDescending { it.updatedAt })
             .take(max)

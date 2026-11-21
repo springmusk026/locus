@@ -42,7 +42,10 @@ data class ConversationRow(
     val interrupted: Boolean = false,
     /** The model id this chat uses (its override, else its provider's), for the model-family logo. */
     val model: String = "",
-)
+) {
+    /** A read-only chat imported from ChatGPT or Claude (docs/design/import-chats.md); null for Locus's own. */
+    val imported: dev.locus.core.model.ChatImportSource? get() = dev.locus.core.model.ImportedChats.sourceOf(conversation.id)
+}
 
 /** The parts of a run's state the home list needs. */
 private data class RowRun(val running: Boolean, val approval: Boolean, val activeTool: String?, val interrupted: Boolean)
@@ -340,7 +343,11 @@ class ConversationsViewModel @Inject constructor(
             rows = list.map { c ->
                 val state = states[c.id]
                 val provider = s.provider(c.providerId)
-                ConversationRow(
+                val imported = dev.locus.core.model.ImportedChats.sourceOf(c.id)
+                if (imported != null) {
+                    // An archive has no provider: its badge is where it came from (that family's logo).
+                    ConversationRow(c, running = false, needsApproval = false, providerName = imported.displayName, model = importedLogoHint(imported))
+                } else ConversationRow(
                     c, state?.running == true, state?.approval == true,
                     provider?.name.orEmpty(), provider?.baseUrl.orEmpty(), provider?.format == ApiFormat.ON_DEVICE,
                     activeTool = state?.activeTool,
@@ -401,4 +408,10 @@ class ConversationsViewModel @Inject constructor(
     fun delete(id: String) {
         viewModelScope.launch { conversations.delete(id) }
     }
+}
+
+/** A model id whose family logo stands for [source] on an imported chat's badge. */
+internal fun importedLogoHint(source: dev.locus.core.model.ChatImportSource): String = when (source) {
+    dev.locus.core.model.ChatImportSource.CHATGPT -> "gpt"
+    dev.locus.core.model.ChatImportSource.CLAUDE -> "claude"
 }

@@ -310,6 +310,11 @@ data class ChatUiState(
     val voice: dev.locus.core.model.VoiceSettings = dev.locus.core.model.VoiceSettings(),
     /** Links in replies: what the chat has read and the hosts the user named or set up ([LinkContext]). */
     val links: LinkContext = LinkContext(outsideContent = false),
+    /**
+     * Where this chat was imported from (docs/design/import-chats.md): a read-only archive with no composer,
+     * no regenerate, edit or fork, and "Continue in Locus" instead. Null for Locus's own chats.
+     */
+    val importedFrom: dev.locus.core.model.ChatImportSource? = null,
 ) {
     val pendingApproval: ApprovalRequest? get() = run.pendingApproval
 
@@ -412,6 +417,16 @@ class ChatViewModel @AssistedInject constructor(
         val title = conversations.get(conversationId)?.title.orEmpty()
         val chat = conversations.create(null, projectId)
         onCreated(chat.id, "Continue from our earlier chat “$title” (id $conversationId): read it with chat_history_read first.")
+    }
+
+    /**
+     * "Continue in Locus" on an imported archive: a new chat on the default model, opened with [draft]
+     * (which names this chat's id) in its composer for the user to send. The agent there reads the archive
+     * with chat_history_read, as outside content, so nothing imported is replayed into a request.
+     */
+    fun continueImported(onCreated: (id: String) -> Unit) = viewModelScope.launch {
+        if (!dev.locus.core.model.ImportedChats.isImported(conversationId)) return@launch
+        onCreated(conversations.create(settings.current().defaultProviderId).id)
     }
 
     private val _notice = MutableStateFlow<UiText?>(null)
@@ -591,6 +606,7 @@ class ChatViewModel @AssistedInject constructor(
             browserTitle = browserState.title,
             browserUrl = browserState.url,
             voice = s.voice,
+            importedFrom = dev.locus.core.model.ImportedChats.sourceOf(conversationId),
             links = LinkContext(
                 outsideContent = transcript.outsideContent,
                 // Hosts the user typed in this chat, plus model providers and connectors they set up: taint's trusted hosts.
