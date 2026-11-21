@@ -273,6 +273,14 @@ fun ChatRoute(
         MemoryReadActions(forgotten = forgottenMemory, forget = viewModel::forgetMemoryRead, check = viewModel::checkMemoryReads)
     }
     val providerDrafts by viewModel.providerDrafts.collectAsStateWithLifecycle()
+    // Lock this chat from its top bar, where the phone has a screen lock to ask with (docs/design/app-lock.md).
+    val chatLock: ChatLockViewModel = hiltViewModel()
+    val lockStatus by chatLock.status.collectAsStateWithLifecycle()
+    val locker = rememberChatLocker(chatLock)
+    val lockButton: (@Composable () -> Unit)? = lockStatus?.takeIf { it.available || it.isLockedChat(conversationId) }?.let { status ->
+        val locked = status.isLockedChat(conversationId)
+        ({ ChatLockButton(locked) { locker.toggle(conversationId, !locked, false) } })
+    }
     androidx.compose.runtime.CompositionLocalProvider(
         dev.locus.core.markdown.artifact.LocalArtifactHost provides artifactHost,
         LocalMemoryReads provides memoryReads,
@@ -281,6 +289,7 @@ fun ChatRoute(
     ) { // (body not re-indented, to keep the diff small)
     androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
     ChatScreen(
+        lockButton = lockButton,
         onVoiceMode = if (canVoice) ({ voiceOpen = true }) else null,
         voiceActive = voiceOpen,
         state = state,
@@ -402,6 +411,8 @@ internal fun ChatScreen(
     state: ChatUiState,
     /** Under the title: the chat's project chip; null when there are no projects. */
     projectHeader: (@Composable () -> Unit)? = null,
+    /** Lock or unlock this chat ([ChatLockButton]); null where the phone has no screen lock. */
+    lockButton: (@Composable () -> Unit)? = null,
     /** Where the chat's short messages show (above the composer); the route shares it with what it sets up. */
     feedbackState: LocusFeedbackState = rememberLocusFeedbackState(),
     onBack: () -> Unit,
@@ -785,6 +796,7 @@ internal fun ChatScreen(
                 },
                 actions = {
                     if (!metersBelow) meters?.invoke()
+                    lockButton?.invoke()
                     // Nothing to share until the chat has a message.
                     if (state.items.isNotEmpty()) ShareChatButton(state.title, state.createdAt, state.items, onSaveExport)
                 },

@@ -369,7 +369,7 @@ Everyday integrations that remove friction ([design](design/integrations.md)).
 
 Ranked by value over effort; sources, positioning and what not to copy are in [feature opportunities](research/feature-opportunities-2026-11.md).
 
-- [ ] **App lock and locked chats** (S): biometric or device-credential gate on opening Locus and on chosen chats (ChatGPT shipped it on 2026-10-20).
+- [x] **App lock and locked chats** (S): biometric or device-credential gate on opening Locus and on chosen chats (ChatGPT shipped it on 2026-10-20). Android's own prompt (framework BiometricPrompt, the keyguard intent on Android 8 to 9), Lock after, every way in gated, notifications private and their actions behind the unlock, locked chats hidden in lists, search, Activity, Analytics, notifications and shortcuts. See [app lock](design/app-lock.md). *Not yet tried on the phone.*
 - [ ] **Saved prompts with variables** (S): `/` in the composer, `{{clipboard}}`, `{{date}}` and form fields.
 - [ ] **Approve memory writes** (S): a setting that makes every `memory_save` ask, and a periodic consolidation proposed as a diff. Policy and UI only.
 - [ ] **Rewind here, summarise from here** (S–M): rewind files and conversation to a message; summarise only the tail so the cached prefix stays. Covers "Compaction: editable summary".

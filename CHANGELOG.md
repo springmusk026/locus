@@ -4,6 +4,12 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Added
+- **Lock Locus, and locked chats.** Settings → About & privacy → **Lock Locus** asks for your fingerprint, face or the phone's PIN, pattern or password before Locus shows anything, after it has been in the background for the time you choose (now, 1, 5 or 15 minutes). It uses Android's own prompt and keeps no PIN of its own, so it needs a screen lock on the phone; without one the switch says so and opens the security settings. Every way in goes through it: the launcher, shares, "Ask Locus" on selected text, shortcuts, the quick settings tile, the widget and notification taps. Runs, scheduled tasks and automation you set up keep going while it's locked.
+  - **Lock this chat** (a chat's menu on home, or the padlock in its top bar) works with or without Lock Locus: the chat asks before it opens, and its name and messages are hidden everywhere else, in lists, search, Activity, Analytics, notifications and shortcuts. One unlock opens Locus and its locked chats until it locks again.
+  - With the lock on, notifications show only "Locus" on the lock screen, their buttons (Allow, Deny, answers) need the phone unlocked, Recents shows no picture of Locus, and there are no chat shortcuts. On Android 11 and older the buttons are left off and a tap opens the lock instead; on Android 12 and older, screenshots inside Locus are blocked while the lock is on, because that's the only way to keep Recents blank there.
+  - Locus asks for the `USE_BIOMETRIC` permission (granted at install) to show Android's prompt. The model and its tools are unchanged. See [app lock](docs/design/app-lock.md). *Not yet tried on the phone.*
+
 ## [0.2.0] - 2026-11-21
 
 ### Added

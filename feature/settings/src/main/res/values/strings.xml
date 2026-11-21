@@ -1237,4 +1237,21 @@
     <string name="settings_ondevice_kind_projector">Vision projector</string>
     <string name="settings_ondevice_kind_draft">Draft head</string>
     <string name="settings_ondevice_kind_other">Not a model</string>
+    <!-- Lock Locus (AppLockSettings.kt, docs/design/app-lock.md). -->
+    <string name="settings_lock_section">Lock</string>
+    <string name="settings_lock_title">Lock Locus</string>
+    <string name="settings_lock_subtitle">Ask for your fingerprint, face or screen lock before showing anything</string>
+    <string name="settings_lock_subtitle_no_screen_lock">Needs a screen lock on this phone</string>
+    <string name="settings_lock_after_title">Lock after</string>
+    <string name="settings_lock_after_subtitle">How long Locus can be in the background before it asks again</string>
+    <string name="settings_lock_after_now">Now</string>
+    <string name="settings_lock_after_minutes">%1$d min</string>
+    <string name="settings_lock_needs_screen_lock">Set a PIN, pattern or password for this phone to lock Locus or a chat. Locus uses the phone\'s own lock and keeps no PIN of its own.</string>
+    <string name="settings_lock_suspended">This phone has no screen lock now, so Locus and its locked chats open without asking. Set a PIN, pattern or password to lock them again.</string>
+    <string name="settings_lock_open_security">Open security settings</string>
+    <string name="settings_lock_note">The lock hides what Locus shows on this phone: chats, files, settings and its notifications\' details on the lock screen. Tasks, scheduled runs and automation you set up keep running while it\'s locked. To hide one chat even while Locus is open, use Lock this chat in its menu.</string>
+    <plurals name="settings_lock_locked_chats">
+        <item quantity="one">%1$d chat is locked. Unlock one from its menu.</item>
+        <item quantity="other">%1$d chats are locked. Unlock one from its menu.</item>
+    </plurals>
 </resources>

@@ -414,4 +414,17 @@
     <string name="ui_workflow_tool_commit">hacer commit de cambios</string>
     <string name="ui_workflow_tool_look_at_changes">ver los cambios</string>
     <string name="ui_workflow_tool_ask_questions">hacerte preguntas</string>
+    <!-- Lock screen and the system prompt (LockScreen.kt, DeviceAuth.kt, docs/design/app-lock.md). -->
+    <string name="ui_lock_app_title">Locus está bloqueado</string>
+    <string name="ui_lock_app_body">Desbloquéalo con tu huella, tu cara, tu PIN, patrón o contraseña. Las tareas que iniciaste siguen en marcha mientras está bloqueado.</string>
+    <string name="ui_lock_chat_title">Este chat está bloqueado</string>
+    <string name="ui_lock_chat_body">Desbloquéalo con tu huella, tu cara, tu PIN, patrón o contraseña. Su nombre y sus mensajes siguen ocultos en todas partes.</string>
+    <string name="ui_lock_unlock">Desbloquear</string>
+    <string name="ui_lock_prompt_app">Desbloquear Locus</string>
+    <string name="ui_lock_prompt_chat">Abrir chat bloqueado</string>
+    <string name="ui_lock_prompt_confirm">Confirma que eres tú</string>
+    <string name="ui_lock_lockout">Demasiados intentos. Espera 30 segundos o usa tu PIN, patrón o contraseña.</string>
+    <string name="ui_lock_lockout_permanent">La huella y la cara están desactivadas hasta que desbloquees con tu PIN, patrón o contraseña.</string>
+    <string name="ui_lock_no_credential">Este teléfono ya no tiene bloqueo de pantalla, así que Locus no puede comprobar que eres tú.</string>
+    <string name="ui_lock_failed">No se pudo comprobar que eres tú. Inténtalo de nuevo.</string>
 </resources>

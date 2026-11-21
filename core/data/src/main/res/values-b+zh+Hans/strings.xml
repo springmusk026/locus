@@ -147,4 +147,8 @@
     <string name="data_service_home_assistant_missing">目录中没有 Home Assistant。</string>
     <string name="data_service_home_assistant_no_token">请粘贴长期访问令牌。</string>
     <string name="data_service_home_assistant_passed">已连接到 %1$s 上的 Home Assistant，它接受了令牌。</string>
+    <!-- Lock Locus and locked chats in notifications (LockedNotifications, docs/design/app-lock.md) -->
+    <string name="data_lock_public_text">解锁手机以查看详情</string>
+    <string name="data_lock_chat_waiting">有一个已锁定的对话在等你。打开 Locus 查看。</string>
+    <string name="data_lock_reminder_text">来自已锁定对话的提醒</string>
 </resources>

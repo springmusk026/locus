@@ -1167,4 +1167,12 @@
     <string name="chat_checks_check_timedout_n">检查 · 第 %1$d 次运行（共 %1$d 次）超时</string>
     <string name="chat_checks_check_stopped">检查已停止</string>
     <string name="chat_checks_check_stopped_n">检查 · 第 %1$d 次运行（共 %1$d 次）已停止</string>
+    <!-- Locked chats (ChatLock.kt, ConversationsScreen.kt, docs/design/app-lock.md). -->
+    <string name="chat_lock_hidden_title">已锁定的对话</string>
+    <string name="chat_lock_locked_description">已锁定</string>
+    <string name="chat_lock_add">锁定此对话</string>
+    <string name="chat_lock_remove">解锁此对话</string>
+    <string name="chat_lock_locked">对话已锁定。它的名称会被隐藏，打开时需要指纹、面孔或 PIN 码。</string>
+    <string name="chat_lock_unlocked">对话已解锁</string>
+    <string name="chat_lock_prompt_remove">解锁此对话</string>
 </resources>

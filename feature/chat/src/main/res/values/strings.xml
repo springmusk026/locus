@@ -1248,4 +1248,12 @@
     <string name="chat_checks_check_timedout_n">Check · timed out on run %1$d of %1$d</string>
     <string name="chat_checks_check_stopped">Check stopped</string>
     <string name="chat_checks_check_stopped_n">Check · stopped on run %1$d of %1$d</string>
+    <!-- Locked chats (ChatLock.kt, ConversationsScreen.kt, docs/design/app-lock.md). -->
+    <string name="chat_lock_hidden_title">Locked chat</string>
+    <string name="chat_lock_locked_description">Locked</string>
+    <string name="chat_lock_add">Lock this chat</string>
+    <string name="chat_lock_remove">Unlock this chat</string>
+    <string name="chat_lock_locked">Chat locked. Its name is hidden, and it asks for your fingerprint, face or PIN when opened.</string>
+    <string name="chat_lock_unlocked">Chat unlocked</string>
+    <string name="chat_lock_prompt_remove">Unlock this chat</string>
 </resources>

@@ -110,4 +110,5 @@
         <item quantity="other">Pelos preços do models.dev. %1$d de %2$d solicitações em 30 dias não tinham preço, então os totais marcados com + são no mínimo esse valor.</item>
     </plurals>
     <string name="analytics_cost_note_priced">Pelos preços de tabela do models.dev; a cobrança do seu provedor pode ser diferente.</string>
+    <string name="analytics_locked_chat">Chat bloqueado</string>
 </resources>

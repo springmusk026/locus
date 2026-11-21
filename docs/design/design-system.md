@@ -220,6 +220,7 @@ All of these use `FastOutSlowInEasing`. Compose scales them by the system's anim
 | Progress or usage | `Meter` | `fraction` 0..1, or null for indeterminate. The tone comes from the level by default (brand, then caution from 80%, critical from 95%). Sizes: `Hairline` 2, `Small` 4, `Medium` 6, `Large` 8. TalkBack reads it as a progress bar with a percentage. |
 | Something working in place | `InlineSpinner` | 20dp in the content colour. Add a description if nothing beside it says what's loading. |
 | A screen that's loading | `LoadingState` | Shows nothing for 300ms, then a spinner |
+| Locus or a chat is locked | `LockScreen` (core/ui) | The app's mark in its moss tile, a title, Unlock, and a caution `Banner` after a failed attempt; nothing behind it is composed and the window is secure while it shows. `AppLockGate` and `ChatLockGate` put it in front of content ([app lock](app-lock.md)). |
 | A screen with nothing in it | `EmptyState` | Title, one sentence, an optional action |
 | A screen that couldn't load | `ErrorState` | What went wrong and Try again. `retrying` shows a spinner. The message is announced. `tone = Caution` and an `action` for a wall the user can work around rather than a failure (a gated model: "Search for …"). |
 | A problem that persists, inline | `Banner(tone = Critical/Caution)` | With actions |
@@ -248,7 +249,7 @@ A ViewModel never holds `LocusFeedback`. It exposes an event or a result, and th
 
 ### Secrets on screen
 
-A field that shows a secret (an API key, a password, a token) makes its window secure while it is on screen: FLAG_SECURE (no screenshots or recordings, a blank preview in Recents, nothing for Content Capture) and, on Android 15+, a sensitive view that screen sharing hides. Use `PasswordField`, or call `SecretContent()` beside a field that masks its text. The window owner counts them: a `LocusSheet` is its own window and sets `ModalBottomSheetProperties(securePolicy = SecureOn)` while it holds one; elsewhere `ProvideSecureWindow` in `MainActivity` sets the flag on the activity's window. Closing one of two secret fields leaves the window secure. `SecretContentGuardTest` fails when a file has more masked fields than `SecretContent()` calls.
+A field that shows a secret (an API key, a password, a token) makes its window secure while it is on screen: FLAG_SECURE (no screenshots or recordings, a blank preview in Recents, nothing for Content Capture) and, on Android 15+, a sensitive view that screen sharing hides. Use `PasswordField`, or call `SecretContent()` beside a field that masks its text. The window owner counts them: a `LocusSheet` is its own window and sets `ModalBottomSheetProperties(securePolicy = SecureOn)` while it holds one; elsewhere `ProvideSecureWindow` in `MainActivity` sets the flag on the activity's window. Closing one of two secret fields leaves the window secure. The lock screen calls it too, and with Lock Locus on below Android 13 `MainActivity` holds one for the whole window, so Recents stays blank ([app lock](app-lock.md)). `SecretContentGuardTest` fails when a file has more masked fields than `SecretContent()` calls.
 
 ## Guardrail
 

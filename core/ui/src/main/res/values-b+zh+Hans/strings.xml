@@ -414,4 +414,17 @@
     <string name="ui_workflow_tool_commit">提交更改</string>
     <string name="ui_workflow_tool_look_at_changes">查看更改</string>
     <string name="ui_workflow_tool_ask_questions">向你提问</string>
+    <!-- Lock screen and the system prompt (LockScreen.kt, DeviceAuth.kt, docs/design/app-lock.md). -->
+    <string name="ui_lock_app_title">Locus 已锁定</string>
+    <string name="ui_lock_app_body">使用指纹、面孔、PIN 码、图案或密码解锁。锁定期间，你启动的任务会继续运行。</string>
+    <string name="ui_lock_chat_title">此对话已锁定</string>
+    <string name="ui_lock_chat_body">使用指纹、面孔、PIN 码、图案或密码解锁。它的名称和消息在其他任何地方都保持隐藏。</string>
+    <string name="ui_lock_unlock">解锁</string>
+    <string name="ui_lock_prompt_app">解锁 Locus</string>
+    <string name="ui_lock_prompt_chat">打开已锁定的对话</string>
+    <string name="ui_lock_prompt_confirm">确认是你本人</string>
+    <string name="ui_lock_lockout">尝试次数过多。请等待 30 秒，或使用 PIN 码、图案或密码。</string>
+    <string name="ui_lock_lockout_permanent">在你使用 PIN 码、图案或密码解锁之前，指纹和面孔解锁已停用。</string>
+    <string name="ui_lock_no_credential">此手机已不再设置屏幕锁定，Locus 无法确认是你本人。</string>
+    <string name="ui_lock_failed">无法确认是你本人。请重试。</string>
 </resources>

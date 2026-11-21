@@ -177,6 +177,8 @@ data class AppSettings(
     val reminders: List<Reminder> = emptyList(),
     /** Which [EffortDefaults] migration these settings have had; 0 before the first. */
     val effortDefaults: Int = 0,
+    /** Lock Locus and locked chats (docs/design/app-lock.md). Not sealed: see [AppLockSettings]. */
+    val appLock: AppLockSettings = AppLockSettings(),
 ) {
     /**
      * Whether to open onboarding at launch. People who set up a provider before onboarding existed

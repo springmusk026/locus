@@ -167,4 +167,9 @@
     <string name="data_service_home_assistant_missing">Home Assistant isn\'t in the catalogue.</string>
     <string name="data_service_home_assistant_no_token">Paste a long-lived access token.</string>
     <string name="data_service_home_assistant_passed">Reached Home Assistant at %1$s and it accepted the token.</string>
+    <!-- Lock Locus and locked chats in notifications (LockedNotifications, docs/design/app-lock.md) -->
+    <string name="data_lock_public_title" translatable="false">Locus</string>
+    <string name="data_lock_public_text">Unlock your phone to see details</string>
+    <string name="data_lock_chat_waiting">A locked chat is waiting for you. Open Locus to see it.</string>
+    <string name="data_lock_reminder_text">Reminder from a locked chat</string>
 </resources>
