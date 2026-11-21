@@ -1167,4 +1167,9 @@
     <string name="chat_checks_check_timedout_n">检查 · 第 %1$d 次运行（共 %1$d 次）超时</string>
     <string name="chat_checks_check_stopped">检查已停止</string>
     <string name="chat_checks_check_stopped_n">检查 · 第 %1$d 次运行（共 %1$d 次）已停止</string>
+    <string name="chat_composer_prompts">插入提示词</string>
+    <string name="chat_composer_prompts_hint">用保存的文本填入输入框。点按“发送”之前不会发送任何内容。</string>
+    <string name="chat_composer_slash_none_title">保存的提示词</string>
+    <string name="chat_composer_slash_none_body">还没有。在这里新建一个，之后输入 / 即可插入。</string>
+    <string name="chat_prompt_save_failed">无法保存提示词。请重试。</string>
 </resources>

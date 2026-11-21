@@ -173,6 +173,7 @@ fun ConversationsRoute(
         state = state,
         composer = composer,
         composerActions = composerActions,
+        prompts = rememberComposerPrompts(hiltViewModel<ComposerPromptsViewModel>(key = "prompts-home")),
         projects = projects,
         askFocusKey = askFocusKey,
         askListenKey = askListenKey,
@@ -266,6 +267,8 @@ internal fun ConversationsScreen(
     askListenKey: Int = 0,
     /** When Telegram remote mode switches off; null while it's off. */
     remoteModeUntil: Long? = null,
+    /** Saved prompts in the ask bar (docs/design/saved-prompts.md); null where they aren't offered. */
+    prompts: ComposerPrompts? = null,
 ) {
     var pendingDelete by remember { mutableStateOf<ConversationRow?>(null) }
     var pendingRename by remember { mutableStateOf<ConversationRow?>(null) }
@@ -300,7 +303,7 @@ internal fun ConversationsScreen(
                 )
             },
             bottomBar = {
-                if (ready != null && ready.hasProvider) AskBar(composer, composerActions, onStart = actions.onStart, focusKey = askFocusKey, listenKey = askListenKey)
+                if (ready != null && ready.hasProvider) AskBar(composer, composerActions, onStart = actions.onStart, focusKey = askFocusKey, listenKey = askListenKey, prompts = prompts)
             },
         ) { padding ->
             when {
@@ -847,7 +850,7 @@ private fun chatSections(rows: List<ConversationRow>, includePinned: Boolean, no
  * and plan mode can be chosen before the chat exists; they apply to the chat the message starts.
  */
 @Composable
-private fun AskBar(composer: HomeComposer, actions: ComposerActions, onStart: (String) -> Unit, focusKey: Int = 0, listenKey: Int = 0) {
+private fun AskBar(composer: HomeComposer, actions: ComposerActions, onStart: (String) -> Unit, focusKey: Int = 0, listenKey: Int = 0, prompts: ComposerPrompts? = null) {
     var text by rememberSaveable { mutableStateOf("") }
     var sheet by rememberSaveable { mutableStateOf<ControlSheet?>(null) }
     // In a dock, as in a chat: the list scrolls under a solid band that fades out above the composer,
@@ -866,6 +869,7 @@ private fun AskBar(composer: HomeComposer, actions: ComposerActions, onStart: (S
         imeSend = true,
         focusKey = focusKey,
         listenKey = listenKey,
+        prompts = prompts,
     ) } }
 }
 

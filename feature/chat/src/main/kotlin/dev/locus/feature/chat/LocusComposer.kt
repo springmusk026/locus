@@ -58,7 +58,9 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.locus.core.designsystem.CardGroup
@@ -181,6 +183,8 @@ internal fun LocusComposer(
     listenKey: Int = 0,
     /** A slim row docked into the composer's top edge (the task's checklist), above the text box; null for none. */
     dock: (@Composable () -> Unit)? = null,
+    /** Saved prompts (docs/design/saved-prompts.md): the `/` list and + → Prompts; null where they aren't offered. */
+    prompts: ComposerPrompts? = null,
 ) {
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris -> if (uris.isNotEmpty()) actions.onAttach(uris) }
     // The system Photo Picker: no storage permission, and only what the user picks is shared
@@ -227,6 +231,7 @@ internal fun LocusComposer(
         onPickFiles = { pick.launch(arrayOf("*/*")) },
         onPickPhotos = { photos.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) },
         onTakePhoto = takePhoto,
+        onPrompts = prompts?.let { p -> { p.open(text) } },
     )
     val focus = remember { androidx.compose.ui.focus.FocusRequester() }
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
@@ -240,6 +245,18 @@ internal fun LocusComposer(
             keyboard?.show()
         }
     }
+    // A picked prompt's text lands in the box once, with the cursor at its end and the keyboard up to review it.
+    val insertion = prompts?.insertion
+    androidx.compose.runtime.LaunchedEffect(insertion?.serial) {
+        if (insertion != null) {
+            onTextChange(insertion.text)
+            prompts.consumed(insertion.serial)
+            runCatching { focus.requestFocus() }
+            keyboard?.show()
+        }
+    }
+    // `/` typed into an empty box: the saved prompts (and, in a chat, `/btw`) that match what follows it.
+    val slash = if (prompts != null && enabled) dev.locus.core.agent.prompt.SlashQuery.of(text) else null
     androidx.compose.runtime.LaunchedEffect(listenKey) {
         if (listenKey > listened && canListen) {
             listened = listenKey
@@ -263,12 +280,27 @@ internal fun LocusComposer(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) { attachments.forEach { a -> ComposerAttachment(a, onRemove = { actions.onRemoveAttachment(a) }) } }
         }
+        if (slash != null && prompts != null) {
+            SlashSuggestions(
+                query = slash,
+                prompts = prompts.list,
+                // `/btw` is a chat's command: shown where side questions are, so it's found the same way.
+                showBtw = onAsideChange != null,
+                onPick = { p -> prompts.pick(p, text, true) },
+                onBtw = { onTextChange("/btw ") },
+                onOpenPicker = { prompts.open("") },
+            )
+        }
         // The panel toggles sit beside the field, so it never runs under them. They give way while there is
         // text (the field needs the room) and come back once it's empty.
         Row(verticalAlignment = Alignment.Top) {
+            // Text set from outside (a picked prompt, a suggestion, dictation) puts the cursor at its end;
+            // typing keeps it where it is.
+            var field by remember { androidx.compose.runtime.mutableStateOf(TextFieldValue(text, TextRange(text.length))) }
+            val shown = if (field.text == text) field else TextFieldValue(text, TextRange(text.length))
             BasicTextField(
-                value = text,
-                onValueChange = onTextChange,
+                value = shown,
+                onValueChange = { field = it; if (it.text != text) onTextChange(it.text) },
                 enabled = enabled,
                 maxLines = 6,
                 textStyle = LocusType.body.copy(color = MaterialTheme.colorScheme.onSurface),
@@ -451,6 +483,7 @@ private fun ComposerSheets(
     onPickFiles: () -> Unit,
     onPickPhotos: () -> Unit,
     onTakePhoto: () -> Unit,
+    onPrompts: (() -> Unit)? = null,
 ) {
     val close = { onSheet(null) }
     when (sheet) {
@@ -482,6 +515,7 @@ private fun ComposerSheets(
             canCompact = canCompact,
             onDismiss = close,
             onWorkflows = actions.onWorkflows?.let { open -> { close(); open() } },
+            onPrompts = onPrompts?.let { open -> { close(); open() } },
             onVoiceMode = actions.onVoiceMode?.let { open -> { close(); open() } },
             // The first time it's turned on, the + sheet makes way for what it means.
             onSetTemporary = actions.setTemporary?.let { set ->
@@ -506,6 +540,7 @@ private fun MoreSheet(
     canCompact: Boolean,
     onDismiss: () -> Unit,
     onWorkflows: (() -> Unit)? = null,
+    onPrompts: (() -> Unit)? = null,
     onVoiceMode: (() -> Unit)? = null,
     /** Home only: the next chat starts temporary ([ComposerActions.setTemporary]). */
     onSetTemporary: ((Boolean) -> Unit)? = null,
@@ -522,6 +557,10 @@ private fun MoreSheet(
             SheetRow(LocusIcons.Camera, stringResource(R.string.chat_composer_camera), stringResource(R.string.chat_composer_camera_hint), onClick = onTakePhoto)
             GroupDivider(inset = Insets.iconRow)
             SheetRow(LocusIcons.File, stringResource(R.string.chat_composer_files), stringResource(R.string.chat_composer_files_hint), onClick = onPickFiles)
+            if (onPrompts != null) {
+                GroupDivider(inset = Insets.iconRow)
+                SheetRow(LocusIcons.Prompt, stringResource(R.string.chat_composer_prompts), stringResource(R.string.chat_composer_prompts_hint), onClick = onPrompts)
+            }
             if (onWorkflows != null) {
                 GroupDivider(inset = Insets.iconRow)
                 SheetRow(LocusIcons.Play, stringResource(R.string.chat_composer_workflow), stringResource(R.string.chat_composer_workflow_hint), onClick = onWorkflows)
@@ -574,6 +613,64 @@ private fun MoreSheet(
         SectionNote(stringResource(R.string.chat_composer_options_note))
     }
 }
+
+/** Most saved prompts the `/` list shows; typing more letters narrows it, and + → Prompts lists them all. */
+private const val SLASH_ROWS = 4
+
+/**
+ * The `/` list over the text box (docs/design/saved-prompts.md): the saved prompts matching what's typed
+ * after `/`, best first, and `/btw` in a chat. It only offers: the text stays as typed until a row is
+ * tapped, so a message that starts with `/` (a path, `/btw question`) still sends as it is. With no
+ * prompts saved yet, a bare `/` offers the picker, where one can be made.
+ */
+@Composable
+private fun SlashSuggestions(
+    query: String,
+    prompts: List<dev.locus.core.model.SavedPrompt>,
+    showBtw: Boolean,
+    onPick: (dev.locus.core.model.SavedPrompt) -> Unit,
+    onBtw: () -> Unit,
+    onOpenPicker: () -> Unit,
+) {
+    val matches = remember(prompts, query) { dev.locus.core.agent.prompt.PromptSearch.filter(prompts, query).take(SLASH_ROWS) }
+    val btw = showBtw && "btw".startsWith(query.lowercase())
+    val empty = prompts.isEmpty() && query.isEmpty()
+    if (matches.isEmpty() && !btw && !empty) return
+    // The composer paints its own surface rather than being a Surface, so the rows get the content colour here.
+    androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides MaterialTheme.colorScheme.onSurface) {
+    Column(Modifier.padding(top = Spacing.xs).testTag(SLASH_TAG)) {
+        matches.forEach { p ->
+            ListRow(
+                title = p.name,
+                subtitle = dev.locus.core.agent.prompt.PromptSearch.preview(p.text),
+                onClick = { onPick(p) },
+                leading = { IconTile(LocusIcons.Prompt) },
+            )
+        }
+        if (btw) {
+            ListRow(
+                title = stringResource(R.string.chat_composer_slash_btw_command),
+                subtitle = stringResource(R.string.chat_composer_aside_description),
+                onClick = onBtw,
+                leading = { IconTile(LocusIcons.Chats) },
+            )
+        }
+        if (empty) {
+            ListRow(
+                title = stringResource(R.string.chat_composer_slash_none_title),
+                subtitle = stringResource(R.string.chat_composer_slash_none_body),
+                subtitleMaxLines = 2,
+                onClick = onOpenPicker,
+                leading = { IconTile(LocusIcons.Prompt) },
+            )
+        }
+        GroupDivider(inset = Spacing.lg)
+    }
+    }
+}
+
+/** The `/` list, for tests. */
+internal const val SLASH_TAG = "composer-slash"
 
 /** One action in the + sheet: a [ListRow] with its icon on a tile; [enabled] false fades it and TalkBack says it's disabled. */
 @Composable

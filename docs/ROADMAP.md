@@ -371,7 +371,7 @@ Everyday integrations that remove friction ([design](design/integrations.md)).
 Ranked by value over effort; sources, positioning and what not to copy are in [feature opportunities](research/feature-opportunities-2026-11.md).
 
 - [ ] **App lock and locked chats** (S): biometric or device-credential gate on opening Locus and on chosen chats (ChatGPT shipped it on 2026-10-20).
-- [ ] **Saved prompts with variables** (S): `/` in the composer, `{{clipboard}}`, `{{date}}` and form fields.
+- [x] **Saved prompts with variables** (S): `/` in the composer, `{{clipboard}}`, `{{date}}` and form fields. Built 2026-11-21: [saved prompts](design/saved-prompts.md).
 - [ ] **Approve memory writes** (S): a setting that makes every `memory_save` ask, and a periodic consolidation proposed as a diff. Policy and UI only.
 - [ ] **Rewind here, summarise from here** (S–M): rewind files and conversation to a message; summarise only the tail so the cached prefix stays. Covers "Compaction: editable summary".
 - [ ] **"Needs you" feed** (M): trigger and scheduled results plus drafts waiting for approval in one place; builds on "let a run propose a write as an approval card".

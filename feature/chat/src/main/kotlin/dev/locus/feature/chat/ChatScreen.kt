@@ -228,6 +228,7 @@ fun ChatRoute(
         )
     }
     val workflows = rememberChatWorkflows(conversationId, project.current, hiltViewModel<ChatWorkflowsViewModel>(key = "workflows-$conversationId"))
+    val prompts = rememberComposerPrompts(hiltViewModel<ComposerPromptsViewModel>(key = "prompts-$conversationId"))
     projectNotice?.let { note ->
         dev.locus.core.designsystem.LocusSheet(title = stringResource(R.string.chat_screen_not_moved), subtitle = note.asString(), onDismiss = viewModel::dismissProjectNotice) {}
     }
@@ -371,6 +372,7 @@ fun ChatRoute(
             )
         },
         workflows = workflows,
+        prompts = prompts,
     )
     if (voiceOpen) {
         dev.locus.feature.chat.voice.VoiceMode(
@@ -453,6 +455,8 @@ internal fun ChatScreen(
     heatServices: List<String> = emptyList(),
     /** Saving a task as a workflow and running one (docs/design/workflows.md). */
     workflows: WorkflowActions = WorkflowActions(),
+    /** Saved prompts in the composer (docs/design/saved-prompts.md); null where they aren't offered. */
+    prompts: ComposerPrompts? = null,
     /** Opens voice mode over this chat (docs/design/voice-mode.md); null where there's no speech recognizer. */
     onVoiceMode: (() -> Unit)? = null,
     /** Voice mode is open: read-aloud stays quiet. */
@@ -984,6 +988,7 @@ internal fun ChatScreen(
                     onStop = onStop,
                     // The current turn's checklist, while there's something left to do or it's being worked
                     // on: one slim row in the composer's top edge rather than a card floating above it.
+                    prompts = prompts,
                     dock = state.todos?.takeIf { todos -> state.run.running || todos.any { it.status != dev.locus.core.model.TodoStatus.COMPLETED } }?.let { todos ->
                         { ChecklistStrip(todos, running = state.run.running) }
                     },
