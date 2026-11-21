@@ -233,7 +233,10 @@ internal fun SettingsScreen(
             SettingsPage.Automation -> AutomationRoute(onBack = back)
             SettingsPage.Phone -> PhoneRoute(onBack = back)
             SettingsPage.Backup -> BackupRoute(onBack = back)
-            SettingsPage.About -> AboutSettings(onBack = back, onRunSetup = onRunSetup, onOpenDiagnostics = { pageName = SettingsPage.Diagnostics.name }, onOpenActivity = onOpenActivity)
+            SettingsPage.About -> {
+                val (lock, lockActions) = rememberAppLockSection(hiltViewModel())
+                AboutSettings(onBack = back, onRunSetup = onRunSetup, onOpenDiagnostics = { pageName = SettingsPage.Diagnostics.name }, onOpenActivity = onOpenActivity, lock = lock, lockActions = lockActions)
+            }
             SettingsPage.Diagnostics -> DiagnosticsRoute(
                 onBack = back,
                 onOpenSelfTest = { pageName = SettingsPage.SelfTest.name },

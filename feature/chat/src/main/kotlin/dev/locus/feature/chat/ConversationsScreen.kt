@@ -150,6 +150,8 @@ fun ConversationsRoute(
     val projects by viewModel.projects.collectAsStateWithLifecycle()
     val composer by viewModel.composer.collectAsStateWithLifecycle()
     val remoteModeUntil by viewModel.remoteModeUntil.collectAsStateWithLifecycle()
+    val chatLock: ChatLockViewModel = hiltViewModel()
+    val locker = rememberChatLocker(chatLock)
     // Android 17 blocks LAN providers (Ollama, LM Studio…) until the user allows local network access.
     val localNetwork = dev.locus.core.designsystem.rememberLocalNetworkGate()
     val composerActions = remember(viewModel) {
@@ -207,6 +209,7 @@ fun ConversationsRoute(
                 }
             },
             onDismissSetup = viewModel::dismissSetup,
+            onSetLocked = { row, locked -> locker.toggle(row.conversation.id, locked, row.redacted) },
         ),
     )
 }
@@ -235,6 +238,8 @@ internal class HomeActions(
     val onOpenSetup: (SetupItem) -> Unit = {},
     /** A setup card's close button: that card doesn't come back. */
     val onDismissSetup: (SetupItem) -> Unit = {},
+    /** Lock this chat, or remove its lock (docs/design/app-lock.md). */
+    val onSetLocked: (ConversationRow, Boolean) -> Unit = { _, _ -> },
 )
 
 /** The All chats filter value for chats outside any project. */
@@ -249,6 +254,20 @@ private const val HOME_PROJECTS = 8
 
 /** Scheduled runs are titled this way by TaskWorker; their news reaches home as the task result card. */
 private val ConversationRow.isScheduledRun get() = conversation.title.startsWith("Scheduled: ")
+
+/** The chat's title, or "Locked chat" while it's hidden (docs/design/app-lock.md). */
+@Composable
+private fun ConversationRow.shownTitle(): String = if (redacted) stringResource(R.string.chat_lock_hidden_title) else conversation.title
+
+/** A locked chat leads with the padlock instead of its model's logo. */
+@Composable
+private fun ChatLeading(row: ConversationRow) {
+    if (row.locked) {
+        IconTile(LocusIcons.Lock, size = IconSize.tile, contentDescription = stringResource(R.string.chat_lock_locked_description))
+    } else {
+        ProviderBadge(row.providerName, row.providerUrl, row.onDevice, size = IconSize.tile, model = row.model)
+    }
+}
 
 /**
  * Home is one calm overview (status, the active chat, a launcher strip, a few recent chats and
@@ -281,6 +300,9 @@ internal fun ConversationsScreen(
         pin = { actions.onPin(it.conversation.id, !it.conversation.pinned) },
         rename = { pendingRename = it },
         delete = { pendingDelete = it },
+        // Only where the phone has a screen lock to ask with; a locked chat can always have its lock removed.
+        lock = { row -> if (ready?.chatLockAvailable == true || row.locked) actions.onSetLocked(row, !row.locked) },
+        lockAvailable = ready?.chatLockAvailable == true,
     )
     val closeAll = { allChats = false; focusSearch = false; actions.onSearch(null) }
 
@@ -326,7 +348,7 @@ internal fun ConversationsScreen(
     pendingDelete?.let { row ->
         ConfirmSheet(
             title = stringResource(R.string.chat_home_delete_title),
-            message = stringResource(R.string.chat_home_delete_body, row.conversation.title),
+            message = stringResource(R.string.chat_home_delete_body, row.shownTitle()),
             confirmLabel = stringResource(R.string.chat_home_delete),
             tone = Tone.Critical,
             onConfirm = { actions.onDelete(row.conversation.id); pendingDelete = null },
@@ -361,6 +383,9 @@ private class RowActions(
     val pin: (ConversationRow) -> Unit,
     val rename: (ConversationRow) -> Unit,
     val delete: (ConversationRow) -> Unit,
+    val lock: (ConversationRow) -> Unit = {},
+    /** The phone has a screen lock, so "Lock chat" is offered. */
+    val lockAvailable: Boolean = false,
 )
 
 /** One line under the title answering "what's happening right now?", most urgent first. */
@@ -516,9 +541,9 @@ private fun ActiveChatCard(row: ConversationRow, onClick: () -> Unit, modifier: 
     // The tone's outline and status line carry the state; no glow on top.
     LocusCard(modifier, onClick = onClick, outline = tone.color().copy(alpha = Emphasis.toneOutline)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            ProviderBadge(row.providerName, row.providerUrl, row.onDevice, size = IconSize.tile, model = row.model)
+            ChatLeading(row)
             Column(Modifier.weight(1f).padding(start = Spacing.md)) {
-                Text(row.conversation.title, style = LocusType.cardTitle, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(row.shownTitle(), style = LocusType.cardTitle, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 WrappingStatusLine(
                     when {
                         row.needsApproval -> stringResource(R.string.chat_home_waiting_approval)
@@ -627,7 +652,7 @@ private fun ConversationRowItem(row: ConversationRow, actions: RowActions, showM
     val optionsLabel = stringResource(R.string.chat_home_options)
     Box {
         ListRow(
-            title = row.conversation.title,
+            title = row.shownTitle(),
             modifier = Modifier
                 .combinedClickable(
                     onClick = { hit?.message?.let { actions.openAt(row, it.id) } ?: actions.open(row) },
@@ -635,7 +660,7 @@ private fun ConversationRowItem(row: ConversationRow, actions: RowActions, showM
                     onLongClickLabel = optionsLabel,
                 )
                 .semantics { onLongClick(label = optionsLabel) { menu = true; true } },
-            leading = { ProviderBadge(row.providerName, row.providerUrl, row.onDevice, size = IconSize.tile, model = row.model) },
+            leading = { ChatLeading(row) },
             meta = {
                 val match = hit?.message
                 when {
@@ -666,7 +691,17 @@ private fun ConversationRowItem(row: ConversationRow, actions: RowActions, showM
                 leadingIcon = { Icon(LocusIcons.Pin, null) },
                 onClick = { menu = false; actions.pin(row) },
             )
-            DropdownMenuItem(text = { Text(stringResource(R.string.chat_home_rename)) }, leadingIcon = { Icon(LocusIcons.Note, null) }, onClick = { menu = false; actions.rename(row) })
+            // A hidden chat's name isn't shown, so it can't be edited until it's unlocked.
+            if (!row.redacted) {
+                DropdownMenuItem(text = { Text(stringResource(R.string.chat_home_rename)) }, leadingIcon = { Icon(LocusIcons.Note, null) }, onClick = { menu = false; actions.rename(row) })
+            }
+            if (actions.lockAvailable || row.locked) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(if (row.locked) R.string.chat_lock_remove else R.string.chat_lock_add)) },
+                    leadingIcon = { Icon(LocusIcons.Lock, null) },
+                    onClick = { menu = false; actions.lock(row) },
+                )
+            }
             DropdownMenuItem(text = { Text(stringResource(R.string.chat_home_delete)) }, leadingIcon = { Icon(LocusIcons.Trash, null) }, onClick = { menu = false; actions.delete(row) })
         }
     }

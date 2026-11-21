@@ -98,4 +98,5 @@
         <item quantity="other">基于 models.dev 的价格。30 天内的 %2$d 次请求中有 %1$d 次没有价格，因此标有 + 的总额是最低值。</item>
     </plurals>
     <string name="analytics_cost_note_priced">基于 models.dev 的标价；你的提供商账单可能有所不同。</string>
+    <string name="analytics_locked_chat">已锁定的对话</string>
 </resources>

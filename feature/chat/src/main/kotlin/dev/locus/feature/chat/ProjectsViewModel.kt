@@ -38,7 +38,12 @@ class ProjectsViewModel @Inject constructor(
     private val projects: ProjectRepository,
     private val conversations: ConversationRepository,
     settings: SettingsRepository,
+    /** Lock Locus and locked chats; null in tests that don't need it (nothing is hidden then). */
+    appLock: dev.locus.core.data.lock.AppLock? = null,
 ) : ViewModel() {
+    /** Locked chats this session hasn't unlocked are listed as "Locked chat" (docs/design/app-lock.md). */
+    val lock: StateFlow<dev.locus.core.model.AppLockStatus?> = appLock?.status ?: kotlinx.coroutines.flow.MutableStateFlow(null)
+
     val rows: StateFlow<List<ProjectRow>?> = combine(projects.all, conversations.all, conversations.emptyIds, settings.settings) { list, chats, empty, s ->
         list.map { p ->
             val mine = chats.filter { it.projectId == p.id && it.id !in empty }

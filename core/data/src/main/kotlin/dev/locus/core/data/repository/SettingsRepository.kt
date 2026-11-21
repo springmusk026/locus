@@ -272,6 +272,10 @@ class SettingsRepository @Inject constructor(
     suspend fun setPower(transform: (dev.locus.core.model.PowerSettings) -> dev.locus.core.model.PowerSettings) =
         store.updateData { it.copy(power = transform(it.power)) }
 
+    /** Settings → About & privacy → Lock Locus, and locked chats (docs/design/app-lock.md). */
+    suspend fun setAppLock(transform: (dev.locus.core.model.AppLockSettings) -> dev.locus.core.model.AppLockSettings) =
+        store.updateData { it.copy(appLock = transform(it.appLock)) }
+
     /** Settings → Voice (docs/design/voice-mode.md). */
     suspend fun setVoice(transform: (dev.locus.core.model.VoiceSettings) -> dev.locus.core.model.VoiceSettings) =
         store.updateData { it.copy(voice = transform(it.voice)) }

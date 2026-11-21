@@ -125,4 +125,5 @@
         <item quantity="other">From models.dev prices. %1$d of %2$d requests in 30 days had no price, so totals marked + are at least that.</item>
     </plurals>
     <string name="analytics_cost_note_priced">From models.dev list prices; your provider\'s bill may differ.</string>
+    <string name="analytics_locked_chat">Locked chat</string>
 </resources>

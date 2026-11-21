@@ -20,6 +20,9 @@ import dagger.hilt.components.SingletonComponent
 import dev.locus.core.data.R
 import dev.locus.core.data.agent.OpenChatLink
 import dev.locus.core.data.di.ApplicationScope
+import dev.locus.core.data.lock.AppLock
+import dev.locus.core.data.lock.LockedNotifications.privateWhenLocked
+import dev.locus.core.model.AppLockSettings
 import dev.locus.core.model.Reminder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -80,7 +83,11 @@ class AndroidReminderAlarms @Inject constructor(@param:ApplicationContext privat
  * notification leaves the reminder as shown: it stays under Scheduled tasks for a day, where Clear removes it.
  */
 @Singleton
-class AndroidReminderNotifier @Inject constructor(@param:ApplicationContext private val context: Context) : ReminderNotifier {
+class AndroidReminderNotifier @Inject constructor(
+    @param:ApplicationContext private val context: Context,
+    /** Null only in tests that don't need it: nothing is locked then. */
+    private val appLock: AppLock? = null,
+) : ReminderNotifier {
     override fun canNotify(): Boolean = NotificationManagerCompat.from(context).areNotificationsEnabled()
 
     override fun show(reminder: Reminder, late: Boolean) {
@@ -94,14 +101,21 @@ class AndroidReminderNotifier @Inject constructor(@param:ApplicationContext priv
             reminder.conversationId?.let { OpenChatLink.attach(context, launch, it) }
             PendingIntent.getActivity(context, ("reminder-open:" + reminder.id).hashCode(), launch, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         }
+        // A reminder set in a locked chat doesn't say what it is (docs/design/app-lock.md). Until the lock's
+        // settings are read (a fresh process), it errs on the side of saying less.
+        val status = if (appLock == null) dev.locus.core.model.AppLockStatus() else appLock.status.value
+        val lock = status?.settings ?: AppLockSettings(enabled = true)
+        val hidden = if (status == null) reminder.conversationId != null else status.redactOutside(reminder.conversationId)
+        val text = if (hidden) context.getString(R.string.data_lock_reminder_text) else reminder.text
         @Suppress("MissingPermission")
         NotificationManagerCompat.from(context).notify(
             ReminderIntents.notificationId(reminder.id),
             NotificationCompat.Builder(context, CHANNEL)
                 .setSmallIcon(R.drawable.ic_stat_agent)
-                .setContentTitle(reminder.text)
+                .setContentTitle(text)
                 .setContentText(reminderLine(reminder, late, ZoneId.systemDefault()))
-                .setStyle(NotificationCompat.BigTextStyle().bigText(reminder.text))
+                .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+                .privateWhenLocked(context, lock, CHANNEL)
                 .setCategory(NotificationCompat.CATEGORY_REMINDER)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setContentIntent(open)

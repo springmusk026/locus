@@ -20,7 +20,7 @@ import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.RowChevron
 
-/** Version, updates, a plain account of what leaves the phone, Diagnostics, and a way back into setup. */
+/** Version, updates, a plain account of what leaves the phone, the app lock, Diagnostics, and a way back into setup. */
 @Composable
 internal fun AboutSettings(
     onBack: () -> Unit,
@@ -28,6 +28,9 @@ internal fun AboutSettings(
     onOpenDiagnostics: () -> Unit = {},
     onOpenActivity: () -> Unit = {},
     updatesViewModel: UpdatesViewModel = hiltViewModel(),
+    /** Lock Locus (docs/design/app-lock.md); null leaves the section out. */
+    lock: AppLockSectionState? = null,
+    lockActions: AppLockSectionActions = AppLockSectionActions(),
 ) {
     val version = appVersion()
     val updates by updatesViewModel.uiState.collectAsStateWithLifecycle()
@@ -59,6 +62,9 @@ internal fun AboutSettings(
             }
         }
         item { DestinationLink(destinationPath(stringResource(R.string.settings_about_activity_name)), onNavigate = onOpenActivity, modifier = NotePadding, hint = stringResource(R.string.settings_about_activity_hint)) }
+
+        // Who can see what's on the phone: Lock Locus and locked chats.
+        if (lock != null) appLockSection(lock, lockActions)
 
         item { SectionLabel(stringResource(R.string.settings_about_reliability_section), SectionPadding) }
         item {

@@ -62,6 +62,10 @@ import dev.locus.core.designsystem.SettingsLinkIn
 import androidx.compose.runtime.remember
 import dev.locus.core.designsystem.LocusTheme
 import dev.locus.core.designsystem.ProvideSecureWindow
+import dev.locus.core.designsystem.SecretContent
+import dev.locus.core.data.lock.AppLock
+import dev.locus.core.ui.AppLockGate
+import dev.locus.core.ui.ChatLockGate
 import dev.locus.feature.activity.ActivityRoute as ActivityScreen
 import dev.locus.feature.browser.BrowserRoute as BrowserScreen
 import dev.locus.feature.library.LibraryRoute as LibraryScreen
@@ -93,7 +97,14 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent {
-            LocusTheme { ProvideSecureWindow(window) { AppFeedback { LocusNavigation(shareIntents) } } }
+            LocusTheme {
+                ProvideSecureWindow(window) {
+                    LockedRecents()
+                    // Shares, notification taps, shortcuts, the tile and the widget all land here, so all of
+                    // them go through the lock (docs/design/app-lock.md).
+                    AppFeedback { AppLockGate(appLock) { LocusNavigation(shareIntents, appLock) } }
+                }
+            }
         }
         // Only on a fresh start: after recreation the back stack already holds what this intent opened.
         if (savedInstanceState == null) intent?.let { shareIntents.tryEmit(it) }
@@ -129,6 +140,40 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var terminals: TerminalSessions
 
+    @Inject lateinit var appLock: AppLock
+
+    /**
+     * Everything Locus starts for a result (the photo, contact and file pickers, Android 8 to 9's
+     * credential screen) is a trip it expects back from: with Lock after "Now", coming back from it
+     * doesn't lock Locus (docs/design/app-lock.md). The Activity Result API launches through here.
+     */
+    @Suppress("OVERRIDE_DEPRECATION")
+    override fun startActivityForResult(intent: Intent, requestCode: Int, options: Bundle?) {
+        appLock.expectReturn()
+        super.startActivityForResult(intent, requestCode, options)
+    }
+
+    /** Back on screen: a trip that was expected is over (or never left, as a dialog-style picker). */
+    override fun onResume() {
+        super.onResume()
+        appLock.returned()
+    }
+
+    /**
+     * With Lock Locus on, Recents shows no picture of Locus: Android 13+ takes no Recents screenshot
+     * (`setRecentsScreenshotEnabled(false)`, which leaves the user's own screenshots alone); below 13
+     * the only way is FLAG_SECURE on the whole window while the lock is on.
+     */
+    @Composable
+    private fun LockedRecents() {
+        val enabled = appLock.status.collectAsStateWithLifecycle().value?.enabled == true
+        if (Build.VERSION.SDK_INT >= 33) {
+            LaunchedEffect(enabled) { setRecentsScreenshotEnabled(!enabled) }
+        } else if (enabled) {
+            SecretContent()
+        }
+    }
+
     /** Closing the app (not a rotation or a trip to another app) stops the terminal sessions (docs/design/terminal.md). */
     override fun onDestroy() {
         if (isFinishing && !isChangingConfigurations) terminals.closeAll()
@@ -137,7 +182,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
+private fun LocusNavigation(shareIntents: SharedFlow<Intent>, appLock: AppLock) {
     // Wait for settings, so a first run opens on onboarding without flashing home first.
     val gate: OnboardingGateViewModel = hiltViewModel()
     val needsOnboarding = gate.needsOnboarding.collectAsStateWithLifecycle().value
@@ -264,7 +309,9 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                         },
                     )
                 }
+                // A locked chat asks for authentication first, however it was opened (docs/design/app-lock.md).
                 entry<ChatRoute> { key ->
+                    ChatLockGate(appLock, key.conversationId, onBack = pop) {
                     ChatScreen(
                         conversationId = key.conversationId,
                         draft = key.draft,
@@ -281,6 +328,7 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                             backStack.add(ActivityRoute(f.conversationId, f.since, f.until, f.decisions.map { it.name }.sorted(), f.label))
                         },
                     )
+                    }
                 }
                 entry<BrowserRoute> { key ->
                     BrowserScreen(
@@ -373,7 +421,15 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                             )
                         }
                     }
-                    ActivityScreen(onBack = pop, onOpenConversation = { backStack.add(ChatRoute(it)) }, conversationId = key.conversationId, task = task)
+                    // Activity narrowed to one chat shows what it did, so a locked chat's asks first too.
+                    val chat = key.conversationId
+                    if (chat != null) {
+                        ChatLockGate(appLock, chat, onBack = pop) {
+                            ActivityScreen(onBack = pop, onOpenConversation = { backStack.add(ChatRoute(it)) }, conversationId = chat, task = task)
+                        }
+                    } else {
+                        ActivityScreen(onBack = pop, onOpenConversation = { backStack.add(ChatRoute(it)) }, conversationId = null, task = task)
+                    }
                 }
                 entry<OnboardingRoute> {
                     OnboardingScreen(
