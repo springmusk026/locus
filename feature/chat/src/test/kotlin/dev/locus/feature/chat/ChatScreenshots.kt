@@ -40,7 +40,9 @@ class ChatScreenshots : ScreenshotTest() {
         aside: SideThread? = null,
         heatServices: List<String> = emptyList(),
         projectHeader: (@Composable () -> Unit)? = null,
+        waiting: WaitingBannerState? = null,
     ) = ChatScreen(
+        waiting = waiting,
         state = state,
         onBack = {},
         onOpenBrowser = {},
@@ -193,6 +195,45 @@ class ChatScreenshots : ScreenshotTest() {
             flags = emptySet(),
         )
         Chat(Fx.state(waitingItems, run = RunState(running = true, step = 7, approvals = listOf(request)), todos = Fx.runningTodos))
+    }
+
+    private val emailRequest = ApprovalRequest(
+        conversationId = "c",
+        callId = "t6",
+        toolName = "device_email",
+        risk = ToolRisk.NETWORK,
+        summary = "Email the meeting notes to ana@example.com and bo@example.com",
+        argumentsJson = """{"to":["ana@example.com","bo@example.com"],"subject":"Meeting notes"}""",
+        flags = emptySet(),
+    )
+
+    /** Deny with a reason (a long press on Deny): one field, with what's being denied above it. */
+    @Test
+    fun approvalDenyReason() = snap("chat-approval-deny-reason") {
+        Chat(Fx.state(waitingItems, run = RunState(running = true, step = 7, approvals = listOf(emailRequest))))
+        dev.locus.core.ui.DenyReasonSheet(emailRequest, onDeny = {}, onDismiss = {}, initial = "Don't email them, post it in the #team Slack channel instead")
+    }
+
+    /** The sheet as it opens: the example as a placeholder, Deny off until something is typed. */
+    @Test
+    fun approvalDenyReasonEmpty() = snap("chat-approval-deny-reason-empty") {
+        Chat(Fx.state(waitingItems, run = RunState(running = true, step = 7, approvals = listOf(emailRequest))))
+        dev.locus.core.ui.DenyReasonSheet(emailRequest, onDeny = {}, onDismiss = {})
+    }
+
+    /** "Questions waiting": two other chats wait, the oldest named, under the title. */
+    @Test
+    fun waitingBanner() = snap("chat-waiting-banner") {
+        Chat(
+            Fx.state(runningItems, run = RunState(running = true, step = 5, activeTool = "run_command"), todos = Fx.runningTodos),
+            waiting = WaitingBannerState(2, WaitingEntry("trip", dev.locus.core.data.agent.WaitingKind.QUESTION, "Plan a 3-day trip to Lisbon")),
+        )
+    }
+
+    /** The one chat waiting is locked: counted, never named. */
+    @Test
+    fun waitingBannerLocked() = snap("chat-waiting-banner-locked") {
+        Chat(Fx.state(Fx.finished), waiting = WaitingBannerState(1, WaitingEntry("x", dev.locus.core.data.agent.WaitingKind.APPROVAL, title = null)))
     }
 
     /** Filling a saved login (docs/design/browser.md, "Saved logins"): the first time on a site, with "Always" for it. */

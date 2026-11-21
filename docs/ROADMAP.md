@@ -379,7 +379,7 @@ Ranked by value over effort; sources, positioning and what not to copy are in [f
 - [ ] **Import ChatGPT and Claude exports** (M): parsed on the phone into read-only, tainted chats.
 - [ ] **Office files** (M): skills that write docx, xlsx and pptx in Linux, and viewers for them.
 - [ ] **Snapshots that include shell changes** (M), **Rules (hooks)** (M), **Compare models** (M), **Publish to your own host** (S–M), **Desktop agents reach the phone over a token-guarded MCP endpoint** (M–L), **Health Connect, read-only** (M).
-- [ ] Small: usage and budget widget, "questions waiting" banner, a reason when the user denies an action.
+- [x] Small: usage and budget widget, "questions waiting" banner, a reason when the user denies an action. *Built: Deny with a reason on the in-app card (a long press on Deny), passed to the model in the call's result; the plain denial text is unchanged ([remembered approvals](design/remembered-approvals.md#deny-with-a-reason)). Memory approvals are tap-only in voice mode. A compact banner on home and in a chat for other chats waiting on an approval, a question or a budget pause, opening the oldest; locked chats counted, never named ([approvals waiting](design/approvals-waiting.md)). A second Glance widget, "Locus usage": today's spend and tokens as Insights counts them, and the running task's budget ([android bridge](design/android-bridge.md#the-usage-widget)). No Room change. Not yet tried on the phone.*
 
 ## Phase 2b: Learns as it goes
 

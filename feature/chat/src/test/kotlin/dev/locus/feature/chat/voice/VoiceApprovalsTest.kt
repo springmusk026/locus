@@ -35,6 +35,23 @@ class VoiceApprovalsTest {
     }
 
     @Test
+    fun `a memory save or forget needs a look at the card, even as a plain Ask`() {
+        val change = dev.locus.core.agent.MemoryChange(dev.locus.core.agent.MemoryChange.Kind.NEW, "coffee", summary = "Likes oat milk", content = "Oat milk, no sugar.")
+        val save = ApprovalRequest(
+            "chat", "m1", "memory_save", ToolRisk.WRITE, "Remember “coffee”", "{}", flags = emptySet(),
+            preview = dev.locus.core.agent.ApprovalPreview(emptyList(), memory = change),
+        )
+        val forget = ApprovalRequest("chat", "m2", "memory_forget", ToolRisk.WRITE, "Forget “coffee”", "{}", flags = emptySet())
+        for (request in listOf(save, forget, save.copy(flags = setOf(ApprovalFlag.TAINTED)))) {
+            assertFalse(VoiceApprovals.voiceAllowed(request))
+            assertTrue("on the screen" in VoiceApprovals.tapReason(request)!!)
+            assertTrue(VoiceApprovals.tapPrompt(request, VoiceApprovals.tapReason(request)!!).endsWith("Tap Allow or Deny on the screen."))
+        }
+        // Any other tool's plain Ask is still voice's to answer.
+        assertTrue(VoiceApprovals.voiceAllowed(request()))
+    }
+
+    @Test
     fun `the prompt reads the summary without markdown, and names a helper`() {
         assertEquals("Locus wants to: Write notes.md. Say allow, or deny.", VoiceApprovals.askPrompt(request()))
         val helper = request().copy(origin = ApprovalOrigin("a1", "Researcher #2"))

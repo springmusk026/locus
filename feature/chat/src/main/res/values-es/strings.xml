@@ -1389,4 +1389,23 @@
     <string name="chat_composer_slash_none_title">Prompts guardados</string>
     <string name="chat_composer_slash_none_body">Aún no hay ninguno. Crea uno aquí y luego escribe / para insertarlo.</string>
     <string name="chat_prompt_save_failed">No se pudo guardar el prompt. Inténtalo de nuevo.</string>
+    <plurals name="chat_waiting_title">
+        <item quantity="one">%1$d chat te está esperando</item>
+        <item quantity="many">%1$d chats te están esperando</item>
+        <item quantity="other">%1$d chats te están esperando</item>
+    </plurals>
+    <plurals name="chat_waiting_more_title">
+        <item quantity="one">%1$d chat más te está esperando</item>
+        <item quantity="many">%1$d chats más te están esperando</item>
+        <item quantity="other">%1$d chats más te están esperando</item>
+    </plurals>
+    <string name="chat_waiting_named">«%1$s»</string>
+    <string name="chat_waiting_locked">Un chat bloqueado</string>
+    <string name="chat_waiting_untitled">Un chat sin título</string>
+    <string name="chat_waiting_oldest">El más antiguo: «%1$s»</string>
+    <string name="chat_waiting_oldest_locked">El más antiguo: un chat bloqueado</string>
+    <string name="chat_waiting_oldest_untitled">El más antiguo: un chat sin título</string>
+    <string name="chat_waiting_kind_approval">Necesita tu aprobación</string>
+    <string name="chat_waiting_kind_question">Tiene una pregunta para ti</string>
+    <string name="chat_waiting_kind_budget">En pausa por su presupuesto</string>
 </resources>

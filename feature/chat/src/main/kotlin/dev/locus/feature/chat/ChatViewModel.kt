@@ -837,6 +837,9 @@ class ChatViewModel @AssistedInject constructor(
     /** Allow, and remember it for this chat or always (docs/design/remembered-approvals.md). */
     fun answerRemembering(callId: String, answer: dev.locus.core.agent.ApprovalAnswer) = runner.answer(callId, answer)
 
+    /** Deny, with the user's reason for the agent (the card's "Deny with a reason"). */
+    fun denyWithReason(callId: String, reason: String) = runner.denyWithReason(callId, reason)
+
     fun answerQuestion(callId: String, answer: dev.locus.core.agent.tools.QuestionAnswer) {
         runner.answerQuestion(callId, answer)
     }

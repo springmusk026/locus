@@ -272,6 +272,28 @@ class VoiceSessionTest {
     }
 
     @Test
+    fun `a memory approval is left on the screen, pending, whatever is said`() {
+        // "Ask before saving to memory = Always" makes memory_save a plain Ask (no flags): voice still won't answer it.
+        val memory = ApprovalRequest(
+            "chat", "m1", "memory_save", ToolRisk.WRITE, "Remember “coffee”", "{}", flags = emptySet(),
+            preview = dev.locus.core.agent.ApprovalPreview(
+                emptyList(),
+                memory = dev.locus.core.agent.MemoryChange(dev.locus.core.agent.MemoryChange.Kind.NEW, "coffee", summary = "Likes oat milk", content = "Oat milk."),
+            ),
+        )
+        val s = session()
+        s.start()
+        s.onAgent(VoiceAgentView(running = true, approval = memory))
+        assertTrue("what Locus remembers" in mouth.lastText && "Tap Allow or Deny on the screen." in mouth.lastText, mouth.lastText)
+        s.done()
+        assertIs<VoicePhase.TapApproval>(s.phase.value)
+        for (said in listOf("allow", "confirm", "yes go ahead", "deny", "no")) s.heard(said)
+        // Nothing answered: the card waits for a tap.
+        assertTrue(agent.answers.isEmpty())
+        assertIs<VoicePhase.TapApproval>(s.phase.value)
+    }
+
+    @Test
     fun `the approval prompt's own allow coming back through the mic can't approve`() {
         val s = session()
         s.start()

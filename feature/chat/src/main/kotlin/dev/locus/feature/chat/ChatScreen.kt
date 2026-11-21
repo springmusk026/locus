@@ -283,6 +283,10 @@ fun ChatRoute(
         val locked = status.isLockedChat(conversationId)
         ({ ChatLockButton(locked) { locker.toggle(conversationId, !locked, false) } })
     }
+    // Other chats waiting for the user: a banner under the title that opens the one waiting longest.
+    val waitingChats: WaitingChatsViewModel = hiltViewModel()
+    val waitingEntries by waitingChats.entries.collectAsStateWithLifecycle()
+    val waiting = remember(waitingEntries, conversationId) { waitingBanner(waitingEntries, exclude = setOf(conversationId)) }
     androidx.compose.runtime.CompositionLocalProvider(
         dev.locus.core.markdown.artifact.LocalArtifactHost provides artifactHost,
         LocalMemoryReads provides memoryReads,
@@ -291,6 +295,8 @@ fun ChatRoute(
     ) { // (body not re-indented, to keep the diff small)
     androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
     ChatScreen(
+        waiting = waiting,
+        onOpenWaiting = { id -> onOpenChat(id, null) },
         lockButton = lockButton,
         onVoiceMode = if (canVoice) ({ voiceOpen = true }) else null,
         voiceActive = voiceOpen,
@@ -307,6 +313,7 @@ fun ChatRoute(
         onStop = viewModel::stop,
         onAnswer = viewModel::answer,
         onRemember = viewModel::answerRemembering,
+        onDenyWithReason = viewModel::denyWithReason,
         onAnswerQuestion = viewModel::answerQuestion,
         onDismissMessages = viewModel::dismissMessages,
         onResume = viewModel::resume,
@@ -440,6 +447,8 @@ internal fun ChatScreen(
     onAnswer: (String, Boolean) -> Unit,
     /** "Allow for this chat" or "Always allow …" on an approval card that offers them. */
     onRemember: (String, dev.locus.core.agent.ApprovalAnswer) -> Unit = { _, _ -> },
+    /** Deny with the user's reason for the agent (the card's "Deny with a reason"). */
+    onDenyWithReason: ((String, String) -> Unit)? = { _, _ -> },
     onAnswerQuestion: (String, dev.locus.core.agent.tools.QuestionAnswer) -> Unit = { _, _ -> },
     onDismissMessages: () -> Unit,
     onResume: () -> Unit,
@@ -488,6 +497,10 @@ internal fun ChatScreen(
     /** What Rewind here would do, while its confirm sheet is open (docs/design/rewind.md). */
     rewindPreview: dev.locus.core.data.agent.RewindPreview? = null,
     history: HistoryActions = HistoryActions(),
+    /** Other chats waiting for the user ("2 chats are waiting for you"); null when none is. */
+    waiting: WaitingBannerState? = null,
+    /** Opens the chat that has waited longest, from that banner. */
+    onOpenWaiting: (String) -> Unit = {},
 ) {
     // Opening at a search result: until it's been shown, keep the list where we put it.
     var focus by rememberSaveable { mutableStateOf(focusMessageId) }
@@ -896,6 +909,8 @@ internal fun ChatScreen(
             val metersBelow = meters != null && largeFont()
             // A temporary chat says so under its title, where a project chip would be (it's never in one).
             val titleHeader: (@Composable () -> Unit)? = if (state.controls.temporary) ({ TemporaryMarker(onClick = { temporarySheet = true }) }) else projectHeader
+            // Other chats waiting for the user sit under the title, on the bar's own background so the transcript doesn't show through.
+            Surface(color = MaterialTheme.colorScheme.background) { Column {
             LocusTopBar(
                 state.title,
                 onBack = onBack,
@@ -916,6 +931,8 @@ internal fun ChatScreen(
                     if (state.items.isNotEmpty()) ShareChatButton(state.title, state.createdAt, state.items, onSaveExport)
                 },
             )
+            WaitingChatsSlot(waiting, onOpenWaiting, Modifier.padding(start = Spacing.lg, end = Spacing.lg, bottom = Spacing.xs))
+            } }
         },
         bottomBar = {
             // One solid band under the composer and what's docked to it, with a short fade above, so the
@@ -1012,7 +1029,7 @@ internal fun ChatScreen(
                     }
                     ReviewerBlockChips(state.run.reviewerBlocks, controls.runAnyway, controls.dismissReviewerBlock, bannerModifier)
                     state.run.budgetPause?.let { pause -> BudgetPauseCard(pause, state.run.budget, controls.answerBudget, bannerModifier) }
-                    state.pendingApproval?.let { ApprovalCard(it, onAnswer, onRemember, bannerModifier) }
+                    state.pendingApproval?.let { ApprovalCard(it, onAnswer, onRemember, bannerModifier, onDenyWithReason = onDenyWithReason) }
                     state.pendingQuestion?.let { QuestionCard(it, onAnswerQuestion, bannerModifier) }
                     aside?.takeIf { it.open }?.let { thread ->
                         SideQuestionCard(thread, running = state.run.running, onDismiss = asideActions.dismiss, onClear = asideActions.clear, modifier = bannerModifier)

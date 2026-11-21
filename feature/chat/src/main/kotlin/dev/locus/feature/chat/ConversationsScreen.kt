@@ -152,6 +152,8 @@ fun ConversationsRoute(
     val remoteModeUntil by viewModel.remoteModeUntil.collectAsStateWithLifecycle()
     val chatLock: ChatLockViewModel = hiltViewModel()
     val locker = rememberChatLocker(chatLock)
+    val waitingChats: WaitingChatsViewModel = hiltViewModel()
+    val waiting by waitingChats.entries.collectAsStateWithLifecycle()
     // Android 17 blocks LAN providers (Ollama, LM Studio…) until the user allows local network access.
     val localNetwork = dev.locus.core.designsystem.rememberLocalNetworkGate()
     val composerActions = remember(viewModel) {
@@ -180,6 +182,7 @@ fun ConversationsRoute(
         askFocusKey = askFocusKey,
         askListenKey = askListenKey,
         remoteModeUntil = remoteModeUntil,
+        waiting = waiting,
         actions = HomeActions(
             onStart = { text -> localNetwork.run(composer.settings.provider?.baseUrl.orEmpty()) { viewModel.start(text, onOpenConversation) } },
             onNewChat = { viewModel.newConversation(onOpenConversation) },
@@ -288,6 +291,8 @@ internal fun ConversationsScreen(
     remoteModeUntil: Long? = null,
     /** Saved prompts in the ask bar (docs/design/saved-prompts.md); null where they aren't offered. */
     prompts: ComposerPrompts? = null,
+    /** Chats waiting for the user, oldest first, for the "questions waiting" banner. */
+    waiting: List<WaitingEntry> = emptyList(),
 ) {
     var pendingDelete by remember { mutableStateOf<ConversationRow?>(null) }
     var pendingRename by remember { mutableStateOf<ConversationRow?>(null) }
@@ -340,7 +345,7 @@ internal fun ConversationsScreen(
                     val settings = Locus.settings
                     Button(onClick = { settings?.open(SettingsDestination.Models) ?: actions.onOpenSettings() }) { Text(stringResource(R.string.chat_home_choose_model)) }
                 }
-                else -> HomeList(ready, padding, actions, rowActions, onAllChats = { allChats = true; focusSearch = false }, projects = projects, remoteModeUntil = remoteModeUntil)
+                else -> HomeList(ready, padding, actions, rowActions, onAllChats = { allChats = true; focusSearch = false }, projects = projects, remoteModeUntil = remoteModeUntil, waiting = waiting)
             }
         }
     }
@@ -413,9 +418,15 @@ private fun HomeList(
     onAllChats: () -> Unit,
     projects: List<HomeProject> = emptyList(),
     remoteModeUntil: Long? = null,
+    waiting: List<WaitingEntry> = emptyList(),
 ) {
     // The chat that needs the user most, featured on top while it's active.
     val featured = state.rows.firstOrNull { it.needsApproval } ?: state.rows.firstOrNull { it.running }
+    // The banner counts the chats waiting beyond the one the featured card already shows waiting for an approval.
+    // Under that card it says "2 more chats…".
+    val waitingBanner = remember(waiting, featured) {
+        waitingBanner(waiting, exclude = setOfNotNull(featured?.takeIf { it.needsApproval }?.conversation?.id), sayMore = true)
+    }
     val pinned = state.rows.filter { it !== featured && it.conversation.pinned }
     // Scheduled runs stay out of Recent: the task result card carries their news, All chats keeps them.
     val recent = state.rows.filter { it !== featured && !it.conversation.pinned && !it.isScheduledRun }
@@ -432,6 +443,10 @@ private fun HomeList(
         remoteModeUntil?.let { until -> item(key = "remote-mode") { RemoteModeStatus(until, Modifier.padding(bottom = Spacing.md)) } }
         featured?.let { row ->
             item(key = "featured") { ActiveChatCard(row, onClick = { rowActions.open(row) }, modifier = Modifier.animateItem().padding(bottom = Spacing.md)) }
+        }
+        // Other chats waiting for the user: one compact card that opens the one waiting longest.
+        waitingBanner?.let { banner ->
+            item(key = "waiting") { WaitingChatsBanner(banner, actions.onOpenConversation, Modifier.animateItem().padding(bottom = Spacing.md)) }
         }
         item(key = "launcher") { Launcher(state.counts, actions, Modifier.entrance(0)) }
         item(key = "projects") { ProjectsStrip(projects, actions, Modifier.entrance(1)) }

@@ -6,6 +6,12 @@
     <string name="ui_approval_hide_details">Ocultar detalles</string>
     <string name="ui_approval_allow">Permitir</string>
     <string name="ui_approval_deny">Rechazar</string>
+    <string name="ui_approval_deny_reason">Rechazar con un motivo</string>
+    <string name="ui_approval_reason_title">Rechazar con un motivo</string>
+    <string name="ui_approval_reason_message">El agente lee tu motivo, para que pueda hacerlo de otra forma o preguntarte.</string>
+    <string name="ui_approval_reason_denying">Acción</string>
+    <string name="ui_approval_reason_label">Motivo</string>
+    <string name="ui_approval_reason_placeholder">No les escribas un correo, usa Slack</string>
     <string name="ui_approval_this_chat">Este chat</string>
     <string name="ui_approval_always">Siempre</string>
     <string name="ui_approval_allow_site">Permitir sitio</string>

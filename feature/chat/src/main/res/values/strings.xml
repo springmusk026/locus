@@ -1362,4 +1362,25 @@
     <string name="chat_composer_slash_none_title">Saved prompts</string>
     <string name="chat_composer_slash_none_body">None yet. Make one here, then type / to insert it.</string>
     <string name="chat_prompt_save_failed">Couldn\'t save the prompt. Try again.</string>
+    <!-- The "questions waiting" banner on home and in a chat: other chats waiting for the user. -->
+    <plurals name="chat_waiting_title">
+        <item quantity="one">%1$d chat is waiting for you</item>
+        <item quantity="other">%1$d chats are waiting for you</item>
+    </plurals>
+    <!-- On home, under the card of a chat already shown waiting. -->
+    <plurals name="chat_waiting_more_title">
+        <item quantity="one">%1$d more chat is waiting for you</item>
+        <item quantity="other">%1$d more chats are waiting for you</item>
+    </plurals>
+    <string name="chat_waiting_named">“%1$s”</string>
+    <string name="chat_waiting_locked">A locked chat</string>
+    <string name="chat_waiting_untitled">An untitled chat</string>
+    <string name="chat_waiting_oldest">Oldest: “%1$s”</string>
+    <string name="chat_waiting_oldest_locked">Oldest: a locked chat</string>
+    <string name="chat_waiting_oldest_untitled">Oldest: an untitled chat</string>
+    <string name="chat_waiting_kind_approval">Needs your approval</string>
+    <string name="chat_waiting_kind_question">Has a question for you</string>
+    <string name="chat_waiting_kind_budget">Paused at its budget</string>
+    <!-- Which chat, then why: "“Trip plan” · Needs your approval". -->
+    <string name="chat_waiting_detail" translatable="false">%1$s · %2$s</string>
 </resources>

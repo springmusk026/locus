@@ -85,6 +85,9 @@ class BrowserViewModel @Inject constructor(val browser: AgentBrowser, private va
 
     fun answerRemembering(callId: String, answer: ApprovalAnswer) = runner.answer(callId, answer)
 
+    /** Deny, with the user's reason for the agent (the card's "Deny with a reason"). */
+    fun denyWithReason(callId: String, reason: String) = runner.denyWithReason(callId, reason)
+
     fun answerQuestion(callId: String, answer: QuestionAnswer) {
         runner.answerQuestion(callId, answer)
     }

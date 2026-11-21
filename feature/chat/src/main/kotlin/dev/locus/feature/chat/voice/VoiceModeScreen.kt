@@ -398,6 +398,10 @@ private fun VoiceApprovalCard(request: ApprovalRequest, phase: VoicePhase, onAns
     LocusCard(Modifier.fillMaxWidth(), outline = caution.copy(alpha = Emphasis.toneOutline)) {
         Text(request.origin?.let { stringResource(R.string.chat_voice_wants_to, it.label) } ?: stringResource(R.string.chat_voice_allow_this), style = LocusType.cardTitle)
         SupportingText(request.summary, style = LocusType.rowSupporting, maxLines = 3)
+        // A memory change is answered by tap only, after a look at what it saves: the whole note, scrolling in place.
+        request.preview?.memory?.let { change ->
+            Column(Modifier.heightIn(max = Sizes.inlineScroll).verticalScroll(rememberScrollState())) { dev.locus.core.ui.MemoryChangeRows(change) }
+        }
         Text(
             when {
                 reason != null -> stringResource(R.string.chat_voice_cannot_answer, reason)

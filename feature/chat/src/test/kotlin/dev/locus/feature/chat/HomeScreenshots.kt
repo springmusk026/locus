@@ -95,11 +95,37 @@ class HomeScreenshots : ScreenshotTest() {
     )
 
     @Composable
-    private fun Home(state: ConversationsUiState, projects: List<HomeProject> = emptyList(), remoteUntil: Long? = null) =
-        ConversationsScreen(state, actions, composer = HomeComposer(Fx.settings), projects = projects, remoteModeUntil = remoteUntil)
+    private fun Home(
+        state: ConversationsUiState,
+        projects: List<HomeProject> = emptyList(),
+        remoteUntil: Long? = null,
+        waiting: List<WaitingEntry> = emptyList(),
+    ) = ConversationsScreen(state, actions, composer = HomeComposer(Fx.settings), projects = projects, remoteModeUntil = remoteUntil, waiting = waiting)
 
     @Test
     fun home() = snap("home") { Home(ready, projects) }
+
+    // ---- "Questions waiting": chats beyond the featured one that wait for the user
+
+    /** c2 waits on an approval (the featured card); the banner counts the two others, the oldest named. */
+    @Test
+    fun homeWaiting() = snap("home-waiting") {
+        Home(
+            ready,
+            projects,
+            waiting = listOf(
+                WaitingEntry("c3", dev.locus.core.data.agent.WaitingKind.QUESTION, "Plan a 3-day trip to Lisbon"),
+                WaitingEntry("c2", dev.locus.core.data.agent.WaitingKind.APPROVAL, "Book a table at Lula's"),
+                WaitingEntry("c4", dev.locus.core.data.agent.WaitingKind.BUDGET, "Debounce a search field"),
+            ),
+        )
+    }
+
+    /** No chat featured, one locked chat waiting: counted, never named. */
+    @Test
+    fun homeWaitingLocked() = snap("home-waiting-locked") {
+        Home(calm, waiting = listOf(WaitingEntry("c9", dev.locus.core.data.agent.WaitingKind.APPROVAL, title = null)))
+    }
 
     // ---- The projects shelf: none, a few, many, and a project with a chat working or waiting
 
