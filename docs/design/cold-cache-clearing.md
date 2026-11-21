@@ -71,6 +71,11 @@ OpenRouter's `anthropic/*` models go through Chat Completions, where Locus sends
 
 ### After a compaction checkpoint
 
+A summary of the later part (Summarise from here) keeps the messages before it, so its view counts like a reply
+for the gap rule and is never a boundary itself (its summary request read the cache when it was written), and it
+keeps the kept part's results cleared as they were last sent (`Part.Checkpoint.clearedResults`); see
+[rewind](rewind.md#cold-cache-clearing).
+
 `Compaction.modelContext` already replaces everything before the latest checkpoint with its view, a user message. Clearing runs on that list, so it only ever sees what comes after the checkpoint. The checkpoint view is not an assistant reply, so a gap right after it starts no boundary until a reply follows. The checkpoint itself never contains tool results.
 
 ## Byte stability

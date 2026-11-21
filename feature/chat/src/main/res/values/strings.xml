@@ -1248,6 +1248,105 @@
     <string name="chat_checks_check_timedout_n">Check · timed out on run %1$d of %1$d</string>
     <string name="chat_checks_check_stopped">Check stopped</string>
     <string name="chat_checks_check_stopped_n">Check · stopped on run %1$d of %1$d</string>
+    <!-- Rewind here and Summarise from here (docs/design/rewind.md) -->
+    <string name="chat_history_rewind">Rewind here</string>
+    <string name="chat_history_summarise">Summarise from here</string>
+    <string name="chat_history_unavailable_running">Not while the agent works</string>
+    <string name="chat_rewind_unavailable_first">The first message: use Edit to change it</string>
+    <string name="chat_rewind_unavailable_nothing_after">Nothing comes after this reply</string>
+    <string name="chat_rewind_unavailable_branch">Not on the branch shown</string>
+    <string name="chat_summarise_unavailable_summarised">Already part of an earlier summary</string>
+    <string name="chat_summarise_unavailable_nothing_after">Nothing after this reply to summarise</string>
+    <string name="chat_summarise_unavailable_too_little">Too little from here on to summarise</string>
+    <string name="chat_summarise_unavailable_server">The provider already compacted this part on its server</string>
+    <string name="chat_rewind_title">Rewind to here?</string>
+    <string name="chat_rewind_body_user">The chat goes back to just before this message, and its text goes back into the message box. The later messages stay on another branch you can switch back to.</string>
+    <string name="chat_rewind_body_reply">The chat continues from this reply. The later messages stay on another branch you can switch back to.</string>
+    <string name="chat_rewind_no_files">No workspace files changed after this point.</string>
+    <string name="chat_rewind_file_created">Made after this point: moves to the trash</string>
+    <string name="chat_rewind_file_modified">Changed after this point: goes back</string>
+    <string name="chat_rewind_file_deleted">Deleted after this point: comes back</string>
+    <string name="chat_rewind_file_changed_since">Changed since: left as it is</string>
+    <string name="chat_rewind_file_gone">Earlier version no longer in the trash</string>
+    <string name="chat_rewind_trash_note">What\'s there now moves to the workspace trash first, so nothing is lost.</string>
+    <string name="chat_rewind_changed_since_title">Changed outside Locus since</string>
+    <string name="chat_rewind_gone_title">Can\'t be put back</string>
+    <string name="chat_rewind_effects_title">Stays as it is</string>
+    <string name="chat_rewind_more">and %1$d more</string>
+    <string name="chat_rewind_agent_note">Locus tells the agent what changed before its next reply.</string>
+    <string name="chat_rewind_action">Rewind</string>
+    <string name="chat_later_branch">The later messages are on another branch.</string>
+    <string name="chat_later_branch_show">Show them</string>
+    <string name="chat_summarise_title">Summarise from here?</string>
+    <string name="chat_summarise_review_note">You read and can edit the summary before it\'s used. The messages stay in the chat for you.</string>
+    <string name="chat_summarise_instructions_label">What to keep or leave out (optional)</string>
+    <string name="chat_summarise_instructions_hint">Keep the API decisions, drop the debugging</string>
+    <string name="chat_summarise_action">Write summary</string>
+    <string name="chat_summary_review_title">Review the summary</string>
+    <string name="chat_summary_edit_title">Edit the summary</string>
+    <string name="chat_summary_edit_body">The model hasn\'t read this summary yet. Your version is saved as a new summary; the old text stays in the chat\'s history.</string>
+    <string name="chat_summary_use">Use summary</string>
+    <string name="chat_summary_save">Save</string>
+    <string name="chat_summary_discard">Discard</string>
+    <string name="chat_summary_empty">A summary can\'t be empty.</string>
+    <string name="chat_summary_review">Review</string>
+    <string name="chat_summary_pending_title">Summary ready to review</string>
+    <string name="chat_screen_summary_note_partial">Locus works from this summary for the messages it covers; the ones before them are still sent as they were.</string>
+    <string name="chat_screen_summary_edited">You edited this summary.</string>
+    <string name="chat_screen_summary_edit">Edit summary</string>
+    <string name="chat_run_summarising_from">Summarising from the chosen message</string>
+    <string name="chat_run_summarise_failed">Couldn\'t write the summary: %1$s</string>
+    <string name="chat_run_summary_stale">The chat changed after the summary was written, so it wasn\'t used. Summarise again.</string>
+    <string name="chat_run_summary_saved">Summary saved. The model reads it from its next reply.</string>
+    <string name="chat_run_rewound">Rewound.</string>
+    <plurals name="chat_rewind_files_title">
+        <item quantity="one">%1$d file goes back</item>
+        <item quantity="other">%1$d files go back</item>
+    </plurals>
+    <plurals name="chat_rewind_changed_since_body">
+        <item quantity="one">%1$d file changed after the agent left it (by you, a command or another app). Locus leaves it as it is.</item>
+        <item quantity="other">%1$d files changed after the agent left them (by you, a command or another app). Locus leaves them as they are.</item>
+    </plurals>
+    <plurals name="chat_rewind_effects_command">
+        <item quantity="one">%1$d shell command ran after this; its effects stay.</item>
+        <item quantity="other">%1$d shell commands ran after this; their effects stay.</item>
+    </plurals>
+    <plurals name="chat_rewind_effects_outside">
+        <item quantity="one">%1$d call reached a service outside the phone (a connector, mail, a deploy); it can\'t be taken back.</item>
+        <item quantity="other">%1$d calls reached services outside the phone (connectors, mail, deploys); they can\'t be taken back.</item>
+    </plurals>
+    <plurals name="chat_rewind_effects_helper">
+        <item quantity="one">%1$d helper worked after this: its file edits go back, anything else it did stays.</item>
+        <item quantity="other">%1$d helpers worked after this: their file edits go back, anything else they did stays.</item>
+    </plurals>
+    <plurals name="chat_rewind_effects_other">
+        <item quantity="one">%1$d other change (memory, browser, phone, git) stays.</item>
+        <item quantity="other">%1$d other changes (memory, browser, phone, git) stay.</item>
+    </plurals>
+    <plurals name="chat_summarise_body_user">
+        <item quantity="one">This message and everything after it (%1$d message) become one summary. The messages before it are still sent as they are, so the model keeps reading them from its cache.</item>
+        <item quantity="other">This message and everything after it (%1$d messages) become one summary. The messages before it are still sent as they are, so the model keeps reading them from its cache.</item>
+    </plurals>
+    <plurals name="chat_summarise_body_reply">
+        <item quantity="one">Everything after this reply (%1$d message) becomes one summary. This reply and everything before it are still sent as they are, so the model keeps reading them from its cache.</item>
+        <item quantity="other">Everything after this reply (%1$d messages) becomes one summary. This reply and everything before it are still sent as they are, so the model keeps reading them from its cache.</item>
+    </plurals>
+    <plurals name="chat_summary_review_body">
+        <item quantity="one">The model reads this instead of %1$d message. Change anything you like, then use it.</item>
+        <item quantity="other">The model reads this instead of %1$d messages. Change anything you like, then use it.</item>
+    </plurals>
+    <plurals name="chat_summary_pending_body">
+        <item quantity="one">Written for %1$d message. It isn\'t used until you review it.</item>
+        <item quantity="other">Written for %1$d messages. It isn\'t used until you review it.</item>
+    </plurals>
+    <plurals name="chat_run_rewound_restored">
+        <item quantity="one">%1$d file put back.</item>
+        <item quantity="other">%1$d files put back.</item>
+    </plurals>
+    <plurals name="chat_run_rewound_skipped">
+        <item quantity="one">%1$d file left as it was.</item>
+        <item quantity="other">%1$d files left as they were.</item>
+    </plurals>
     <!-- Locked chats (ChatLock.kt, ConversationsScreen.kt, docs/design/app-lock.md). -->
     <string name="chat_lock_hidden_title">Locked chat</string>
     <string name="chat_lock_locked_description">Locked</string>

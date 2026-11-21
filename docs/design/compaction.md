@@ -53,6 +53,10 @@ Insights ("compaction").
 
 ### What replaces the transcript
 
+(A checkpoint written by Summarise from here replaces only the part from a chosen message on, and an edited
+summary replaces the one it corrects; see [rewind](rewind.md#summarise-from-here). What follows is the ordinary,
+whole-transcript checkpoint.)
+
 The store stays append-only. A `Part.Checkpoint` message is appended, as manual compaction already
 did. In memory, the transcript becomes one user message, the checkpoint's view (`Compaction.view`):
 
@@ -178,6 +182,7 @@ and the API summarises earlier turns into a `compaction` block that's replayed l
 
 ## Not done
 
+- ~~Editing the summary~~: done, see [rewind](rewind.md#editing-a-checkpoint-the-roadmaps-editable-summary).
 - **Starting the summary early in the background** (about 70%, as Codex's `async_compaction` does with
   `CompactionPhase::MidTurn`). The checkpoint would cover the transcript up to where the summary
   started, but it's stored after the steps that ran meanwhile, and `modelContext` treats everything

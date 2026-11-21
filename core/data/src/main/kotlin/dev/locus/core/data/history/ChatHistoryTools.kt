@@ -148,8 +148,15 @@ internal class ChatHistoryRead(
     private fun entry(i: Int, m: Message, withResults: Boolean): String? = buildString {
         when (m.role) {
             Role.USER -> {
-                if (m.parts.any { it is Part.Checkpoint }) {
-                    appendLine("#$i [A summary was written here; for the model it replaced the entries above]")
+                val checkpoint = m.parts.filterIsInstance<Part.Checkpoint>().lastOrNull()
+                if (checkpoint != null) {
+                    appendLine(
+                        when {
+                            checkpoint.supersedes != null -> "#$i [The user edited the summary above; for the model this version replaced it]"
+                            checkpoint.from != null -> "#$i [A summary was written here; for the model it replaced the entries from where it starts, and kept the ones before]"
+                            else -> "#$i [A summary was written here; for the model it replaced the entries above]"
+                        },
+                    )
                 } else {
                     m.attachments.forEach { appendLine("#$i User attached ${it.workspacePath}") }
                     if (m.userText.isNotBlank()) appendLine("#$i User: ${m.userText.trim()}")

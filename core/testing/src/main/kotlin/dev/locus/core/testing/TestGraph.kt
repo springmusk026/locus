@@ -204,7 +204,7 @@ class TestGraph(
 
     /** Created on first use: its init starts recovery and helper tracking in [scope]. */
     val runner: AgentRunner by lazy {
-        AgentRunner(context, scope, access, conversations, settingsRepository, tools, library, onDevice, helper, reviewer, subagents, sentRequests, questions, usage, directory, receipts, projects, deferred)
+        AgentRunner(context, scope, access, conversations, settingsRepository, tools, library, onDevice, helper, reviewer, subagents, sentRequests, questions, usage, directory, receipts, projects, deferred, changes)
     }
 
     /** Deletes temporary chats when they're left (docs/design/temporary-chats.md). */

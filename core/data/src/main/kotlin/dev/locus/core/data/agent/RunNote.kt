@@ -94,6 +94,38 @@ sealed interface RunNote {
         override val english get() = "Add a model provider in Settings → Models first."
     }
 
+    /** "Summarising from the chosen message", while Summarise from here writes its draft (docs/design/rewind.md). */
+    data object SummarisingFrom : RunNote {
+        override val english get() = "Summarising from the chosen message"
+    }
+
+    /** Summarise from here failed: "Couldn't write the summary: …". */
+    data class SummariseFailed(val reason: String?) : RunNote {
+        override val english get() = "Couldn't write the summary: ${shownReason ?: "unknown error"}"
+
+        /** The reason's first line, as the error shows it. */
+        val shownReason: String? get() = reason?.lineSequence()?.firstOrNull()?.take(200)?.ifBlank { null }
+    }
+
+    /** A reviewed summary wasn't used: the chat moved on after it was written. */
+    data object SummaryStale : RunNote {
+        override val english get() = "The chat changed after the summary was written, so it wasn't used. Summarise again."
+    }
+
+    /** "Summary saved. The model reads it from its next reply." (a reviewed or edited summary). */
+    data object SummarySaved : RunNote {
+        override val english get() = "Summary saved. The model reads it from its next reply."
+    }
+
+    /** "Rewound. 3 files put back. 1 file left as it was." ([restored] and [skipped] files). */
+    data class Rewound(val restored: Int, val skipped: Int) : RunNote {
+        override val english get() = buildString {
+            append("Rewound.")
+            if (restored > 0) append(" ").append(restored).append(if (restored == 1) " file put back." else " files put back.")
+            if (skipped > 0) append(" ").append(skipped).append(if (skipped == 1) " file left as it was." else " files left as they were.")
+        }
+    }
+
     /** "Saved 2 lessons to memory." */
     data class LessonsSaved(val count: Int) : RunNote {
         override val english get() = if (count == 1) "Saved 1 lesson to memory." else "Saved $count lessons to memory."

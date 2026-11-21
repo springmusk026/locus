@@ -149,5 +149,6 @@ Receipts count a finished run as "unclear", workflow checks as not checked, and 
 
 - Changes made by `run_command`, services, browser downloads, `sftp_download` and other non-file tools aren't tracked, as in Claude Code. The trash still keeps what those tools overwrite.
 - Folder moves aren't tracked. Folder deletes and copies are tracked, without a diff.
+- Rewind here (docs/design/rewind.md) undoes every later turn's changes at once through the same undo, newest first, but leaves a file that changed since as it is instead of warning.
 - A pending note lives in memory. If Locus restarts first, the agent isn't told, but it also has to read every file again before changing it, since `FileReads` is in memory too.
 - Backups don't include the trash. After a restore, the changes cards come back, but their files can't be undone (the sheet says the earlier version is gone).

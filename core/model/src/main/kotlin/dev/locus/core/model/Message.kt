@@ -69,6 +69,22 @@ sealed interface Part {
         val todos: String? = null,
         /** What the summarised part had read from outside (core/agent `Taint`): a run that starts here is tainted by it. */
         val untrustedSources: List<String> = emptyList(),
+        /**
+         * Summarise from here (docs/design/rewind.md): the id of the first message of the model's context this
+         * summary stands in for. The messages before it stay in the model's context word for word; null when the
+         * summary stands in for everything before it, as every checkpoint did before.
+         */
+        val from: String? = null,
+        /**
+         * An edited summary: the id of the checkpoint message this one corrects. The model's context drops that
+         * checkpoint's view (and anything after it) for this one; the old checkpoint stays in the chat.
+         */
+        val supersedes: String? = null,
+        /**
+         * The tool results (call ids) before [from] that cold-cache clearing had cleared in what was last sent
+         * (core/agent `ColdClearing`), so the kept prefix is sent exactly as before. Empty for every other checkpoint.
+         */
+        val clearedResults: List<String> = emptyList(),
     ) : Part
 
     /**
@@ -251,6 +267,40 @@ object ModeNote {
         .filter { isNote(it.text) && UNDO_PREFIX in it.text }
         .joinToString(", ") { it.text.substringAfter(UNDO_PREFIX).substringBefore(UNDO_REST) }
         .ifEmpty { null }
+
+    private const val REWIND_PREFIX = "The user rewound the chat to this point."
+    private const val MAX_REWIND_ITEMS = 20
+
+    /**
+     * Tells the agent the user rewound the chat to here (Rewind here, docs/design/rewind.md): what it did after
+     * this point is on another branch it no longer sees. [restored] are the files Locus put back as they were
+     * here, [notRestored] files it left as they are (changed outside Locus since, or their earlier version is
+     * gone), and [effects] what ran after this point that can't be taken back ("run_command: npm install").
+     * It rides on the user's next message, like [userUndid].
+     */
+    fun rewound(restored: List<String>, notRestored: List<String>, effects: List<String>): String = buildString {
+        append(REWIND_PREFIX)
+        append(" What you did after it is on another branch that you no longer see; carry on from here.")
+        fun list(items: List<String>) = items.take(MAX_REWIND_ITEMS).joinToString(", ") +
+            if (items.size > MAX_REWIND_ITEMS) " and ${items.size - MAX_REWIND_ITEMS} more" else ""
+        if (restored.isNotEmpty()) {
+            val one = restored.size == 1
+            append(" Locus put back ").append(list(restored)).append(" as ").append(if (one) "it was" else "they were").append(" at this point;")
+            append(" read ").append(if (one) "it" else "them").append(" again before changing ").append(if (one) "it" else "them").append(".")
+        }
+        if (notRestored.isNotEmpty()) {
+            append(" These files were left as they are now, not as they were at this point: ").append(list(notRestored)).append(".")
+        }
+        if (effects.isNotEmpty()) {
+            append(" These actions ran after this point and their effects stay (files, installs, messages, remote changes): ")
+            append(effects.take(MAX_REWIND_ITEMS).joinToString("; "))
+            if (effects.size > MAX_REWIND_ITEMS) append("; and ${effects.size - MAX_REWIND_ITEMS} more")
+            append(". Check before relying on the state they left.")
+        }
+    }
+
+    /** Whether [message] carries a [rewound] note. */
+    fun isRewound(message: Message): Boolean = message.parts.any { it is Part.Text && isNote(it.text) && REWIND_PREFIX in it.text }
 
     private const val RAN_ANYWAY = "The user ran a call the safety reviewer had blocked: "
 

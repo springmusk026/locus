@@ -186,6 +186,17 @@ class FakeDatabase {
         override suspend fun parentOf(id: String) = tables.value.messages.firstOrNull { it.id == id }?.parentId
         override suspend fun moveLeaf(conversationId: String, leafId: String, updatedAt: Long) =
             updateConversation(conversationId) { it.copy(activeLeafId = leafId, updatedAt = updatedAt) }
+
+        // One write, as Room's @Transaction commits it: observers never see the row added with the old leaf.
+        override suspend fun insertAsLeaf(message: MessageEntity, updatedAt: Long) = write { t ->
+            require(t.conversations.containsKey(message.conversationId)) { "FOREIGN KEY constraint failed: no conversation ${message.conversationId}" }
+            require(t.messages.none { it.id == message.id }) { "UNIQUE constraint failed: messages.id ${message.id}" }
+            val c = t.conversations.getValue(message.conversationId)
+            t.copy(
+                messages = t.messages + message.copy(seq = nextSeq++),
+                conversations = t.conversations + (c.id to c.copy(activeLeafId = message.id, updatedAt = updatedAt)),
+            )
+        }
         override fun observeStats(since: Long) = select { t ->
             val byId = t.messages.associateBy { it.id }
             t.messages.filter { it.createdAt >= since && it.copiedFrom == null }

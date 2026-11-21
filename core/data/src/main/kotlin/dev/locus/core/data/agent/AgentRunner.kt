@@ -43,6 +43,7 @@ import dev.locus.core.data.auth.ProviderAccess
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -118,6 +119,11 @@ data class RunState(
      * in battery saver ([DeferredWork]); shown as "Paused: phone is hot" with Run anyway. Null when none.
      */
     val paused: dev.locus.core.model.PauseReason? = null,
+    /**
+     * A summary Summarise from here wrote, waiting for the user to read, edit and use or discard it
+     * (docs/design/rewind.md). In memory only; a new turn drops it.
+     */
+    val summaryDraft: SummaryDraft? = null,
 ) {
     /** The request to show now (the oldest). */
     val pendingApproval: ApprovalRequest? get() = approvals.firstOrNull()
@@ -125,6 +131,35 @@ data class RunState(
     /** The question to show now (the oldest). */
     val pendingQuestion: UserQuestion? get() = questions.firstOrNull()
 }
+
+/**
+ * A summary of the chat from a message on ([messageId], the one the user picked), written but not used yet.
+ * [checkpoint] is what will be stored, its summary as the model wrote it; [leaf] is the chat's last message
+ * when it was written: if the chat moved on since, the draft no longer fits and isn't used.
+ */
+data class SummaryDraft(val messageId: String, val leaf: String?, val checkpoint: Part.Checkpoint) {
+    /** The model's summary, for the editor to start from. */
+    val text: String get() = checkpoint.summary
+
+    /** How many of the model's messages it stands in for. */
+    val replaced: Int get() = checkpoint.replacedMessages
+}
+
+/**
+ * What Rewind here (docs/design/rewind.md) would do from [messageId]: the [files] change tracking would put back
+ * or leave, the [effects] that ran after the point and stay, and, for a message the user sent, its text
+ * ([draft]) for the composer.
+ */
+data class RewindPreview(
+    val messageId: String,
+    val userMessage: Boolean,
+    val files: List<dev.locus.core.data.repository.RewindFile>,
+    val effects: List<dev.locus.core.agent.Rewind.Effect>,
+    val draft: String?,
+)
+
+/** What a rewind did: the files' [outcome], and the [draft] to put back into the composer (a user message's text). */
+data class RewindResult(val outcome: dev.locus.core.data.repository.RewindOutcome, val draft: String?)
 
 /**
  * How one run ended ([AgentRunner.runInBackground], [AgentRunner.awaitRun]): [outcome], with [detail]
@@ -198,6 +233,8 @@ class AgentRunner @Inject constructor(
     private val receipts: dev.locus.core.data.repository.TaskReceiptRepository,
     private val projects: dev.locus.core.data.repository.ProjectRepository,
     private val deferred: DeferredWork,
+    /** Change tracking, for Rewind here's files (docs/design/rewind.md). */
+    private val changes: dev.locus.core.data.repository.ChangeRepository,
 ) {
     /** Each chat's project folder from its last run, to show undone paths as its agent sees them. */
     private val folders = ConcurrentHashMap<String, String>()
@@ -301,10 +338,27 @@ class AgentRunner @Inject constructor(
         undoNotes.merge(conversationId, paths) { old, new -> (old + new).distinct() }
     }
 
-    private fun takeUndoNote(conversationId: String): String? = undoNotes.remove(conversationId)?.let { paths ->
+    /** A rewind the chat's agent hasn't been told about yet: files put back, files left, actions that stay. */
+    private data class RewindNote(val restored: List<String>, val notRestored: List<String>, val effects: List<String>) {
+        operator fun plus(other: RewindNote) = RewindNote(
+            (restored + other.restored).distinct(), (notRestored + other.notRestored).distinct(), (effects + other.effects).distinct(),
+        )
+    }
+
+    /** Rewinds ([rewind]) the agent hasn't been told about, by chat; delivered like [undoNotes]. */
+    private val rewindNotes = ConcurrentHashMap<String, RewindNote>()
+
+    /**
+     * The notes for the agent's next request: a rewind first (what it no longer sees), then files undone from a
+     * changes card. One string, so it rides on the next message or step boundary as the undo note always did.
+     */
+    private fun takeUndoNote(conversationId: String): String? {
         // Undo records paths from the workspace root; a project chat's agent knows them from its folder.
         val prefix = folders[conversationId]?.let { "$it/" }
-        ModeNote.userUndid(if (prefix == null) paths else paths.map { it.removePrefix(prefix) })
+        fun shown(paths: List<String>) = if (prefix == null) paths else paths.map { it.removePrefix(prefix) }
+        val rewound = rewindNotes.remove(conversationId)?.let { ModeNote.rewound(shown(it.restored), shown(it.notRestored), it.effects) }
+        val undone = undoNotes.remove(conversationId)?.let { ModeNote.userUndid(shown(it)) }
+        return listOfNotNull(rewound, undone).joinToString(" ").ifEmpty { null }
     }
 
     /**
@@ -635,23 +689,8 @@ class AgentRunner @Inject constructor(
      * gets its missing results (as after a restart), and one whose last turn never finished offers Continue.
      */
     fun switchBranch(conversationId: String, messageId: String) {
-        if (jobs.containsKey(conversationId)) return
         // Holds the chat's slot while it moves the transcript, so no run starts on it halfway.
-        val job = scope.launch(start = CoroutineStart.LAZY) {
-            try {
-                showBranch(conversationId, messageId)
-            } finally {
-                jobs.remove(conversationId, coroutineContext[Job]!!)
-                quietJobs.remove(coroutineContext[Job]!!)
-            }
-        }
-        quietJobs += job
-        if (jobs.putIfAbsent(conversationId, job) != null) {
-            quietJobs -= job
-            job.cancel()
-            return
-        }
-        job.start()
+        holdSlot(conversationId) { showBranch(conversationId, messageId) }
     }
 
     private suspend fun showBranch(conversationId: String, messageId: String) {
@@ -740,6 +779,164 @@ class AgentRunner @Inject constructor(
             Message(UUID.randomUUID().toString(), conversationId, Role.USER, listOf(dev.locus.core.agent.Compaction.checkpoint(summary, history, provider.contextWindow)), System.currentTimeMillis()),
         )
         update(conversationId) { it.withProgress(null).withNotice(RunNote.Compacted(history.size)) }
+    }
+
+    // ---- Summarise from here and Rewind here (docs/design/rewind.md) --------------------------------
+
+    /**
+     * Summarise from here: the chat's model summarises the model's context from [messageId] on (see
+     * [dev.locus.core.agent.Compaction.from]), with the user's [instructions], into a [SummaryDraft] the user
+     * reads and edits before it's used ([useSummary]). The request is the chat's next turn plus one question, so
+     * it reads the prompt cache, and nothing is stored until the user uses the summary. Not while a run is going.
+     */
+    fun summariseFrom(conversationId: String, messageId: String, instructions: String?) {
+        start(conversationId, task = false) {
+            try {
+                draftSummary(conversationId, messageId, instructions)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                update(conversationId) { it.withProgress(null).withError(RunNote.SummariseFailed(e.message)) }
+            }
+        }
+    }
+
+    private suspend fun draftSummary(conversationId: String, messageId: String, instructions: String?) {
+        val conversation = conversations.get(conversationId) ?: return
+        val current = settings.current()
+        val base = current.provider(conversation.providerId) ?: throw IllegalStateException(RunNote.NoProvider.english)
+        val provider = chatProvider(base, conversation)
+        access.missing(provider)?.let { throw IllegalStateException(it) }
+        val context = modelContext(conversations.history(conversationId))
+        val from = dev.locus.core.agent.Compaction.from(context, messageId)
+        from.unavailable?.let { throw IllegalStateException("there's nothing to summarise from that message ($it)") }
+        if (dev.locus.core.agent.Compaction.serverCompactedIn(context.drop(from.start))) {
+            throw IllegalStateException("the provider already compacted that part of the chat on its server")
+        }
+        update(conversationId) { it.withProgress(RunNote.SummarisingFrom) }
+        val model = if (provider.format == ApiFormat.ON_DEVICE) onDevice.chatModel(provider.model) else access.chatModel(provider)
+        val startedAt = System.currentTimeMillis()
+        val chatTools = tools.forChat(conversation)
+        val clearing = dev.locus.core.agent.ColdClearing.policyFor(model.format, current.clearColdToolResults)
+        val prompt = dev.locus.core.agent.Compaction.fromPrompt(dev.locus.core.model.HelperPrompts.compaction(current), context, from.start, instructions)
+        val request = compactionRequest(conversation, context, chatTools.specs, current, clearing = clearing, prompt = prompt).copy(deferredTools = chatTools.requestDeferred())
+        val turn = model.stream(request).filterIsInstance<dev.locus.core.llm.ChatEvent.Completed>().first().turn
+        usage.record(dev.locus.core.model.UsageSource.COMPACTION, conversationId, provider.id, provider.model, turn.usage, System.currentTimeMillis() - startedAt)
+        val summary = turn.text.trim()
+        if (summary.length < dev.locus.core.agent.Compaction.MIN_SUMMARY_CHARS) throw IllegalStateException("the model returned no summary")
+        val checkpoint = dev.locus.core.agent.Compaction.checkpointFrom(summary, context, from.start, provider.contextWindow, clearing = clearing)
+        val leaf = conversations.activeLeaf(conversationId)
+        update(conversationId) { it.withProgress(null).copy(summaryDraft = SummaryDraft(messageId, leaf, checkpoint)) }
+    }
+
+    /**
+     * Stores the draft summary with [text] as the user left it: a checkpoint appended at the end of the chat
+     * (history stays append-only). Not used when the chat moved on since it was written, or while a run goes.
+     */
+    fun useSummary(conversationId: String, text: String) {
+        val draft = _states.value[conversationId]?.summaryDraft ?: return
+        if (text.isBlank()) return
+        holdSlot(conversationId) {
+            if (conversations.activeLeaf(conversationId) != draft.leaf) {
+                update(conversationId) { it.copy(summaryDraft = null).withError(RunNote.SummaryStale) }
+                return@holdSlot
+            }
+            conversations.append(Message(UUID.randomUUID().toString(), conversationId, Role.USER, listOf(draft.checkpoint.copy(summary = text.trim())), System.currentTimeMillis()))
+            update(conversationId) { it.copy(summaryDraft = null, error = null, errorNote = null).withNotice(RunNote.SummarySaved) }
+        }
+    }
+
+    /** Throws the draft summary away (its tokens are spent; nothing was stored). */
+    fun discardSummary(conversationId: String) = update(conversationId) { it.copy(summaryDraft = null) }
+
+    /**
+     * Saves [text] as the summary of the checkpoint [checkpointId], which must be the chat's last message (the
+     * model hasn't read it yet): a new checkpoint that supersedes it is appended; the old one stays stored.
+     * False when it isn't the last message any more, or a run holds the chat.
+     */
+    suspend fun editSummary(conversationId: String, checkpointId: String, text: String): Boolean {
+        if (text.isBlank()) return false
+        return holdSlot(conversationId) {
+            val path = conversations.history(conversationId)
+            val last = path.lastOrNull()?.takeIf { it.id == checkpointId && it.parts.any { p -> p is Part.Checkpoint } } ?: return@holdSlot false
+            val edited = dev.locus.core.agent.Compaction.edited(last, text)
+            conversations.append(Message(UUID.randomUUID().toString(), conversationId, Role.USER, listOf(edited), System.currentTimeMillis()))
+            update(conversationId) { it.withNotice(RunNote.SummarySaved) }
+            true
+        }?.await() == true
+    }
+
+    /**
+     * What Rewind here from [messageId] would do (nothing is changed): null when it isn't offered there
+     * ([dev.locus.core.agent.Rewind.plan]).
+     */
+    suspend fun previewRewind(conversationId: String, messageId: String): RewindPreview? {
+        val path = conversations.history(conversationId)
+        val cut = dev.locus.core.agent.Rewind.plan(path, messageId).cut ?: return null
+        return RewindPreview(
+            messageId = messageId,
+            userMessage = path.first { it.id == messageId }.role == Role.USER,
+            files = changes.rewindPlan(conversationId, cut.laterTurns),
+            effects = effectsAfter(conversationId, cut.later),
+            draft = cut.draft,
+        )
+    }
+
+    private suspend fun effectsAfter(conversationId: String, later: List<Message>): List<dev.locus.core.agent.Rewind.Effect> {
+        val registry = tools.forChat(conversations.get(conversationId))
+        return dev.locus.core.agent.Rewind.effects(later) { name -> registry[name]?.risk }
+    }
+
+    /**
+     * Rewinds the chat to [messageId]: the workspace files the later turns changed go back (newest first, a file
+     * changed since is left as it is), the chat continues from there as a new branch (the old continuation stays
+     * in the tree), and the agent is told before its next request. Holds the chat's slot meanwhile. Null when it
+     * isn't offered there or a run holds the chat.
+     */
+    suspend fun rewind(conversationId: String, messageId: String): RewindResult? = holdSlot(conversationId) {
+        val path = conversations.history(conversationId)
+        val cut = dev.locus.core.agent.Rewind.plan(path, messageId).cut ?: return@holdSlot null
+        val outcome = changes.rewind(conversationId, cut.laterTurns)
+        val effects = effectsAfter(conversationId, cut.later)
+        conversations.setActiveLeaf(conversationId, cut.leaf)
+        // Back to a point mid-call (a turn cut off there): its calls get their "not run" results, as a branch switch does.
+        val recovery = recoverTranscript(conversations.history(conversationId))
+        if (recovery.missingResults.isNotEmpty()) {
+            conversations.append(Message(UUID.randomUUID().toString(), conversationId, Role.TOOL, recovery.missingResults, System.currentTimeMillis()))
+        }
+        val note = RewindNote(outcome.restored.sorted(), outcome.skipped.map { it.path }, effects.map { it.note })
+        rewindNotes.merge(conversationId, note) { old, new -> old + new }
+        update(conversationId) {
+            it.copy(
+                error = null, errorNote = null, failure = null, suggestions = emptyList(), reviewerBlocks = emptyList(),
+                interrupted = recovery.unfinished, summaryDraft = null,
+            ).withNotice(RunNote.Rewound(outcome.restored.size, outcome.skipped.size))
+        }
+        RewindResult(outcome, cut.draft)
+    }?.await()
+
+    /**
+     * Runs [block] holding the chat's slot without showing a run (like a branch switch), so no turn starts on the
+     * chat halfway. Null when a run holds it.
+     */
+    private fun <T> holdSlot(conversationId: String, block: suspend () -> T): kotlinx.coroutines.Deferred<T>? {
+        if (jobs.containsKey(conversationId)) return null
+        val job = scope.async(start = CoroutineStart.LAZY) {
+            try {
+                block()
+            } finally {
+                jobs.remove(conversationId, coroutineContext[Job]!!)
+                quietJobs.remove(coroutineContext[Job]!!)
+            }
+        }
+        quietJobs += job
+        if (jobs.putIfAbsent(conversationId, job) != null) {
+            quietJobs -= job
+            job.cancel()
+            return null
+        }
+        job.start()
+        return job
     }
 
     /**
@@ -1647,9 +1844,11 @@ internal fun compactionRequest(
     now: Long = System.currentTimeMillis(),
     /** The chat's [dev.locus.core.agent.ColdClearing] policy for the model that summarises, as its turns use it. */
     clearing: dev.locus.core.agent.ColdClearing.Policy? = null,
+    /** The question; Summarise from here adds where its part starts and the user's instructions. */
+    prompt: String = dev.locus.core.model.HelperPrompts.compaction(settings),
 ): dev.locus.core.llm.ChatRequest = dev.locus.core.agent.Compaction.request(
     conversation.systemPrompt, history, tools, dev.locus.core.llm.PromptCacheKey.forChat(conversation.id), taskBudget = null,
-    prompt = dev.locus.core.model.HelperPrompts.compaction(settings), ask = Message(id, conversation.id, Role.USER, emptyList(), now),
+    prompt = prompt, ask = Message(id, conversation.id, Role.USER, emptyList(), now),
     clearing = clearing,
 )
 

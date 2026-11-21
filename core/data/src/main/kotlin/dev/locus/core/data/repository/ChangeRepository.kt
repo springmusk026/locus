@@ -61,6 +61,27 @@ data class UndoCheck(
 )
 
 /**
+ * A path a rewind (docs/design/rewind.md) would put back as it was before the later turns, or why it won't.
+ * [kind] is what the later turns did to it overall: created it (it goes to the trash), deleted it (it comes
+ * back) or changed it.
+ */
+data class RewindFile(val path: String, val kind: TrackedChange.Kind, val state: State, val isDirectory: Boolean = false) {
+    enum class State {
+        /** It goes back as it was. */
+        RESTORE,
+
+        /** It changed since the agent left it (the user, a command, another app): left as it is, never overwritten. */
+        CHANGED_SINCE,
+
+        /** Its earlier version is no longer in the workspace trash (restored or emptied). */
+        GONE,
+    }
+}
+
+/** What a rewind did to the files: [restored] paths, and the ones it left as they are ([skipped]). */
+data class RewindOutcome(val restored: List<String>, val skipped: List<RewindFile>)
+
+/**
  * Tracks the workspace changes agent tools make, per chat and per turn, and undoes them. The state
  * before a change is the workspace trash's own copy (every changing tool already keeps one), so only
  * the diff text is stored here. See docs/design/change-tracking.md.
@@ -208,21 +229,67 @@ class ChangeRepository @Inject constructor(
      * them again ([FileReads.invalidate]).
      */
     suspend fun undo(ids: List<Long>): List<String> = withContext(io) {
+        lock.withLock { undoLocked(ids) }
+    }
+
+    private suspend fun undoLocked(ids: List<Long>): List<String> {
+        val rows = ids.mapNotNull { dao.bySeq(it) }.filter { it.undoneAt == null }.sortedByDescending { it.seq }
+        return rows.mapNotNull { row ->
+            if (check(row).blocked != null) return@mapNotNull null
+            val target = workspace.storedItem(row.path)
+            if (row.existedBefore) {
+                workspace.restore(row.beforeTrashId!!)
+            } else if (target.exists) {
+                target.trash(TrashEntry.Reason.DELETED)
+            }
+            dao.markUndone(row.seq, clock())
+            target.invalidate(reads)
+            row.path
+        }.distinct()
+    }
+
+    /**
+     * What rewinding the chat past [turnIds] (the later turns, docs/design/rewind.md) would do to each path they
+     * changed and haven't been undone: put it back as it was before the oldest of them, unless it changed since
+     * the newest left it ([RewindFile.State.CHANGED_SINCE]) or an earlier version is gone. Sorted by path.
+     */
+    suspend fun rewindPlan(conversationId: String, turnIds: List<String>): List<RewindFile> = withContext(io) {
+        rewindGroups(conversationId, turnIds).map { it.first }
+    }
+
+    /**
+     * Rewinds [turnIds]: every path [rewindPlan] would restore goes back, later changes first, each through
+     * [undo]'s steps (what's there now goes to the trash first, readers must read again). A path that changed
+     * since, or whose earlier version is gone, is left exactly as it is and reported. Checked again here, under
+     * the same lock as recording, so a change made after the user looked at the plan is never overwritten.
+     */
+    suspend fun rewind(conversationId: String, turnIds: List<String>): RewindOutcome = withContext(io) {
         lock.withLock {
-            val rows = ids.mapNotNull { dao.bySeq(it) }.filter { it.undoneAt == null }.sortedByDescending { it.seq }
-            rows.mapNotNull { row ->
-                if (check(row).blocked != null) return@mapNotNull null
-                val target = workspace.storedItem(row.path)
-                if (row.existedBefore) {
-                    workspace.restore(row.beforeTrashId!!)
-                } else if (target.exists) {
-                    target.trash(TrashEntry.Reason.DELETED)
-                }
-                dao.markUndone(row.seq, clock())
-                target.invalidate(reads)
-                row.path
-            }.distinct()
+            val groups = rewindGroups(conversationId, turnIds)
+            val restore = groups.filter { it.first.state == RewindFile.State.RESTORE }
+            val restored = undoLocked(restore.flatMap { g -> g.second.map { it.seq } })
+            RewindOutcome(restored, groups.map { it.first }.filter { it.state != RewindFile.State.RESTORE })
         }
+    }
+
+    private suspend fun rewindGroups(conversationId: String, turnIds: List<String>): List<Pair<RewindFile, List<FileChangeEntity>>> {
+        val rows = turnIds.distinct().flatMap { dao.turn(conversationId, it) }.filter { it.undoneAt == null }
+        return rows.groupBy { it.path }.map { (path, group) ->
+            val newestFirst = group.sortedByDescending { it.seq }
+            val newest = newestFirst.first()
+            val oldest = newestFirst.last()
+            val state = when {
+                newestFirst.any { check(it).blocked != null } -> RewindFile.State.GONE
+                changedSince(newest) -> RewindFile.State.CHANGED_SINCE
+                else -> RewindFile.State.RESTORE
+            }
+            val kind = when {
+                !oldest.existedBefore -> TrackedChange.Kind.CREATED
+                !newest.afterExists -> TrackedChange.Kind.DELETED
+                else -> TrackedChange.Kind.MODIFIED
+            }
+            RewindFile(path, kind, state, isDirectory = group.any { it.isDirectory }) to newestFirst
+        }.sortedBy { it.first.path }
     }
 
     /** Undoes every change of [turnId] that still stands; see [undo]. */

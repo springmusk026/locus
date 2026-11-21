@@ -425,7 +425,7 @@ class ConversationRepository @Inject constructor(
             val tree = MessageTree(map { TreeNode(it.message.id, it.message.parentId) })
             val path = tree.path(tree.leaf(first().activeLeafId))
             val byId = associateBy { it.message.id }
-            return ChatThread(path.map { byId.getValue(it).message.toModel() }, tree.branches(path))
+            return ChatThread(path.map { byId.getValue(it).message.toModel() }, tree.branches(path), path.lastOrNull()?.let { tree.childrenOf(it).lastOrNull() })
         }
 
         fun Message.toEntity(parentId: String?, copiedFrom: String? = null) = MessageEntity(
