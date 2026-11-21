@@ -555,6 +555,10 @@
     <string name="settings_storage_trash_title">Esvaziar a lixeira?</string>
     <string name="settings_storage_trash_message">Exclui permanentemente todos os arquivos da lixeira do espaço de trabalho. Depois não poderão ser restaurados, e Desfazer deixa de funcionar para alterações anteriores de arquivos cuja versão antiga era mantida lá.</string>
     <string name="settings_storage_trash_confirm">Esvaziar lixeira</string>
+    <string name="settings_storage_snapshots_title">Limpar os snapshots de comandos?</string>
+    <string name="settings_storage_snapshots_message">Exclui as cópias dos arquivos do projeto que o Locus salvou antes dos comandos de shell. As alterações desses comandos continuam aparecendo nos chats, mas Desfazer e Voltar até aqui não conseguem mais revertê-las. Seus arquivos, chats e a lixeira do espaço de trabalho não são afetados. Novos snapshots continuam sendo feitos nos projetos que os têm ativados.</string>
+    <string name="settings_storage_snapshots_confirm">Limpar snapshots</string>
+    <string name="settings_storage_snapshots_cleared">%1$s de snapshots de comandos limpos.</string>
     <string name="settings_storage_title">Armazenamento</string>
     <string name="settings_storage_error_title">Não foi possível medir o armazenamento</string>
     <string name="settings_storage_measuring">Medindo cada parte do Locus…</string>

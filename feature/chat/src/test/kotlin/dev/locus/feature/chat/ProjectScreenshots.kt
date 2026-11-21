@@ -154,4 +154,13 @@ class ProjectScreenshots : ScreenshotTest() {
         val owner = editor(garden.id)
         snapAfter("project-editor-edit", emptyList(), heightDp = 2200, activity = HiltHostActivity::class.java) { Editor(owner, garden.id) }
     }
+
+    /** "Snapshot before shell commands" on (docs/design/shell-snapshots.md): the switch, what it means, and its limits. */
+    @Test
+    fun editorSnapshotsOn() {
+        val (garden, _, _) = seed()
+        runBlocking { graph.settingsRepository.setShellSnapshots(garden.id, true) }
+        val owner = editor(garden.id)
+        snapAfter("project-editor-snapshots-on", emptyList(), heightDp = 2200, activity = HiltHostActivity::class.java) { Editor(owner, garden.id) }
+    }
 }

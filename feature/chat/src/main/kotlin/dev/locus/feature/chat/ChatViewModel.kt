@@ -147,7 +147,13 @@ sealed interface ChatItem {
     data class Verification(override val key: String, val call: ToolCall, val outcome: dev.locus.core.model.Verification.Outcome) : ChatItem
 
     /** The workspace files a turn changed, at the end of the turn: counts, diffs and undo. [turnId] keys the turn. */
-    data class Changes(override val key: String, val turnId: String, val files: List<dev.locus.core.data.repository.TrackedChange>) : ChatItem
+    data class Changes(
+        override val key: String,
+        val turnId: String,
+        val files: List<dev.locus.core.data.repository.TrackedChange>,
+        /** The turn's commands whose changes weren't tracked, and why (docs/design/shell-snapshots.md). */
+        val notes: List<dev.locus.core.data.repository.ShellNote> = emptyList(),
+    ) : ChatItem
 
     /**
      * A finished task's receipt, under its last turn (see docs/design/task-receipt.md). UI only; it's
@@ -526,16 +532,17 @@ class ChatViewModel @AssistedInject constructor(
     private val transcript = combine(
         conversations.observeThread(conversationId),
         // Both re-emit on writes to their tables from any chat; equal results change nothing here.
-        changes.observe(conversationId).distinctUntilChanged(),
+        // With the notes about commands whose changes weren't tracked (docs/design/shell-snapshots.md).
+        combine(changes.observe(conversationId).distinctUntilChanged(), changes.observeNotes(conversationId), ::Pair),
         receipts.inputs(conversationId).distinctUntilChanged(),
         // With recent on-device reply speeds, which live in memory only.
         onDevice.recentTurns,
         onDeviceChat,
-    ) { thread, changed, inputs, speeds, onDeviceProvider ->
+    ) { thread, (changed, shellNotes), inputs, speeds, onDeviceProvider ->
         val receiptList = inputs.receipts(thread.messages, changed)
         // A project chat's sent files live in its folder, as send_file resolved them (ChatScope).
         val scope = projectRepository?.scopeOf(conversations.get(conversationId))
-        val built = toItems(thread.messages, thread.branches, changed.groupBy { it.turnId }, receiptList, scope)
+        val built = toItems(thread.messages, thread.branches, changed.groupBy { it.turnId }, receiptList, scope, shellNotes)
             .markOutsideContent(dev.locus.core.agent.LinkGuard.repliesAfterOutsideContent(thread.messages))
         val items = itemKeeper.keep(if (onDeviceProvider) built.withSpeeds(speeds) else built)
         Transcript(
@@ -968,8 +975,9 @@ class ChatViewModel @AssistedInject constructor(
         changed: Map<String, List<dev.locus.core.data.repository.TrackedChange>>,
         receiptList: List<dev.locus.core.model.TaskReceipt>,
         scope: dev.locus.core.model.ChatScopeSpec?,
+        shellNotes: Map<String, List<dev.locus.core.data.repository.ShellNote>> = emptyMap(),
     ): List<ChatItem> =
-        transcriptItems(messages, branches, changed, receiptList).map { if (it is ChatItem.SentFile) it.copy(file = sentFileInfo(files, scope, it.path)) else it }
+        transcriptItems(messages, branches, changed, receiptList, shellNotes).map { if (it is ChatItem.SentFile) it.copy(file = sentFileInfo(files, scope, it.path)) else it }
 }
 
 /**
@@ -1032,6 +1040,8 @@ internal fun transcriptItems(
     changes: Map<String, List<dev.locus.core.data.repository.TrackedChange>> = emptyMap(),
     /** Finished tasks' receipts; each goes under the turn holding its [dev.locus.core.model.TaskReceipt.afterMessageId]. */
     receipts: List<dev.locus.core.model.TaskReceipt> = emptyList(),
+    /** By turn id: commands whose changes weren't tracked (docs/design/shell-snapshots.md), shown on the turn's changes card. */
+    shellNotes: Map<String, List<dev.locus.core.data.repository.ShellNote>> = emptyMap(),
 ): List<ChatItem> {
     val results = messages.filter { it.role == Role.TOOL }.flatMap { it.toolResults }.associateBy { it.callId }
     val receiptsAfter = receipts.groupBy { it.afterMessageId }
@@ -1049,7 +1059,11 @@ internal fun transcriptItems(
         val answered = from
         val info = if (start != null && answered != null) TurnBranch(answered, branches[start], last = start == lastTurnStart) else null
         // The files this turn changed, after everything else it showed.
-        val changed = start?.let { changes[it] }?.takeIf { it.isNotEmpty() }?.let { ChatItem.Changes("$start:changes", start, it) }
+        val changed = start?.let { s ->
+            val files = changes[s].orEmpty()
+            val notes = shellNotes[s].orEmpty()
+            ChatItem.Changes("$s:changes", s, files, notes).takeIf { files.isNotEmpty() || notes.isNotEmpty() }
+        }
         var items = turnItems(turn, results) + listOfNotNull(changed)
         val reply = items.indexOfLast { it is ChatItem.Assistant }
         // A task that ended normally with this reply puts its receipt on the reply's meta line; anything

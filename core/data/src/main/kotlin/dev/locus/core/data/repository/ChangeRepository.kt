@@ -4,6 +4,7 @@ import dev.locus.core.agent.tools.ChangeRecorder
 import dev.locus.core.agent.tools.FileChange
 import dev.locus.core.agent.tools.FileReads
 import dev.locus.core.agent.tools.LineDiff
+import dev.locus.core.agent.tools.ShellSnapshots
 import dev.locus.core.agent.tools.StoredItem
 import dev.locus.core.agent.tools.TrashEntry
 import dev.locus.core.agent.tools.Workspace
@@ -45,6 +46,10 @@ data class TrackedChange(
      * history was kept (recorded before it existed, or restored from a backup).
      */
     val edits: List<FileEdit> = emptyList(),
+    /** A shell command changed it in this turn (docs/design/shell-snapshots.md), not only the file tools. */
+    val byCommand: Boolean = false,
+    /** Its state before the turn is in a command snapshot, not the workspace trash (what [canUndo] false then means). */
+    val beforeInSnapshot: Boolean = false,
 ) {
     enum class Kind { CREATED, MODIFIED, DELETED }
 
@@ -65,7 +70,14 @@ data class UndoCheck(
  * [kind] is what the later turns did to it overall: created it (it goes to the trash), deleted it (it comes
  * back) or changed it.
  */
-data class RewindFile(val path: String, val kind: TrackedChange.Kind, val state: State, val isDirectory: Boolean = false) {
+data class RewindFile(
+    val path: String,
+    val kind: TrackedChange.Kind,
+    val state: State,
+    val isDirectory: Boolean = false,
+    /** A shell command changed it after the point (docs/design/shell-snapshots.md): its change goes back too. */
+    val byCommand: Boolean = false,
+) {
     enum class State {
         /** It goes back as it was. */
         RESTORE,
@@ -83,8 +95,9 @@ data class RewindOutcome(val restored: List<String>, val skipped: List<RewindFil
 
 /**
  * Tracks the workspace changes agent tools make, per chat and per turn, and undoes them. The state
- * before a change is the workspace trash's own copy (every changing tool already keeps one), so only
- * the diff text is stored here. See docs/design/change-tracking.md.
+ * before a change is the workspace trash's own copy (every changing tool already keeps one), or, for a
+ * shell command's change, the blob in the command's snapshot ([ShellSnapshots]), so only the diff text
+ * is stored here. See docs/design/change-tracking.md and docs/design/shell-snapshots.md.
  *
  * Storage is capped: each chat keeps its latest [MAX_TURNS_PER_CHAT] turns with changes, and all chats
  * together at most [MAX_DIFF_CHARS] characters of diff text; older turns are dropped first. Dropping a
@@ -98,6 +111,13 @@ class ChangeRepository @Inject constructor(
     @param:IoDispatcher private val io: CoroutineDispatcher,
     /** Per-edit history beside the table (no schema change); a store without a folder keeps none. */
     private val history: ChangeHistory = ChangeHistory(null),
+    /**
+     * Command snapshots (docs/design/shell-snapshots.md): where the "before" of a file a shell command changed
+     * is kept. Null where there are none (tests of the file tools alone).
+     */
+    private val snapshots: ShellSnapshots? = null,
+    /** Why a turn's commands weren't snapshotted, for the changes card. */
+    private val notes: ShellNotes = ShellNotes(null),
 ) : ChangeRecorder {
     internal var clock: () -> Long = System::currentTimeMillis
     private val lock = Mutex()
@@ -109,6 +129,19 @@ class ChangeRepository @Inject constructor(
             rows.map { it.toTracked(edits[it.turnId]?.get(it.path).orEmpty()) }
         }.flowOn(io)
 
+    /** The chat's notes about commands whose changes weren't tracked, by turn id. */
+    fun observeNotes(conversationId: String): Flow<Map<String, List<ShellNote>>> = notes.observe(conversationId)
+
+    /**
+     * A change's kept "before": a file tool's trash entry, or a command snapshot's blob ([ShellSnapshots.ref]).
+     * Null once it's gone (the trash entry restored or emptied, the snapshot expired or cleared).
+     */
+    private fun beforePayload(ref: String?): File? {
+        if (ref == null) return null
+        ShellSnapshots.parseRef(ref)?.let { (hash, _) -> return snapshots?.blob(hash) }
+        return workspace.trashPayload(ref)
+    }
+
     /**
      * Adds this call's change of [change]'s path to the turn's edit history: first a change found in
      * between, when the file wasn't as the previous edit left it, then the edit itself with its own diff
@@ -116,7 +149,7 @@ class ChangeRepository @Inject constructor(
      */
     private fun recordEdit(change: FileChange, file: StoredItem, afterExists: Boolean, isDirectory: Boolean, now: Long) {
         val turnId = change.owner.turnId
-        val before = if (change.existedBefore) change.beforeTrashId?.let(workspace::trashPayload) else null
+        val before = if (change.existedBefore) beforePayload(change.beforeTrashId) else null
         val previous = history.forTurn(turnId).lastOrNull { it.path == change.path && !it.outside }
         if (previous != null && !isDirectory) {
             // What the file was just before this call: its trash copy, or nothing.
@@ -216,7 +249,10 @@ class ChangeRepository @Inject constructor(
 
     private fun check(row: FileChangeEntity): UndoCheck {
         if (row.undoneAt != null) return UndoCheck(false, "Already undone.")
-        if (row.existedBefore && row.beforeTrashId?.let(workspace::trashPayload) == null) {
+        if (row.existedBefore && beforePayload(row.beforeTrashId) == null) {
+            if (ShellSnapshots.parseRef(row.beforeTrashId) != null) {
+                return UndoCheck(false, "The earlier version was in a command snapshot that is no longer kept (it expired or was cleared in Settings → Storage).")
+            }
             return UndoCheck(false, "The earlier version is no longer in the workspace trash (it was restored or emptied).")
         }
         return UndoCheck(changedSince(row))
@@ -237,7 +273,11 @@ class ChangeRepository @Inject constructor(
         return rows.mapNotNull { row ->
             if (check(row).blocked != null) return@mapNotNull null
             val target = workspace.storedItem(row.path)
-            if (row.existedBefore) {
+            val shell = ShellSnapshots.parseRef(row.beforeTrashId)
+            if (row.existedBefore && shell != null) {
+                // A command's change: the snapshot's blob is copied back (other snapshots share it).
+                workspace.restoreCopy(row.path, beforePayload(row.beforeTrashId)!!, shell.second)
+            } else if (row.existedBefore) {
                 workspace.restore(row.beforeTrashId!!)
             } else if (target.exists) {
                 target.trash(TrashEntry.Reason.DELETED)
@@ -288,7 +328,11 @@ class ChangeRepository @Inject constructor(
                 !newest.afterExists -> TrackedChange.Kind.DELETED
                 else -> TrackedChange.Kind.MODIFIED
             }
-            RewindFile(path, kind, state, isDirectory = group.any { it.isDirectory }) to newestFirst
+            val byCommand = group.any { row ->
+                row.toolName == ShellSnapshots.TOOL || ShellSnapshots.parseRef(row.beforeTrashId) != null ||
+                    history.forTurn(row.turnId).any { it.path == path && it.toolName == ShellSnapshots.TOOL }
+            }
+            RewindFile(path, kind, state, isDirectory = group.any { it.isDirectory }, byCommand = byCommand) to newestFirst
         }.sortedBy { it.first.path }
     }
 
@@ -306,7 +350,7 @@ class ChangeRepository @Inject constructor(
 
     private fun diffOf(path: String, existedBefore: Boolean, beforeTrashId: String?, after: StoredItem?): LineDiff.Result? {
         val before = if (existedBefore) {
-            val payload = beforeTrashId?.let(workspace::trashPayload)?.takeIf { it.isFile } ?: return null
+            val payload = beforePayload(beforeTrashId)?.takeIf { it.isFile } ?: return null
             textOf(payload) ?: return LineDiff.Result(0, 0, null, binary = true)
         } else {
             null
@@ -367,9 +411,11 @@ class ChangeRepository @Inject constructor(
         binary = binary,
         isDirectory = isDirectory,
         undone = undoneAt != null,
-        canUndo = undoneAt == null && (!existedBefore || beforeTrashId?.let(workspace::trashPayload) != null),
+        canUndo = undoneAt == null && (!existedBefore || beforePayload(beforeTrashId) != null),
         updatedAt = updatedAt,
         edits = edits,
+        byCommand = toolName == ShellSnapshots.TOOL || edits.any { it.toolName == ShellSnapshots.TOOL } || ShellSnapshots.parseRef(beforeTrashId) != null,
+        beforeInSnapshot = ShellSnapshots.parseRef(beforeTrashId) != null,
     )
 
     private fun sha256(file: File): String = sha256(FileStored(file))

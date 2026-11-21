@@ -406,6 +406,7 @@ class SettingsScreenshots : ScreenshotTest() {
             StorageItem(StorageArea.Database, 48_300_000),
             StorageItem(StorageArea.Workspace, 1_240_000_000),
             StorageItem(StorageArea.Trash, 86_000_000),
+            StorageItem(StorageArea.Snapshots, 23_600_000),
             StorageItem(StorageArea.Linux, 712_000_000),
             StorageItem(StorageArea.Models, 2_580_000_000),
             StorageItem(StorageArea.Browser, 64_000_000),
@@ -422,10 +423,13 @@ class SettingsScreenshots : ScreenshotTest() {
         StorageSettings(state, onBack = {}, onRefresh = {}, onAction = {}, onOpenModels = {}, onOpenLinux = {})
     }
 
-    @Test fun storageReport() = snap("settings-storage", heightDp = 1200, content = storage(StorageUiState(report = storageReport, measuring = false)))
+    @Test fun storageReport() = snap("settings-storage", heightDp = 1300, content = storage(StorageUiState(report = storageReport, measuring = false)))
     @Test fun storageMeasuring() = snap("settings-storage-measuring", content = storage(StorageUiState()))
     @Test fun storageError() = snap("settings-storage-error", content = storage(StorageUiState(measuring = false, error = UiText.Plain("Permission denied: /data/user/0/dev.locus/files/linux"))))
     @Test fun storageBusy() = snap("settings-storage-clearing", heightDp = 1200, content = storage(StorageUiState(report = storageReport, measuring = true, busy = StorageAction.ClearCaches)))
+
+    /** Command snapshots being cleared (docs/design/shell-snapshots.md): the row's Clear turns into a spinner. */
+    @Test fun storageClearingSnapshots() = snap("settings-storage-clearing-snapshots", heightDp = 1300, content = storage(StorageUiState(report = storageReport, measuring = false, busy = StorageAction.ClearSnapshots)))
 
     // ---- About and its Updates section
 

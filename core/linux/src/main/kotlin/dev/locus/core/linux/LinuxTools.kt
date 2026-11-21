@@ -7,6 +7,7 @@ import dev.locus.core.agent.ToolResult
 import dev.locus.core.agent.UntrustedContent
 import dev.locus.core.agent.int
 import dev.locus.core.agent.str
+import dev.locus.core.agent.tools.CommandChangeTracker
 import dev.locus.core.agent.tools.RemoteBackend
 import dev.locus.core.agent.tools.RemoteTarget
 import dev.locus.core.agent.tools.Workspace
@@ -21,10 +22,11 @@ import kotlinx.serialization.json.JsonObject
 
 /**
  * [remote] routes a project's commands to the SSH machine it's linked to (docs/design/remote-execution.md);
- * null, or a project without one, runs everything in Linux on the phone.
+ * null, or a project without one, runs everything in Linux on the phone. [commandChanges] snapshots a
+ * project's folder around run_command when the project asks for it (docs/design/shell-snapshots.md).
  */
-fun linuxTools(linux: LinuxEnvironment, ws: Workspace, remote: RemoteBackend? = null): List<Tool> =
-    listOf(RunCommand(linux, ws, remote), ServiceStart(linux, remote), ServiceStop(linux, remote), ServiceList(linux, remote))
+fun linuxTools(linux: LinuxEnvironment, ws: Workspace, remote: RemoteBackend? = null, commandChanges: CommandChangeTracker? = null): List<Tool> =
+    listOf(RunCommand(linux, ws, remote, commandChanges), ServiceStart(linux, remote), ServiceStop(linux, remote), ServiceList(linux, remote))
 
 /** The machine this call's project runs on, as [Tool.sendsOffPhone] reports it; null on the phone or when that can't be told. */
 internal suspend fun RemoteBackend?.offPhone(): String? = this?.let { runCatching { it.target() }.getOrNull()?.alias }
@@ -60,7 +62,12 @@ internal fun linuxNotReadyMessage(status: LinuxStatus): String? = when (status) 
             "then try again once they say it's installed. Don't retry this tool before that."
 }
 
-private class RunCommand(private val linux: LinuxEnvironment, private val ws: Workspace, private val remote: RemoteBackend?) : Tool {
+private class RunCommand(
+    private val linux: LinuxEnvironment,
+    private val ws: Workspace,
+    private val remote: RemoteBackend?,
+    private val changes: CommandChangeTracker? = null,
+) : Tool {
     override val risk = ToolRisk.EXECUTE
     override val spec = ToolSpec(
         "run_command",
@@ -100,8 +107,15 @@ private class RunCommand(private val linux: LinuxEnvironment, private val ws: Wo
 
     override suspend fun execute(args: JsonObject): ToolResult {
         val target = remote?.target()
-        if (target != null) return executeRemote(remote, target, args)
+        // The project's folder is snapshotted around the command when its setting is on; the result is the same either way.
+        if (target != null) return tracked { executeRemote(remote, target, args) }
         linuxNotReadyMessage(linux.status.value)?.let { return ToolResult.error(it) }
+        return tracked { executeLocal(args) }
+    }
+
+    private suspend fun tracked(block: suspend () -> ToolResult): ToolResult = changes?.track(block) ?: block()
+
+    private suspend fun executeLocal(args: JsonObject): ToolResult {
         val timeout = (args.int("timeout_seconds") ?: 120).coerceIn(1, 1800)
         val outDir = ws.resolve(SavedOutput.DIR)
         val started = System.nanoTime()

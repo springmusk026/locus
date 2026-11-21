@@ -85,6 +85,12 @@ class RewindScreenshots : ScreenshotTest() {
     @Test
     fun rewindSheet() = snap("sheet-rewind", heightDp = 1700) { RewindSheet(preview, onConfirm = {}, onDismiss = {}) }
 
+    /** In a project with command snapshots on: the commands' file changes go back too, and the sheet says only the rest stays. */
+    @Test
+    fun rewindSheetCommandsTracked() = snap("sheet-rewind-commands-tracked", heightDp = 1700) {
+        RewindSheet(preview.copy(files = preview.files.mapIndexed { i, f -> if (i == 0) f.copy(byCommand = true) else f }), onConfirm = {}, onDismiss = {})
+    }
+
     /** From a reply, with nothing changed after it: the chat only branches. */
     @Test
     fun rewindSheetNoFiles() = snap("sheet-rewind-no-files", heightDp = 700) {

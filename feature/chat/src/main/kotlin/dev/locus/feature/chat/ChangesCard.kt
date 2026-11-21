@@ -50,6 +50,8 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.locus.core.agent.tools.ShellSnapshots
+import dev.locus.core.data.repository.ShellNote
 import dev.locus.core.data.repository.TrackedChange
 import dev.locus.core.data.repository.UndoCheck
 import dev.locus.core.designsystem.Banner
@@ -183,6 +185,31 @@ internal fun changesTotals(files: List<TrackedChange>): Pair<Int, Int> =
 internal fun editCountLabel(resources: Resources, change: TrackedChange): String? =
     change.editCount.takeIf { it > 1 }?.let { resources.getQuantityString(R.plurals.chat_changes_edited_times, it, it) }
 
+/** "By a command" for a file a shell command changed (docs/design/shell-snapshots.md); null otherwise. */
+internal fun byCommandLabel(resources: Resources, change: TrackedChange): String? =
+    resources.getString(R.string.chat_changes_by_command).takeIf { change.byCommand }
+
+/**
+ * One line per reason a command's changes weren't tracked in this turn, in the order they first happened:
+ * "A command's changes weren't tracked: the project has more than 5,000 files.", with how many commands
+ * when more than one. Limits are [ShellSnapshots.Limits]' defaults, the ones the tracker uses.
+ */
+internal fun shellNoteLines(context: android.content.Context, notes: List<ShellNote>): List<String> {
+    val resources = context.resources
+    val limits = ShellSnapshots.Limits()
+    return notes.groupBy { it.reason }.map { (reason, group) ->
+        val text = when (reason) {
+            ShellSnapshots.SkipReason.TOO_MANY_FILES -> resources.getString(R.string.chat_changes_skip_too_many_files, formatCount(limits.maxFiles))
+            ShellSnapshots.SkipReason.TOO_LARGE -> resources.getString(R.string.chat_changes_skip_too_large, android.text.format.Formatter.formatShortFileSize(context, limits.maxBytes))
+            ShellSnapshots.SkipReason.TOO_SLOW -> resources.getString(R.string.chat_changes_skip_too_slow, formatCount((limits.maxMillis / 1000).toInt()))
+            ShellSnapshots.SkipReason.TOO_MANY_CHANGES -> resources.getString(R.string.chat_changes_skip_too_many_changes, formatCount(limits.maxChanges))
+            ShellSnapshots.SkipReason.BUSY -> resources.getString(R.string.chat_changes_skip_busy)
+            ShellSnapshots.SkipReason.FAILED -> resources.getString(R.string.chat_changes_skip_failed)
+        }
+        if (group.size > 1) text + " · " + resources.getQuantityString(R.plurals.chat_changes_skip_times, group.size, group.size) else text
+    }
+}
+
 /**
  * The files a turn changed, under the turn: a summary row ("Changed 11 files · +865 −282", Undo all)
  * that folds the list away, each file with its +/− line counts, how often and when it last changed,
@@ -191,6 +218,7 @@ internal fun editCountLabel(resources: Resources, change: TrackedChange): String
  */
 @Composable
 internal fun ChangesCard(item: ChatItem.Changes, actions: ChangeActions, modifier: Modifier = Modifier) {
+    if (item.files.isEmpty()) return UntrackedCard(item.notes, modifier)
     var open by rememberSaveable(item.key) { mutableStateOf<Long?>(null) }
     // Remembered per card for the session, scrolled away and back included.
     var expanded by rememberSaveable(item.key + ":open") { mutableStateOf(changesExpandedByDefault(item.files.size)) }
@@ -253,6 +281,11 @@ internal fun ChangesCard(item: ChatItem.Changes, actions: ChangeActions, modifie
                 ChangeRow(change, onClick = { open = change.id })
             }
         }
+        // Commands of this turn whose changes weren't tracked: shown folded or not, so the card never reads as complete when it isn't.
+        if (item.notes.isNotEmpty()) {
+            GroupDivider(inset = Spacing.md)
+            ShellNoteLines(item.notes, Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm))
+        }
     }
 
     val shown = item.files.firstOrNull { it.id == open }
@@ -284,6 +317,31 @@ internal fun ChangesCard(item: ChatItem.Changes, actions: ChangeActions, modifie
     }
 }
 
+/**
+ * A turn whose commands ran in a project with "Snapshot before shell commands" on, but whose changes
+ * weren't tracked (the folder too large, too slow to read…) and no file tool changed anything: says so,
+ * so the missing card doesn't read as "nothing changed".
+ */
+@Composable
+private fun UntrackedCard(notes: List<ShellNote>, modifier: Modifier = Modifier) {
+    LocusCard(modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            Text(stringResource(R.string.chat_changes_untracked_title), style = LocusType.cardTitle)
+            ShellNoteLines(notes)
+        }
+    }
+}
+
+@Composable
+private fun ShellNoteLines(notes: List<ShellNote>, modifier: Modifier = Modifier) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    // Recomputed with the language: LocalResources changes with it.
+    val lines = remember(notes, LocalResources.current) { shellNoteLines(context, notes) }
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
+        lines.forEach { line -> SupportingText(line, style = LocusType.rowSupporting) }
+    }
+}
+
 /** What to do when undo can't run: read the diff and put the lines back, by hand or by asking Locus. */
 internal fun undoBlockedNextStep(single: Boolean): UiText =
     UiText.Res(if (single) R.string.chat_changes_blocked_file else R.string.chat_changes_blocked_files)
@@ -294,7 +352,7 @@ private class Confirm(val id: Long?, val what: String, val check: UndoCheck, val
 @Composable
 private fun ChangeRow(change: TrackedChange, onClick: () -> Unit) {
     val resources = LocalResources.current
-    val edited = editCountLabel(resources, change)
+    val edited = listOfNotNull(editCountLabel(resources, change), byCommandLabel(resources, change)).joinToString(" · ").ifEmpty { null }
     val time = change.updatedAt.takeIf { it > 0 }?.let { relativeTime(it) }
     val summary = changeSummary(resources, change)
     val lastChanged = time?.let { stringResource(R.string.chat_changes_last_changed, it) }
@@ -323,7 +381,7 @@ private fun ChangeRow(change: TrackedChange, onClick: () -> Unit) {
             // breaks a count: "+12 −3 · Edited 2 times", "New · 121 lines".
             if (!change.undone) {
                 if (summaryIsCounts(change)) {
-                    Text(countsText(change.added, change.removed, listOfNotNull(edited)), style = LocusType.mono)
+                    Text(countsText(change.added, change.removed, listOfNotNull(editCountLabel(resources, change), byCommandLabel(resources, change))), style = LocusType.mono)
                 } else {
                     SupportingText(keepPhrases(listOfNotNull(summary, edited).joinToString(" · ")), style = LocusType.chip)
                 }
@@ -381,6 +439,7 @@ internal fun editLabel(resources: Resources, edit: dev.locus.core.data.repositor
             "move_path" -> R.string.chat_changes_edit_label_moved
             "copy_path" -> R.string.chat_changes_edit_label_copied
             "make_directory" -> R.string.chat_changes_edit_label_created
+            ShellSnapshots.TOOL -> R.string.chat_changes_edit_label_command
             else -> R.string.chat_changes_edit_label_changed
         }
     },
@@ -411,6 +470,7 @@ private fun DiffSheet(change: TrackedChange, actions: ChangeActions, onDismiss: 
     ) {
         val note = when {
             change.undone -> stringResource(R.string.chat_changes_you_undid)
+            !change.canUndo && change.beforeInSnapshot -> stringResource(R.string.chat_changes_cannot_undo_snapshot)
             !change.canUndo -> stringResource(R.string.chat_changes_cannot_undo)
             else -> null
         }

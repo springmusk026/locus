@@ -163,6 +163,11 @@ class SettingsRepository @Inject constructor(
         it.copy(projectRemotes = if (remote == null) it.projectRemotes - projectId else it.projectRemotes + (projectId to remote))
     }
 
+    /** Whether [projectId]'s folder is snapshotted before shell commands (docs/design/shell-snapshots.md). */
+    suspend fun setShellSnapshots(projectId: String, enabled: Boolean) = store.updateData {
+        it.copy(shellSnapshotProjects = if (enabled) it.shellSnapshotProjects + projectId else it.shellSnapshotProjects - projectId)
+    }
+
     /** Lets other apps ask Locus to start tasks (docs/design/android-bridge.md). */
     suspend fun setAutomationEnabled(enabled: Boolean) = store.updateData { it.copy(automationEnabled = enabled) }
 
