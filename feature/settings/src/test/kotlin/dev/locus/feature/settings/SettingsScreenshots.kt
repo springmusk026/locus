@@ -757,6 +757,70 @@ class SettingsScreenshots : ScreenshotTest() {
             VoiceSettingsPage(VoiceSettings(autoListen = false, interruptByVoice = false), onBack = {}, onChange = {})
         }
     }
+
+    // Import chats from ChatGPT or Claude (docs/design/import-chats.md): the page's entry and outcome, then each step of the sheet.
+
+    private fun backupWithImport(importState: ImportChatsUiState) = @androidx.compose.runtime.Composable {
+        BackupSettings(
+            BackupUiState(estimate = BackupEstimate(48_300_000, 0)), onBack = {}, onIncludeWorkspace = {}, onIncludeVault = {}, onBackUp = {},
+            onCancelBackup = {}, onDismissResult = {}, onRestore = {}, importState = importState,
+        )
+    }
+
+    @Test fun importEntry() = snap("settings-backup-import", heightDp = 1300, content = backupWithImport(ImportChatsUiState()))
+
+    @Test fun importDone() = snap(
+        "settings-backup-import-done", heightDp = 1300,
+        content = backupWithImport(ImportChatsUiState(outcome = ImportOutcome(dev.locus.core.data.chatimport.ImportResult(1_281, 3, 0), cancelled = false))),
+    )
+
+    @Test fun importCancelled() = snap(
+        "settings-backup-import-cancelled", heightDp = 1300,
+        content = backupWithImport(ImportChatsUiState(outcome = ImportOutcome(dev.locus.core.data.chatimport.ImportResult(412, 0, 0), cancelled = true))),
+    )
+
+    private fun importSheet(step: ImportStep) = @androidx.compose.runtime.Composable {
+        ImportChatsSheet(step, onChoose = {}, onImport = {}, onCancel = {}, onClose = {}, onChooseAnother = {})
+    }
+
+    private val importScan: dev.locus.core.data.chatimport.ImportScan = run {
+        val zone = java.time.ZoneOffset.UTC
+        val chats = (0 until 1_284).map { i ->
+            val at = java.time.LocalDate.of(2019 + i % 8, 1 + i % 12, 1 + i % 27).atStartOfDay(zone).toInstant().toEpochMilli()
+            dev.locus.core.data.chatimport.ScanChat("imported-chatgpt-$i", dev.locus.core.model.ChatImportSource.CHATGPT, at, at, notImported = if (i % 30 == 0) 1 else 0, unknownParts = 0)
+        } + (0 until 37).map { i ->
+            val at = java.time.LocalDate.of(2025, 1 + i % 12, 3).atStartOfDay(zone).toInstant().toEpochMilli()
+            dev.locus.core.data.chatimport.ScanChat("imported-claude-$i", dev.locus.core.model.ChatImportSource.CLAUDE, at, at, notImported = 0, unknownParts = 0)
+        }
+        dev.locus.core.data.chatimport.ImportScan(chats, unreadable = 3, empty = 2, truncated = false, existing = mapOf("imported-chatgpt-5" to Long.MAX_VALUE, "imported-chatgpt-6" to Long.MAX_VALUE))
+    }
+
+    private fun preview(years: Set<Int>?): ImportStep.Preview {
+        val utc = java.time.ZoneOffset.UTC
+        val plan = if (years == null) importScan.plan() else importScan.plan { ImportSummary.yearOf(it.createdAt, utc) in years }
+        return ImportStep.Preview(importScan, ImportSummary.of(importScan, utc), years, plan)
+    }
+
+    @Test fun importReading() = snap("settings-import-reading", heightDp = 600, content = importSheet(ImportStep.Reading(dev.locus.core.data.chatimport.ImportProgress(48_000_000, 212_000_000, 312))))
+
+    @Test fun importPreview() = snap("settings-import-preview", heightDp = 1100, content = importSheet(preview(null)))
+
+    @Test fun importPreviewYears() = snap("settings-import-preview-years", heightDp = 1200, content = importSheet(preview(setOf(2024, 2025, 2026))))
+
+    @Test fun importNothingNew() = snap(
+        "settings-import-nothing-new", heightDp = 900,
+        content = importSheet(
+            dev.locus.core.data.chatimport.ImportScan(importScan.chats.take(4), 0, 0, truncated = true, existing = importScan.chats.take(4).associate { it.id to Long.MAX_VALUE }).let { scan ->
+                ImportStep.Preview(scan, ImportSummary.of(scan, java.time.ZoneOffset.UTC), null, scan.plan())
+            },
+        ),
+    )
+
+    @Test fun importNotAnExport() = snap("settings-import-not-export", heightDp = 600, content = importSheet(ImportStep.Failed(dev.locus.core.data.chatimport.ExportProblem.NotAnExport)))
+
+    @Test fun importNoChats() = snap("settings-import-no-chats", heightDp = 600, content = importSheet(ImportStep.Failed(dev.locus.core.data.chatimport.ExportProblem.NoConversations)))
+
+    @Test fun importImporting() = snap("settings-import-importing", heightDp = 600, content = importSheet(ImportStep.Importing(dev.locus.core.data.chatimport.ImportProgress(98_000_000, 212_000_000, 412), 1_282)))
 }
 
 

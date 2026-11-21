@@ -487,6 +487,8 @@ class AgentRunner @Inject constructor(
      */
     fun send(conversationId: String, text: String, attachments: List<Part.Attachment> = emptyList()) {
         if (text.isBlank() && attachments.isEmpty()) return
+        // A read-only imported archive takes no messages, not even queued ones (see [startRun]).
+        if (dev.locus.core.model.ImportedChats.isImported(conversationId)) return
         if (jobs.containsKey(conversationId)) {
             queueBehindRun(conversationId) { queue.add(conversationId, text.trim(), attachments) }
             return
@@ -1016,6 +1018,9 @@ class AgentRunner @Inject constructor(
     /** As [start], returning the new run's id (for [awaitRun]) instead; null when nothing started. */
     private fun startRun(conversationId: String, auto: BackgroundStart? = null, task: Boolean = true, block: suspend () -> Unit): String? {
         if (jobs.containsKey(conversationId)) return null
+        // An imported chat is a read-only archive (docs/design/import-chats.md): nothing ever runs in it, so
+        // its messages never become a provider request. Its screen offers no way to send; this is the backstop.
+        if (dev.locus.core.model.ImportedChats.isImported(conversationId)) return null
         val record = RunRecord(UUID.randomUUID().toString())
         // Created lazily and started only once it holds the chat's slot, so a caller that loses the race
         // runs nothing and changes nothing.
@@ -1394,6 +1399,8 @@ class AgentRunner @Inject constructor(
         // allOnce() lists the user's chats only; hidden helper chats were handled above.
         for (conversation in conversations.allOnce()) {
             if (jobs.containsKey(conversation.id)) continue
+            // Imported archives never ran here, so there's nothing to recover (and thousands of them shouldn't slow startup).
+            if (dev.locus.core.model.ImportedChats.isImported(conversation.id)) continue
             val history = conversations.history(conversation.id)
             // A parent cut off mid agent_spawn or agent_send: say which helper it was, so the agent can pick up from there.
             val helperTools = setOf(dev.locus.core.model.SubagentTools.SPAWN, dev.locus.core.model.SubagentTools.SEND)

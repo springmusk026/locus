@@ -109,6 +109,17 @@ class ChatScreenshots : ScreenshotTest() {
         Chat(Fx.state(Fx.conversation, title = "Debounce a search field"), projectHeader = { ProjectChip("Garden app", onClick = {}) })
     }
 
+    /** An imported archive (docs/design/import-chats.md): its label under the title and the read-only band in place of the composer. */
+    @Test
+    fun importedChatGpt() = snap("chat-imported-chatgpt") {
+        Chat(Fx.state(Fx.conversation, title = "Debounce a search field").copy(importedFrom = dev.locus.core.model.ChatImportSource.CHATGPT, createdAt = 1_704_067_200_000L, tokens = ChatTokens()))
+    }
+
+    @Test
+    fun importedClaude() = snap("chat-imported-claude") {
+        Chat(Fx.state(Fx.conversation, title = "Sourdough schedule").copy(importedFrom = dev.locus.core.model.ChatImportSource.CLAUDE, createdAt = 1_741_075_200_000L, tokens = ChatTokens()))
+    }
+
     @Test
     fun headerTemporary() = snap("chat-header-temporary") {
         Chat(Fx.state(Fx.conversation, title = "Debounce a search field").let { it.copy(controls = it.controls.copy(temporary = true)) })

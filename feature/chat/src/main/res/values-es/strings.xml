@@ -1389,4 +1389,12 @@
     <string name="chat_composer_slash_none_title">Prompts guardados</string>
     <string name="chat_composer_slash_none_body">Aún no hay ninguno. Crea uno aquí y luego escribe / para insertarlo.</string>
     <string name="chat_prompt_save_failed">No se pudo guardar el prompt. Inténtalo de nuevo.</string>
+
+    <!-- Imported chats (docs/design/import-chats.md) -->
+    <string name="chat_imported_row_meta">Importado de %1$s · %2$s</string>
+    <string name="chat_imported_marker">Importado de %1$s</string>
+    <string name="chat_imported_title">Archivo de solo lectura</string>
+    <string name="chat_imported_body">Importado de %1$s; empezó el %2$s. No se puede continuar aquí, pero un chat nuevo puede leerlo.</string>
+    <string name="chat_imported_continue">Continuar en Locus</string>
+    <string name="chat_imported_continue_draft">Continúa a partir de mi chat “%1$s”, importado de %2$s (id %3$s): léelo primero con chat_history_read.</string>
 </resources>

@@ -46,10 +46,14 @@ object ChatShortcutPlan {
     /**
      * [lock]: with Lock Locus on there are no chat shortcuts (the launcher and the share sheet would show
      * chat titles to anyone holding the phone), and a locked chat is never one (docs/design/app-lock.md).
+     * Imported archives are read-only: a shortcut or share target into one would have nowhere to type.
      */
     fun plan(chats: List<Conversation>, max: Int = DEFAULT_MAX, lock: AppLockSettings = AppLockSettings()): List<ChatShortcut> {
         if (max <= 0 || lock.enabled) return emptyList()
-        val eligible = chats.filter { c -> !c.hidden && c.parentConversationId == null && !c.title.startsWith("Scheduled: ") && c.id !in lock.lockedChats }
+        val eligible = chats.filter { c ->
+            !c.hidden && c.parentConversationId == null && !c.title.startsWith("Scheduled: ") && c.id !in lock.lockedChats &&
+                !dev.locus.core.model.ImportedChats.isImported(c.id)
+        }
         val (pinned, rest) = eligible.partition { it.pinned }
         return (pinned.sortedByDescending { it.updatedAt } + rest.sortedByDescending { it.updatedAt })
             .take(max)
