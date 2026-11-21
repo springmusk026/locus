@@ -122,6 +122,10 @@
     <string name="settings_agent_instructions_note">Added to every new chat. Keep it short; Locus also learns from memory and skills.</string>
     <string name="settings_agent_budget_section">Task budget</string>
     <string name="settings_agent_budget_note">The default limit for each task and the helpers it starts. At a limit Locus pauses between steps and asks whether to go on. Cached input counts at a tenth, and time waiting for you doesn\'t count. A chat can set its own in the composer\'s options.</string>
+    <string name="settings_agent_long_chats_section">Long chats</string>
+    <string name="settings_agent_cold_clearing_title">Clear old tool results after a long pause</string>
+    <string name="settings_agent_cold_clearing_subtitle">When a chat goes on after a day or more, long results from earlier are sent as a short note. The chat still shows them in full</string>
+    <string name="settings_agent_cold_clearing_note">After a day the provider\'s prompt cache has expired anyway, so this never costs a cache hit, and the agent can run a tool again when it needs a result. Not used with Anthropic models or the OpenAI Responses API (including Sign in with ChatGPT) yet. A change applies from the next request, which may then miss the cache once.</string>
     <string name="settings_agent_helpers_section">Helpers</string>
     <string name="settings_agent_helper_reports_title">Continue when a helper reports back</string>
     <string name="settings_agent_helper_reports_subtitle">When a background helper finishes after the reply, Locus picks the chat up again with its report</string>

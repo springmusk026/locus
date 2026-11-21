@@ -172,8 +172,8 @@ class SettingsScreenshots : ScreenshotTest() {
     @Test fun extras() = snap("settings-extras", heightDp = 1000) { SettingsScreenHost(populated, SettingsDestination.Extras) }
     @Test fun extrasDefaults() = snap("settings-extras-defaults", heightDp = 1000) { SettingsScreenHost(fresh, SettingsDestination.Extras) }
 
-    @Test fun agent() = snap("settings-agent", heightDp = 1100) { SettingsScreenHost(populated, SettingsDestination.Agent) }
-    @Test fun agentEmpty() = snap("settings-agent-empty", heightDp = 1100) { SettingsScreenHost(fresh, SettingsDestination.Agent) }
+    @Test fun agent() = snap("settings-agent", heightDp = 1500) { SettingsScreenHost(populated, SettingsDestination.Agent) }
+    @Test fun agentEmpty() = snap("settings-agent-empty", heightDp = 1500) { SettingsScreenHost(fresh, SettingsDestination.Agent) }
 
     @Test fun permissions() = snap("settings-permissions", heightDp = 2400) { SettingsScreenHost(populated, SettingsDestination.Permissions) }
 

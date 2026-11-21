@@ -237,6 +237,9 @@ class SettingsRepository @Inject constructor(
     /** Whether a background helper's late report continues the chat (see [dev.locus.core.model.AppSettings.subagentReportsContinue]). */
     suspend fun setSubagentReportsContinue(enabled: Boolean) = store.updateData { it.copy(subagentReportsContinue = enabled) }
 
+    /** Whether long chats clear old tool results after a cold-cache gap (see [dev.locus.core.model.AppSettings.clearColdToolResults]). */
+    suspend fun setClearColdToolResults(enabled: Boolean) = store.updateData { it.copy(clearColdToolResults = enabled) }
+
     /** How long one helper run may take, in minutes (see [dev.locus.core.model.AppSettings.helperTimeoutMinutes]). */
     suspend fun setHelperTimeoutMinutes(minutes: Int) =
         store.updateData { it.copy(helperTimeoutMinutes = dev.locus.core.model.HelperTimeLimit.normalized(minutes)) }

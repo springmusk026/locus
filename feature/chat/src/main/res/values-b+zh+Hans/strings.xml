@@ -1102,6 +1102,10 @@
     <string name="chat_sent_on_this_phone">在这部手机上</string>
     <string name="chat_sent_format_chatgpt">Responses（ChatGPT 套餐）</string>
     <string name="chat_sent_reported">已上报 %1$,d</string>
+    <string name="chat_sent_row_cleared">较早的工具结果</string>
+    <plurals name="chat_sent_cleared">
+        <item quantity="other">已清除 %1$d 个 · 节省约 %2$s 个令牌</item>
+    </plurals>
 
     <!-- SubagentRow: the note on a helper that stopped early -->
     <string name="chat_helper_note">%1$s 主智能体拿到了它已有的内容：最后一条回复、工具结果和它更改过的文件，均标为部分结果。智能体可以从这里继续。</string>

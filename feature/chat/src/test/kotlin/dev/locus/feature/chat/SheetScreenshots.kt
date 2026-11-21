@@ -238,6 +238,23 @@ class SheetScreenshots : ScreenshotTest() {
     }
 
     @Test
+    fun sentCleared() = snap("sheet-what-was-sent-cleared", heightDp = 1400) {
+        WhatWasSentSheet(
+            SentState.Ready(
+                sentView.copy(
+                    format = ApiFormat.OPENAI_RESPONSES, provider = "OpenAI", model = "gpt-5.5", host = "api.openai.com",
+                    params = listOf("model" to "gpt-5.5", "stream" to "true"),
+                    messages = listOf(
+                        SentMessage("tool", listOf(SentBlock.ToolResult("call_01", "[Earlier result cleared: 48,210 characters. Run the tool again if you need it.]", isError = false))),
+                    ) + sentView.messages,
+                    cleared = dev.locus.core.agent.ColdClearing.Cleared(12, 48_210),
+                ),
+            ),
+            onDismiss = {},
+        )
+    }
+
+    @Test
     fun sentMissing() = snap("sheet-what-was-sent-missing", heightDp = 500) {
         WhatWasSentSheet(SentState.Missing, onDismiss = {})
     }

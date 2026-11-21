@@ -1182,6 +1182,11 @@
     <string name="chat_sent_on_this_phone">On this phone</string>
     <string name="chat_sent_format_chatgpt">Responses (ChatGPT plan)</string>
     <string name="chat_sent_reported">%1$,d reported</string>
+    <string name="chat_sent_row_cleared">Earlier tool results</string>
+    <plurals name="chat_sent_cleared">
+        <item quantity="one">%1$d cleared · ≈%2$s tokens saved</item>
+        <item quantity="other">%1$d cleared · ≈%2$s tokens saved</item>
+    </plurals>
 
     <!-- SubagentRow: the note on a helper that stopped early -->
     <string name="chat_helper_note">%1$s The main agent got what it had: its last reply, its tool results and the files it changed, marked as partial. The agent can continue it from here.</string>

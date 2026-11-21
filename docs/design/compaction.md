@@ -171,6 +171,7 @@ and the API summarises earlier turns into a `compaction` block that's replayed l
   turns write it for an hour, [cost](cost.md#cache-lifetimes)). Its own write is never read again: the
   next request starts from the checkpoint.
 - History stays append-only; only the in-memory view changes, and it's rebuilt identically from storage.
+- The summary request sends the same view of the transcript as the next turn, old tool results cleared past a cold-cache gap included ([cold-cache clearing](cold-cache-clearing.md)).
 - The first request after a compaction is a new prefix (it has to be), and every later request extends it.
 - Changing `chat_history_read`'s description changes the tool list once, for every chat, on the update
   that ships it; checkpoints written before render with the new pointer text, also once.

@@ -39,6 +39,7 @@ internal fun AgentSettings(
     onSetTaskBudget: (dev.locus.core.model.TaskBudget) -> Unit = {},
     onSetHelperReports: (Boolean) -> Unit = {},
     onSetHelperTimeout: (Int) -> Unit = {},
+    onSetColdClearing: (Boolean) -> Unit = {},
 ) {
     SettingsPageScaffold(stringResource(R.string.settings_agent_title), onBack) {
         item { SectionLabel(stringResource(R.string.settings_agent_identity_section), SectionPadding) }
@@ -74,6 +75,19 @@ internal fun AgentSettings(
                 NotePadding,
             )
         }
+        item { SectionLabel(stringResource(R.string.settings_agent_long_chats_section), SectionPadding) }
+        item {
+            CardGroup {
+                SwitchRow(
+                    title = stringResource(R.string.settings_agent_cold_clearing_title),
+                    checked = state.clearColdToolResults,
+                    onCheckedChange = onSetColdClearing,
+                    subtitle = stringResource(R.string.settings_agent_cold_clearing_subtitle),
+                    icon = LocusIcons.Clock,
+                )
+            }
+        }
+        item { SectionNote(stringResource(R.string.settings_agent_cold_clearing_note), NotePadding) }
         item { SectionLabel(stringResource(R.string.settings_agent_helpers_section), SectionPadding) }
         item {
             CardGroup {

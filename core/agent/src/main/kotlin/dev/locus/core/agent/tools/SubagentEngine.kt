@@ -149,6 +149,8 @@ class PreparedChild(
     val spill: dev.locus.core.agent.OutputSpill? = null,
     /** [modelName]'s models.dev price, for the helper's cost; null when it isn't known (or the catalogue is off). */
     val price: dev.locus.core.model.ModelPrice? = null,
+    /** Clear old tool results past a cold-cache boundary ([dev.locus.core.agent.ColdClearing]), as the parent chat does. */
+    val coldClearing: Boolean = false,
 )
 
 /** A helper as its saved chat describes it, for `agent_send`. */
@@ -603,6 +605,7 @@ class SubagentEngine(
                 budget = ctx.budget,
                 budgetGate = BudgetGate { _, _ -> false },
                 compaction = prepared.compaction,
+                coldClearing = prepared.coldClearing,
                 author = ctx.author,
                 // Its file changes show under the parent's turn, where the user can review and undo them.
                 changeOwner = ctx.changeOwner,

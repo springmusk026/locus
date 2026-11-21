@@ -1198,6 +1198,12 @@
     <string name="chat_sent_on_this_phone">Neste telefone</string>
     <string name="chat_sent_format_chatgpt">Responses (plano do ChatGPT)</string>
     <string name="chat_sent_reported">%1$,d informados</string>
+    <string name="chat_sent_row_cleared">Resultados de ferramentas anteriores</string>
+    <plurals name="chat_sent_cleared">
+        <item quantity="one">%1$d limpo · ≈%2$s tokens economizados</item>
+        <item quantity="many">%1$d limpos · ≈%2$s tokens economizados</item>
+        <item quantity="other">%1$d limpos · ≈%2$s tokens economizados</item>
+    </plurals>
 
     <!-- SubagentRow: the note on a helper that stopped early -->
     <string name="chat_helper_note">%1$s O agente principal recebeu o que ele tinha: a última resposta, os resultados das ferramentas e os arquivos que alterou, marcados como parciais. O agente pode continuar a partir daqui.</string>

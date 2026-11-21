@@ -81,10 +81,12 @@ object Compaction {
         taskBudget: Long?,
         prompt: String,
         ask: Message,
+        /** The next turn's [ColdClearing] policy, so the summary request sends the same view of the transcript. */
+        clearing: ColdClearing.Policy? = null,
     ): ChatRequest {
         require(ask.role == Role.USER)
         val withPrompt = ask.copy(parts = listOf(Part.Text(prompt)))
-        return ChatRequest(system, transcript.map { it.forModel() } + withPrompt, tools, cacheKey, taskBudget = taskBudget)
+        return ChatRequest(system, ColdClearing.view(transcript.map { it.forModel() }, clearing) + withPrompt, tools, cacheKey, taskBudget = taskBudget)
     }
 
     /**

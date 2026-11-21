@@ -257,6 +257,10 @@ internal fun requestRows(resources: Resources, view: SentView): List<Pair<String
     // The settings are the request's own parameter names (temperature, max_tokens…), as sent.
     view.params.filter { it.first != "model" }.forEach { (k, v) -> add(k to v.take(400)) }
     view.reportedInputTokens?.let { add(resources.getString(R.string.chat_sent_row_prompt_tokens) to resources.getString(R.string.chat_sent_reported, it)) }
+    // Old tool results this request sent as a short note, past a cold-cache gap (docs/design/cold-cache-clearing.md).
+    view.cleared?.let { c ->
+        add(resources.getString(R.string.chat_sent_row_cleared) to resources.getQuantityString(R.plurals.chat_sent_cleared, c.count, c.count, compactCount(resources, c.tokens.toLong())))
+    }
     // Warm or cold, hit share and writes, from the reply's usage (docs/design/cost.md; core/agent's words).
     view.cache?.let { add(resources.getString(R.string.chat_sent_row_cache) to it) }
 }

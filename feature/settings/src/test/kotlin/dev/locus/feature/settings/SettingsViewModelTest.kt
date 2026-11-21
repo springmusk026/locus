@@ -139,13 +139,14 @@ class SettingsViewModelTest {
         f.vm.setSuggestFollowUps(false)
         f.vm.setReflectAfterTasks(false)
         f.vm.setSubagentReportsContinue(false)
+        f.vm.setClearColdToolResults(false)
         f.vm.setModelCatalog(true)
         f.vm.setHelperModel("a", " small-model ")
         f.vm.saveInstructions("Be brief.")
         val s = f.vm.state { it.customInstructions == "Be brief." }
         assertEquals(ReviewerMode.REVIEW_ALL_BUT_READS, s.reviewerMode)
         assertTrue(s.reviewerApprovesOutward && s.modelCatalog)
-        assertFalse(s.autoTitle || s.suggestFollowUps || s.reflectAfterTasks || s.subagentReportsContinue)
+        assertFalse(s.autoTitle || s.suggestFollowUps || s.reflectAfterTasks || s.subagentReportsContinue || s.clearColdToolResults)
         assertEquals("a", s.helperProviderId)
         assertEquals("small-model", s.helperModel)
     }
