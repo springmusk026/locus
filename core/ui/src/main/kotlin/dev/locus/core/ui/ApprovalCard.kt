@@ -1,7 +1,21 @@
 package dev.locus.core.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.ProvideTextStyle
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import dev.locus.core.agent.DenyReason
+import dev.locus.core.designsystem.ConfirmSheet
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -68,8 +82,22 @@ fun ApprovalCard(
     onRemember: (String, ApprovalAnswer) -> Unit,
     modifier: Modifier = Modifier,
     onDetails: (() -> Unit)? = null,
+    /**
+     * Deny with a short reason the agent reads ("Don't email them, use Slack"): a long press on Deny opens
+     * [DenyReasonSheet] (TalkBack offers it as Deny's long-press action). Null: plain Deny only.
+     */
+    onDenyWithReason: ((String, String) -> Unit)? = null,
 ) {
     var showDetails by remember(request.callId) { mutableStateOf(false) }
+    var reasonSheet by remember(request.callId) { mutableStateOf(false) }
+    if (reasonSheet && onDenyWithReason != null) {
+        DenyReasonSheet(
+            request,
+            onDeny = { reason -> reasonSheet = false; onDenyWithReason(request.callId, reason) },
+            onDismiss = { reasonSheet = false },
+        )
+    }
+    val openReason: (() -> Unit)? = onDenyWithReason?.let { { reasonSheet = true } }
     val caution = Locus.colors.caution
     val large = largeFont()
     // The caution outline marks it; no glow, which would be decoration on top.
@@ -112,14 +140,14 @@ fun ApprovalCard(
             // Stacked at a large font, full width, so no label breaks inside its button.
             Column(Modifier.fillMaxWidth().padding(top = Spacing.sm).bringIntoViewRequester(answers), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                 Button(onClick = { onAnswer(request.callId, true) }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.ui_approval_allow)) }
-                OutlinedButton(onClick = { onAnswer(request.callId, false) }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.ui_approval_deny)) }
+                DenyButton(onDeny = { onAnswer(request.callId, false) }, onDenyWithReason = openReason, modifier = Modifier.fillMaxWidth())
                 details()
             }
         } else {
             Row(Modifier.fillMaxWidth().padding(top = Spacing.sm).bringIntoViewRequester(answers), verticalAlignment = Alignment.CenterVertically) {
                 details()
                 Box(Modifier.weight(1f))
-                OutlinedButton(onClick = { onAnswer(request.callId, false) }) { Text(stringResource(R.string.ui_approval_deny)) }
+                DenyButton(onDeny = { onAnswer(request.callId, false) }, onDenyWithReason = openReason)
                 Button(onClick = { onAnswer(request.callId, true) }, modifier = Modifier.padding(start = Spacing.sm)) { Text(stringResource(R.string.ui_approval_allow)) }
             }
         }
@@ -185,6 +213,73 @@ fun ApprovalDetailsSheet(request: ApprovalRequest, onDismiss: () -> Unit) {
     }
 }
 
+/**
+ * Deny: a tap denies at once; with [onDenyWithReason], a long press opens the reason sheet (TalkBack
+ * offers it as the button's long-press action). Drawn as Material's outlined button, which has no long
+ * press of its own: the same shape, outline, colour, text style, padding and 48dp target.
+ */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun DenyButton(onDeny: () -> Unit, onDenyWithReason: (() -> Unit)?, modifier: Modifier = Modifier) {
+    if (onDenyWithReason == null) {
+        OutlinedButton(onClick = onDeny, modifier = modifier) { Text(stringResource(R.string.ui_approval_deny)) }
+        return
+    }
+    val longLabel = stringResource(R.string.ui_approval_deny_reason)
+    androidx.compose.material3.Surface(
+        modifier = modifier.minimumInteractiveComponentSize(),
+        shape = ButtonDefaults.outlinedShape,
+        color = androidx.compose.ui.graphics.Color.Transparent,
+        contentColor = ButtonDefaults.outlinedButtonColors().contentColor,
+        border = ButtonDefaults.outlinedButtonBorder(enabled = true),
+    ) {
+        Row(
+            Modifier
+                .combinedClickable(role = Role.Button, onLongClickLabel = longLabel, onLongClick = onDenyWithReason, onClick = onDeny)
+                .defaultMinSize(minWidth = ButtonDefaults.MinWidth, minHeight = ButtonDefaults.MinHeight)
+                .padding(ButtonDefaults.ContentPadding),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ProvideTextStyle(LocusType.label) { Text(stringResource(R.string.ui_approval_deny)) }
+        }
+    }
+}
+
+/**
+ * Deny, with a short reason the agent reads in the call's result ("Don't email them, use Slack"). One
+ * field, capped at [DenyReason.MAX_CHARS]; Deny stays off until something is typed (plain Deny is on
+ * the card). Closing the sheet leaves the card waiting.
+ */
+@Composable
+fun DenyReasonSheet(request: ApprovalRequest, onDeny: (String) -> Unit, onDismiss: () -> Unit, initial: String = "") {
+    var reason by androidx.compose.runtime.saveable.rememberSaveable(request.callId) { mutableStateOf(initial.take(DenyReason.MAX_CHARS)) }
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+    ConfirmSheet(
+        title = stringResource(R.string.ui_approval_reason_title),
+        message = stringResource(R.string.ui_approval_reason_message),
+        confirmLabel = stringResource(R.string.ui_approval_deny),
+        confirmEnabled = reason.isNotBlank(),
+        onConfirm = { if (reason.isNotBlank()) onDeny(reason.trim()) },
+        onDismiss = onDismiss,
+    ) {
+        // What is being denied, as the card says it.
+        KeyValueRow(stringResource(R.string.ui_approval_reason_denying), request.summary, dense = true, valueMaxLines = 3)
+        OutlinedTextField(
+            value = reason,
+            onValueChange = { reason = it.take(DenyReason.MAX_CHARS) },
+            modifier = Modifier.fillMaxWidth().focusRequester(focus),
+            label = { Text(stringResource(R.string.ui_approval_reason_label)) },
+            placeholder = { Text(stringResource(R.string.ui_approval_reason_placeholder)) },
+            supportingText = { Text(stringResource(R.string.ui_approval_reason_count, reason.length, DenyReason.MAX_CHARS)) },
+            minLines = 2,
+            maxLines = 4,
+            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+        )
+    }
+}
+
 /** The tool's name and its arguments, pretty-printed and selectable. */
 @Composable
 private fun ApprovalArguments(request: ApprovalRequest) {
@@ -221,7 +316,7 @@ private fun ApprovalPreviewRows(preview: ApprovalPreview) {
  * saves exactly this; the card can't edit it (an approval answers yes or no to the call as the model made it).
  */
 @Composable
-internal fun MemoryChangeRows(change: MemoryChange) {
+fun MemoryChangeRows(change: MemoryChange) {
     val projectName = change.projectName
     val memory = when {
         change.projectId == null -> stringResource(R.string.ui_approval_memory_general)

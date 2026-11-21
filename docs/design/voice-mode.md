@@ -92,6 +92,9 @@ Voice may answer only a **plain Ask-level request**: one whose tool is set to As
 | `ESCALATED` | A workflow approval point, or a helper's parent limits | Tap only |
 | `reviewerNote` set | The safety reviewer looked and didn't clear it | Tap only |
 | flags `null` | A request not built by `AgentLoop` (unknown) | Tap only |
+| `memory_save` / `memory_forget` | Any memory change, whatever made it ask (with "Ask before saving to memory = Always" it's a plain Ask) | Tap only |
+
+A memory change is tap-only because voice reads only the one-line summary ("Remember “coffee”"), while what gets saved is the whole note ([memory approval](memory-approval.md)). Voice says "This changes what Locus remembers, and the note is on the screen, so it needs a look and a tap. Tap Allow or Deny on the screen." and leaves the card pending; the voice screen's card shows the memory, topic, change, summary and the whole note (scrolling in place), as the chat's card does.
 
 For a request voice may answer, it says "Locus wants to: Run ls -la. Say allow, or deny." Saying "allow" (or yes, okay, go ahead) doesn't approve. Locus asks "To allow it, say confirm. Or say no.", and only "confirm" approves. "Deny", "no", "don't allow" or "cancel" deny at once, with no confirmation, because denying is safe. A negation always wins ("don't allow" denies), and "yes no" is unclear. Answers over six words are conversation, not answers. Two unclear answers in a row hand the approval to the screen.
 
@@ -150,6 +153,7 @@ Plan (roadmap "On-device speech"): swap `SystemEars` for sherpa-onnx streaming A
 - [ ] Interrupt a long reply by tapping, then by speaking two or more words. Locus's own voice on the speaker doesn't interrupt it.
 - [ ] Start a task with commands: spoken status. Tap and add a note mid-task: "Got it…", and the chat shows it as "Told while working".
 - [ ] A command set to Ask: "allow" then "confirm" approves, and "deny" denies. In a task that read a web page, a sending call says it needs a tap and voice can't approve it.
+- [ ] With "Ask before saving to memory = Always", ask Locus to remember something: voice says the card needs a look, shows the whole note, and "allow" or "confirm" said aloud changes nothing until a tap.
 - [ ] Call the phone during a reply: voice mode pauses and goes on after the call.
 - [ ] Press Home: it pauses, and the mic indicator goes off. Stay silent for 30 s: the microphone goes off and it says "Didn't hear anything. Tap to talk".
 - [ ] Settings → Voice: speed changes read-aloud and voice mode. On Android 17 the volume keys during a reply change the Assistant volume.

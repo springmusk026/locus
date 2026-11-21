@@ -99,7 +99,7 @@
     <string name="chat_receipt_outcome_done">Concluída</string>
     <string name="chat_receipt_outcome_stopped_by_you">Parada por você</string>
     <string name="chat_receipt_outcome_stopped">Parada</string>
-    <string name="chat_receipt_outcome_budget">Pausada no orçamento</string>
+    <string name="chat_receipt_outcome_budget">Pausado no orçamento</string>
     <string name="chat_receipt_outcome_failed_label">Com falha</string>
     <string name="chat_receipt_outcome_refused">O modelo recusou</string>
     <string name="chat_receipt_outcome_step_limit">Limite de passos atingido</string>
@@ -1397,4 +1397,23 @@
     <string name="chat_imported_body">Importado do %1$s; começou em %2$s. Não pode ser continuado aqui, mas um chat novo pode lê-lo.</string>
     <string name="chat_imported_continue">Continuar no Locus</string>
     <string name="chat_imported_continue_draft">Continue a partir do meu chat “%1$s”, importado do %2$s (id %3$s): leia-o primeiro com chat_history_read.</string>
+    <plurals name="chat_waiting_title">
+        <item quantity="one">%1$d chat está esperando por você</item>
+        <item quantity="many">%1$d chats estão esperando por você</item>
+        <item quantity="other">%1$d chats estão esperando por você</item>
+    </plurals>
+    <plurals name="chat_waiting_more_title">
+        <item quantity="one">Mais %1$d chat está esperando por você</item>
+        <item quantity="many">Mais %1$d chats estão esperando por você</item>
+        <item quantity="other">Mais %1$d chats estão esperando por você</item>
+    </plurals>
+    <string name="chat_waiting_named">“%1$s”</string>
+    <string name="chat_waiting_locked">Um chat bloqueado</string>
+    <string name="chat_waiting_untitled">Um chat sem título</string>
+    <string name="chat_waiting_oldest">O mais antigo: “%1$s”</string>
+    <string name="chat_waiting_oldest_locked">O mais antigo: um chat bloqueado</string>
+    <string name="chat_waiting_oldest_untitled">O mais antigo: um chat sem título</string>
+    <string name="chat_waiting_kind_approval">Precisa da sua aprovação</string>
+    <string name="chat_waiting_kind_question">Tem uma pergunta para você</string>
+    <string name="chat_waiting_kind_budget">Pausado no orçamento</string>
 </resources>

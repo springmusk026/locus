@@ -320,7 +320,7 @@ class AgentRunner @Inject constructor(
     /** Held while a run takes a chat's slot and shows itself running, and by [updateIfIdle]. */
     private val slotLock = Any()
 
-    private val approvals = ConcurrentHashMap<String, CompletableDeferred<dev.locus.core.agent.ApprovalAnswer>>()
+    private val approvals = ConcurrentHashMap<String, CompletableDeferred<dev.locus.core.agent.ApprovalReply>>()
     /** Each running task's budget, by chat; helpers reach it through their parent's call. */
     private val budgets = ConcurrentHashMap<String, RunBudget>()
     private val budgetAnswers = ConcurrentHashMap<String, CompletableDeferred<Boolean>>()
@@ -384,6 +384,8 @@ class AgentRunner @Inject constructor(
     init {
         subagents.parent = object : SubagentParent {
             override suspend fun requestApproval(parentConversationId: String, request: ApprovalRequest) = awaitApproval(parentConversationId, request)
+
+            override suspend fun requestReply(parentConversationId: String, request: ApprovalRequest) = awaitReply(parentConversationId, request)
 
             override fun backgroundFinished(parentConversationId: String) {
                 scope.launch { continueWithHelperReports(parentConversationId) }
@@ -463,16 +465,21 @@ class AgentRunner @Inject constructor(
     }
 
     /** Queues [request] in the chat until the user answers; an unanswered request is a denial, so a forgotten phone never approves anything. */
-    private suspend fun awaitApproval(conversationId: String, request: ApprovalRequest): Boolean = awaitAnswer(conversationId, request).allowed
+    private suspend fun awaitApproval(conversationId: String, request: ApprovalRequest): Boolean = awaitReply(conversationId, request).answer.allowed
 
-    /** As [awaitApproval], with the user's "don't ask again" choice when the card offered one. */
-    private suspend fun awaitAnswer(conversationId: String, request: ApprovalRequest): dev.locus.core.agent.ApprovalAnswer {
-        val answer = CompletableDeferred<dev.locus.core.agent.ApprovalAnswer>()
+    /**
+     * As [awaitApproval], with the user's "don't ask again" choice when the card offered one, or the reason
+     * they gave when they denied it there ([denyWithReason]).
+     */
+    private suspend fun awaitReply(conversationId: String, request: ApprovalRequest): dev.locus.core.agent.ApprovalReply {
+        val answer = CompletableDeferred<dev.locus.core.agent.ApprovalReply>()
         approvals[request.callId] = answer
         update(conversationId) { it.copy(approvals = it.approvals + request) }
         return try {
             // Waiting for the user doesn't count against the task's time budget.
-            val wait: suspend () -> dev.locus.core.agent.ApprovalAnswer = { withTimeoutOrNull(30.minutes) { answer.await() } ?: dev.locus.core.agent.ApprovalAnswer.DENY }
+            val wait: suspend () -> dev.locus.core.agent.ApprovalReply = {
+                withTimeoutOrNull(30.minutes) { answer.await() } ?: dev.locus.core.agent.ApprovalReply(dev.locus.core.agent.ApprovalAnswer.DENY)
+            }
             budgets[conversationId]?.waitingForUser(wait) ?: wait()
         } finally {
             approvals.remove(request.callId)
@@ -1176,7 +1183,17 @@ class AgentRunner @Inject constructor(
      * card offered it; the agent loop stores that choice (docs/design/remembered-approvals.md).
      */
     fun answer(callId: String, answer: dev.locus.core.agent.ApprovalAnswer) {
-        approvals.remove(callId)?.complete(answer)
+        approvals.remove(callId)?.complete(dev.locus.core.agent.ApprovalReply(answer))
+    }
+
+    /**
+     * Deny from the in-app card with the user's [reason] ("Don't email them, use Slack"), which the model
+     * reads in the call's result, cleaned and capped by [dev.locus.core.agent.DenyReason]. A blank reason is
+     * a plain Deny. Only the app's own card calls this: notifications, Telegram and voice answer plain Deny.
+     */
+    fun denyWithReason(callId: String, reason: String) {
+        val cleaned = dev.locus.core.agent.DenyReason.clean(reason)
+        approvals.remove(callId)?.complete(dev.locus.core.agent.ApprovalReply(dev.locus.core.agent.ApprovalAnswer.DENY, cleaned))
     }
 
     /** The user's answer to a budget pause: Continue (one more increment) or Stop. */
@@ -1498,7 +1515,8 @@ class AgentRunner @Inject constructor(
 
         val gate = object : ApprovalGate {
             override suspend fun request(request: ApprovalRequest) = awaitApproval(conversationId, request)
-            override suspend fun answer(request: ApprovalRequest) = awaitAnswer(conversationId, request)
+            override suspend fun answer(request: ApprovalRequest) = awaitReply(conversationId, request).answer
+            override suspend fun reply(request: ApprovalRequest) = awaitReply(conversationId, request)
         }
         val chatScope = projects.scopeOf(conversation)
         // A saved workflow's run: its declared tools and approval points add approvals (docs/design/workflows.md).

@@ -10,6 +10,15 @@
     <string name="ui_approval_hide_details">Hide details</string>
     <string name="ui_approval_allow">Allow</string>
     <string name="ui_approval_deny">Deny</string>
+    <!-- Deny's long-press action, as TalkBack reads it. -->
+    <string name="ui_approval_deny_reason">Deny with a reason</string>
+    <string name="ui_approval_reason_title">Deny with a reason</string>
+    <string name="ui_approval_reason_message">The agent reads your reason, so it can do this another way or ask you.</string>
+    <string name="ui_approval_reason_denying">Denying</string>
+    <string name="ui_approval_reason_label">Reason</string>
+    <string name="ui_approval_reason_placeholder">Don\'t email them, use Slack</string>
+    <!-- Characters typed out of the most allowed: "12/300". -->
+    <string name="ui_approval_reason_count" translatable="false">%1$d/%2$d</string>
     <string name="ui_approval_this_chat">This chat</string>
     <string name="ui_approval_always">Always</string>
     <string name="ui_approval_allow_site">Allow site</string>

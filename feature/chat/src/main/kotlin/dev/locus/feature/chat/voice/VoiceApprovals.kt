@@ -20,6 +20,9 @@ internal object VoiceApprovals {
     fun tapReason(request: ApprovalRequest): String? {
         val flags = request.flags
         return when {
+            // Voice reads only the one-line summary; the note that would be saved is on the card
+            // (docs/design/memory-approval.md). Whatever the reason it asks.
+            isMemoryChange(request) -> "This changes what Locus remembers, and the note is on the screen, so it needs a look and a tap."
             request.reviewerNote != null -> "The safety reviewer flagged this, so it needs a tap."
             flags == null -> "This needs a tap."
             ApprovalFlag.MUST_CONFIRM in flags -> "This looks like a payment or another action that must be confirmed, so it needs a tap."
@@ -29,6 +32,11 @@ internal object VoiceApprovals {
             else -> null
         }
     }
+
+    /** A memory_save or memory_forget card: what it writes is only readable on screen. */
+    fun isMemoryChange(request: ApprovalRequest): Boolean = request.preview?.memory != null || request.toolName in MEMORY_TOOLS
+
+    private val MEMORY_TOOLS = setOf("memory_save", "memory_forget")
 
     /** Whether voice may answer [request]. */
     fun voiceAllowed(request: ApprovalRequest): Boolean = tapReason(request) == null

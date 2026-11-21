@@ -1370,4 +1370,25 @@
     <string name="chat_imported_body">Imported from %1$s; it started on %2$s. It can\'t be continued here, but a new chat can read it.</string>
     <string name="chat_imported_continue">Continue in Locus</string>
     <string name="chat_imported_continue_draft">Continue from my chat “%1$s”, imported from %2$s (id %3$s): read it with chat_history_read first.</string>
+    <!-- The "questions waiting" banner on home and in a chat: other chats waiting for the user. -->
+    <plurals name="chat_waiting_title">
+        <item quantity="one">%1$d chat is waiting for you</item>
+        <item quantity="other">%1$d chats are waiting for you</item>
+    </plurals>
+    <!-- On home, under the card of a chat already shown waiting. -->
+    <plurals name="chat_waiting_more_title">
+        <item quantity="one">%1$d more chat is waiting for you</item>
+        <item quantity="other">%1$d more chats are waiting for you</item>
+    </plurals>
+    <string name="chat_waiting_named">“%1$s”</string>
+    <string name="chat_waiting_locked">A locked chat</string>
+    <string name="chat_waiting_untitled">An untitled chat</string>
+    <string name="chat_waiting_oldest">Oldest: “%1$s”</string>
+    <string name="chat_waiting_oldest_locked">Oldest: a locked chat</string>
+    <string name="chat_waiting_oldest_untitled">Oldest: an untitled chat</string>
+    <string name="chat_waiting_kind_approval">Needs your approval</string>
+    <string name="chat_waiting_kind_question">Has a question for you</string>
+    <string name="chat_waiting_kind_budget">Paused at its budget</string>
+    <!-- Which chat, then why: "“Trip plan” · Needs your approval". -->
+    <string name="chat_waiting_detail" translatable="false">%1$s · %2$s</string>
 </resources>

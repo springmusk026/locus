@@ -122,6 +122,8 @@ internal class BrowserActions(
     /** The approval card's Allow and Deny, and its "Don't ask again" and "Allow site" answers. */
     val answerApproval: (callId: String, approved: Boolean) -> Unit = { _, _ -> },
     val rememberApproval: (callId: String, answer: ApprovalAnswer) -> Unit = { _, _ -> },
+    /** Deny with the user's reason for the agent; null hides "Deny with a reason". */
+    val denyWithReason: ((callId: String, reason: String) -> Unit)? = null,
     val answerQuestion: (callId: String, answer: QuestionAnswer) -> Unit = { _, _ -> },
     /** Scrolls the page by pixels while Locus waits for an answer (taps still need Take over). */
     val scrollPage: (dy: Int) -> Unit = {},
@@ -164,6 +166,7 @@ fun BrowserRoute(
                 openSavedLogins = onOpenSavedLogins,
                 answerApproval = viewModel::answer,
                 rememberApproval = viewModel::answerRemembering,
+                denyWithReason = viewModel::denyWithReason,
                 answerQuestion = viewModel::answerQuestion,
                 scrollPage = viewModel::scrollPage,
             ),
@@ -571,7 +574,11 @@ private fun WaitingDock(ui: BrowserUi, actions: BrowserActions, onDetails: (Stri
     Column(Modifier.fillMaxWidth().heightIn(max = maxHeight).verticalScroll(rememberScrollState())) {
         val cardModifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.sm)
         if (approval != null) {
-            ApprovalCard(approval, actions.answerApproval, actions.rememberApproval, cardModifier, onDetails = { onDetails(approval.callId) })
+            ApprovalCard(
+                approval, actions.answerApproval, actions.rememberApproval, cardModifier,
+                onDetails = { onDetails(approval.callId) },
+                onDenyWithReason = actions.denyWithReason,
+            )
         } else if (question != null) {
             QuestionCard(question, actions.answerQuestion, cardModifier, composerBelow = false)
         }

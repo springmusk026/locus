@@ -213,6 +213,10 @@ interface SubagentBackend {
     /** Puts a helper's approval request in the parent chat's queue; true when the user allows it. */
     suspend fun requestApproval(parentConversationId: String, request: ApprovalRequest): Boolean
 
+    /** As [requestApproval], with the reason the user gave when they denied it on the card (allowing is plain Allow). */
+    suspend fun requestReply(parentConversationId: String, request: ApprovalRequest): dev.locus.core.agent.ApprovalReply =
+        dev.locus.core.agent.ApprovalReply(if (requestApproval(parentConversationId, request)) dev.locus.core.agent.ApprovalAnswer.ALLOW else dev.locus.core.agent.ApprovalAnswer.DENY)
+
     /**
      * The wall-clock limit for a helper run starting now (the user's setting), or null for
      * [SubagentLimits.timeoutMs]. Read once per run.
@@ -580,12 +584,19 @@ class SubagentEngine(
             // Same tools in the same order: the declared tools block is byte-identical to the parent's.
             tools = ToolRegistry(prepared.tools.all.map { ChildTool(it, run) }),
             policyFor = { tool -> SubagentPolicy.effective(tool.spec.name, prepared.userPolicy(tool), profile) },
-            gate = ApprovalGate { request ->
-                run.update { it.copy(waitingApproval = true) }
-                try {
-                    backend.requestApproval(run.parentId, request.copy(origin = ApprovalOrigin(run.agentId, run.label)))
-                } finally {
-                    run.update { it.copy(waitingApproval = false) }
+            gate = object : ApprovalGate {
+                override suspend fun request(request: ApprovalRequest): Boolean = reply(request).answer.allowed
+
+                // A helper's card is answered in the parent chat; a reason given there reaches the helper's model.
+                // Any allowing answer is a plain Allow for a helper, as before: nothing is remembered from its card.
+                override suspend fun reply(request: ApprovalRequest): dev.locus.core.agent.ApprovalReply {
+                    run.update { it.copy(waitingApproval = true) }
+                    return try {
+                        val reply = backend.requestReply(run.parentId, request.copy(origin = ApprovalOrigin(run.agentId, run.label)))
+                        if (reply.answer.allowed) dev.locus.core.agent.ApprovalReply(dev.locus.core.agent.ApprovalAnswer.ALLOW) else reply
+                    } finally {
+                        run.update { it.copy(waitingApproval = false) }
+                    }
                 }
             },
             store = prepared.store,

@@ -193,6 +193,13 @@ fun interface ApprovalGate {
      * one. Gates that only allow or deny keep the default.
      */
     suspend fun answer(request: ApprovalRequest): ApprovalAnswer = if (request(request)) ApprovalAnswer.ALLOW else ApprovalAnswer.DENY
+
+    /**
+     * [answer] with, for a denial, the reason the user typed on the in-app card ("Don't email them, use
+     * Slack"); the model reads it in the call's result ([DenyReason.result]). Gates without a reason
+     * (notifications, Telegram, voice) keep the default.
+     */
+    suspend fun reply(request: ApprovalRequest): ApprovalReply = ApprovalReply(answer(request))
 }
 
 sealed interface AgentEvent {
@@ -1398,13 +1405,11 @@ class AgentLoop(
                 val request = approvalRequest(conversationId, call, tool, args, confirmReason, checked?.note, flags)
                     .copy(remember = offer, rememberNote = rememberNote, siteForTask = siteOffer, reviewerFix = checked?.fix, preview = preview)
                 emit(AgentEvent.AwaitingApproval(request))
-                val answer = gate.answer(request)
+                val reply = gate.reply(request)
+                val answer = reply.answer
                 if (!answer.allowed) {
-                    return Authorized(
-                        ApprovalDecision.USER_DENIED,
-                        ToolResult.error("The user declined this action. Ask them how they would like to proceed."),
-                        checked?.audit,
-                    )
+                    // Without a reason, the same words as always (the request stays byte-identical); with one, the user's words.
+                    return Authorized(ApprovalDecision.USER_DENIED, ToolResult.error(DenyReason.result(reply.reason)), checked?.audit)
                 }
                 if (answer == ApprovalAnswer.ALLOW_SITE_FOR_TASK && siteOffer != null) taint.allowedSites += siteOffer
                 if (offer != null && memory != null) {
