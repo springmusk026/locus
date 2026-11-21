@@ -378,6 +378,15 @@ class AgentConfig(
     /** Asked when a limit is reached between steps; null (or false) stops the run. */
     val budgetGate: BudgetGate? = null,
     /**
+     * One last chance when the budget stops the run (the gate said stop): this note is appended as a hidden
+     * message and the run gets a few more steps, without the budget checked, to finish from
+     * what it has ([AgentLoop.BUDGET_WRAP_UP_STEPS]), then stops as it would have. New helpers stay refused (the budget is still reached).
+     * Set by a workflow whose plan asks for it, such as the research workflow's report
+     * (docs/design/deep-research.md). Null: the budget stops the run outright. Only the user's own chat
+     * (depth 0) uses it.
+     */
+    val budgetWrapUp: String? = null,
+    /**
      * Whose turn this run's workspace changes belong to. Null (the user's own chat): this chat and its
      * current turn. A helper passes its parent's, so its edits show under the parent's turn.
      */
@@ -538,6 +547,9 @@ class AgentLoop(
         var completionAsked = false
         // Stops a model that keeps calling tools it can't use, whatever the model (ToolLoopGuard).
         val loopGuard = ToolLoopGuard(unattended = config.unattended)
+        // Set once the budget stopped the run and it's finishing from what it has ([AgentConfig.budgetWrapUp]):
+        // the limit it reached, and the steps it has left.
+        var wrapUp: Pair<BudgetLimit, Int>? = null
         while (true) {
             step++
             config.maxSteps?.let { max ->
@@ -549,14 +561,33 @@ class AgentLoop(
             // The only place a budget stops a run: between steps, after every call of the last step has
             // its result, so nothing is cut off mid-tool and the transcript stays valid to continue.
             budget?.let { b ->
-                while (true) {
-                    val limit = b.exceeded() ?: break
-                    val goOn = config.budgetGate?.onLimit(b, limit) == true
-                    if (!goOn) {
+                val finishing = wrapUp
+                if (finishing != null) {
+                    // Finishing after the budget: no more checks, only the steps it was given.
+                    val (limit, left) = finishing
+                    if (left <= 0) {
                         emit(AgentEvent.Finished(Outcome.BudgetStopped(limit, b.stopMessage(limit), b.reached(limit, paused = false))))
                         return@flow
                     }
-                    b.extend(limit)
+                    wrapUp = limit to left - 1
+                } else {
+                    while (true) {
+                        val limit = b.exceeded() ?: break
+                        val goOn = config.budgetGate?.onLimit(b, limit) == true
+                        if (!goOn) {
+                            val note = config.budgetWrapUp?.takeIf { it.isNotBlank() && config.depth == 0 }
+                            if (note != null) {
+                                wrapUp = limit to BUDGET_WRAP_UP_STEPS - 1
+                                // The completion check would spend a step on the open checklist; the note already says what's left.
+                                completionAsked = true
+                                appendAndEmit(Message(ids(), conversation.id, Role.USER, listOf(Part.Text(ModeNote.wrap(note))), clock()), transcript)
+                                break
+                            }
+                            emit(AgentEvent.Finished(Outcome.BudgetStopped(limit, b.stopMessage(limit), b.reached(limit, paused = false))))
+                            return@flow
+                        }
+                        b.extend(limit)
+                    }
                 }
             }
             emit(AgentEvent.StepStarted(step))
@@ -718,6 +749,9 @@ class AgentLoop(
 
         /** The call id of the context [AgentConfig.atStepBoundary] runs with; see [ToolCallContext.forCall]. */
         const val STEP_BOUNDARY_CALL = "step-boundary"
+
+        /** Steps a run gets after its budget stops it, when it has an [AgentConfig.budgetWrapUp]: enough to write, send and answer. */
+        const val BUDGET_WRAP_UP_STEPS = 4
 
         /** Decisions under which a call actually ran. */
         private val RAN = setOf(ApprovalDecision.AUTO_ALLOWED, ApprovalDecision.USER_APPROVED, ApprovalDecision.REVIEWER_ALLOWED, ApprovalDecision.REMEMBERED_ALLOWED)

@@ -289,6 +289,44 @@ class UiScreenshots : ScreenshotTest() {
         WorkflowPickerSheet(emptyList(), projectName = null, onPick = {}, onDismiss = {})
     }
 
+    // ---- The built-in research workflow (docs/design/deep-research.md)
+
+    private val research = SavedWorkflow(dev.locus.core.agent.workflow.ResearchWorkflow.workflow, builtIn = true)
+
+    @Test
+    fun pickerWithResearch() = snap("workflow-picker-research", heightDp = 700) {
+        WorkflowPickerSheet(listOf(research, SavedWorkflow(invoices), SavedWorkflow(deploy, projectId = "p1")), projectName = "Portfolio site", onPick = {}, onDismiss = {})
+    }
+
+    @Test
+    fun researchRun() = snap("workflow-research-run", heightDp = 1500) {
+        ResearchRunSheet(
+            error = null, lacksTools = false, onRun = { _, _ -> }, onDismiss = {},
+            initial = mapOf("question" to "Do heat pumps work well in cold climates?", "scope" to "Since 2022. Prefer energy.gov and iea.org"),
+        )
+    }
+
+    @Test
+    fun researchRunBudget() = snap("workflow-research-run-budget", heightDp = 1900) {
+        ResearchRunSheet(
+            error = null, lacksTools = false, onRun = { _, _ -> }, onDismiss = {},
+            initial = mapOf("question" to "Which e-bike batteries last longest?", "depth" to "thorough"), initialEditing = true,
+        )
+    }
+
+    @Test
+    fun researchRunNoTools() = snap("workflow-research-run-no-tools", heightDp = 1500) {
+        ResearchRunSheet(error = null, lacksTools = true, onRun = { _, _ -> }, onDismiss = {}, initial = mapOf("depth" to "quick"))
+    }
+
+    @Test
+    fun researchSchedule() = snap("workflow-research-schedule", heightDp = 1300) {
+        ResearchRunSheet(
+            error = null, lacksTools = false, onRun = { _, _ -> }, onDismiss = {}, actionLabel = "Schedule", scheduled = true,
+            initial = mapOf("question" to "What's new in solid-state batteries this week?", "scope" to "Prefer nature.com and arxiv.org"),
+        )
+    }
+
     // ---- SSH sign-in fields (inside Settings' and onboarding's machine forms)
 
     @Test

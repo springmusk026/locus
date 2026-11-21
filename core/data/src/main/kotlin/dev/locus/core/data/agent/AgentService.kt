@@ -370,6 +370,38 @@ class AgentService : LifecycleService() {
             )
         }
 
+        private const val FINISHED_CHANNEL = "agent_finished"
+
+        /**
+         * "Research finished", when a long run (the research workflow, docs/design/deep-research.md) ends
+         * while Locus isn't on screen. Tapping opens the chat with the report. One per chat; a newer one replaces it.
+         */
+        fun postRunFinished(context: Context, conversationId: String, title: String, text: String) {
+            val manager = NotificationManagerCompat.from(context)
+            if (!manager.areNotificationsEnabled()) return
+            context.getSystemService(NotificationManager::class.java).createNotificationChannel(
+                NotificationChannel(FINISHED_CHANNEL, "Finished research", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                    description = "When a research run you started finishes while Locus is in the background."
+                },
+            )
+            val open = context.packageManager.getLaunchIntentForPackage(context.packageName)?.let {
+                OpenChatLink.attach(context, it, conversationId)
+                PendingIntent.getActivity(context, (conversationId + "#finished").hashCode(), it, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+            }
+            @Suppress("MissingPermission")
+            manager.notify(
+                (conversationId + "#finished").hashCode(),
+                NotificationCompat.Builder(context, FINISHED_CHANNEL)
+                    .setSmallIcon(R.drawable.ic_stat_agent)
+                    .setContentTitle(title)
+                    .setContentText(text)
+                    .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+                    .setContentIntent(open)
+                    .setAutoCancel(true)
+                    .build(),
+            )
+        }
+
         private fun ensureChannels(context: Context) {
             val manager = context.getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(NotificationChannel(STATUS_CHANNEL, "Agent activity", NotificationManager.IMPORTANCE_LOW))

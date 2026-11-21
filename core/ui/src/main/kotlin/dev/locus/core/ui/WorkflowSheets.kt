@@ -30,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.IconSize
@@ -45,6 +46,7 @@ import dev.locus.core.designsystem.Segmented
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.SwitchRow
+import dev.locus.core.designsystem.Tone
 import dev.locus.core.model.SavedWorkflow
 import dev.locus.core.model.Workflow
 import dev.locus.core.model.WorkflowCheck
@@ -185,6 +187,7 @@ fun checkHow(c: WorkflowCheck): String = when (c.kind) {
     WorkflowCheck.CheckKind.FILE_CHANGED -> stringResource(R.string.ui_workflow_check_file, c.value.ifBlank { stringResource(R.string.ui_workflow_check_a_file) })
     WorkflowCheck.CheckKind.REPLY_CONTAINS -> stringResource(R.string.ui_workflow_check_reply, c.value)
     WorkflowCheck.CheckKind.AGENT -> stringResource(R.string.ui_workflow_check_agent)
+    WorkflowCheck.CheckKind.RESEARCH_REPORT -> stringResource(R.string.ui_workflow_check_report)
 }
 
 @Composable
@@ -276,26 +279,41 @@ fun WorkflowRunSheet(
     /** Extra controls under the inputs (a schedule's interval); null for none. */
     actionLabel: String = stringResource(R.string.ui_workflow_run),
     extra: (@Composable () -> Unit)? = null,
+    /** The input values, when the caller needs to read them as they change (the research sheet's depth); null keeps them here. */
+    values: MutableMap<String, String>? = null,
+    /** Why the workflow can't run here (the model has no tool calling); shown on top, and Run is off. */
+    unavailable: String? = null,
+    /** How a choice input's option reads; the option itself by default. */
+    optionLabel: @Composable (WorkflowParam, String) -> String = { _, option -> option },
+    /** Text inputs that grow to a few lines (a question to research). */
+    multiLine: Boolean = false,
+    /** The plan's steps under the inputs, under [planTitle]. */
+    planTitle: String = stringResource(R.string.ui_workflow_plan),
+    /** What the workflow asks about and does on its own; off when [extra] says it in its own words. */
+    showLimits: Boolean = true,
 ) {
-    val values = remember(workflow) { mutableStateMapOf(*workflow.parameters.map { it.name to it.default.orEmpty() }.toTypedArray()) }
+    val own = remember(workflow) { mutableStateMapOf(*workflow.parameters.map { it.name to it.default.orEmpty() }.toTypedArray()) }
+    val inputs = values ?: own
     LocusSheet(
         title = workflow.name,
         subtitle = workflow.description.ifBlank { null },
         onDismiss = onDismiss,
         action = actionLabel,
-        onAction = { onRun(values.toMap()) },
+        actionEnabled = unavailable == null,
+        onAction = { onRun(inputs.toMap()) },
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            unavailable?.let { Banner(it, Tone.Caution) }
             error?.let { Text(it, color = Locus.colors.critical, style = LocusType.supporting) }
-            WorkflowInputFields(workflow.parameters, values)
+            WorkflowInputFields(workflow.parameters, inputs, multiLine = multiLine, optionLabel = optionLabel)
             if (workflow.steps.isNotEmpty()) {
-                Text(stringResource(R.string.ui_workflow_plan), Modifier.padding(top = Spacing.sm), style = LocusType.cardTitle)
+                Text(planTitle, Modifier.padding(top = Spacing.sm), style = LocusType.cardTitle)
                 workflow.steps.forEachIndexed { i, s -> Text(stringResource(R.string.ui_workflow_plan_step, i + 1, s), style = LocusType.supporting) }
             }
-            if (workflow.approvals.isNotEmpty()) {
+            if (showLimits && workflow.approvals.isNotEmpty()) {
                 SectionNote(stringResource(R.string.ui_workflow_asks_before, workflow.approvals.map { workflowToolName(it) }.distinct().joinToString()))
             }
-            if (workflow.tools.isNotEmpty()) {
+            if (showLimits && workflow.tools.isNotEmpty()) {
                 SectionNote(
                     workflow.tools.filter { it !in workflow.approvals }.map { workflowToolName(it) }.distinct()
                         .let { own -> if (own.isEmpty()) stringResource(R.string.ui_workflow_only_reads) else stringResource(R.string.ui_workflow_can_on_its_own, own.joinToString()) },
@@ -312,7 +330,13 @@ fun WorkflowRunSheet(
  * [multiLine] lets text boxes grow, for prompt fields that take a paragraph.
  */
 @Composable
-fun WorkflowInputFields(parameters: List<WorkflowParam>, values: MutableMap<String, String>, multiLine: Boolean = false) {
+fun WorkflowInputFields(
+    parameters: List<WorkflowParam>,
+    values: MutableMap<String, String>,
+    multiLine: Boolean = false,
+    /** How a choice input's option reads (a built-in workflow's translated names); the option itself by default. */
+    optionLabel: @Composable (WorkflowParam, String) -> String = { _, option -> option },
+) {
     parameters.forEach { p ->
         when (p.type) {
             WorkflowParamType.BOOLEAN -> CardGroup {
@@ -326,13 +350,13 @@ fun WorkflowInputFields(parameters: List<WorkflowParam>, values: MutableMap<Stri
             WorkflowParamType.CHOICE -> if (p.options.isNotEmpty()) {
                 Text(p.title, style = LocusType.rowSupporting)
                 if (p.options.size <= 3) {
-                    Segmented(p.options, selected = p.options.indexOf(values[p.name]).coerceAtLeast(0), onSelect = { values[p.name] = p.options[it] }, modifier = Modifier.fillMaxWidth())
+                    Segmented(p.options.map { optionLabel(p, it) }, selected = p.options.indexOf(values[p.name]).coerceAtLeast(0), onSelect = { values[p.name] = p.options[it] }, modifier = Modifier.fillMaxWidth())
                 } else {
                     var open by remember { mutableStateOf(false) }
                     Box {
-                        TextButton(onClick = { open = true }) { Text(values[p.name].orEmpty().ifBlank { stringResource(R.string.ui_workflow_choose) }) }
+                        TextButton(onClick = { open = true }) { Text(values[p.name]?.takeIf { it.isNotBlank() }?.let { optionLabel(p, it) } ?: stringResource(R.string.ui_workflow_choose)) }
                         DropdownMenu(open, onDismissRequest = { open = false }) {
-                            p.options.forEach { o -> DropdownMenuItem(text = { Text(o) }, onClick = { open = false; values[p.name] = o }) }
+                            p.options.forEach { o -> DropdownMenuItem(text = { Text(optionLabel(p, o)) }, onClick = { open = false; values[p.name] = o }) }
                         }
                     }
                 }
@@ -361,14 +385,17 @@ fun WorkflowPickerSheet(workflows: List<SavedWorkflow>, projectName: String?, on
             CardGroup {
                 workflows.forEachIndexed { i, s ->
                     if (i > 0) GroupDivider()
+                    // A built-in workflow shows its translated name; a saved one, the user's own words.
+                    val shown = shownWorkflow(s)
                     ListRow(
-                        title = s.workflow.name,
+                        title = shown.name,
                         subtitle = listOfNotNull(
-                            s.workflow.description.ifBlank { null },
+                            shown.description.ifBlank { null },
+                            if (s.builtIn) stringResource(R.string.ui_workflow_built_in) else null,
                             if (s.projectId != null) projectName ?: stringResource(R.string.ui_workflow_this_project) else null,
-                        ).joinToString(" · ").ifBlank { s.workflow.goal },
+                        ).joinToString(" · ").ifBlank { shown.goal },
                         onClick = { onPick(s) },
-                        leading = { Icon(LocusIcons.Play, contentDescription = null) },
+                        leading = { Icon(if (s.builtIn) LocusIcons.Search else LocusIcons.Play, contentDescription = null) },
                     )
                 }
             }

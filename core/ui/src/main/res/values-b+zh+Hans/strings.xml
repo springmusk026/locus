@@ -514,4 +514,37 @@
     <string name="ui_prompt_form_selection">要使用的文本</string>
     <string name="ui_prompt_form_selection_empty">选择此提示词前没有分享或输入任何内容。请在此粘贴或输入。</string>
     <string name="ui_prompt_insert">插入</string>
+
+    <!-- Built-in workflows and the research workflow (ResearchWorkflowUi, docs/design/deep-research.md) -->
+    <string name="ui_workflow_built_in">内置</string>
+    <string name="ui_workflow_check_report">Locus 会检查报告是否有引用、来源列表和未核实说法部分</string>
+    <string name="ui_workflow_unavailable_no_tools">此聊天的模型不能使用工具，因此无法运行工作流。请切换到支持工具调用的模型后再运行。</string>
+    <string name="ui_research_name">研究</string>
+    <string name="ui_research_description">搜索多个来源，核对关键说法，并写出带引用的报告。</string>
+    <string name="ui_research_question">问题</string>
+    <string name="ui_research_scope">范围说明</string>
+    <string name="ui_research_scope_hint">时间范围、地点、优先或避开的网站。在这里写明的网站打开时不会再询问。</string>
+    <string name="ui_research_depth">深度</string>
+    <string name="ui_research_depth_quick">快速</string>
+    <string name="ui_research_depth_standard">标准</string>
+    <string name="ui_research_depth_thorough">深入</string>
+    <string name="ui_research_phases">工作方式</string>
+    <string name="ui_research_phase_plan">规划：把问题拆成几个小问题，显示为清单</string>
+    <string name="ui_research_phase_research">研究：助手搜索网页并阅读来源</string>
+    <string name="ui_research_phase_verify">核实：对照来源检查每个关键说法，并标出无法确认的说法</string>
+    <string name="ui_research_phase_report">报告：在工作区的 research 文件夹中写一份带引用的 Markdown 报告</string>
+    <plurals name="ui_research_helpers">
+        <item quantity="other">%1$d 个研究员</item>
+    </plurals>
+    <plurals name="ui_research_sources">
+        <item quantity="other">约 %1$d 个来源</item>
+    </plurals>
+    <string name="ui_research_budget_title">任务预算</string>
+    <string name="ui_research_budget_line">%1$s · 这样的运行通常约用 %2$s 令牌</string>
+    <string name="ui_research_budget_off">无预算 · 这样的运行通常约用 %1$s 令牌</string>
+    <string name="ui_research_budget_low">这低于此类运行的通常用量，报告可能会比较单薄。</string>
+    <string name="ui_research_budget_note">预算用完时，它会停止研究，用已有内容写出报告，并说明缺少什么。</string>
+    <string name="ui_research_budget_change">更改预算</string>
+    <string name="ui_research_scheduled_note">计划运行无法向你询问：它会跳过你未在范围说明中写明的网站，并把报告放在聊天中而不是文件里。</string>
+    <string name="ui_research_outside">它读取的所有内容都算作外部内容。向手机以外发送或更改任何内容前都会先询问你，打开你未写明的网站也一样。</string>
 </resources>

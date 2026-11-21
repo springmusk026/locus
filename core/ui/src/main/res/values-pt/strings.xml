@@ -516,4 +516,41 @@
     <string name="ui_prompt_form_selection">Texto a usar</string>
     <string name="ui_prompt_form_selection_empty">Nada foi compartilhado ou digitado antes de você escolher este prompt. Cole ou digite aqui.</string>
     <string name="ui_prompt_insert">Inserir</string>
+
+    <!-- Built-in workflows and the research workflow (ResearchWorkflowUi, docs/design/deep-research.md) -->
+    <string name="ui_workflow_built_in">Incluído</string>
+    <string name="ui_workflow_check_report">O Locus verifica se o relatório tem citações, uma lista de fontes e uma seção de afirmações não verificadas</string>
+    <string name="ui_workflow_unavailable_no_tools">O modelo deste chat não pode usar ferramentas, então não pode executar um fluxo de trabalho. Troque para um modelo com chamada de ferramentas para executá-lo.</string>
+    <string name="ui_research_name">Pesquisa</string>
+    <string name="ui_research_description">Busca em várias fontes, confere as afirmações principais e escreve um relatório com citações.</string>
+    <string name="ui_research_question">Pergunta</string>
+    <string name="ui_research_scope">Notas de escopo</string>
+    <string name="ui_research_scope_hint">Período, lugares, sites para preferir ou evitar. Os sites que você citar aqui abrem sem perguntar.</string>
+    <string name="ui_research_depth">Profundidade</string>
+    <string name="ui_research_depth_quick">Rápida</string>
+    <string name="ui_research_depth_standard">Padrão</string>
+    <string name="ui_research_depth_thorough">Completa</string>
+    <string name="ui_research_phases">Como funciona</string>
+    <string name="ui_research_phase_plan">Planejar: divide a pergunta em perguntas menores, mostradas como lista de tarefas</string>
+    <string name="ui_research_phase_research">Pesquisar: os ajudantes buscam na web e leem as fontes</string>
+    <string name="ui_research_phase_verify">Verificar: confere cada afirmação principal com a fonte e marca as que não consegue confirmar</string>
+    <string name="ui_research_phase_report">Relatório: escreve um relatório em Markdown com citações na pasta research do seu espaço de trabalho</string>
+    <plurals name="ui_research_helpers">
+        <item quantity="one">%1$d pesquisador</item>
+        <item quantity="many">%1$d pesquisadores</item>
+        <item quantity="other">%1$d pesquisadores</item>
+    </plurals>
+    <plurals name="ui_research_sources">
+        <item quantity="one">cerca de %1$d fonte</item>
+        <item quantity="many">cerca de %1$d fontes</item>
+        <item quantity="other">cerca de %1$d fontes</item>
+    </plurals>
+    <string name="ui_research_budget_title">Orçamento da tarefa</string>
+    <string name="ui_research_budget_line">%1$s · uma execução assim costuma usar cerca de %2$s tokens</string>
+    <string name="ui_research_budget_off">Sem orçamento · uma execução assim costuma usar cerca de %1$s tokens</string>
+    <string name="ui_research_budget_low">Isso é menos do que uma execução assim costuma usar, então o relatório pode ficar raso.</string>
+    <string name="ui_research_budget_note">Quando o orçamento acaba, ele para de pesquisar e escreve o relatório com o que tem, dizendo o que faltou.</string>
+    <string name="ui_research_budget_change">Alterar orçamento</string>
+    <string name="ui_research_scheduled_note">Uma execução agendada não pode perguntar nada a você: ela pula os sites que você não citou nas notas de escopo e coloca o relatório no chat em vez de num arquivo.</string>
+    <string name="ui_research_outside">Tudo o que ele lê conta como conteúdo externo. Enviar ou alterar algo fora do seu celular pede sua permissão antes, assim como abrir um site que você não citou.</string>
 </resources>

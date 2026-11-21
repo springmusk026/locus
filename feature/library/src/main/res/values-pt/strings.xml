@@ -515,4 +515,10 @@
     <string name="library_prompts_remove_body">Ele sai da lista do / e do seletor. As mensagens que você já enviou com ele continuam como estão.</string>
     <string name="library_prompts_save_failed">Não foi possível salvar o prompt. Tente de novo.</string>
     <string name="library_prompts_change_failed">Não foi possível alterar “%1$s”. Tente de novo.</string>
+
+    <!-- Built-in workflows (docs/design/deep-research.md) -->
+    <string name="library_workflows_built_in">Incluído</string>
+    <string name="library_workflows_icon_built_in">Fluxo de trabalho incluído</string>
+    <string name="library_workflows_duplicate">Duplicar</string>
+    <string name="library_workflows_copy_name">%1$s (cópia)</string>
 </resources>
