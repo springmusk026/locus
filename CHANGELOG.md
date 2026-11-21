@@ -4,6 +4,10 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Added
+- **Gotify and webhooks as reach-me channels.** Settings → Integrations (and onboarding) now have **Gotify** (your server's address and an application token) and **Webhook** (a URL and an optional signing secret). `notify_me` and scheduled task results go to every channel you set up, next to ntfy and Telegram. Each sheet has Send a test. Gotify gets the message as Markdown with its title, priority and tap link, the token in the `X-Gotify-Key` header, never in the URL. A webhook gets a small, stable JSON body (`version`, `title`, `message`, `priority`, `click`, `sentAt`); with a secret, each request carries `X-Locus-Timestamp` and an HMAC-SHA256 `X-Locus-Signature` over the timestamp and body, so your server can check it and reject replays. The secret itself is never sent. https only, or http on this phone or your home network. Addresses and secrets stay in the encrypted vault, and the AI never sees them. See [reach-me channels](docs/design/reach-me-channels.md). *Not yet tried on the phone.*
+- **Jellyfin in Library → Add a service.** Search your library, see what was added lately, look up an item and see what's playing now. Read-only, with the API key sent in the `Authorization: MediaBrowser Token="…"` header that Jellyfin 12 requires. *Not yet tried against a live server.*
+
 ## [0.2.0] - 2026-11-21
 
 ### Added

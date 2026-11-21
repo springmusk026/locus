@@ -14,6 +14,8 @@ internal object CatalogRes {
         "Long-lived access token" to R.string.ui_catalog_label_long_lived_access_token,
         "API password" to R.string.ui_catalog_label_api_password,
         "Topic URL" to R.string.ui_catalog_label_topic_url,
+        "Application token" to R.string.ui_catalog_label_application_token,
+        "Webhook URL" to R.string.ui_catalog_label_webhook_url,
         "Bot token" to R.string.ui_catalog_label_bot_token,
         "Mailbox" to R.string.ui_catalog_label_mailbox,
         "Personal access token (sbp_…)" to R.string.ui_catalog_label_personal_access_token_sbp,
@@ -53,6 +55,8 @@ internal object CatalogRes {
         "Get a key" to R.string.ui_catalog_link_get_a_key,
         "Create a token" to R.string.ui_catalog_link_create_a_token,
         "How ntfy works" to R.string.ui_catalog_link_how_ntfy_works,
+        "How Gotify works" to R.string.ui_catalog_link_how_gotify_works,
+        "Webhook format" to R.string.ui_catalog_link_webhook_format,
         "Open @BotFather" to R.string.ui_catalog_link_open_botfather,
         "Create a Gmail app password" to R.string.ui_catalog_link_create_a_gmail_app_password,
         "Create a key" to R.string.ui_catalog_link_create_a_key,
@@ -70,6 +74,8 @@ internal object CatalogRes {
         "github" to R.string.ui_catalog_integration_github_summary,
         "ntfy" to R.string.ui_catalog_integration_ntfy_summary,
         "telegram" to R.string.ui_catalog_integration_telegram_summary,
+        "gotify" to R.string.ui_catalog_integration_gotify_summary,
+        "webhook" to R.string.ui_catalog_integration_webhook_summary,
         "email" to R.string.ui_catalog_integration_email_summary,
         "vercel" to R.string.ui_catalog_integration_vercel_summary,
         "netlify" to R.string.ui_catalog_integration_netlify_summary,
@@ -86,6 +92,8 @@ internal object CatalogRes {
         "github" to R.string.ui_catalog_integration_github_description,
         "ntfy" to R.string.ui_catalog_integration_ntfy_description,
         "telegram" to R.string.ui_catalog_integration_telegram_description,
+        "gotify" to R.string.ui_catalog_integration_gotify_description,
+        "webhook" to R.string.ui_catalog_integration_webhook_description,
         "email" to R.string.ui_catalog_integration_email_description,
         "vercel" to R.string.ui_catalog_integration_vercel_description,
         "netlify" to R.string.ui_catalog_integration_netlify_description,
@@ -220,6 +228,7 @@ internal object CatalogRes {
         "immich" to R.string.ui_catalog_service_immich_description,
         "mastodon" to R.string.ui_catalog_service_mastodon_description,
         "vikunja" to R.string.ui_catalog_service_vikunja_description,
+        "jellyfin" to R.string.ui_catalog_service_jellyfin_description,
     )
 
     val SERVICE_WHERE: Map<String, Int> = mapOf(
@@ -229,6 +238,7 @@ internal object CatalogRes {
         "immich" to R.string.ui_catalog_service_immich_where,
         "mastodon" to R.string.ui_catalog_service_mastodon_where,
         "vikunja" to R.string.ui_catalog_service_vikunja_where,
+        "jellyfin" to R.string.ui_catalog_service_jellyfin_where,
     )
 
     val SERVICE_NOTE: Map<String, Int> = mapOf(
@@ -236,6 +246,7 @@ internal object CatalogRes {
         "paperless" to R.string.ui_catalog_service_paperless_note,
         "immich" to R.string.ui_catalog_service_immich_note,
         "mastodon" to R.string.ui_catalog_service_mastodon_note,
+        "jellyfin" to R.string.ui_catalog_service_jellyfin_note,
     )
 
     val SERVICE_HOST_HINT: Map<String, Int> = mapOf(

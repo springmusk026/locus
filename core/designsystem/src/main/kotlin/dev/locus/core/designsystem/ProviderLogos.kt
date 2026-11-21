@@ -105,7 +105,7 @@ fun integrationLogo(id: String): BrandLogo? = when (id.lowercase()) {
     else -> null
 }
 
-/** An integration's leading tile: its logo, or a plain icon for ones without a brand mark (email). */
+/** An integration's leading tile: its logo, or a plain icon for ones without a brand mark (email, Gotify, webhook). */
 @Composable
 fun IntegrationIcon(id: String, modifier: Modifier = Modifier, size: Dp = 36.dp) {
     val logo = integrationLogo(id)
@@ -116,7 +116,13 @@ fun IntegrationIcon(id: String, modifier: Modifier = Modifier, size: Dp = 36.dp)
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            if (id.lowercase() == "email") LocusIcons.Mail else LocusIcons.Plug,
+            when (id.lowercase()) {
+                "email" -> LocusIcons.Mail
+                // Gotify is the user's own server; a webhook posts to a URL.
+                "gotify" -> LocusIcons.Server
+                "webhook" -> LocusIcons.Globe
+                else -> LocusIcons.Plug
+            },
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(size * 0.56f),

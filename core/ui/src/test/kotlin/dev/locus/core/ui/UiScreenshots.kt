@@ -72,6 +72,53 @@ class UiScreenshots : ScreenshotTest() {
         TelegramSheet(Integrations.telegram, hasKey = true, actions = actions, onDismiss = {})
     }
 
+    // ---- Gotify and Webhook
+
+    @Test
+    fun gotifyNew() = snap("gotify-sheet", heightDp = 1000) {
+        ReachMeSheet(Integrations.gotify, hasKey = false, actions = ReachMeActions.None, onDismiss = {}, initial = ReachMeForm())
+    }
+
+    @Test
+    fun gotifySaved() = snap("gotify-sheet-saved", heightDp = 1100) {
+        ReachMeSheet(
+            Integrations.gotify, hasKey = true, actions = ReachMeActions.None, onDismiss = {},
+            initial = ReachMeForm(url = "https://push.example.com", note = dev.locus.core.designsystem.UiText.Res(R.string.ui_reachme_test_sent)),
+        )
+    }
+
+    @Test
+    fun gotifyLanError() = snap("gotify-sheet-lan-error", heightDp = 1200) {
+        // A LAN server over http (the caution banner) whose test was refused.
+        ReachMeSheet(
+            Integrations.gotify, hasKey = false, actions = ReachMeActions.None, onDismiss = {},
+            initial = ReachMeForm(
+                url = "http://192.168.1.20:8080", secret = "AbCdEf1234567.8",
+                error = dev.locus.core.designsystem.UiText.Res(dev.locus.core.data.R.string.data_reachme_gotify_refused, "192.168.1.20:8080", 401),
+            ),
+        )
+    }
+
+    @Test
+    fun gotifyBadAddress() = snap("gotify-sheet-bad-address", heightDp = 1000) {
+        ReachMeSheet(Integrations.gotify, hasKey = false, actions = ReachMeActions.None, onDismiss = {}, initial = ReachMeForm(url = "http://push.example.com"))
+    }
+
+    @Test
+    fun webhookNew() = snap("webhook-sheet", heightDp = 1200) {
+        ReachMeSheet(Integrations.webhook, hasKey = false, actions = ReachMeActions.None, onDismiss = {}, initial = ReachMeForm(url = "https://hooks.example.com/locus", secret = "Zk3vQ9-aP2mX7rT1bW8yL0nC5dE6fG4h"))
+    }
+
+    @Test
+    fun webhookSavedUnsigned() = snap("webhook-sheet-unsigned", heightDp = 1000) {
+        ReachMeSheet(Integrations.webhook, hasKey = true, actions = ReachMeActions.None, onDismiss = {}, initial = ReachMeForm(url = "https://n8n.example.com/webhook/locus?src=phone", sign = false))
+    }
+
+    @Test
+    fun webhookSavedSigned() = snap("webhook-sheet-saved", heightDp = 1200) {
+        ReachMeSheet(Integrations.webhook, hasKey = true, actions = ReachMeActions.None, onDismiss = {}, initial = ReachMeForm(url = "https://hooks.example.com/locus", savedSecret = true))
+    }
+
     // ---- Email
 
     private val gmail = EmailForm().withAddress("agent@gmail.com").copy(password = "abcdefghijklmnop", name = "Locus Agent")

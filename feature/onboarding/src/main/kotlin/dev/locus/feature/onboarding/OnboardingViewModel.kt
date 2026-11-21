@@ -166,6 +166,7 @@ class OnboardingViewModel @Inject constructor(
     private val helper: HelperModel,
     telegramSetup: TelegramSetup,
     emailSetup: dev.locus.core.data.integrations.EmailSetup,
+    reachMeSetup: dev.locus.core.data.integrations.ReachMeSetup,
     private val updates: dev.locus.core.data.updates.Updates,
     /** Where the persona files are read and written: Dispatchers.IO in the app, the test graph's IO in tests. */
     @param:IoDispatcher private val io: CoroutineDispatcher,
@@ -186,6 +187,9 @@ class OnboardingViewModel @Inject constructor(
 
     /** The Email sheet's actions, the same as in Settings → Integrations. */
     val email = dev.locus.core.ui.EmailActions.of(emailSetup, viewModelScope)
+
+    /** The Gotify and Webhook sheets' actions, the same as in Settings → Integrations. */
+    val reachMe = dev.locus.core.ui.ReachMeActions.of(reachMeSetup, viewModelScope)
 
     val uiState: StateFlow<OnboardingUiState> = combine(
         settings.settings,

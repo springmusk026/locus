@@ -43,6 +43,8 @@ data class ConnectorTemplate(
         val header: String = "",
         /** For header: text before the key (`Token `). */
         val prefix: String = "",
+        /** For header: text after the key (the closing quote of `MediaBrowser Token="…"`). */
+        val suffix: String = "",
         /** What the user pastes: "API key", "Access token", "App password". */
         val label: String,
         /** Where in the service to create it, in its own words. */
@@ -59,6 +61,7 @@ data class ConnectorTemplate(
             login != null -> "a sign-in token Locus gets once from your server; the password itself isn't kept"
             type == "basic" -> "HTTP Basic authentication"
             type == "bearer" -> "a bearer token (Authorization: Bearer …)"
+            suffix.isNotEmpty() -> "the $header header ($header: $prefix…$suffix)"
             prefix.isNotEmpty() -> "the $header header (${header}: ${prefix.trim()} …)"
             else -> "the $header header"
         }
@@ -87,7 +90,7 @@ data class ConnectorTemplate(
         auth = when (auth.type) {
             "bearer" -> Connector.Auth("bearer", secret = secret)
             "basic" -> Connector.Auth("basic", secret = secret)
-            else -> Connector.Auth("header", name = auth.header, secret = secret, prefix = auth.prefix)
+            else -> Connector.Auth("header", name = auth.header, secret = secret, prefix = auth.prefix, suffix = auth.suffix)
         },
         operations = operations,
         createdBy = "user",
@@ -270,6 +273,43 @@ object ConnectorTemplates {
                         b("due_date", "RFC 3339 date-time"), b("priority", "0 (unset) to 5 (do now)")),
                     sideEffect = "write",
                 ),
+            ),
+        ),
+        ConnectorTemplate(
+            id = "jellyfin",
+            name = "Jellyfin",
+            vendor = "Jellyfin",
+            description = "Your media server: search your library, see what was added lately and what's playing now.",
+            docsUrl = "https://api.jellyfin.org/",
+            baseUrl = "{host}",
+            hostHint = "media.example.com",
+            auth = ConnectorTemplate.AuthSpec(
+                type = "header", header = "Authorization", prefix = "MediaBrowser Token=\"", suffix = "\"",
+                label = "API key", where = "Dashboard → API Keys (under Advanced) → +",
+            ),
+            testPath = "/Items?limit=1&enableImages=false",
+            note = "Read-only. A Jellyfin API key has administrator access, so keep it for Locus alone and remove it in Jellyfin if you stop using it.",
+            operations = listOf(
+                Operation(
+                    "search", "Search the library by name across all libraries.", "GET", "/Items?recursive=true&enableImages=false",
+                    listOf(
+                        q("searchTerm", "Words to search for", required = true),
+                        q("includeItemTypes", "Comma-separated kinds: Movie, Series, Episode, MusicAlbum, Audio, Book"),
+                        q("limit", "How many, e.g. 20", required = true),
+                        q("startIndex", "Skip this many results (paging)"),
+                    ),
+                ),
+                Operation(
+                    "recently_added", "Items most recently added to the library, newest first.", "GET",
+                    "/Items?recursive=true&sortBy=DateCreated&sortOrder=Descending&enableImages=false",
+                    listOf(q("includeItemTypes", "Comma-separated kinds, e.g. Movie,Episode,MusicAlbum"), q("limit", "How many, e.g. 20", required = true)),
+                ),
+                Operation(
+                    "item", "One item's details: overview, genres, people, studios and tags.", "GET",
+                    "/Items?fields=Overview,Genres,People,Studios,Tags&enableImages=false",
+                    listOf(q("ids", "The item's id", required = true)),
+                ),
+                Operation("now_playing", "Sessions active in the last 16 minutes: who is playing what, on which device.", "GET", "/Sessions?activeWithinSeconds=960"),
             ),
         ),
     )

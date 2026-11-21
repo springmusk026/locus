@@ -189,7 +189,7 @@ class ScheduledRun @Inject constructor(
             tasks.recordRun(taskId, conversation.id, summary, outcome)
             eventId?.let { tasks.recordEventRun(it, conversation.id, outcome, plain(summary)) }
             notify(title(task.title, outcome), withReceipt(plain(summary), conversation.id), conversation.id)
-            // Also to the user's reach-me channels (ntfy, Telegram) when any is set up, so the answer reaches their other devices.
+            // Also to the user's reach-me channels (ntfy, Telegram, Gotify, a webhook) when any is set up, so the answer reaches their other devices.
             // ReachMe catches each channel's failure; this guards the rest.
             runCatching { ReachMe.send(http, secrets, title(task.title, outcome), summary) }
             tasks.clearMarker(taskId, workId)
