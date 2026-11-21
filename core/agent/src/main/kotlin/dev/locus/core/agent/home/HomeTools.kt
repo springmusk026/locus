@@ -1,11 +1,17 @@
 package dev.locus.core.agent.home
 
+import dev.locus.core.agent.ApprovalPreview
+import dev.locus.core.agent.MemoryChange
 import dev.locus.core.agent.ObjectSchema
+import dev.locus.core.agent.ReviewerClearance
 import dev.locus.core.agent.Tool
 import dev.locus.core.agent.ToolException
+import dev.locus.core.agent.ToolCallContext
 import dev.locus.core.agent.ToolResult
 import dev.locus.core.agent.UntrustedContent
 import dev.locus.core.agent.str
+import dev.locus.core.model.HiddenText
+import kotlin.coroutines.coroutineContext
 import dev.locus.core.model.ToolPolicy
 import dev.locus.core.model.ToolRisk
 import dev.locus.core.model.ToolSpec
@@ -34,18 +40,80 @@ fun interface SecretResolver {
     suspend fun resolve(name: String): String?
 }
 
-/** [origins] says which address each connector key was saved for; a key never goes anywhere else. */
-fun homeTools(home: AgentHome, http: HttpClient, secrets: SecretResolver, scripts: ScriptEngine? = null, origins: KeyOrigins): List<Tool> = listOf(
-    MemorySave(home), MemoryRead(home), MemorySearch(home), MemoryForget(home),
+/**
+ * What the memory tools need from the app beyond agent-home (docs/design/memory-approval.md): whether
+ * every memory write asks (Settings → Agent → "Ask before saving to memory"), and a project's name for
+ * the approval card. Read for each call, so a change applies to the next one.
+ */
+interface MemoryWrites {
+    /** True when `memory_save` and `memory_forget` ask every time, not only in a tainted run. */
+    suspend fun alwaysAsk(): Boolean = false
+
+    /** The project [projectId]'s name, for the approval card; null when unknown. */
+    suspend fun projectName(projectId: String): String? = null
+
+    companion object {
+        /** Today's behaviour: memory writes ask only when the run has read outside content. */
+        val DEFAULT: MemoryWrites = object : MemoryWrites {}
+    }
+}
+
+/**
+ * [origins] says which address each connector key was saved for; a key never goes anywhere else.
+ * [memoryWrites] decides when memory writes ask; it changes the policy only, never the tools or their specs.
+ */
+fun homeTools(
+    home: AgentHome,
+    http: HttpClient,
+    secrets: SecretResolver,
+    scripts: ScriptEngine? = null,
+    origins: KeyOrigins,
+    memoryWrites: MemoryWrites = MemoryWrites.DEFAULT,
+): List<Tool> = listOf(
+    MemorySave(home, memoryWrites), MemoryRead(home), MemorySearch(home), MemoryForget(home, memoryWrites),
     SkillUse(home), SkillReadFile(home), SkillCreate(home),
     ConnectorCall(home, http, secrets, scripts, origins), ConnectorCreate(home, secrets),
 )
 
 // ---- Memory -------------------------------------------------------------------------------------
 
-private class MemorySave(private val home: AgentHome) : Tool {
+/**
+ * What memory_save and memory_forget share: with "Always" they ask like a tool set to Ask
+ * ([Tool.asksFirst]; no "don't ask again" scope exists for them), and only the user can clear them, never
+ * the safety reviewer alone ([Tool.reviewerClearance]). The card lists the change in full ([Tool.preview]).
+ */
+private abstract class MemoryWrite(protected val home: AgentHome, private val writes: MemoryWrites) : Tool {
     override val risk = ToolRisk.WRITE
     override val defaultPolicy = ToolPolicy.ALLOW
+
+    override suspend fun asksFirst(args: JsonObject): Boolean = writes.alwaysAsk()
+
+    override suspend fun reviewerClearance(args: JsonObject): ReviewerClearance =
+        if (writes.alwaysAsk()) ReviewerClearance.USER_ONLY else ReviewerClearance.REVIEWER
+
+    /** The memory this call changes (the project's own, or general memory), with the project's id and name. */
+    protected suspend fun target(): Triple<MemoryView, String?, String?> {
+        val scope = dev.locus.core.agent.ChatScope.current()
+        val id = scope?.projectId
+        return Triple(home.memory(scope), id, id?.let { runCatching { writes.projectName(it) }.getOrNull() })
+    }
+
+    protected fun memoryLabel(projectId: String?, projectName: String?): String = when {
+        projectId == null -> "General memory"
+        projectName.isNullOrBlank() -> "This project's memory"
+        else -> "Project “$projectName”"
+    }
+}
+
+/**
+ * The topic, index line and note memory_save writes for [args]: cleaned of hidden characters when the
+ * run read outside content ([taintedBy] not empty). The approval card shows exactly these.
+ */
+private fun savedFields(args: JsonObject, taintedBy: Collection<String>): List<HiddenText.Cleaned> =
+    listOf("topic", "summary", "content").map { args.str(it).orEmpty() }
+        .map { if (taintedBy.isEmpty()) HiddenText.Cleaned(it, 0) else HiddenText.clean(it) }
+
+private class MemorySave(home: AgentHome, writes: MemoryWrites) : MemoryWrite(home, writes) {
     override val spec = ToolSpec(
         "memory_save",
         "Remember something for future conversations: the user's preferences, facts about them or their projects, corrections they gave you, " +
@@ -60,21 +128,48 @@ private class MemorySave(private val home: AgentHome) : Tool {
 
     override fun describe(args: JsonObject) = "Remember “${args.str("topic")}”"
 
+    override suspend fun preview(args: JsonObject): ApprovalPreview {
+        val taintedBy = coroutineContext[ToolCallContext]?.taint?.sources.orEmpty()
+        val (topic, summary, content) = savedFields(args, taintedBy).map { it.text }
+        val (view, projectId, projectName) = target()
+        val existing = view.primary.memoryTopic(topic)
+        val change = MemoryChange(
+            kind = if (existing != null) MemoryChange.Kind.REPLACE else MemoryChange.Kind.NEW,
+            topic = (existing?.name ?: AgentHome.memorySlug(topic)).replace('-', ' '),
+            projectId = projectId,
+            projectName = projectName,
+            // Exactly what saveMemory keeps: the summary's first line, at most 150 characters, and the note trimmed.
+            summary = summary.lineSequence().first().take(150),
+            content = content.trim(),
+            replacedSummary = existing?.let { e -> e.summary.ifBlank { e.content.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty().take(150) } },
+        )
+        return ApprovalPreview(
+            listOfNotNull(
+                ApprovalPreview.Row("Memory", memoryLabel(projectId, projectName)),
+                ApprovalPreview.Row("Topic", change.topic),
+                ApprovalPreview.Row("Change", if (existing != null) "Replaces the saved note" else "New note"),
+                change.replacedSummary?.let { ApprovalPreview.Row("Replaces", it) },
+                ApprovalPreview.Row("Summary", change.summary),
+                ApprovalPreview.Row("Note", change.content),
+            ),
+            memory = change,
+        )
+    }
+
     override suspend fun execute(args: JsonObject): ToolResult {
         // Provenance: which chat, the agent or the after-task reflection, and whether the run had read outside content.
-        val ctx = kotlin.coroutines.coroutineContext[dev.locus.core.agent.ToolCallContext]
+        val ctx = coroutineContext[ToolCallContext]
         val taintedBy = ctx?.taint?.sources.orEmpty()
         // A run that read outside content may be copying hidden characters into a note every later chat
         // reads (the summary goes into each new chat's memory index): they're taken out first.
-        val fields = listOf("topic", "summary", "content").map { args.str(it).orEmpty() }
-            .map { if (taintedBy.isEmpty()) dev.locus.core.model.HiddenText.Cleaned(it, 0) else dev.locus.core.model.HiddenText.clean(it) }
+        val fields = savedFields(args, taintedBy)
         val (topic, summary, content) = fields.map { it.text }
         val replaced = home.memory(dev.locus.core.agent.ChatScope.current()).save(
             topic, summary, content,
             by = ctx?.author ?: MemoryAuthor.AGENT, chatId = ctx?.conversationId, taintedBy = taintedBy,
         )
         val name = AgentHome.memorySlug(topic)
-        val removed = dev.locus.core.model.HiddenText.note(fields.sumOf { it.removed }, "what was saved")?.let { "\n$it" }.orEmpty()
+        val removed = HiddenText.note(fields.sumOf { it.removed }, "what was saved")?.let { "\n$it" }.orEmpty()
         return ToolResult((if (replaced) "Updated memory “$name”." else "Saved to memory as “$name”.") + removed)
     }
 }
@@ -110,9 +205,7 @@ private class MemorySearch(private val home: AgentHome) : Tool {
     }
 }
 
-private class MemoryForget(private val home: AgentHome) : Tool {
-    override val risk = ToolRisk.WRITE
-    override val defaultPolicy = ToolPolicy.ALLOW
+private class MemoryForget(home: AgentHome, writes: MemoryWrites) : MemoryWrite(home, writes) {
     override val spec = ToolSpec(
         "memory_forget",
         "Delete a memory topic, e.g. when the user asks you to forget something or it is outdated.",
@@ -120,6 +213,32 @@ private class MemoryForget(private val home: AgentHome) : Tool {
     )
 
     override fun describe(args: JsonObject) = "Forget “${args.str("topic")}”"
+
+    // Nobody is asked to approve forgetting a note that isn't there; the model gets the same answer as before.
+    override suspend fun precheck(args: JsonObject): String? =
+        if (home.memory(dev.locus.core.agent.ChatScope.current()).primary.hasMemory(args.str("topic").orEmpty())) null else "No such topic."
+
+    override suspend fun preview(args: JsonObject): ApprovalPreview? {
+        val (view, projectId, projectName) = target()
+        val existing = view.primary.memoryTopic(args.str("topic").orEmpty()) ?: return null
+        val change = MemoryChange(
+            kind = MemoryChange.Kind.FORGET,
+            topic = existing.name.replace('-', ' '),
+            projectId = projectId,
+            projectName = projectName,
+            summary = existing.summary,
+            content = existing.content.trim(),
+        )
+        return ApprovalPreview(
+            listOfNotNull(
+                ApprovalPreview.Row("Memory", memoryLabel(projectId, projectName)),
+                ApprovalPreview.Row("Forgets", change.topic),
+                change.summary.takeIf { it.isNotBlank() }?.let { ApprovalPreview.Row("Summary", it) },
+                ApprovalPreview.Row("Note", change.content),
+            ),
+            memory = change,
+        )
+    }
 
     override suspend fun execute(args: JsonObject): ToolResult =
         if (home.memory(dev.locus.core.agent.ChatScope.current()).forget(args.str("topic").orEmpty())) ToolResult("Forgotten.") else ToolResult.error("No such topic.")

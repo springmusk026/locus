@@ -166,6 +166,7 @@ At the end, the task receipt shows the workflow's name and each check: passed, f
 | `file_changed` | Locus, from tracked changes (#68) | A changed, not undone, path ends with the value |
 | `reply_contains` | Locus | The final reply contains the value, ignoring case |
 | `agent` | The agent's own `Check:` line | It says passed. Shown as "Reported by the agent" |
+| `research_report` | Locus, from what the task last wrote at the value's path with `write_file` (`ResearchReport.check`) | The report has a summary, inline citations, a numbered sources list with web addresses, and an unverified section. See [deep research](deep-research.md#the-report-check) |
 
 Like the rest of the receipt, the checks are computed from stored data (`TaskReceipts.build`), so nothing new is stored. The receipt's summary line gains "2 of 3 checks passed".
 
@@ -182,6 +183,17 @@ Library → Skills → Workflows → Schedule creates an ordinary scheduled task
   - the declared tools that change things (a read-only run refuses them);
 
   or says the whole workflow only reads and can run unattended. A workflow that needs those steps should be run from a chat.
+
+## Built-in workflows
+
+Locus ships one workflow of its own, **Research** ([deep research](deep-research.md)). It isn't a file in agent-home: `WorkflowRepository.BUILT_IN` lists it first in `all`, as a `SavedWorkflow` with `builtIn = true`. It can't be edited or removed, only copied (Library → Duplicate). A saved workflow never takes a built-in id (`WorkflowStore.RESERVED_IDS`). The app shows its name, inputs and phases in the app's language; what the model reads stays English.
+
+A plan can carry two more fields. Both are left out of the JSON when unset, so other plans read back byte for byte as before:
+
+- `task_budget`: the budget the run starts with, instead of the chat's own or the Settings default;
+- `on_budget_reached`: a note the run gets when the budget stops it, with a few more steps to finish from what it has (`AgentConfig.budgetWrapUp`).
+
+A workflow that declares tools can't run on a model without tool calling. The run sheet says so and Run is off (`WorkflowRepository.lacksTools`).
 
 ## Helpers
 

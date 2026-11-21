@@ -14,7 +14,16 @@ data class Branch(val index: Int, val siblings: List<String>) {
  * The branch of a chat that is shown and continued: [messages] is a plain linear transcript (what the
  * model is sent), and [branches] says, for each message on it that has alternatives, which one it is.
  */
-data class ChatThread(val messages: List<Message>, val branches: Map<String, Branch> = emptyMap())
+data class ChatThread(
+    val messages: List<Message>,
+    val branches: Map<String, Branch> = emptyMap(),
+    /**
+     * A message that follows the shown branch's last message on another branch (the newest such), as after
+     * Rewind here (docs/design/rewind.md): the later messages are still there, one switch away. Null when the
+     * shown branch's last message has nothing after it.
+     */
+    val continuation: String? = null,
+)
 
 /**
  * A chat's messages as a tree. Regenerating or editing adds a sibling instead of changing history,
@@ -44,6 +53,9 @@ class MessageTree(nodes: List<TreeNode>) {
         while (at != null && seen.add(at)) at = parent[at]
         return seen.toList().asReversed()
     }
+
+    /** The messages that follow [id], oldest first. */
+    fun childrenOf(id: String): List<String> = children[id].orEmpty()
 
     /** [id] and its alternatives (same parent), oldest first. */
     fun siblings(id: String): List<String> = if (id in order) children[parent[id]].orEmpty() else emptyList()

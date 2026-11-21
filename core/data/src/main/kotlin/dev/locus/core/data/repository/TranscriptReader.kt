@@ -76,7 +76,7 @@ internal class TranscriptReader(
             if (read.isEmpty()) return ChatThread(emptyList())
             val tree = MessageTree(read.map { TreeNode(it.id, it.parentId) })
             val path = tree.path(tree.leaf(activeLeaf))
-            return ChatThread(path.map { id -> decoded.getOrPut(id) { decode(byId.getValue(id)) } }, tree.branches(path))
+            return ChatThread(path.map { id -> decoded.getOrPut(id) { decode(byId.getValue(id)) } }, tree.branches(path), path.lastOrNull()?.let { tree.childrenOf(it).lastOrNull() })
         }
     }
 

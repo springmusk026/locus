@@ -10,6 +10,7 @@ import dev.locus.core.model.TodoItem
 import dev.locus.core.model.TodoStatus
 import dev.locus.core.model.TokenUsage
 import dev.locus.core.model.ToolSpec
+import dev.locus.core.model.startsTurn
 
 /**
  * How a run compacts its transcript while it works (see [AgentConfig.compaction] and
@@ -89,15 +90,34 @@ object Compaction {
         return ChatRequest(system, ColdClearing.view(transcript.map { it.forModel() }, clearing) + withPrompt, tools, cacheKey, taskBudget = taskBudget)
     }
 
+    /** How the view of a summary of the later part starts (Summarise from here): the messages before it are kept. */
+    const val PARTIAL_HEADER = "[Summary of the rest of this chat from here on, which you no longer see in full; everything before this point is kept as it was]"
+
     /**
-     * What the model sees of a chat: everything after the latest checkpoint, the checkpoint itself
-     * shown as [view]. Earlier messages stay in the chat for the user. Kept reasoning never goes back.
+     * What the model sees of a chat: the messages in order, each checkpoint replacing what it stands in for
+     * with its [view]. A checkpoint replaces everything before it; one written by Summarise from here
+     * ([Part.Checkpoint.from]) replaces only the context from that message on, and an edited summary
+     * ([Part.Checkpoint.supersedes]) replaces the view it corrects. So the messages before a partial summary
+     * are sent exactly as they were before it (docs/design/rewind.md). Earlier messages stay in the chat for
+     * the user. Kept reasoning never goes back.
      */
     fun modelContext(all: List<Message>): List<Message> {
         val history = all.map { it.forModel() }
-        val at = history.indexOfLast { m -> m.parts.any { it is Part.Checkpoint } }
-        if (at < 0) return history
-        return listOf(view(history[at])) + history.drop(at + 1)
+        if (history.none { m -> m.parts.any { it is Part.Checkpoint } }) return history
+        val context = ArrayList<Message>(history.size)
+        for (m in history) {
+            val checkpoint = m.parts.filterIsInstance<Part.Checkpoint>().lastOrNull()
+            if (checkpoint == null) {
+                context += m
+                continue
+            }
+            // Where this checkpoint starts replacing; a start that isn't in the context (never on a consistent
+            // path) replaces everything, which is always a valid request.
+            val start = (checkpoint.supersedes ?: checkpoint.from)?.let { id -> context.indexOfFirst { it.id == id } }?.takeIf { it >= 0 } ?: 0
+            context.subList(start, context.size).clear()
+            context += view(m)
+        }
+        return context
     }
 
     /**
@@ -111,7 +131,7 @@ object Compaction {
     }
 
     fun render(chatId: String, checkpoint: Part.Checkpoint): String = buildString {
-        append(HEADER).append("\n\n").append(checkpoint.summary.trim())
+        append(if (checkpoint.from != null) PARTIAL_HEADER else HEADER).append("\n\n").append(checkpoint.summary.trim())
         if (checkpoint.recentUserMessages.isNotEmpty()) {
             append("\n\n<recent_user_messages>\nThe user's latest messages before this summary, word for word, oldest first:")
             checkpoint.recentUserMessages.forEach { append("\n\n<message>\n").append(it).append("\n</message>") }
@@ -180,13 +200,20 @@ object Compaction {
     }
 
     /**
-     * The checklist at the end of [transcript]: the latest successful `todo_write`, or, when there's
-     * none since, the one a previous checkpoint kept. Null when there's no list (or it was emptied).
+     * The checklist at the end of [transcript]: the latest successful `todo_write` after the latest
+     * checkpoint view, or, when there's none since, the one that checkpoint kept; before a summary of the
+     * later part (which keeps the messages before it), the list the kept messages last wrote. Null when
+     * there's no list (or it was emptied).
      */
     fun todos(transcript: List<Message>): String? {
-        val latest = Todos.latest(transcript)
+        val at = transcript.indexOfLast { m -> m.parts.any { it is Part.Checkpoint } }
+        val latest = Todos.latest(if (at < 0) transcript else transcript.drop(at + 1))
         if (latest != null) return latest.takeIf { it.isNotEmpty() }?.joinToString("\n", transform = ::todoLine)
-        return transcript.firstNotNullOfOrNull { m -> m.parts.filterIsInstance<Part.Checkpoint>().lastOrNull() }?.todos
+        if (at < 0) return null
+        val checkpoint = transcript[at].parts.filterIsInstance<Part.Checkpoint>().last()
+        checkpoint.todos?.let { return it }
+        if (checkpoint.from == null) return null
+        return todos(transcript.take(at))
     }
 
     private fun todoLine(item: TodoItem): String = when (item.status) {
@@ -194,6 +221,121 @@ object Compaction {
         TodoStatus.IN_PROGRESS -> "- [in progress] "
         TodoStatus.PENDING -> "- [pending] "
     } + item.content
+
+    // ---- Summarise from here (docs/design/rewind.md) ------------------------------------------------
+
+    /** Why Summarise from here isn't offered on a message. */
+    enum class FromUnavailable {
+        /** An earlier summary already stands in for this message: the model doesn't see it any more. */
+        SUMMARISED,
+
+        /** Nothing comes after this reply to summarise. */
+        NOTHING_AFTER,
+
+        /** Too little from here on to be worth a summary. */
+        TOO_LITTLE,
+    }
+
+    /** Where a summary from a message starts in the model's context ([start]), or why it can't ([unavailable]). */
+    data class From(val start: Int, val unavailable: FromUnavailable? = null)
+
+    /**
+     * Where Summarise from here on [messageId] starts in [context] (the model's context, [modelContext]): a
+     * message the user sent starts the summarised part; a reply ends the part that's kept (with the rest of
+     * its turn), so the summary starts at the next message that starts a turn.
+     */
+    fun from(context: List<Message>, messageId: String): From {
+        val at = context.indexOfFirst { it.id == messageId }
+        if (at < 0) return From(-1, FromUnavailable.SUMMARISED)
+        val start = if (context[at].role == Role.USER) {
+            at
+        } else {
+            (at + 1 until context.size).firstOrNull { context[it].startsTurn() } ?: return From(-1, FromUnavailable.NOTHING_AFTER)
+        }
+        if (context.size - start < MIN_FROM_MESSAGES) return From(start, FromUnavailable.TOO_LITTLE)
+        return From(start)
+    }
+
+    /** A summary from here needs at least this much from the point on (a message and a reply). */
+    const val MIN_FROM_MESSAGES = 2
+
+    /**
+     * The last message of a summary request from [start] of [context]: the chat's [prompt], then where the
+     * summarised part starts (quoted, since the request sends the whole context so it reads the cache), then
+     * the user's [instructions]. With [start] 0 it covers the whole context, as an ordinary summary.
+     */
+    fun fromPrompt(prompt: String, context: List<Message>, start: Int, instructions: String?): String = buildString {
+        append(prompt)
+        if (start > 0) {
+            val first = context[start]
+            append("\n\nScope: summarise only the part of this conversation from the message quoted below to the end. ")
+            append("Everything before that message stays in your context word for word after this summary, so leave it out; ")
+            append("where the instructions above say \"everything above\", they mean that part only. ")
+            append("The part starts with ").append(describe(first)).append(":\n<part_start>\n").append(cut(quoted(first), QUOTE_CHARS)).append("\n</part_start>")
+        }
+        instructions?.trim()?.takeIf { it.isNotEmpty() }?.let {
+            append("\n\nThe user's instructions for this summary (where they differ from the sections above, follow them):\n<user_instructions>\n")
+            append(it).append("\n</user_instructions>")
+        }
+    }
+
+    private const val QUOTE_CHARS = 400
+
+    private fun describe(m: Message): String = when {
+        m.parts.any { it is Part.Checkpoint } -> "the summary of an earlier part of this chat"
+        m.role == Role.USER -> "the user's message"
+        m.role == Role.ASSISTANT -> "your message"
+        else -> "a tool result"
+    }
+
+    private fun quoted(m: Message): String = when {
+        m.parts.any { it is Part.Checkpoint } || m.role != Role.USER -> m.text
+        else -> m.userText.ifBlank { m.attachments.joinToString(", ") { "[attached: ${it.workspacePath}]" } }
+    }.trim()
+
+    /**
+     * The checkpoint for [summary] of [context] from [start] on. With [start] 0 it is an ordinary checkpoint.
+     * Otherwise it names where it starts ([Part.Checkpoint.from]), keeps the user's messages and checklist of
+     * the summarised part only (the part before is still there), and the tool results before [start] that
+     * cold-cache clearing cleared in what the chat last sent ([clearing], [ColdClearing.clearedBefore]), so the
+     * kept prefix goes out byte for byte as it did.
+     */
+    fun checkpointFrom(
+        summary: String,
+        context: List<Message>,
+        start: Int,
+        contextWindow: Int? = null,
+        tainted: Set<String> = emptySet(),
+        clearing: ColdClearing.Policy? = null,
+    ): Part.Checkpoint {
+        if (start <= 0) return checkpoint(summary, context, contextWindow, tainted)
+        val tail = context.drop(start)
+        return checkpoint(summary, tail, contextWindow, tainted).copy(
+            from = context[start].id,
+            clearedResults = ColdClearing.clearedBefore(context, start, clearing),
+        )
+    }
+
+    /**
+     * An edited summary of [previous] (the checkpoint message it corrects): the same fields with [summary] as
+     * the user wrote it, standing in for [previous]'s view ([Part.Checkpoint.supersedes]).
+     */
+    fun edited(previous: Message, summary: String): Part.Checkpoint {
+        val old = previous.parts.filterIsInstance<Part.Checkpoint>().last()
+        return old.copy(summary = summary.trim(), supersedes = previous.id)
+    }
+
+    /**
+     * Whether Anthropic compacted on its server in [messages] (a `compaction` block in a replayed turn). A
+     * summary of a part holding one would drop it, and the API would then see the earlier turns it had
+     * folded away again, so Summarise from here isn't offered before it (docs/design/rewind.md).
+     */
+    fun serverCompactedIn(messages: List<Message>): Boolean = messages.any { m ->
+        m.role == Role.ASSISTANT && m.format == dev.locus.core.model.ApiFormat.ANTHROPIC_MESSAGES &&
+            m.rawPayload?.let { "\"compaction\"" in it && SERVER_COMPACTION.containsMatchIn(it) } == true
+    }
+
+    private val SERVER_COMPACTION = Regex(""""type"\s*:\s*"compaction"""")
 
     /**
      * [transcript] without its oldest part, for a summary request that overflowed itself (Codex drops

@@ -21,6 +21,8 @@ object WorkflowChecks {
         reply: String?,
         /** Paths the task changed that still stand. */
         changed: Collection<String>,
+        /** What the task last wrote with write_file, by workspace path: what a [CheckKind.RESEARCH_REPORT] check reads. */
+        written: Map<String, String> = emptyMap(),
     ): List<WorkflowCheckResult> = checks.map { check ->
         when (check.kind) {
             CheckKind.TESTS_PASS -> verification(check, runs, Verification.Kind.TEST, "test")
@@ -40,8 +42,26 @@ object WorkflowChecks {
                 else -> WorkflowCheckResult(check, false, "The reply doesn't have “${check.value.trim()}”")
             }
             CheckKind.AGENT -> agentReport(check, reply)
+            CheckKind.RESEARCH_REPORT -> report(check, written)
         }
     }
+
+    /** The report the task wrote at the check's path, checked for citations, sources and an unverified section. */
+    private fun report(check: WorkflowCheck, written: Map<String, String>): WorkflowCheckResult {
+        val want = normalPath(check.value)
+        // No path (a copy of the research workflow, whose report is named at run time): the last Markdown file written.
+        val text = written.entries.lastOrNull { (path, _) ->
+            normalPath(path).let { if (want.isEmpty()) it.endsWith(".md", ignoreCase = true) else it == want || it.endsWith("/$want") }
+        }?.value ?: return WorkflowCheckResult(check, false, if (want.isEmpty()) "No report was written" else "No report was written to $want")
+        val result = ResearchReport.check(text)
+        return if (result.ok) {
+            WorkflowCheckResult(check, true, "${result.sources} sources, ${result.citations} citations, ${result.unverified} unverified")
+        } else {
+            WorkflowCheckResult(check, false, result.problems.joinToString("; ") { it.english })
+        }
+    }
+
+    private fun normalPath(p: String) = p.trim().trimStart('/').removePrefix("./")
 
     /** The last run of [kind] decides: a fix after a failing run counts. */
     private fun verification(check: WorkflowCheck, runs: List<ReceiptCheck>, kind: Verification.Kind, what: String): WorkflowCheckResult {

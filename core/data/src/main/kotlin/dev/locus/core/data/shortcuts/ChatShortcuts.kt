@@ -10,12 +10,14 @@ import dev.locus.core.data.R
 import dev.locus.core.data.agent.OpenChatLink
 import dev.locus.core.data.di.ApplicationScope
 import dev.locus.core.data.repository.ConversationRepository
+import dev.locus.core.data.lock.AppLock
+import dev.locus.core.model.AppLockSettings
 import dev.locus.core.model.Conversation
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -41,10 +43,17 @@ object ChatShortcutPlan {
     /** The chat a shortcut id (from a share's EXTRA_SHORTCUT_ID) names, or null for any other id. */
     fun chatOf(shortcutId: String?): String? = shortcutId?.takeIf { it.startsWith(PREFIX) }?.removePrefix(PREFIX)?.takeIf { it.isNotBlank() }
 
-    fun plan(chats: List<Conversation>, max: Int = DEFAULT_MAX): List<ChatShortcut> {
-        if (max <= 0) return emptyList()
-        // Imported archives are read-only: a shortcut or share target into one would have nowhere to type.
-        val eligible = chats.filter { c -> !c.hidden && c.parentConversationId == null && !c.title.startsWith("Scheduled: ") && !dev.locus.core.model.ImportedChats.isImported(c.id) }
+    /**
+     * [lock]: with Lock Locus on there are no chat shortcuts (the launcher and the share sheet would show
+     * chat titles to anyone holding the phone), and a locked chat is never one (docs/design/app-lock.md).
+     * Imported archives are read-only: a shortcut or share target into one would have nowhere to type.
+     */
+    fun plan(chats: List<Conversation>, max: Int = DEFAULT_MAX, lock: AppLockSettings = AppLockSettings()): List<ChatShortcut> {
+        if (max <= 0 || lock.enabled) return emptyList()
+        val eligible = chats.filter { c ->
+            !c.hidden && c.parentConversationId == null && !c.title.startsWith("Scheduled: ") && c.id !in lock.lockedChats &&
+                !dev.locus.core.model.ImportedChats.isImported(c.id)
+        }
         val (pinned, rest) = eligible.partition { it.pinned }
         return (pinned.sortedByDescending { it.updatedAt } + rest.sortedByDescending { it.updatedAt })
             .take(max)
@@ -67,6 +76,7 @@ class ChatShortcuts @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val conversations: ConversationRepository,
     @param:ApplicationScope private val scope: CoroutineScope,
+    private val appLock: AppLock,
 ) {
     @Volatile private var published: Set<String> = emptySet()
 
@@ -75,8 +85,8 @@ class ChatShortcuts @Inject constructor(
         scope.launch {
             val max = runCatching { ShortcutManagerCompat.getMaxShortcutCountPerActivity(context) }.getOrDefault(ChatShortcutPlan.DEFAULT_MAX)
                 .let { (it - STATIC_COUNT).coerceIn(0, ChatShortcutPlan.DEFAULT_MAX) }
-            conversations.all
-                .map { ChatShortcutPlan.plan(it, max) }
+            // Waits for the lock's settings, so a locked chat is never published while they load.
+            kotlinx.coroutines.flow.combine(conversations.all, appLock.status.filterNotNull()) { chats, lock -> ChatShortcutPlan.plan(chats, max, lock.settings) }
                 .distinctUntilChanged()
                 .debounce(1_000)
                 .collect { plan ->

@@ -124,6 +124,12 @@
     <string name="settings_agent_instructions_note">Adicionadas a cada novo chat. Mantenha curto; o Locus também aprende com a memória e as habilidades.</string>
     <string name="settings_agent_budget_section">Orçamento de tarefas</string>
     <string name="settings_agent_budget_note">O limite padrão de cada tarefa e dos ajudantes que ela inicia. Ao atingir um limite, o Locus pausa entre as etapas e pergunta se deve continuar. A entrada em cache conta um décimo, e o tempo de espera por você não conta. Um chat pode definir o seu nas opções do campo de mensagem.</string>
+    <string name="settings_agent_memory_section">Memória</string>
+    <string name="settings_agent_memory_ask_title">Perguntar antes de salvar na memória</string>
+    <string name="settings_agent_memory_ask_outside">Após conteúdo externo</string>
+    <string name="settings_agent_memory_ask_always">Sempre</string>
+    <string name="settings_agent_memory_note_outside">O Locus pergunta antes de salvar ou esquecer uma nota só depois que o chat leu conteúdo externo (uma página web, um e-mail, a saída de um comando), que pode tê-la plantado. As outras notas são salvas sozinhas; confira-as em Biblioteca → Memória.</string>
+    <string name="settings_agent_memory_note_always">Cada vez que salvar ou esquecer algo na memória, pergunta antes, com a nota inteira no cartão, também nos projetos. Aprender após as tarefas não salva nada então, porque não há ninguém para aprovar. Os chats mantêm as mesmas ferramentas e o mesmo prompt.</string>
     <string name="settings_agent_long_chats_section">Chats longos</string>
     <string name="settings_agent_cold_clearing_title">Limpar resultados de ferramentas antigos após uma pausa longa</string>
     <string name="settings_agent_cold_clearing_subtitle">Quando um chat continua depois de um dia ou mais, os resultados longos de antes são enviados como uma nota curta. O chat continua mostrando tudo</string>
@@ -1242,7 +1248,24 @@
     <string name="settings_ondevice_kind_projector">Projetor de visão</string>
     <string name="settings_ondevice_kind_draft">Cabeça de rascunho</string>
     <string name="settings_ondevice_kind_other">Não é um modelo</string>
-
+    <!-- Lock Locus (AppLockSettings.kt, docs/design/app-lock.md). -->
+    <string name="settings_lock_section">Bloqueio</string>
+    <string name="settings_lock_title">Bloquear o Locus</string>
+    <string name="settings_lock_subtitle">Pedir sua digital, rosto ou bloqueio de tela antes de mostrar qualquer coisa</string>
+    <string name="settings_lock_subtitle_no_screen_lock">Precisa de um bloqueio de tela neste celular</string>
+    <string name="settings_lock_after_title">Bloquear após</string>
+    <string name="settings_lock_after_subtitle">Quanto tempo o Locus pode ficar em segundo plano antes de pedir de novo</string>
+    <string name="settings_lock_after_now">Já</string>
+    <string name="settings_lock_after_minutes">%1$d min</string>
+    <string name="settings_lock_needs_screen_lock">Defina um PIN, padrão ou senha neste celular para bloquear o Locus ou um chat. O Locus usa o bloqueio do próprio celular e não guarda nenhum PIN próprio.</string>
+    <string name="settings_lock_suspended">Este celular está sem bloqueio de tela, então o Locus e os chats bloqueados abrem sem pedir nada. Defina um PIN, padrão ou senha para bloqueá-los de novo.</string>
+    <string name="settings_lock_open_security">Abrir configurações de segurança</string>
+    <string name="settings_lock_note">O bloqueio esconde o que o Locus mostra neste celular: chats, arquivos, configurações e os detalhes das notificações na tela de bloqueio. Tarefas, execuções agendadas e automações que você configurou continuam rodando enquanto ele está bloqueado. Para esconder um chat mesmo com o Locus aberto, use Bloquear este chat no menu dele.</string>
+    <plurals name="settings_lock_locked_chats">
+        <item quantity="one">%1$d chat está bloqueado. Desbloqueie pelo menu dele.</item>
+        <item quantity="many">%1$d chats estão bloqueados. Desbloqueie um pelo menu dele.</item>
+        <item quantity="other">%1$d chats estão bloqueados. Desbloqueie um pelo menu dele.</item>
+    </plurals>
     <!-- Import chats from ChatGPT or Claude (docs/design/import-chats.md) -->
     <string name="settings_import_section">Chats de outros apps</string>
     <string name="settings_import_title">Importar do ChatGPT ou do Claude</string>

@@ -21,6 +21,10 @@ import dagger.hilt.android.AndroidEntryPoint
 import dev.locus.core.agent.tools.QuestionAnswer
 import dev.locus.core.agent.tools.UserQuestion
 import dev.locus.core.data.R
+import dev.locus.core.data.lock.AppLock
+import dev.locus.core.data.lock.LockedNotifications
+import dev.locus.core.data.lock.LockedNotifications.privateWhenLocked
+import dev.locus.core.model.AppLockSettings
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -39,6 +43,11 @@ class AgentService : LifecycleService() {
 
     @Inject lateinit var runner: AgentRunner
 
+    @Inject lateinit var appLock: AppLock
+
+    /** The lock's settings as last read; the defaults (off, nothing locked) until they load. */
+    private val lock: AppLockSettings get() = appLock.status.value?.settings ?: AppLockSettings()
+
     override fun onCreate() {
         super.onCreate()
         ensureChannels(this)
@@ -52,13 +61,15 @@ class AgentService : LifecycleService() {
             // Redraw only when what the notifications show changes (not on every streamed token: each
             // notify() is a binder call on the main thread, and the system drops bursts anyway), and when
             // the app moves between foreground and background.
-            combine(runner.states, ProcessLifecycleOwner.get().lifecycle.currentStateFlow) { states, process ->
+            combine(runner.states, ProcessLifecycleOwner.get().lifecycle.currentStateFlow, appLock.status) { states, process, lockStatus ->
+                val lock = lockStatus?.settings ?: AppLockSettings()
                 NotificationModel(
                     active = runner.activeCount,
-                    status = agentStatus(states, runner.pendingQuestions),
+                    status = agentStatus(states, runner.pendingQuestions, lock.lockedChats),
                     approval = runner.pendingApprovals.firstOrNull()?.callId,
                     question = runner.pendingQuestions.firstOrNull()?.callId,
                     appVisible = process.isAtLeast(Lifecycle.State.STARTED),
+                    lock = lock,
                 )
             }.distinctUntilChanged().collectLatest { model -> refreshNotifications(model.appVisible) }
         }
@@ -93,13 +104,22 @@ class AgentService : LifecycleService() {
         val pending = runner.pendingApprovals.firstOrNull()
         @Suppress("MissingPermission")
         if (pending != null && !appVisible) {
-            // A helper's request names the helper: "Researcher #2 wants to…".
-            manager.notify(APPROVAL_NOTIFICATION_ID, approvalNotification(pending.conversationId, pending.callId, approvalTitle(pending), pending.summary))
+            // A helper's request names the helper: "Researcher #2 wants to…". A locked chat's says nothing of it.
+            val locked = pending.conversationId in lock.lockedChats
+            manager.notify(
+                APPROVAL_NOTIFICATION_ID,
+                if (locked) lockedChatNotification(APPROVAL_CHANNEL, pending.conversationId) else approvalNotification(pending.conversationId, pending.callId, approvalTitle(pending), pending.summary),
+            )
         }
         else manager.cancel(APPROVAL_NOTIFICATION_ID)
         val question = runner.pendingQuestions.firstOrNull()
         @Suppress("MissingPermission")
-        if (question != null && !appVisible) manager.notify(QUESTION_NOTIFICATION_ID, questionNotification(question))
+        if (question != null && !appVisible) {
+            manager.notify(
+                QUESTION_NOTIFICATION_ID,
+                if (question.chatId in lock.lockedChats) lockedChatNotification(QUESTION_CHANNEL, question.chatId) else questionNotification(question),
+            )
+        }
         else manager.cancel(QUESTION_NOTIFICATION_ID)
     }
 
@@ -126,7 +146,7 @@ class AgentService : LifecycleService() {
     }
 
     private fun statusNotification(appVisible: Boolean): Notification {
-        val status = agentStatus(runner.states.value, runner.pendingQuestions)
+        val status = agentStatus(runner.states.value, runner.pendingQuestions, lock.lockedChats)
         val builder = NotificationCompat.Builder(this, STATUS_CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_agent)
             .setContentTitle(status.title)
@@ -144,11 +164,15 @@ class AgentService : LifecycleService() {
             // Eligible: ongoing, a title, standard or BigTextStyle, no custom views, not colorized,
             // not a group summary, and a channel above IMPORTANCE_MIN.
             builder.setRequestPromotedOngoing(true).setShortCriticalText(status.chip)
-            status.detail?.let { builder.setStyle(NotificationCompat.BigTextStyle().bigText(waitingStyled(status, status.text + "\n" + it))) }
+            val detail = status.detail ?: LockedNotifications.lockedChatText(this).takeIf { status.lockedChat }
+            detail?.let { builder.setStyle(NotificationCompat.BigTextStyle().bigText(waitingStyled(status, status.text + "\n" + it))) }
         }
+        builder.privateWhenLocked(this, lock, STATUS_CHANNEL)
         // While the app is on screen its own cards take the answer. Approvals and questions have their own
         // notifications when this one isn't a Live Update; a budget pause has only this one.
-        if (!appVisible) {
+        // A locked chat's request is answered in the chat, and with the lock on below Android 12 nothing is
+        // answered from a notification (LockedNotifications).
+        if (!appVisible && !status.lockedChat && LockedNotifications.actionsAllowed(lock, Build.VERSION.SDK_INT)) {
             val approval = status.approval
             val question = status.question
             val paused = status.pausedChat
@@ -167,7 +191,14 @@ class AgentService : LifecycleService() {
             status.promotable &&
             NotificationManagerCompat.from(this).canPostPromotedNotifications()
 
-    private data class NotificationModel(val active: Int, val status: AgentStatus, val approval: String?, val question: String?, val appVisible: Boolean)
+    private data class NotificationModel(
+        val active: Int,
+        val status: AgentStatus,
+        val approval: String?,
+        val question: String?,
+        val appVisible: Boolean,
+        val lock: AppLockSettings,
+    )
 
     /** Deny, then Allow; Allow needs the phone unlocked. */
     private fun approvalActions(callId: String): List<NotificationCompat.Action> {
@@ -181,8 +212,8 @@ class AgentService : LifecycleService() {
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             ),
         )
-            // Approving from a locked phone must not be possible.
-            .setAuthenticationRequired(approve)
+            // Approving from a locked phone must not be possible; with Lock Locus on, denying isn't either.
+            .setAuthenticationRequired(LockedNotifications.authenticationRequired(lock, approve))
             .build()
         return listOf(action(false, "Deny"), action(true, "Allow"))
     }
@@ -199,7 +230,7 @@ class AgentService : LifecycleService() {
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             ),
         )
-            .setAuthenticationRequired(continueTask)
+            .setAuthenticationRequired(LockedNotifications.authenticationRequired(lock, continueTask))
             .build()
         return listOf(action(false, "Stop"), action(true, "Continue"))
     }
@@ -215,9 +246,27 @@ class AgentService : LifecycleService() {
             .setOnlyAlertOnce(true)
             .setGroup(APPROVAL_CHANNEL)
             .setContentIntent(openAppIntent(conversationId))
-        approvalActions(callId).forEach { builder.addAction(it) }
+            .privateWhenLocked(this, lock, APPROVAL_CHANNEL)
+        if (LockedNotifications.actionsAllowed(lock, Build.VERSION.SDK_INT)) approvalActions(callId).forEach { builder.addAction(it) }
         return builder.build()
     }
+
+    /**
+     * A locked chat's approval or question (docs/design/app-lock.md): only that it waits, with no actions.
+     * The tap opens the chat, which asks for authentication first.
+     */
+    private fun lockedChatNotification(channel: String, conversationId: String): Notification =
+        NotificationCompat.Builder(this, channel)
+            .setSmallIcon(R.drawable.ic_stat_agent)
+            .setContentTitle(getString(R.string.data_lock_public_title))
+            .setContentText(LockedNotifications.lockedChatText(this))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setOnlyAlertOnce(true)
+            .setGroup(channel)
+            .setContentIntent(openAppIntent(conversationId))
+            .privateWhenLocked(this, lock, channel)
+            .build()
 
     /**
      * The agent's question with its options as buttons and a direct reply. Android shows at most three
@@ -238,7 +287,8 @@ class AgentService : LifecycleService() {
             .setOnlyAlertOnce(true)
             .setGroup(QUESTION_CHANNEL)
             .setContentIntent(openAppIntent(question.chatId))
-        questionActions(question).forEach { builder.addAction(it) }
+            .privateWhenLocked(this, lock, QUESTION_CHANNEL)
+        if (LockedNotifications.actionsAllowed(lock, Build.VERSION.SDK_INT)) questionActions(question).forEach { builder.addAction(it) }
         return builder.build()
     }
 
@@ -248,7 +298,7 @@ class AgentService : LifecycleService() {
         question.options.take(questionButtons(question)).forEachIndexed { i, option ->
             val intent = Intent(this, QuestionReceiver::class.java).putExtra(EXTRA_CALL_ID, question.callId).putExtra(EXTRA_OPTION, i)
             val pending = PendingIntent.getBroadcast(this, (question.callId + "#" + i).hashCode(), intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-            actions += NotificationCompat.Action.Builder(0, option.take(40), pending).setAuthenticationRequired(false).build()
+            actions += NotificationCompat.Action.Builder(0, option.take(40), pending).setAuthenticationRequired(LockedNotifications.authenticationRequired(lock, false)).build()
         }
         if (!allOptionsAsButtons(question)) {
             val input = RemoteInput.Builder(KEY_REPLY).setLabel("Your answer").build()
@@ -260,7 +310,7 @@ class AgentService : LifecycleService() {
                 .setAllowGeneratedReplies(false)
                 .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY)
                 .setShowsUserInterface(false)
-                .setAuthenticationRequired(false)
+                .setAuthenticationRequired(LockedNotifications.authenticationRequired(lock, false))
                 .build()
         }
         return actions
@@ -314,6 +364,38 @@ class AgentService : LifecycleService() {
                     .setSmallIcon(R.drawable.ic_stat_agent)
                     .setContentTitle(title)
                     .setContentText(text)
+                    .setContentIntent(open)
+                    .setAutoCancel(true)
+                    .build(),
+            )
+        }
+
+        private const val FINISHED_CHANNEL = "agent_finished"
+
+        /**
+         * "Research finished", when a long run (the research workflow, docs/design/deep-research.md) ends
+         * while Locus isn't on screen. Tapping opens the chat with the report. One per chat; a newer one replaces it.
+         */
+        fun postRunFinished(context: Context, conversationId: String, title: String, text: String) {
+            val manager = NotificationManagerCompat.from(context)
+            if (!manager.areNotificationsEnabled()) return
+            context.getSystemService(NotificationManager::class.java).createNotificationChannel(
+                NotificationChannel(FINISHED_CHANNEL, "Finished research", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                    description = "When a research run you started finishes while Locus is in the background."
+                },
+            )
+            val open = context.packageManager.getLaunchIntentForPackage(context.packageName)?.let {
+                OpenChatLink.attach(context, it, conversationId)
+                PendingIntent.getActivity(context, (conversationId + "#finished").hashCode(), it, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+            }
+            @Suppress("MissingPermission")
+            manager.notify(
+                (conversationId + "#finished").hashCode(),
+                NotificationCompat.Builder(context, FINISHED_CHANNEL)
+                    .setSmallIcon(R.drawable.ic_stat_agent)
+                    .setContentTitle(title)
+                    .setContentText(text)
+                    .setStyle(NotificationCompat.BigTextStyle().bigText(text))
                     .setContentIntent(open)
                     .setAutoCancel(true)
                     .build(),

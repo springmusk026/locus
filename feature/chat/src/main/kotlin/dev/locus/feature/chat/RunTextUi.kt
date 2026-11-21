@@ -181,6 +181,15 @@ internal fun runNoteInWords(resources: Resources, note: RunNote): String = when 
     RunNote.ToolGone -> resources.getString(R.string.chat_run_tool_gone)
     RunNote.NoProvider -> resources.getString(R.string.chat_run_no_provider)
     is RunNote.LessonsSaved -> resources.getQuantityString(R.plurals.chat_run_lessons_saved, note.count, note.count)
+    RunNote.SummarisingFrom -> resources.getString(R.string.chat_run_summarising_from)
+    is RunNote.SummariseFailed -> resources.getString(R.string.chat_run_summarise_failed, note.shownReason ?: resources.getString(R.string.chat_run_unknown_error))
+    RunNote.SummaryStale -> resources.getString(R.string.chat_run_summary_stale)
+    RunNote.SummarySaved -> resources.getString(R.string.chat_run_summary_saved)
+    is RunNote.Rewound -> listOfNotNull(
+        resources.getString(R.string.chat_run_rewound),
+        note.restored.takeIf { it > 0 }?.let { resources.getQuantityString(R.plurals.chat_run_rewound_restored, it, it) },
+        note.skipped.takeIf { it > 0 }?.let { resources.getQuantityString(R.plurals.chat_run_rewound_skipped, it, it) },
+    ).joinToString(" ")
 }
 
 /** [text] in the user's language when [note] is its data, else as it came. */

@@ -42,10 +42,35 @@ data class ConversationRow(
     val interrupted: Boolean = false,
     /** The model id this chat uses (its override, else its provider's), for the model-family logo. */
     val model: String = "",
+    /** A locked chat (docs/design/app-lock.md). */
+    val locked: Boolean = false,
+    /**
+     * A locked chat this session hasn't unlocked: its title is blanked here and the screen says
+     * "Locked chat"; it has no search hit, and renaming it waits for the unlock.
+     */
+    val redacted: Boolean = false,
 ) {
     /** A read-only chat imported from ChatGPT or Claude (docs/design/import-chats.md); null for Locus's own. */
     val imported: dev.locus.core.model.ChatImportSource? get() = dev.locus.core.model.ImportedChats.sourceOf(conversation.id)
 }
+
+/**
+ * [row] as the list may show it under [lock]: a locked chat this session hasn't unlocked keeps its
+ * place and its state, but its title is blanked, so nothing on screen can show it by mistake. Pure.
+ */
+internal fun redactedRow(row: ConversationRow, lock: dev.locus.core.model.AppLockStatus): ConversationRow {
+    val id = row.conversation.id
+    val redact = lock.redactInApp(id)
+    return row.copy(
+        locked = lock.isLockedChat(id),
+        redacted = redact,
+        conversation = if (redact) row.conversation.copy(title = "") else row.conversation,
+    )
+}
+
+/** Search hits without the locked chats this session hasn't unlocked: not even that one matched shows. Pure. */
+internal fun visibleHits(hits: List<ChatSearchHit>, lock: dev.locus.core.model.AppLockStatus): List<ChatSearchHit> =
+    hits.filterNot { lock.redactInApp(it.conversation.id) }
 
 /** The parts of a run's state the home list needs. */
 private data class RowRun(val running: Boolean, val approval: Boolean, val activeTool: String?, val interrupted: Boolean)
@@ -134,6 +159,8 @@ sealed interface ConversationsUiState {
          * Home shows the first as a setup card; empty for everyone who didn't use Quick start.
          */
         val setup: List<dev.locus.core.model.SetupItem> = emptyList(),
+        /** The phone has a screen lock, so a chat can be locked (docs/design/app-lock.md). */
+        val chatLockAvailable: Boolean = false,
     ) : ConversationsUiState
 }
 
@@ -150,6 +177,8 @@ class ConversationsViewModel @Inject constructor(
     projectRepository: dev.locus.core.data.repository.ProjectRepository? = null,
     /** Quick start's deferred steps, shown as a setup card; null in tests that don't need them. */
     private val checklist: dev.locus.core.data.setup.SetupChecklist? = null,
+    /** Lock Locus and locked chats; null in tests that don't need it (nothing is locked then). */
+    private val appLock: dev.locus.core.data.lock.AppLock? = null,
 ) : ViewModel() {
     init {
         // A deferred step set up anywhere (Settings, the Workspace, the agent) is cleared for good, so its
@@ -327,13 +356,19 @@ class ConversationsViewModel @Inject constructor(
         combine(conversations.all, conversations.emptyIds, matches, query) { list, empty, ids, q -> Quad(list, empty, ids, q) },
         runs,
         settings.settings,
-        combine(counts, checklist?.pending ?: kotlinx.coroutines.flow.flowOf(emptyList()), ::Pair),
-    ) { (everything, empty, ids, q), states, s, (counts, setup) ->
+        combine(
+            counts,
+            checklist?.pending ?: kotlinx.coroutines.flow.flowOf(emptyList()),
+            appLock?.status ?: kotlinx.coroutines.flow.flowOf(null),
+            ::Triple,
+        ),
+    ) { (everything, empty, ids, q), states, s, (counts, setup, lockStatus) ->
+        val lock = lockStatus ?: dev.locus.core.model.AppLockStatus()
         val all = everything.filter { it.id !in empty || states[it.id]?.running == true || states[it.id]?.approval == true }
         val default = s.provider(s.defaultProviderId) ?: s.providers.firstOrNull()
         // Until the matches for the current query arrive, show none rather than every chat.
         val pending = !q.isNullOrBlank() && (ids == null || ids.first != q)
-        val hits = if (q.isNullOrBlank() || pending || ids == null) emptyList() else ids.second
+        val hits = if (q.isNullOrBlank() || pending || ids == null) emptyList() else visibleHits(ids.second, lock)
         val list = when {
             q.isNullOrBlank() -> all
             else -> all.associateBy { it.id }.let { byId -> hits.mapNotNull { byId[it.conversation.id] } }
@@ -344,15 +379,18 @@ class ConversationsViewModel @Inject constructor(
                 val state = states[c.id]
                 val provider = s.provider(c.providerId)
                 val imported = dev.locus.core.model.ImportedChats.sourceOf(c.id)
-                if (imported != null) {
-                    // An archive has no provider: its badge is where it came from (that family's logo).
-                    ConversationRow(c, running = false, needsApproval = false, providerName = imported.displayName, model = importedLogoHint(imported))
-                } else ConversationRow(
-                    c, state?.running == true, state?.approval == true,
-                    provider?.name.orEmpty(), provider?.baseUrl.orEmpty(), provider?.format == ApiFormat.ON_DEVICE,
-                    activeTool = state?.activeTool,
-                    interrupted = state?.interrupted == true && state.running != true,
-                    model = provider?.effectiveModel(c.modelOverride) ?: c.modelOverride.orEmpty(),
+                redactedRow(
+                    if (imported != null) {
+                        // An archive has no provider: its badge is where it came from (that family's logo).
+                        ConversationRow(c, running = false, needsApproval = false, providerName = imported.displayName, model = importedLogoHint(imported))
+                    } else ConversationRow(
+                        c, state?.running == true, state?.approval == true,
+                        provider?.name.orEmpty(), provider?.baseUrl.orEmpty(), provider?.format == ApiFormat.ON_DEVICE,
+                        activeTool = state?.activeTool,
+                        interrupted = state?.interrupted == true && state.running != true,
+                        model = provider?.effectiveModel(c.modelOverride) ?: c.modelOverride.orEmpty(),
+                    ),
+                    lock,
                 )
             },
             hits = hits.associateBy { it.conversation.id },
@@ -361,6 +399,7 @@ class ConversationsViewModel @Inject constructor(
             defaultModel = default?.let { DefaultModel(it.name, it.baseUrl, it.model, it.format == ApiFormat.ON_DEVICE) },
             counts = counts,
             setup = setup,
+            chatLockAvailable = lock.available,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ConversationsUiState.Loading)
 
@@ -406,7 +445,10 @@ class ConversationsViewModel @Inject constructor(
     }
 
     fun delete(id: String) {
-        viewModelScope.launch { conversations.delete(id) }
+        viewModelScope.launch {
+            conversations.delete(id)
+            appLock?.forgetChat(id)
+        }
     }
 }
 

@@ -74,6 +74,8 @@ data class SettingsUiState(
     val reflectAfterTasks: Boolean = true,
     val subagentReportsContinue: Boolean = true,
     val clearColdToolResults: Boolean = true,
+    /** Settings → Agent → "Ask before saving to memory" (docs/design/memory-approval.md). */
+    val memoryApproval: dev.locus.core.model.MemoryApproval = dev.locus.core.model.MemoryApproval.OUTSIDE_CONTENT,
     /** How long a helper may work, in minutes (Settings → Agent → Helpers). */
     val helperTimeoutMinutes: Int = dev.locus.core.model.HelperTimeLimit.DEFAULT_MINUTES,
     val helperProviderId: String? = null,
@@ -238,6 +240,7 @@ class SettingsViewModel @Inject constructor(
             reflectAfterTasks = s.reflectAfterTasks,
             subagentReportsContinue = s.subagentReportsContinue,
             clearColdToolResults = s.clearColdToolResults,
+            memoryApproval = s.memoryApproval,
             helperTimeoutMinutes = dev.locus.core.model.HelperTimeLimit.normalized(s.helperTimeoutMinutes),
             helperProviderId = s.helperProviderId,
             helperModel = s.helperModel,
@@ -293,6 +296,7 @@ class SettingsViewModel @Inject constructor(
     fun setReflectAfterTasks(enabled: Boolean) = viewModelScope.launch { settings.setReflectAfterTasks(enabled) }
     fun setSubagentReportsContinue(enabled: Boolean) = viewModelScope.launch { settings.setSubagentReportsContinue(enabled) }
     fun setClearColdToolResults(enabled: Boolean) = viewModelScope.launch { settings.setClearColdToolResults(enabled) }
+    fun setMemoryApproval(approval: dev.locus.core.model.MemoryApproval) = viewModelScope.launch { settings.setMemoryApproval(approval) }
     fun setHelperTimeoutMinutes(minutes: Int) = viewModelScope.launch { settings.setHelperTimeoutMinutes(minutes) }
     fun setHelperModel(providerId: String?, model: String, automatic: Boolean = false) = viewModelScope.launch { settings.setHelperModel(providerId, model, automatic) }
     fun setAutoTitle(enabled: Boolean) = viewModelScope.launch { settings.setAutoTitle(enabled) }

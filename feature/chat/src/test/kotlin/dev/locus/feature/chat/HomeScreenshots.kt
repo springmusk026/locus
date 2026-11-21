@@ -204,4 +204,20 @@ class HomeScreenshots : ScreenshotTest() {
 
     @Test
     fun searchPending() = searchThen("home-search-pending", ready.copy(rows = emptyList(), query = "lisbon", hits = emptyMap(), searchPending = true))
+
+    // ---- Locked chats (docs/design/app-lock.md)
+
+    /** The working chat and "Plan a 3-day trip to Lisbon" are locked chats this session hasn't unlocked. */
+    private val locked = ready.copy(
+        rows = rows.map { r ->
+            if (r.conversation.id == "c1" || r.conversation.id == "c3") r.copy(locked = true, redacted = true, conversation = r.conversation.copy(title = "")) else r
+        },
+        chatLockAvailable = true,
+    )
+
+    @Test fun homeLockedChats() = snap("home-locked-chats") { Home(locked, projects) }
+
+    /** All chats with the locked rows. (A row's menu is a popup the screenshot steps can't settle, so it isn't drawn here.) */
+    @Test
+    fun allChatsLocked() = snapAfter("home-all-chats-locked", listOf(Step.Tap("All chats")), heightDp = 1400) { Home(locked, projects) }
 }

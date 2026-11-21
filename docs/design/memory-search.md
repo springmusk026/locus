@@ -66,7 +66,7 @@ Written 2026-11-02. Implements [algorithms #9](../research/agent-algorithms-2026
 
 The record has existed since #72 (`memory/.provenance.json`, see [taint](taint.md#memory-provenance)). Library → Memory now maps it with `memoryOriginView`, which is pure and tested:
 
-- **Who**: "Saved by you", "Saved by Locus in a chat" (or "Saved by Locus"), or "Saved by Locus after a task" (reflection).
+- **Who**: "Saved by you", "Saved by Locus in a chat" (or "Saved by Locus"), "Saved by Locus after a task" (reflection), or "Merged in a tidy-up you accepted", with the notes it was merged from ([memory approval](memory-approval.md#tidy-up)).
 - **When**: a locale date and time ("2 Nov 2026, 14:05"), beside the note's relative modified time.
 - **Where**: "From “chat title”". Tapping it opens the chat. A hidden helper chat links to the chat that started it. A deleted chat is named as deleted, not linked. Titles come from `ConversationDao` in `LibraryRepository` (`Library.memoryChats`).
 - **Warning**: "Saved while reading outside content (a web page, an email…)". Tool names are mapped to kinds a person recognises, and the note asks the user to check it and then Edit and Save to confirm it.

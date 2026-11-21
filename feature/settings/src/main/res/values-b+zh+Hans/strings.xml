@@ -118,6 +118,12 @@
     <string name="settings_agent_instructions_note">会添加到每个新对话中。请保持简短；Locus 也会从记忆和技能中学习。</string>
     <string name="settings_agent_budget_section">任务预算</string>
     <string name="settings_agent_budget_note">每个任务及其启动的助手的默认上限。达到上限时，Locus 会在步骤之间暂停，并询问是否继续。缓存的输入按十分之一计算，等待你操作的时间不计入。对话可在输入框的选项中单独设置。</string>
+    <string name="settings_agent_memory_section">记忆</string>
+    <string name="settings_agent_memory_ask_title">保存到记忆前询问</string>
+    <string name="settings_agent_memory_ask_outside">读取外部内容后</string>
+    <string name="settings_agent_memory_ask_always">始终</string>
+    <string name="settings_agent_memory_note_outside">只有当对话读取过外部内容（网页、邮件、命令输出）后，Locus 才会在保存或忘记笔记前询问，因为这些内容可能会植入笔记。其他笔记会自动保存；可在“资料库 → 记忆”中查看。</string>
+    <string name="settings_agent_memory_note_always">每次保存或忘记记忆前都会先询问，卡片上显示完整笔记，项目中也是如此。此时“任务后总结经验”不会保存任何内容，因为没有人可以批准。对话的工具和提示保持不变。</string>
     <string name="settings_agent_long_chats_section">长对话</string>
     <string name="settings_agent_cold_clearing_title">长时间暂停后清除旧的工具结果</string>
     <string name="settings_agent_cold_clearing_subtitle">对话在一天或更久之后继续时，之前较长的结果会以简短说明发送。对话中仍完整显示它们</string>
@@ -1196,7 +1202,22 @@
     <string name="settings_ondevice_kind_projector">视觉投影器</string>
     <string name="settings_ondevice_kind_draft">草稿头</string>
     <string name="settings_ondevice_kind_other">不是模型</string>
-
+    <!-- Lock Locus (AppLockSettings.kt, docs/design/app-lock.md). -->
+    <string name="settings_lock_section">锁定</string>
+    <string name="settings_lock_title">锁定 Locus</string>
+    <string name="settings_lock_subtitle">显示任何内容前，先要求指纹、面孔或屏幕锁定</string>
+    <string name="settings_lock_subtitle_no_screen_lock">需要在此手机上设置屏幕锁定</string>
+    <string name="settings_lock_after_title">锁定时间</string>
+    <string name="settings_lock_after_subtitle">Locus 在后台停留多久后会再次要求验证</string>
+    <string name="settings_lock_after_now">立即</string>
+    <string name="settings_lock_after_minutes">%1$d 分钟</string>
+    <string name="settings_lock_needs_screen_lock">请为此手机设置 PIN 码、图案或密码，才能锁定 Locus 或对话。Locus 使用手机自身的锁，不另存 PIN 码。</string>
+    <string name="settings_lock_suspended">此手机目前没有屏幕锁定，因此 Locus 及其已锁定的对话会直接打开。请设置 PIN 码、图案或密码以重新锁定。</string>
+    <string name="settings_lock_open_security">打开安全设置</string>
+    <string name="settings_lock_note">锁定会隐藏 Locus 在此手机上显示的内容：对话、文件、设置，以及锁屏上通知的详情。锁定期间，你设置的任务、定时运行和自动化会继续运行。若要在 Locus 打开时也隐藏某个对话，请在它的菜单中使用“锁定此对话”。</string>
+    <plurals name="settings_lock_locked_chats">
+        <item quantity="other">已锁定 %1$d 个对话。可在对话菜单中解锁。</item>
+    </plurals>
     <!-- Import chats from ChatGPT or Claude (docs/design/import-chats.md) -->
     <string name="settings_import_section">来自其他应用的对话</string>
     <string name="settings_import_title">从 ChatGPT 或 Claude 导入</string>

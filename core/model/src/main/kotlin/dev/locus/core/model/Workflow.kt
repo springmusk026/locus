@@ -106,11 +106,21 @@ data class WorkflowCheck(val kind: CheckKind, val label: String, val value: Stri
 
         /** Judged by the agent, which reports it at the end ("Check: … passed"). */
         @SerialName("agent") AGENT,
+
+        /**
+         * The task wrote a research report at [value] with citations, a numbered sources list and an
+         * "Unverified claims" section. Judged by Locus from what the task wrote there (core/agent `ResearchReport`).
+         */
+        @SerialName("research_report") RESEARCH_REPORT,
     }
 }
 
-/** A workflow and where it's kept: [projectId] null for one every chat can use. */
-data class SavedWorkflow(val workflow: Workflow, val projectId: String? = null) {
+/**
+ * A workflow and where it's kept: [projectId] null for one every chat can use. [builtIn]: one that ships
+ * with Locus (docs/design/deep-research.md), not a file in agent-home; it can't be edited or removed,
+ * only copied.
+ */
+data class SavedWorkflow(val workflow: Workflow, val projectId: String? = null, val builtIn: Boolean = false) {
     val key: String get() = (projectId?.let { "$it/" } ?: "") + workflow.id
 }
 

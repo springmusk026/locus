@@ -119,6 +119,8 @@ object PolicySeal {
                 if (!s.mcpToolPins.isEmpty) put("mcpToolPins", pinsPayload(s.mcpToolPins))
                 // Connected folders (docs/design/connected-folders.md): which the agent may change, and which project chats see them.
                 if (s.connectedFolders.isNotEmpty()) put("connectedFolders", JsonArray(s.connectedFolders.sortedBy { it.id }.map(::folderPayload)))
+                // "Ask before saving to memory" (docs/design/memory-approval.md): only when it isn't the default, so older seals still match.
+                if (s.memoryApproval != MemoryApproval.OUTSIDE_CONTENT) put("memoryApproval", JsonPrimitive(s.memoryApproval.name))
             },
         )
         return obj.toString().encodeToByteArray()
@@ -179,7 +181,7 @@ object PolicySeal {
     fun isDefault(s: AppSettings): Boolean =
         s.toolPolicies.isEmpty() && s.reviewerMode == ReviewerMode.OFF && !s.reviewerApprovesOutward && s.projectPolicies.values.all { it.isEmpty } &&
             s.projectRemotes.isEmpty() && !s.automationEnabled && s.automationCallers.isEmpty() && s.telegramRemote.isDefault &&
-            s.rememberedApprovals.isEmpty() && s.mcpToolPins.isEmpty && s.connectedFolders.isEmpty()
+            s.rememberedApprovals.isEmpty() && s.mcpToolPins.isEmpty && s.connectedFolders.isEmpty() && s.memoryApproval == MemoryApproval.OUTSIDE_CONTENT
 
     fun seal(s: AppSettings, key: IntegrityKey): String = PREFIX + Hex.of(key.mac(payload(s)))
 

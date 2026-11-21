@@ -19,6 +19,20 @@
     <string name="ui_approval_dont_ask_again">Don\'t ask again for %1$s</string>
     <!-- %1$s is a host name. -->
     <string name="ui_approval_site_for_task">Allow %1$s for the rest of this task</string>
+    <!-- A memory write on the approval card (docs/design/memory-approval.md). -->
+    <string name="ui_approval_memory_label">Memory</string>
+    <string name="ui_approval_memory_general">General memory</string>
+    <string name="ui_approval_memory_this_project">This project\'s memory</string>
+    <!-- %1$s is the project's name. -->
+    <string name="ui_approval_memory_project">Project “%1$s”</string>
+    <string name="ui_approval_memory_topic">Topic</string>
+    <string name="ui_approval_memory_change">Change</string>
+    <string name="ui_approval_memory_new">New note</string>
+    <string name="ui_approval_memory_replace">Replaces the saved note</string>
+    <string name="ui_approval_memory_forget">Forgets this note</string>
+    <string name="ui_approval_memory_replaces">Replaces</string>
+    <string name="ui_approval_memory_summary">Summary</string>
+    <string name="ui_approval_memory_note">Note</string>
 
     <!-- Save login sheet (SaveLoginSheet.kt); %1$s is the site's host. -->
     <string name="ui_save_login_title">Save this login for %1$s?</string>
@@ -503,6 +517,19 @@
     <string name="ui_workflow_tool_commit">commit changes</string>
     <string name="ui_workflow_tool_look_at_changes">look at changes</string>
     <string name="ui_workflow_tool_ask_questions">ask you questions</string>
+    <!-- Lock screen and the system prompt (LockScreen.kt, DeviceAuth.kt, docs/design/app-lock.md). -->
+    <string name="ui_lock_app_title">Locus is locked</string>
+    <string name="ui_lock_app_body">Unlock with your fingerprint, face, PIN, pattern or password. Tasks you started keep running while it\'s locked.</string>
+    <string name="ui_lock_chat_title">This chat is locked</string>
+    <string name="ui_lock_chat_body">Unlock it with your fingerprint, face, PIN, pattern or password. Its name and messages stay hidden everywhere else.</string>
+    <string name="ui_lock_unlock">Unlock</string>
+    <string name="ui_lock_prompt_app">Unlock Locus</string>
+    <string name="ui_lock_prompt_chat">Open locked chat</string>
+    <string name="ui_lock_prompt_confirm">Confirm it\'s you</string>
+    <string name="ui_lock_lockout">Too many tries. Wait 30 seconds, or use your PIN, pattern or password.</string>
+    <string name="ui_lock_lockout_permanent">Fingerprint and face are off until you unlock with your PIN, pattern or password.</string>
+    <string name="ui_lock_no_credential">This phone no longer has a screen lock, so Locus can\'t check it\'s you.</string>
+    <string name="ui_lock_failed">Couldn\'t check that it\'s you. Try again.</string>
     <!-- Saved prompts (docs/design/saved-prompts.md). Keep {{clipboard}}, {{date}}, {{time}}, {{selection}}, {{field:…}} and \{{ exactly as written: they are what the user types. -->
     <string name="ui_prompt_new_title">New prompt</string>
     <string name="ui_prompt_edit_title">Edit prompt</string>
@@ -548,4 +575,39 @@
     <string name="ui_prompt_form_selection">Text to use</string>
     <string name="ui_prompt_form_selection_empty">Nothing was shared or typed before you picked this prompt. Paste or type it here.</string>
     <string name="ui_prompt_insert">Insert</string>
+
+    <!-- Built-in workflows and the research workflow (ResearchWorkflowUi, docs/design/deep-research.md) -->
+    <string name="ui_workflow_built_in">Built in</string>
+    <string name="ui_workflow_check_report">Locus checks the report for citations, a sources list and an unverified section</string>
+    <string name="ui_workflow_unavailable_no_tools">This chat\'s model can\'t use tools, so it can\'t run a workflow. Switch to a model with tool calling to run it.</string>
+    <string name="ui_research_name">Research</string>
+    <string name="ui_research_description">Searches several sources, checks the key claims and writes a cited report.</string>
+    <string name="ui_research_question">Question</string>
+    <string name="ui_research_scope">Scope notes</string>
+    <string name="ui_research_scope_hint">Time range, places, sites to prefer or avoid. Sites you name here open without asking.</string>
+    <string name="ui_research_depth">Depth</string>
+    <string name="ui_research_depth_quick">Quick</string>
+    <string name="ui_research_depth_standard">Standard</string>
+    <string name="ui_research_depth_thorough">Thorough</string>
+    <string name="ui_research_phases">How it works</string>
+    <string name="ui_research_phase_plan">Plan: splits the question into smaller ones, shown as a checklist</string>
+    <string name="ui_research_phase_research">Research: helpers search the web and read sources</string>
+    <string name="ui_research_phase_verify">Verify: checks each key claim against its source and marks the ones it can\'t confirm</string>
+    <string name="ui_research_phase_report">Report: writes a cited Markdown report to the research folder of your workspace</string>
+    <plurals name="ui_research_helpers">
+        <item quantity="one">%1$d researcher</item>
+        <item quantity="other">%1$d researchers</item>
+    </plurals>
+    <plurals name="ui_research_sources">
+        <item quantity="one">about %1$d source</item>
+        <item quantity="other">about %1$d sources</item>
+    </plurals>
+    <string name="ui_research_budget_title">Task budget</string>
+    <string name="ui_research_budget_line">%1$s · a run like this usually uses about %2$s tokens</string>
+    <string name="ui_research_budget_off">No budget · a run like this usually uses about %1$s tokens</string>
+    <string name="ui_research_budget_low">That\'s less than a run like this usually uses, so the report may be thin.</string>
+    <string name="ui_research_budget_note">When the budget runs out, it stops researching and writes the report from what it has, with what\'s missing.</string>
+    <string name="ui_research_budget_change">Change budget</string>
+    <string name="ui_research_scheduled_note">A scheduled run can\'t ask you anything: it skips sites you haven\'t named in the scope notes and puts the report in the chat instead of a file.</string>
+    <string name="ui_research_outside">Everything it reads counts as outside content. Sending or changing anything outside your phone asks you first, and so does opening a site you haven\'t named.</string>
 </resources>

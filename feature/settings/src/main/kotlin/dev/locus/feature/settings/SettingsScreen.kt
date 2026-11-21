@@ -75,6 +75,7 @@ fun SettingsRoute(
         onSetReflect = { viewModel.setReflectAfterTasks(it) },
         onSetHelperReports = { viewModel.setSubagentReportsContinue(it) },
         onSetColdClearing = { viewModel.setClearColdToolResults(it) },
+        onSetMemoryApproval = { viewModel.setMemoryApproval(it) },
         onSetHelperTimeout = { viewModel.setHelperTimeoutMinutes(it) },
         onSetHelper = viewModel::setHelperModel,
         onSetAutoTitle = { viewModel.setAutoTitle(it) },
@@ -151,6 +152,7 @@ internal fun SettingsScreen(
     onSetReflect: (Boolean) -> Unit = {},
     onSetHelperReports: (Boolean) -> Unit = {},
     onSetColdClearing: (Boolean) -> Unit = {},
+    onSetMemoryApproval: (dev.locus.core.model.MemoryApproval) -> Unit = {},
     onSetHelperTimeout: (Int) -> Unit = {},
     onSetHelper: (String?, String, Boolean) -> Unit = { _, _, _ -> },
     onSetAutoTitle: (Boolean) -> Unit = {},
@@ -218,6 +220,7 @@ internal fun SettingsScreen(
             SettingsPage.Agent -> AgentSettings(
                 state, onBack = back, onSaveInstructions = onSaveInstructions, onOpenAgentSetup = onOpenAgentSetup, onSetTaskBudget = onSetTaskBudget,
                 onSetHelperReports = onSetHelperReports, onSetHelperTimeout = onSetHelperTimeout, onSetColdClearing = onSetColdClearing,
+                onSetMemoryApproval = onSetMemoryApproval,
             )
             SettingsPage.Permissions -> PermissionsSettings(
                 state, onBack = back, onSetPolicy = onSetPolicy,
@@ -233,7 +236,10 @@ internal fun SettingsScreen(
             SettingsPage.Automation -> AutomationRoute(onBack = back)
             SettingsPage.Phone -> PhoneRoute(onBack = back)
             SettingsPage.Backup -> BackupRoute(onBack = back)
-            SettingsPage.About -> AboutSettings(onBack = back, onRunSetup = onRunSetup, onOpenDiagnostics = { pageName = SettingsPage.Diagnostics.name }, onOpenActivity = onOpenActivity)
+            SettingsPage.About -> {
+                val (lock, lockActions) = rememberAppLockSection(hiltViewModel())
+                AboutSettings(onBack = back, onRunSetup = onRunSetup, onOpenDiagnostics = { pageName = SettingsPage.Diagnostics.name }, onOpenActivity = onOpenActivity, lock = lock, lockActions = lockActions)
+            }
             SettingsPage.Diagnostics -> DiagnosticsRoute(
                 onBack = back,
                 onOpenSelfTest = { pageName = SettingsPage.SelfTest.name },

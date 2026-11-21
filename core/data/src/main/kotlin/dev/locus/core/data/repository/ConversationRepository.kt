@@ -53,6 +53,9 @@ class ConversationRepository @Inject constructor(
     private val chatOnlyRule: ChatOnlyRule = ChatOnlyRule.Never,
 ) : TranscriptStore {
 
+    /** A project's name, for a memory write's approval card (docs/design/memory-approval.md); null when unknown. */
+    suspend fun projectName(projectId: String): String? = projects?.get(projectId)?.name?.takeIf { it.isNotBlank() }
+
     /**
      * The tool-discovery version new chats freeze ([dev.locus.core.model.Conversation.toolDiscovery]); null
      * makes them declare every tool, as chats made before discovery do. Tests of the full list set it to null.
@@ -437,7 +440,7 @@ class ConversationRepository @Inject constructor(
             val tree = MessageTree(map { TreeNode(it.message.id, it.message.parentId) })
             val path = tree.path(tree.leaf(first().activeLeafId))
             val byId = associateBy { it.message.id }
-            return ChatThread(path.map { byId.getValue(it).message.toModel() }, tree.branches(path))
+            return ChatThread(path.map { byId.getValue(it).message.toModel() }, tree.branches(path), path.lastOrNull()?.let { tree.childrenOf(it).lastOrNull() })
         }
 
         fun Message.toEntity(parentId: String?, copiedFrom: String? = null) = MessageEntity(

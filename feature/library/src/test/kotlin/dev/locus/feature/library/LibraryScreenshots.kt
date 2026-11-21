@@ -191,8 +191,8 @@ class LibraryScreenshots : ScreenshotTest() {
     )
 
     /** A graph with memory, skills, connectors and helpers that a few weeks of use leave behind. */
-    private fun populated(): TestGraph {
-        val g = TestGraph(scope)
+    private fun populated(settings: dev.locus.core.model.AppSettings = dev.locus.core.model.AppSettings()): TestGraph {
+        val g = TestGraph(scope, settings)
         val home = g.home
         runBlocking {
             val nas = g.conversations.create(providerId = null)
@@ -263,7 +263,8 @@ class LibraryScreenshots : ScreenshotTest() {
         val repository = WorkflowRepository(g.home, g.helper, g.conversations, g.receipts, g.changes, g.settingsRepository, g.runner, g.tasks, g.io)
         runBlocking { saved.forEach { (w, project) -> repository.save(w, project) } }
         val vm = LibraryWorkflowsViewModel(repository, g.projects)
-        runBlocking { withTimeout(10_000) { vm.all.first { it.size == saved.size } } }
+        // + the built-in Research workflow, which is always listed first (docs/design/deep-research.md).
+        runBlocking { withTimeout(10_000) { vm.all.first { it.size == saved.size + WorkflowRepository.BUILT_IN.size } } }
         return vm
     }
 
@@ -292,18 +293,93 @@ class LibraryScreenshots : ScreenshotTest() {
         tab: Int,
         template: String? = null,
         prompts: LibraryPromptsViewModel = prompts(),
+        /** Library → Memory's Tidy up; needed where the memory tab shows notes. */
+        tidy: MemoryTidyViewModel? = null,
     ): @androidx.compose.runtime.Composable () -> Unit = {
-        WithViewModels(workflows, prompts) { LibraryRoute(onBack = {}, initialTab = tab, initialTemplate = template, viewModel = vm) }
+        WithViewModels(*listOfNotNull(workflows, prompts, tidy).toTypedArray()) { LibraryRoute(onBack = {}, initialTab = tab, initialTemplate = template, viewModel = vm) }
     }
+
+    /** Tidy up with its availability already checked, so the row renders settled. */
+    private fun tidy(g: TestGraph): MemoryTidyViewModel = MemoryTidyViewModel(g.memoryTidy).also { vm ->
+        vm.checkAvailability()
+        runBlocking { withTimeout(10_000) { vm.availability.first { it != null } } }
+    }
+
+    private val withModel = dev.locus.core.model.AppSettings(
+        providers = listOf(dev.locus.core.testing.ScriptedProvider.config), defaultProviderId = dev.locus.core.testing.ScriptedProvider.config.id,
+    )
 
     // ---- Each tab, populated
 
     @Test
     fun memory() {
+        val g = populated(withModel)
+        val vm = LibraryViewModel(g.library)
+        vm.ready { it.library.memory.size == 4 && it.library.projectMemory.isNotEmpty() }
+        snap("library-memory", heightDp = 1100, content = screen(vm, workflows(g), 0, tidy = tidy(g)))
+    }
+
+    /** No model set up: Tidy up says why it can't run and links to the page that fixes it. */
+    @Test
+    fun memoryTidyUnavailable() {
         val g = populated()
         val vm = LibraryViewModel(g.library)
         vm.ready { it.library.memory.size == 4 && it.library.projectMemory.isNotEmpty() }
-        snap("library-memory", heightDp = 1000, content = screen(vm, workflows(g), 0))
+        snap("library-memory-tidy-no-model", heightDp = 700, content = screen(vm, workflows(g), 0, tidy = tidy(g)))
+    }
+
+    @Test
+    fun memoryTidyHelperUnavailable() = snap("library-memory-tidy-helper-unavailable", heightDp = 400) {
+        MemoryTidyRow(dev.locus.core.data.repository.TidyAvailability.HELPER_UNAVAILABLE, onStart = {})
+    }
+
+    // ---- Tidy up's review (docs/design/memory-approval.md)
+
+    private val tidyProjectId = "0f8fad5b-d9cb-469f-a165-70867728950e"
+
+    private fun entry(id: String, name: String, summary: String, content: String, projectId: String? = null, projectName: String? = null) =
+        dev.locus.core.agent.home.MemoryTidy.Entry(id, projectId, projectName, AgentHome.MemoryTopic(name, summary, content, 0L), truncated = false)
+
+    private val proposals = listOf(
+        dev.locus.core.agent.home.MemoryTidy.Proposal.Merge(
+            "p1",
+            listOf(
+                entry("n1", "coffee-order", "Flat white with oat milk", "Flat white, oat milk."),
+                entry("n2", "coffee", "No sugar", "No sugar in coffee. Large on Mondays."),
+            ),
+            topic = "coffee-order",
+            summary = "Flat white with oat milk, no sugar; large on Mondays",
+            content = "Flat white with oat milk, no sugar.\nLarge on Mondays.",
+            reason = "Both notes are about how you take your coffee.",
+        ),
+        dev.locus.core.agent.home.MemoryTidy.Proposal.Delete(
+            "p2", entry("n3", "lisbon-trip", "Lisbon, 3–7 May 2025", "Flights booked for 3 May 2025."),
+            reason = "The trip was in May 2025 and has passed.",
+        ),
+        dev.locus.core.agent.home.MemoryTidy.Proposal.Delete(
+            "p3", entry("n4", "watering", "Water at 07:00", "Water at 07:00.", tidyProjectId, "Garden planner"),
+            reason = "“watering-schedule” says 06:00 and is newer.",
+        ),
+    )
+
+    @Test
+    fun tidyProposals() = snap("library-sheet-tidy-proposals", heightDp = 1500) {
+        MemoryTidySheet(TidyUiState.Review(proposals, accepted = setOf("p1", "p2"), read = 9, dropped = 1), onToggle = {}, onApply = {}, onRetry = {}, onDismiss = {})
+    }
+
+    @Test
+    fun tidyNothing() = snap("library-sheet-tidy-empty", heightDp = 700) {
+        MemoryTidySheet(TidyUiState.Review(emptyList(), read = 6), onToggle = {}, onApply = {}, onRetry = {}, onDismiss = {})
+    }
+
+    @Test
+    fun tidyWorking() = snap("library-sheet-tidy-working", heightDp = 600) {
+        MemoryTidySheet(TidyUiState.Working, onToggle = {}, onApply = {}, onRetry = {}, onDismiss = {})
+    }
+
+    @Test
+    fun tidyFailed() = snap("library-sheet-tidy-error", heightDp = 700) {
+        MemoryTidySheet(TidyUiState.Failed(dev.locus.core.data.repository.TidyFailure.MALFORMED), onToggle = {}, onApply = {}, onRetry = {}, onDismiss = {})
     }
 
     @Test
@@ -704,7 +780,7 @@ class LibraryScreenshots : ScreenshotTest() {
         val vm = LibraryViewModel(g.library)
         vm.ready()
         val wf = workflows(g, listOf(invoiceWorkflow to null))
-        wf.open(LibraryWorkflowSheet.Edit(SavedWorkflow(wf.all.value.single().workflow)))
+        wf.open(LibraryWorkflowSheet.Edit(SavedWorkflow(wf.all.value.single { !it.builtIn }.workflow /* the saved one, not the built-in Research */)))
         snap("library-sheet-workflow-edit", heightDp = 2400, content = screen(vm, wf, 1))
     }
 
@@ -714,7 +790,7 @@ class LibraryScreenshots : ScreenshotTest() {
         val vm = LibraryViewModel(g.library)
         vm.ready()
         val wf = workflows(g, listOf(invoiceWorkflow to null))
-        wf.open(LibraryWorkflowSheet.Remove(SavedWorkflow(wf.all.value.single().workflow)))
+        wf.open(LibraryWorkflowSheet.Remove(SavedWorkflow(wf.all.value.single { !it.builtIn }.workflow /* the saved one, not the built-in Research */)))
         snap("library-sheet-workflow-remove", heightDp = 900, content = screen(vm, wf, 1))
     }
 
