@@ -417,6 +417,7 @@ internal fun sourceLabel(source: UsageSource): String = stringResource(
         UsageSource.REVIEWER -> R.string.analytics_source_reviewer
         UsageSource.REFLECTION -> R.string.analytics_source_reflection
         UsageSource.SIDE_QUESTION -> R.string.analytics_source_side_question
+        UsageSource.MEMORY_TIDY -> R.string.analytics_source_memory_tidy
         UsageSource.OTHER -> R.string.analytics_source_other
     },
 )

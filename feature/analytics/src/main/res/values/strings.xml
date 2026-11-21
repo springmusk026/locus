@@ -69,6 +69,7 @@
     <string name="analytics_source_reviewer">Safety reviewer</string>
     <string name="analytics_source_reflection">Lessons to memory</string>
     <string name="analytics_source_side_question">Side questions</string>
+    <string name="analytics_source_memory_tidy">Memory tidy-ups</string>
     <string name="analytics_source_other">Other</string>
 
     <!-- Tools card -->

@@ -28,6 +28,9 @@ import dev.locus.core.designsystem.SwitchRow
 import dev.locus.core.designsystem.TextArea
 import dev.locus.core.designsystem.helperTimeLimitLabel
 import dev.locus.core.model.HelperTimeLimit
+import dev.locus.core.model.MemoryApproval
+import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.Spacing
 
 /** Who the agent is and how it should work with you. */
 @Composable
@@ -40,6 +43,7 @@ internal fun AgentSettings(
     onSetHelperReports: (Boolean) -> Unit = {},
     onSetHelperTimeout: (Int) -> Unit = {},
     onSetColdClearing: (Boolean) -> Unit = {},
+    onSetMemoryApproval: (MemoryApproval) -> Unit = {},
 ) {
     SettingsPageScaffold(stringResource(R.string.settings_agent_title), onBack) {
         item { SectionLabel(stringResource(R.string.settings_agent_identity_section), SectionPadding) }
@@ -72,6 +76,26 @@ internal fun AgentSettings(
         item {
             SectionNote(
                 stringResource(R.string.settings_agent_budget_note),
+                NotePadding,
+            )
+        }
+        // docs/design/memory-approval.md: only when a memory write asks; the chat's tools and prompt stay the same.
+        item { SectionLabel(stringResource(R.string.settings_agent_memory_section), SectionPadding) }
+        item {
+            val choices = MemoryApproval.entries
+            LocusCard {
+                Text(stringResource(R.string.settings_agent_memory_ask_title), style = LocusType.rowTitle)
+                Segmented(
+                    options = choices.map { stringResource(if (it == MemoryApproval.ALWAYS) R.string.settings_agent_memory_ask_always else R.string.settings_agent_memory_ask_outside) },
+                    selected = choices.indexOf(state.memoryApproval),
+                    onSelect = { onSetMemoryApproval(choices[it]) },
+                    modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm),
+                )
+            }
+        }
+        item {
+            SectionNote(
+                stringResource(if (state.memoryApproval == MemoryApproval.ALWAYS) R.string.settings_agent_memory_note_always else R.string.settings_agent_memory_note_outside),
                 NotePadding,
             )
         }

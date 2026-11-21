@@ -19,6 +19,20 @@
     <string name="ui_approval_dont_ask_again">Don\'t ask again for %1$s</string>
     <!-- %1$s is a host name. -->
     <string name="ui_approval_site_for_task">Allow %1$s for the rest of this task</string>
+    <!-- A memory write on the approval card (docs/design/memory-approval.md). -->
+    <string name="ui_approval_memory_label">Memory</string>
+    <string name="ui_approval_memory_general">General memory</string>
+    <string name="ui_approval_memory_this_project">This project\'s memory</string>
+    <!-- %1$s is the project's name. -->
+    <string name="ui_approval_memory_project">Project “%1$s”</string>
+    <string name="ui_approval_memory_topic">Topic</string>
+    <string name="ui_approval_memory_change">Change</string>
+    <string name="ui_approval_memory_new">New note</string>
+    <string name="ui_approval_memory_replace">Replaces the saved note</string>
+    <string name="ui_approval_memory_forget">Forgets this note</string>
+    <string name="ui_approval_memory_replaces">Replaces</string>
+    <string name="ui_approval_memory_summary">Summary</string>
+    <string name="ui_approval_memory_note">Note</string>
 
     <!-- Save login sheet (SaveLoginSheet.kt); %1$s is the site's host. -->
     <string name="ui_save_login_title">Save this login for %1$s?</string>

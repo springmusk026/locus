@@ -172,8 +172,13 @@ class SettingsScreenshots : ScreenshotTest() {
     @Test fun extras() = snap("settings-extras", heightDp = 1000) { SettingsScreenHost(populated, SettingsDestination.Extras) }
     @Test fun extrasDefaults() = snap("settings-extras-defaults", heightDp = 1000) { SettingsScreenHost(fresh, SettingsDestination.Extras) }
 
-    @Test fun agent() = snap("settings-agent", heightDp = 1500) { SettingsScreenHost(populated, SettingsDestination.Agent) }
-    @Test fun agentEmpty() = snap("settings-agent-empty", heightDp = 1500) { SettingsScreenHost(fresh, SettingsDestination.Agent) }
+    @Test fun agent() = snap("settings-agent", heightDp = 1900) { SettingsScreenHost(populated, SettingsDestination.Agent) }
+    @Test fun agentEmpty() = snap("settings-agent-empty", heightDp = 1900) { SettingsScreenHost(fresh, SettingsDestination.Agent) }
+
+    /** "Ask before saving to memory" set to Always: the note says what that means (docs/design/memory-approval.md). */
+    @Test fun agentMemoryAlways() = snap("settings-agent-memory-always", heightDp = 1900) {
+        SettingsScreenHost(populated.copy(memoryApproval = dev.locus.core.model.MemoryApproval.ALWAYS), SettingsDestination.Agent)
+    }
 
     @Test fun permissions() = snap("settings-permissions", heightDp = 2400) { SettingsScreenHost(populated, SettingsDestination.Permissions) }
 

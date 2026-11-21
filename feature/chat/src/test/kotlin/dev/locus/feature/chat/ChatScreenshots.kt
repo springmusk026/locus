@@ -318,6 +318,80 @@ class ChatScreenshots : ScreenshotTest() {
         Chat(Fx.state(waitingItems, run = RunState(running = true, step = 5, approvals = listOf(request))))
     }
 
+    /**
+     * "Ask before saving to memory" set to Always (docs/design/memory-approval.md): a plain Ask for a new note in
+     * general memory, the whole note on the card, and why it can't be remembered.
+     */
+    @Test
+    fun approvalMemorySave() = snap("chat-approval-memory-save", heightDp = 1000) {
+        val change = dev.locus.core.agent.MemoryChange(
+            kind = dev.locus.core.agent.MemoryChange.Kind.NEW,
+            topic = "coffee",
+            summary = "Flat white with oat milk, no sugar",
+            content = "Flat white with oat milk, no sugar.\n\n- Decaf after 4 pm\n- Prefers the café on Rua do Poço over chains",
+        )
+        val request = ApprovalRequest(
+            conversationId = "c",
+            callId = "m1",
+            toolName = "memory_save",
+            risk = ToolRisk.WRITE,
+            summary = "Remember “coffee”",
+            argumentsJson = """{"topic":"coffee","summary":"Flat white with oat milk, no sugar","content":"Flat white with oat milk, no sugar."}""",
+            rememberNote = "Memory changes can't be remembered: each one is shown in full for you to check.",
+            flags = emptySet(),
+            preview = dev.locus.core.agent.ApprovalPreview(emptyList(), memory = change),
+        )
+        Chat(Fx.state(waitingItems, run = RunState(running = true, step = 2, approvals = listOf(request))))
+    }
+
+    /** A save that replaces a note in a project's memory: the change in caution, and the note it replaces. */
+    @Test
+    fun approvalMemoryReplaceProject() = snap("chat-approval-memory-replace", heightDp = 1000) {
+        val change = dev.locus.core.agent.MemoryChange(
+            kind = dev.locus.core.agent.MemoryChange.Kind.REPLACE,
+            topic = "deploy steps",
+            projectId = "0f8fad5b-d9cb-469f-a165-70867728950e",
+            projectName = "Garden planner",
+            summary = "Deploy with make release, then tag",
+            content = "Run make release from main, then tag vX.Y.Z and push the tag. CI builds the APK.",
+            replacedSummary = "Deploy with ./deploy.sh",
+        )
+        val request = ApprovalRequest(
+            conversationId = "c",
+            callId = "m2",
+            toolName = "memory_save",
+            risk = ToolRisk.WRITE,
+            summary = "Remember “deploy steps”",
+            argumentsJson = """{"topic":"deploy steps"}""",
+            rememberNote = "Memory changes can't be remembered: each one is shown in full for you to check.",
+            flags = emptySet(),
+            preview = dev.locus.core.agent.ApprovalPreview(emptyList(), memory = change),
+        )
+        Chat(Fx.state(waitingItems, run = RunState(running = true, step = 4, approvals = listOf(request))))
+    }
+
+    /** Forgetting a note: critical tone, and the note that goes. */
+    @Test
+    fun approvalMemoryForget() = snap("chat-approval-memory-forget", heightDp = 1000) {
+        val change = dev.locus.core.agent.MemoryChange(
+            kind = dev.locus.core.agent.MemoryChange.Kind.FORGET,
+            topic = "trip",
+            summary = "Lisbon trip, 3–7 May 2025",
+            content = "Flights booked for 3 May 2025, back on the 7th. Hotel near Alfama.",
+        )
+        val request = ApprovalRequest(
+            conversationId = "c",
+            callId = "m3",
+            toolName = "memory_forget",
+            risk = ToolRisk.WRITE,
+            summary = "Forget “trip”",
+            argumentsJson = """{"topic":"trip"}""",
+            flags = emptySet(),
+            preview = dev.locus.core.agent.ApprovalPreview(emptyList(), memory = change),
+        )
+        Chat(Fx.state(waitingItems, run = RunState(running = true, step = 2, approvals = listOf(request))))
+    }
+
     @Test
     fun approvalFromHelper() = snap("chat-approval-reviewer") {
         val request = ApprovalRequest(

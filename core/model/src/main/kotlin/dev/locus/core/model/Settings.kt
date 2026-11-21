@@ -177,6 +177,12 @@ data class AppSettings(
     val reminders: List<Reminder> = emptyList(),
     /** Which [EffortDefaults] migration these settings have had; 0 before the first. */
     val effortDefaults: Int = 0,
+    /**
+     * Settings → Agent → "Ask before saving to memory" (docs/design/memory-approval.md): when `memory_save`
+     * and `memory_forget` ask. Sealed with the permissions ([PolicySeal]), so switching Always off from
+     * outside Locus breaks the seal and the user is told.
+     */
+    val memoryApproval: MemoryApproval = MemoryApproval.OUTSIDE_CONTENT,
 ) {
     /**
      * Whether to open onboarding at launch. People who set up a provider before onboarding existed
@@ -186,6 +192,20 @@ data class AppSettings(
 
     fun provider(id: String?): ProviderConfig? =
         providers.firstOrNull { it.id == id } ?: providers.firstOrNull { it.id == defaultProviderId } ?: providers.firstOrNull()
+}
+
+/**
+ * When a memory write (`memory_save`, `memory_forget`, in general or a project's memory) asks the user
+ * (docs/design/memory-approval.md). Only the policy decision changes: the tools and the system prompt
+ * are the same either way.
+ */
+@Serializable
+enum class MemoryApproval {
+    /** Only once the run has read outside content (taint); otherwise the tools' own policy (Allow by default). */
+    OUTSIDE_CONTENT,
+
+    /** Every memory write asks, like a tool set to Ask, whatever the tools' own Allow says. */
+    ALWAYS,
 }
 
 /**

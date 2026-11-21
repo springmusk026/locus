@@ -4,6 +4,12 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Added
+- **Approve memory changes, and tidy memory up.** Asked for in RikkaHub [#1927](https://github.com/rikkahub/rikkahub/issues/1927).
+  - **Settings → Agent → Memory → Ask before saving to memory.** "After outside content" (the default, as before) asks only once a chat has read a web page, an email or other outside content. "Always" makes every `memory_save` and `memory_forget` ask, in projects too. The card shows which memory, the topic, whether it's new, replaces a note (named) or forgets one, the summary every new chat reads, and the whole note. It offers Allow and Deny only: an approval can't edit what the model asked to save, so to change a note, deny it or edit it in Library afterwards. "Don't ask again" isn't offered, and the safety reviewer can't approve one on its own. Only the decision changes: chats keep the same tools and prompt, so their prompt cache holds. Scheduled tasks still can't write memory, and Learn after tasks is skipped while Always is on, since nobody is there to approve it. The setting is sealed with the other permissions.
+  - **Library → Memory → Tidy up.** On a tap, one request to the helper model reads your notes (general and each project's) and suggests merging duplicates and forgetting outdated notes, each with its reason and, for a merge, the whole new note. Nothing is ticked and nothing changes until you apply the ones you pick; closing the sheet changes nothing. A note that changed in the meantime is skipped. A merged note says it came from a tidy-up and from which notes, links to the newest source's chat, and keeps the "saved while reading outside content" warning of any note it merged. Old versions go to history. Without a usable helper model the button says why and links to the setting. Its cost shows in Insights as "Memory tidy-ups". Never runs on its own.
+  - No database change. See [memory approval](docs/design/memory-approval.md). *Not yet tried on the phone or against a live model.*
+
 ## [0.2.0] - 2026-11-21
 
 ### Added

@@ -57,6 +57,7 @@
     <string name="analytics_source_reviewer">Revisor de seguridad</string>
     <string name="analytics_source_reflection">Lecciones a la memoria</string>
     <string name="analytics_source_side_question">Preguntas aparte</string>
+    <string name="analytics_source_memory_tidy">Orden de la memoria</string>
     <string name="analytics_source_other">Otros</string>
     <string name="analytics_tools_calls">Llamadas</string>
     <string name="analytics_tools_succeeded">Correctas</string>
