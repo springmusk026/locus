@@ -97,17 +97,6 @@ class ServiceConnections(http: HttpClient) {
         }
     }
 
-    /** Why [e] stopped the request; [scrub] takes any key out of the exception's own words. */
-    private fun networkMessage(e: Exception, host: String, scrub: (String) -> String): EngineText = when (e) {
-        is UnknownHostException -> EngineText.Res(R.string.data_service_unknown_host, host)
-        is SSLException -> e.message?.let { EngineText.Res(R.string.data_service_tls, host, scrub(it)) }
-            ?: EngineText.Res(R.string.data_service_tls_untrusted, host)
-        is ConnectException -> EngineText.Res(R.string.data_service_connect, host)
-        is SocketTimeoutException -> EngineText.Res(R.string.data_service_timeout, host)
-        else -> if (e::class.simpleName.orEmpty().contains("Timeout")) EngineText.Res(R.string.data_service_timeout, host)
-        else EngineText.Res(R.string.data_service_unreachable, host, scrub(e.message ?: e::class.simpleName.orEmpty()))
-    }
-
     private fun hostOrPath(location: String): String = runCatching { URI(location) }.getOrNull()?.let { u ->
         if (u.host != null) u.host + (if (u.port != -1) ":${u.port}" else "") + u.rawPath.orEmpty() else u.rawPath
     } ?: location.take(80)
@@ -115,4 +104,15 @@ class ServiceConnections(http: HttpClient) {
     private fun hostOf(url: String) = runCatching { URI(url).let { it.host + if (it.port != -1) ":${it.port}" else "" } }.getOrDefault(url)
 
     private fun scrub(text: String, forms: List<String>) = forms.filter { it.isNotEmpty() }.fold(text) { acc, f -> acc.replace(f, "[secret]") }
+}
+
+/** Why [e] stopped the request; [scrub] takes any key out of the exception's own words. */
+internal fun networkMessage(e: Exception, host: String, scrub: (String) -> String): EngineText = when (e) {
+    is UnknownHostException -> EngineText.Res(R.string.data_service_unknown_host, host)
+    is SSLException -> e.message?.let { EngineText.Res(R.string.data_service_tls, host, scrub(it)) }
+        ?: EngineText.Res(R.string.data_service_tls_untrusted, host)
+    is ConnectException -> EngineText.Res(R.string.data_service_connect, host)
+    is SocketTimeoutException -> EngineText.Res(R.string.data_service_timeout, host)
+    else -> if (e::class.simpleName.orEmpty().contains("Timeout")) EngineText.Res(R.string.data_service_timeout, host)
+    else EngineText.Res(R.string.data_service_unreachable, host, scrub(e.message ?: e::class.simpleName.orEmpty()))
 }

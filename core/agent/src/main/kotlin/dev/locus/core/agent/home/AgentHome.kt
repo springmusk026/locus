@@ -1002,6 +1002,8 @@ data class Connector(
         val secret: String = "",
         /** For `header`: text sent before the secret, e.g. `Token ` for `Authorization: Token <key>`. */
         val prefix: String = "",
+        /** For `header`: text sent after the secret, e.g. the closing quote of `Authorization: MediaBrowser Token="<key>"`. */
+        val suffix: String = "",
     )
 
     @Serializable
@@ -1049,6 +1051,8 @@ data class Connector(
         if (auth.type == "header") require(auth.name.lowercase() !in FORBIDDEN_HEADERS) { "${auth.name} can't carry a key." }
         require(auth.prefix.isEmpty() || auth.type == "header") { "auth.prefix only applies to header auth." }
         require(auth.prefix.length <= 40 && auth.prefix.none { it.isISOControl() }) { "auth.prefix must be short, on one line." }
+        require(auth.suffix.isEmpty() || auth.type == "header") { "auth.suffix only applies to header auth." }
+        require(auth.suffix.length <= 8 && auth.suffix.none { it.isISOControl() }) { "auth.suffix must be short, on one line." }
         homeAssistant?.validate()
         // A sign-in belongs to one connector: its session is stored under this name, never another's.
         require(auth.type != "oauth" || auth.secret == oauthSecret(id)) { "An oauth connector's auth.secret must be \"${oauthSecret(id)}\"." }
@@ -1102,6 +1106,9 @@ object MemoryAuthor {
 
     /** The automatic pass after a long task (Settings → "Learn from tasks"). */
     const val REFLECTION = "reflection"
+
+    /** A change from Library → Memory → Tidy up that the user accepted (docs/design/memory-approval.md). */
+    const val TIDY = "tidy"
 }
 
 /** Where a memory topic's current version came from (see docs/design/taint.md). */
@@ -1114,6 +1121,8 @@ data class MemoryProvenance(
     val chatId: String? = null,
     /** The outside content the run had read when it saved this (tool names); empty when it had read none. */
     val taintedBy: List<String> = emptyList(),
+    /** For a tidy-up merge ([MemoryAuthor.TIDY]): the notes it was merged from, by name. Empty otherwise. */
+    val mergedFrom: List<String> = emptyList(),
 ) {
     val tainted: Boolean get() = taintedBy.isNotEmpty()
 }
@@ -1155,6 +1164,12 @@ class MemoryStore internal constructor(
 
     fun readMemory(topic: String): String? = memoryFile(topic).takeIf { it.exists() }?.readText()
 
+    /** The saved note [topic] names (by the name the model or the index gives it), or null when there is none. */
+    fun memoryTopic(topic: String): AgentHome.MemoryTopic? {
+        val file = memoryFile(topic).takeIf { it.exists() } ?: return null
+        return AgentHome.MemoryTopic(file.nameWithoutExtension, indexEntries()[file.nameWithoutExtension].orEmpty(), file.readText(), file.lastModified(), provenance()[file.nameWithoutExtension])
+    }
+
     /**
      * Saves a topic and its one-line summary in the index. Returns true if it replaced an older version.
      * [by] (a [MemoryAuthor]), [chatId] and [taintedBy] are recorded as the version's provenance; with no
@@ -1167,6 +1182,8 @@ class MemoryStore internal constructor(
         by: String? = null,
         chatId: String? = null,
         taintedBy: Collection<String> = emptyList(),
+        /** A tidy-up merge's sources ([MemoryProvenance.mergedFrom]). */
+        mergedFrom: Collection<String> = emptyList(),
     ): Boolean {
         val file = memoryFile(topic)
         val key = file.nameWithoutExtension
@@ -1175,7 +1192,7 @@ class MemoryStore internal constructor(
         file.writeText(content.trim() + "\n")
         val entries = indexEntries() + (key to summary.lineSequence().first().take(150))
         writeIndex(entries)
-        recordProvenance(key, by?.let { MemoryProvenance(it, clock(), chatId, taintedBy.sorted().distinct()) })
+        recordProvenance(key, by?.let { MemoryProvenance(it, clock(), chatId, taintedBy.sorted().distinct(), mergedFrom.distinct()) })
         searchIndex?.put(doc(file, entries[key].orEmpty()))
         return existed
     }

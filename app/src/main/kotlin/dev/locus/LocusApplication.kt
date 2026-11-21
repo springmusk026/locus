@@ -33,6 +33,7 @@ class LocusApplication : Application(), Configuration.Provider {
     @Inject lateinit var linuxAutostart: dagger.Lazy<dev.locus.core.data.linux.LinuxAutostart>
     @Inject lateinit var temporaryChats: dagger.Lazy<dev.locus.core.data.repository.TemporaryChats>
     @Inject lateinit var reminders: dagger.Lazy<dev.locus.core.data.device.Reminders>
+    @Inject lateinit var appLock: dev.locus.core.data.lock.AppLock
 
     private var rescheduleTasks = false
 
@@ -59,6 +60,9 @@ class LocusApplication : Application(), Configuration.Provider {
             StrictMode.setVmPolicy(StrictMode.VmPolicy.Builder(StrictMode.getVmPolicy()).detectImplicitUriPermissionGrant().penaltyLog().build())
         }
         LocusStartup.afterInjection(rescheduleTasks, backup, integrity, diagnostics, scope)
+        // Lock Locus follows the app in and out of the foreground (docs/design/app-lock.md). First, so the
+        // first screen already knows whether it's locked.
+        appLock.start()
         // Pinned and recent chats as launcher and Direct Share shortcuts (docs/design/android-bridge.md).
         shortcuts.get().start()
         // Approvals by Telegram button and remote mode, when the user turned them on (docs/design/telegram-remote.md).

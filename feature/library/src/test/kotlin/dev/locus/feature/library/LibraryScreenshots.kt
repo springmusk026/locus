@@ -18,6 +18,7 @@ import dev.locus.core.data.mcp.McpTemplates
 import dev.locus.core.data.repository.ConnectorEntry
 import dev.locus.core.data.repository.LibraryRepository
 import dev.locus.core.data.repository.SkillClash
+import dev.locus.core.data.repository.PromptRepository
 import dev.locus.core.data.repository.WorkflowRepository
 import dev.locus.core.database.ProjectDao
 import dev.locus.core.database.ProjectEntity
@@ -25,6 +26,7 @@ import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.model.SavedPrompt
 import dev.locus.core.model.SavedWorkflow
 import dev.locus.core.model.Workflow
 import dev.locus.core.model.WorkflowCheck
@@ -189,8 +191,8 @@ class LibraryScreenshots : ScreenshotTest() {
     )
 
     /** A graph with memory, skills, connectors and helpers that a few weeks of use leave behind. */
-    private fun populated(): TestGraph {
-        val g = TestGraph(scope)
+    private fun populated(settings: dev.locus.core.model.AppSettings = dev.locus.core.model.AppSettings()): TestGraph {
+        val g = TestGraph(scope, settings)
         val home = g.home
         runBlocking {
             val nas = g.conversations.create(providerId = null)
@@ -270,18 +272,113 @@ class LibraryScreenshots : ScreenshotTest() {
         g.database.conversationDao, projects, g.keyOrigins,
     )
 
-    private fun screen(vm: LibraryViewModel, workflows: LibraryWorkflowsViewModel, tab: Int, template: String? = null): @androidx.compose.runtime.Composable () -> Unit = {
-        WithViewModels(workflows) { LibraryRoute(onBack = {}, initialTab = tab, initialTemplate = template, viewModel = vm) }
+    private fun prompts(saved: List<SavedPrompt> = emptyList()): LibraryPromptsViewModel {
+        val repository = PromptRepository(AgentHome(kotlin.io.path.createTempDirectory("prompts").toFile()), kotlinx.coroutines.Dispatchers.Unconfined)
+        runBlocking { saved.forEach { repository.save(it) } }
+        val vm = LibraryPromptsViewModel(repository)
+        runBlocking { withTimeout(10_000) { vm.all.first { it.size == saved.size } } }
+        return vm
     }
+
+    private val savedPrompts = listOf(
+        SavedPrompt("", "Translate", "Translate into {{field:Language|Spanish}}, keeping the tone:\n\n{{selection}}"),
+        SavedPrompt("", "Daily standup", "Write my standup for {{date}} from these notes:\n{{clipboard}}"),
+        SavedPrompt("", "Explain like I'm new", "Explain this step by step, with no jargon."),
+    )
+
+    private fun screen(
+        vm: LibraryViewModel,
+        workflows: LibraryWorkflowsViewModel,
+        tab: Int,
+        template: String? = null,
+        prompts: LibraryPromptsViewModel = prompts(),
+        /** Library → Memory's Tidy up; needed where the memory tab shows notes. */
+        tidy: MemoryTidyViewModel? = null,
+    ): @androidx.compose.runtime.Composable () -> Unit = {
+        WithViewModels(*listOfNotNull(workflows, prompts, tidy).toTypedArray()) { LibraryRoute(onBack = {}, initialTab = tab, initialTemplate = template, viewModel = vm) }
+    }
+
+    /** Tidy up with its availability already checked, so the row renders settled. */
+    private fun tidy(g: TestGraph): MemoryTidyViewModel = MemoryTidyViewModel(g.memoryTidy).also { vm ->
+        vm.checkAvailability()
+        runBlocking { withTimeout(10_000) { vm.availability.first { it != null } } }
+    }
+
+    private val withModel = dev.locus.core.model.AppSettings(
+        providers = listOf(dev.locus.core.testing.ScriptedProvider.config), defaultProviderId = dev.locus.core.testing.ScriptedProvider.config.id,
+    )
 
     // ---- Each tab, populated
 
     @Test
     fun memory() {
+        val g = populated(withModel)
+        val vm = LibraryViewModel(g.library)
+        vm.ready { it.library.memory.size == 4 && it.library.projectMemory.isNotEmpty() }
+        snap("library-memory", heightDp = 1100, content = screen(vm, workflows(g), 0, tidy = tidy(g)))
+    }
+
+    /** No model set up: Tidy up says why it can't run and links to the page that fixes it. */
+    @Test
+    fun memoryTidyUnavailable() {
         val g = populated()
         val vm = LibraryViewModel(g.library)
         vm.ready { it.library.memory.size == 4 && it.library.projectMemory.isNotEmpty() }
-        snap("library-memory", heightDp = 1000, content = screen(vm, workflows(g), 0))
+        snap("library-memory-tidy-no-model", heightDp = 700, content = screen(vm, workflows(g), 0, tidy = tidy(g)))
+    }
+
+    @Test
+    fun memoryTidyHelperUnavailable() = snap("library-memory-tidy-helper-unavailable", heightDp = 400) {
+        MemoryTidyRow(dev.locus.core.data.repository.TidyAvailability.HELPER_UNAVAILABLE, onStart = {})
+    }
+
+    // ---- Tidy up's review (docs/design/memory-approval.md)
+
+    private val tidyProjectId = "0f8fad5b-d9cb-469f-a165-70867728950e"
+
+    private fun entry(id: String, name: String, summary: String, content: String, projectId: String? = null, projectName: String? = null) =
+        dev.locus.core.agent.home.MemoryTidy.Entry(id, projectId, projectName, AgentHome.MemoryTopic(name, summary, content, 0L), truncated = false)
+
+    private val proposals = listOf(
+        dev.locus.core.agent.home.MemoryTidy.Proposal.Merge(
+            "p1",
+            listOf(
+                entry("n1", "coffee-order", "Flat white with oat milk", "Flat white, oat milk."),
+                entry("n2", "coffee", "No sugar", "No sugar in coffee. Large on Mondays."),
+            ),
+            topic = "coffee-order",
+            summary = "Flat white with oat milk, no sugar; large on Mondays",
+            content = "Flat white with oat milk, no sugar.\nLarge on Mondays.",
+            reason = "Both notes are about how you take your coffee.",
+        ),
+        dev.locus.core.agent.home.MemoryTidy.Proposal.Delete(
+            "p2", entry("n3", "lisbon-trip", "Lisbon, 3–7 May 2025", "Flights booked for 3 May 2025."),
+            reason = "The trip was in May 2025 and has passed.",
+        ),
+        dev.locus.core.agent.home.MemoryTidy.Proposal.Delete(
+            "p3", entry("n4", "watering", "Water at 07:00", "Water at 07:00.", tidyProjectId, "Garden planner"),
+            reason = "“watering-schedule” says 06:00 and is newer.",
+        ),
+    )
+
+    @Test
+    fun tidyProposals() = snap("library-sheet-tidy-proposals", heightDp = 1500) {
+        MemoryTidySheet(TidyUiState.Review(proposals, accepted = setOf("p1", "p2"), read = 9, dropped = 1), onToggle = {}, onApply = {}, onRetry = {}, onDismiss = {})
+    }
+
+    @Test
+    fun tidyNothing() = snap("library-sheet-tidy-empty", heightDp = 700) {
+        MemoryTidySheet(TidyUiState.Review(emptyList(), read = 6), onToggle = {}, onApply = {}, onRetry = {}, onDismiss = {})
+    }
+
+    @Test
+    fun tidyWorking() = snap("library-sheet-tidy-working", heightDp = 600) {
+        MemoryTidySheet(TidyUiState.Working, onToggle = {}, onApply = {}, onRetry = {}, onDismiss = {})
+    }
+
+    @Test
+    fun tidyFailed() = snap("library-sheet-tidy-error", heightDp = 700) {
+        MemoryTidySheet(TidyUiState.Failed(dev.locus.core.data.repository.TidyFailure.MALFORMED), onToggle = {}, onApply = {}, onRetry = {}, onDismiss = {})
     }
 
     @Test
@@ -289,7 +386,17 @@ class LibraryScreenshots : ScreenshotTest() {
         val g = populated()
         val vm = LibraryViewModel(g.library)
         vm.ready { it.library.skills.size == 3 }
-        snap("library-skills", heightDp = 2400, content = screen(vm, workflows(g, listOf(invoiceWorkflow to null, digestWorkflow to null)), 1))
+        snap("library-skills", heightDp = 2800, content = screen(vm, workflows(g, listOf(invoiceWorkflow to null, digestWorkflow to null)), 1, prompts = prompts(savedPrompts)))
+    }
+
+    /** Saved prompts with no skills or workflows yet: the tab lists them, the first opened, with Import a skill under Skills. */
+    @Test
+    fun skillsPromptsOnly() {
+        val g = TestGraph(scope)
+        val vm = LibraryViewModel(g.library)
+        vm.ready()
+        // The first prompt opened: its full text, what it asks for, and its actions.
+        snapAfter("library-skills-prompts", listOf(dev.locus.core.screenshot.Step.Tap("Translate")), heightDp = 1400, content = screen(vm, workflows(g), 1, prompts = prompts(savedPrompts)))
     }
 
     @Test
@@ -513,6 +620,16 @@ class LibraryScreenshots : ScreenshotTest() {
     @Test
     fun servicePicker() = snap("library-sheet-service-picker", heightDp = 1900) {
         ServicePicker(onPickService = {}, onPickMcp = {}, onDismiss = {})
+    }
+
+    /** Jellyfin: the quoted MediaBrowser header, the admin-key note and its read-only operations. */
+    @Test
+    fun serviceJellyfin() = snap("library-sheet-service-jellyfin", heightDp = 1600) {
+        ServiceTemplateSheet(
+            checkNotNull(dev.locus.core.data.connectors.ConnectorTemplates.byId("jellyfin")), ServiceSetup(), dev.locus.core.designsystem.rememberLocalNetworkGate(),
+            onTest = { _, _, _ -> }, onAdd = { _, _, _ -> }, onEdited = {}, onDismiss = {},
+            initialForm = filled("media.example.com"),
+        )
     }
 
     /** A LAN address over http: accepted, with the warning and (on Android 17) the Nearby devices note. */

@@ -69,6 +69,7 @@ Home Assistant ships its own MCP server, so it only needed a preset and a safety
 | `basic` (new) | `Authorization: Basic base64(<v>)` (RFC 7617) | `user:password`; a colon in the user name is refused |
 
 - `prefix` is new. It only applies to `header`, is at most 40 characters, and contains no control characters, so it can't inject a header line.
+- `suffix` (2026-11-21, for Jellyfin's closing quote) follows the same rules, at most 8 characters.
 - Header names must be RFC 9110 tokens. `Host`, `Cookie`, `Content-Length`, `Content-Type`, `Connection` and `Transfer-Encoding` are refused.
 - Basic auth and the prefix work for HTTP connectors and for remote MCP servers (`ConnectorKeys.header` builds the header for both).
 - **Scrubbing.** `ConnectorKeys.secretForms` lists every form a credential can take: as stored, the password part, and the base64 credentials. A reply or error is scrubbed of all of them before the model sees it. The model only ever sees connector ids, descriptions and operation names (`<available_connectors>`).
@@ -104,12 +105,14 @@ Each entry was checked against the source linked below on 2026-11-06.
 | Immich | `{host}/api` | header `x-api-key` | `smart_search` POST `/search/smart` {query, size, city, takenAfter, takenBefore}, `metadata_search` POST `/search/metadata`, `albums`, `album`, `asset` (read; the POSTs only search) | `/users/me` | `open-api/immich-openapi-specs.json` (3.4.0-rc.0: `api_key` scheme `x-api-key`; permissions `asset.read`, `album.read`, `user.read`) |
 | Mastodon | `{host}/api/v1` | Bearer | `home_timeline` (limit ≤ 40, max_id, since_id), `notifications` (limit ≤ 80, max_id), `status` (read); `post` POST `/statuses` {status, visibility, in_reply_to_id, spoiler_text, language} (**outward**) | `/accounts/verify_credentials` | [statuses](https://docs.joinmastodon.org/methods/statuses/), [timelines](https://docs.joinmastodon.org/methods/timelines/), [notifications](https://docs.joinmastodon.org/methods/notifications/), [accounts](https://docs.joinmastodon.org/methods/accounts/); JSON bodies per [client intro](https://docs.joinmastodon.org/client/intro/) |
 | Vikunja | `{host}/api/v1` | Bearer API token | `tasks` (filter, s, sort_by, order_by, per_page, page), `task`, `projects` (read); `add_task` PUT `/projects/{id}/tasks` {title, description, due_date, priority} (write) | `/user` | [API docs](https://vikunja.io/docs/api-documentation) ("Authorization: Bearer <token>"); `pkg/swagger/swagger.json` (paths, `models.Task`) |
+| Jellyfin (added 2026-11-21) | `{host}` | header `Authorization: MediaBrowser Token="<key>"` (the prefix and a new `suffix` for the closing quote) | `search` (`/Items?recursive=true&enableImages=false`, searchTerm, includeItemTypes, limit (required), startIndex), `recently_added` (`/Items?…&sortBy=DateCreated&sortOrder=Descending`, includeItemTypes, limit (required)), `item` (`/Items?fields=Overview,Genres,People,Studios,Tags`, ids), `now_playing` (`/Sessions?activeWithinSeconds=960`) (read only) | `/Items?limit=1&enableImages=false` | [Authorization header](https://gist.github.com/nielsvanvelzen/ea047d9028f676185832e51ffaf12a6f) (linked from Jellyfin's API docs; `X-Emby-Token`, `X-MediaBrowser-Token`, `X-Emby-Authorization` and `api_key` are legacy, [disabled by default in 12.0](https://jellyfin.org/posts/jellyfin-release-12.0/)); server code: `AuthorizationContext.cs` (`MediaBrowser` scheme, quotes trimmed), `ItemsController.cs` (`GET /Items`: an API key has no user and sees every library), `SessionManager.cs` (an API key sees every session); [api.jellyfin.org](https://api.jellyfin.org/) 12.4.0 |
 
 **Left out on purpose:**
 - **FreshRSS mark-read.** It needs a `T` token that FreshRSS derives from the same secret. A connector can't add it without handing it to the model, so FreshRSS is read-only.
 - **Paperless upload.** Multipart isn't supported by HTTP connectors.
 - **Vikunja task update.** v1's `POST /tasks/{id}` writes the whole task, so a partial body would reset the other fields.
-- **Jellyfin and Gotify.** Gotify belongs in `notify_me`, not in a connector.
+- **Jellyfin `/Items/Latest`, `/Items/{id}`, resume and played state.** They resolve a user (`RequestHelpers.GetUserId`), and an API key has none, so they return 404 without a `userId`. `recently_added` sorts `/Items` by `DateCreated` instead, and `item` reads `/Items?ids=`. Playback control isn't offered: it would act on someone's screen.
+- **Gotify** belongs in `notify_me`, not in a connector: it's a reach-me channel since 2026-11-21 ([reach-me channels](reach-me-channels.md)).
 - **Vikunja's own MCP server and its API v2 (from 2.4.0).** Not used yet. v1 stays supported until 4.0.
 
 ## Home Assistant

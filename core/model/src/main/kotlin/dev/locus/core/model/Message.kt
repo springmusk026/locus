@@ -460,6 +460,9 @@ enum class UsageSource(val wire: String) {
     REVIEWER("reviewer"),
     REFLECTION("reflection"),
     SIDE_QUESTION("side_question"),
+
+    /** Library → Memory → Tidy up: one helper-model request proposing merges and deletions (docs/design/memory-approval.md). */
+    MEMORY_TIDY("memory_tidy"),
     OTHER("other"),
     ;
 

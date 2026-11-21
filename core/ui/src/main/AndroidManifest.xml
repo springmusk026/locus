@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Lock Locus and locked chats ask with Android's own prompt (BiometricPrompt in DeviceAuth.kt,
+         docs/design/app-lock.md). A normal permission, granted at install; it reads no biometric data. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+</manifest>

@@ -1698,8 +1698,11 @@ class AgentRunner @Inject constructor(
         // Reflection: after a longer task, one short extra call over the same transcript (a prompt-cache
         // hit) may save lessons to memory. It runs after the chat is marked done, so it never holds the
         // chat busy, and its turn isn't kept in the chat, so the transcript stays exactly what the user saw.
-        // Never in a temporary chat: it saves nothing to memory (docs/design/temporary-chats.md).
-        if (completed && !readOnly && !conversation.temporary && current.reflectAfterTasks && toolsUsed >= REFLECT_AFTER_TOOLS && provider.format != ApiFormat.ON_DEVICE) {
+        // Never in a temporary chat: it saves nothing to memory (docs/design/temporary-chats.md). Nor while every memory
+        // write asks (docs/design/memory-approval.md): nobody is there to approve its saves, so the request would be wasted.
+        if (completed && !readOnly && !conversation.temporary && current.reflectAfterTasks && current.memoryApproval != dev.locus.core.model.MemoryApproval.ALWAYS &&
+            toolsUsed >= REFLECT_AFTER_TOOLS && provider.format != ApiFormat.ON_DEVICE
+        ) {
             scope.launch { deferred.runOrHold("${conversation.id}/reflect", conversation.id) { reflect(conversation, provider, current) } }
         }
     }

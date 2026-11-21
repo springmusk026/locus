@@ -121,6 +121,28 @@ object Integrations {
         linkLabel = "Open @BotFather",
     )
 
+    val gotify = Integration(
+        id = "gotify",
+        name = "Gotify",
+        summary = "Push notifications from your own server",
+        description = "Push notifications through your own Gotify server: notify_me and scheduled task results arrive in the Gotify app. Create an application in Gotify's web UI (Apps → Create Application) and paste its token.",
+        signupUrl = "https://gotify.net/docs/pushmsg",
+        secret = "integration-gotify",
+        keyLabel = "Application token",
+        linkLabel = "How Gotify works",
+    )
+
+    val webhook = Integration(
+        id = "webhook",
+        name = "Webhook",
+        summary = "Send notifications to your own automation",
+        description = "Locus posts notify_me messages and scheduled task results as JSON to a URL you choose, such as Home Assistant, n8n or Node-RED. With a signing secret, each request is signed (HMAC-SHA256) so your server can check it came from Locus.",
+        signupUrl = "https://github.com/springmusk026/locus/blob/main/docs/design/reach-me-channels.md#webhook",
+        secret = "integration-webhook",
+        keyLabel = "Webhook URL",
+        linkLabel = "Webhook format",
+    )
+
     val email = Integration(
         id = "email",
         name = "Email",
@@ -199,7 +221,7 @@ object Integrations {
         linkLabel = "Create a key",
     )
 
-    val all = listOf(firecrawl, tavily, brave, exa, github, ntfy, telegram, email, vercel, netlify, cloudflare, supabase, render)
+    val all = listOf(firecrawl, tavily, brave, exa, github, ntfy, telegram, gotify, webhook, email, vercel, netlify, cloudflare, supabase, render)
 
     /** web_search uses the first of these that has a key. */
     val searchOrder = listOf(firecrawl, tavily, brave, exa)

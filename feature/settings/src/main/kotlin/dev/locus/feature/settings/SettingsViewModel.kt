@@ -74,6 +74,8 @@ data class SettingsUiState(
     val reflectAfterTasks: Boolean = true,
     val subagentReportsContinue: Boolean = true,
     val clearColdToolResults: Boolean = true,
+    /** Settings → Agent → "Ask before saving to memory" (docs/design/memory-approval.md). */
+    val memoryApproval: dev.locus.core.model.MemoryApproval = dev.locus.core.model.MemoryApproval.OUTSIDE_CONTENT,
     /** How long a helper may work, in minutes (Settings → Agent → Helpers). */
     val helperTimeoutMinutes: Int = dev.locus.core.model.HelperTimeLimit.DEFAULT_MINUTES,
     val helperProviderId: String? = null,
@@ -127,6 +129,7 @@ class SettingsViewModel @Inject constructor(
     private val chatGpt: ChatGptSignIn,
     private val telegram: TelegramSetup,
     private val email: dev.locus.core.data.integrations.EmailSetup,
+    private val reachMe: dev.locus.core.data.integrations.ReachMeSetup,
     private val mcpPreference: McpPreference,
     @param:dev.locus.core.data.di.IoDispatcher private val io: kotlinx.coroutines.CoroutineDispatcher,
     /** The models.dev catalogue, when it's on: its hosts count as known providers in a draft's review. */
@@ -166,6 +169,9 @@ class SettingsViewModel @Inject constructor(
 
     /** The Email sheet's actions. A blank password means the one already saved. */
     val emailActions = dev.locus.core.ui.EmailActions.of(email, viewModelScope)
+
+    /** The Gotify and Webhook sheets' actions. A blank secret means the one already saved, for the same address. */
+    val reachMeActions = dev.locus.core.ui.ReachMeActions.of(reachMe, viewModelScope)
 
     fun signInChatGpt(providerId: String, onResult: (Result<Boolean>) -> Unit) = viewModelScope.launch {
         onResult(runCatching { chatGpt.signIn(providerId) })
@@ -234,6 +240,7 @@ class SettingsViewModel @Inject constructor(
             reflectAfterTasks = s.reflectAfterTasks,
             subagentReportsContinue = s.subagentReportsContinue,
             clearColdToolResults = s.clearColdToolResults,
+            memoryApproval = s.memoryApproval,
             helperTimeoutMinutes = dev.locus.core.model.HelperTimeLimit.normalized(s.helperTimeoutMinutes),
             helperProviderId = s.helperProviderId,
             helperModel = s.helperModel,
@@ -289,6 +296,7 @@ class SettingsViewModel @Inject constructor(
     fun setReflectAfterTasks(enabled: Boolean) = viewModelScope.launch { settings.setReflectAfterTasks(enabled) }
     fun setSubagentReportsContinue(enabled: Boolean) = viewModelScope.launch { settings.setSubagentReportsContinue(enabled) }
     fun setClearColdToolResults(enabled: Boolean) = viewModelScope.launch { settings.setClearColdToolResults(enabled) }
+    fun setMemoryApproval(approval: dev.locus.core.model.MemoryApproval) = viewModelScope.launch { settings.setMemoryApproval(approval) }
     fun setHelperTimeoutMinutes(minutes: Int) = viewModelScope.launch { settings.setHelperTimeoutMinutes(minutes) }
     fun setHelperModel(providerId: String?, model: String, automatic: Boolean = false) = viewModelScope.launch { settings.setHelperModel(providerId, model, automatic) }
     fun setAutoTitle(enabled: Boolean) = viewModelScope.launch { settings.setAutoTitle(enabled) }

@@ -1347,4 +1347,19 @@
         <item quantity="one">%1$d file left as it was.</item>
         <item quantity="other">%1$d files left as they were.</item>
     </plurals>
+    <!-- Locked chats (ChatLock.kt, ConversationsScreen.kt, docs/design/app-lock.md). -->
+    <string name="chat_lock_hidden_title">Locked chat</string>
+    <string name="chat_lock_locked_description">Locked</string>
+    <string name="chat_lock_add">Lock this chat</string>
+    <string name="chat_lock_remove">Unlock this chat</string>
+    <string name="chat_lock_locked">Chat locked. Its name is hidden, and it asks for your fingerprint, face or PIN when opened.</string>
+    <string name="chat_lock_unlocked">Chat unlocked</string>
+    <string name="chat_lock_prompt_remove">Unlock this chat</string>
+    <!-- Saved prompts in the composer (docs/design/saved-prompts.md) -->
+    <string name="chat_composer_prompts">Insert a prompt</string>
+    <string name="chat_composer_prompts_hint">Fill the box with text you saved. Nothing is sent until you tap Send.</string>
+    <string name="chat_composer_slash_btw_command" translatable="false">/btw</string>
+    <string name="chat_composer_slash_none_title">Saved prompts</string>
+    <string name="chat_composer_slash_none_body">None yet. Make one here, then type / to insert it.</string>
+    <string name="chat_prompt_save_failed">Couldn\'t save the prompt. Try again.</string>
 </resources>

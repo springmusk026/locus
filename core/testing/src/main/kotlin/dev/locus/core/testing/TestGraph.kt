@@ -166,6 +166,8 @@ class TestGraph(
     val usage = UsageLog(database.usageEventDao)
     val helper = HelperModel(access, settingsRepository, usage, database.conversationDao, database.projectDao)
     val reviewer = ReviewerModel(access, helper, usage)
+    /** Library → Memory → Tidy up (docs/design/memory-approval.md). */
+    val memoryTidy = dev.locus.core.data.repository.MemoryTidyRepository(home, helper, settingsRepository, access, database.projectDao, library, io)
     /** WorkManager for tasks, in memory. */
     val taskWork = FakeTaskWork()
     val tasks = TaskRepository(database.scheduledTaskDao, database.triggerEventDao, taskWork, secrets)
@@ -178,6 +180,7 @@ class TestGraph(
     val fileReads = dev.locus.core.agent.tools.FileReads()
     val changes = dev.locus.core.data.repository.ChangeRepository(database.fileChangeDao, workspace, fileReads, io)
     val telegram = TelegramSetup(httpClient, secrets, settingsRepository)
+    val reachMe = dev.locus.core.data.integrations.ReachMeSetup(httpClient, secrets)
     val email = dev.locus.core.data.integrations.EmailSetup(httpClient, secrets)
     val deferred = dev.locus.core.data.agent.DeferredWork(scope, conditions, settingsRepository)
     val directory = ModelDirectory(settingsRepository, httpClient, context, scope, deferred, onDeviceModels, ggufModels)

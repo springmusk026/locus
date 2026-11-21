@@ -32,6 +32,11 @@ internal data class AgentStatus(
     val pauseMessage: String? = null,
     /** The chat the notification opens: the one waiting for the user, else the one working. */
     val chatId: String? = null,
+    /**
+     * The chat waiting for the user is a locked chat (docs/design/app-lock.md): its approval, question
+     * or pause isn't described ([detail] is null) and the notification offers no actions, only a tap.
+     */
+    val lockedChat: Boolean = false,
 ) {
     /** An approval, a question or a budget pause is waiting for the user. */
     val needsUser: Boolean get() = approval != null || question != null || pausedChat != null
@@ -41,7 +46,7 @@ internal data class AgentStatus(
 
     /** A second line saying what the user is asked: the approval's title and summary, or the question. */
     val detail: String?
-        get() = approval?.let { request ->
+        get() = if (lockedChat) null else approval?.let { request ->
             val summary = request.summary.lineSequence().firstOrNull().orEmpty().trim()
             if (summary.isEmpty()) approvalTitle(request) else "${approvalTitle(request)}\n$summary"
         }
@@ -88,9 +93,10 @@ internal fun approvalTitle(request: ApprovalRequest): String {
 
 /**
  * The status for [states] (every chat's [RunState]) and the open `ask_user` [questions] (oldest first).
- * Pure, so the chip and text rules are unit-tested.
+ * [lockedChats] are the locked chats' ids, whose waiting requests aren't described. Pure, so the chip
+ * and text rules are unit-tested.
  */
-internal fun agentStatus(states: Map<String, RunState>, questions: List<UserQuestion>): AgentStatus {
+internal fun agentStatus(states: Map<String, RunState>, questions: List<UserQuestion>, lockedChats: Set<String> = emptySet()): AgentStatus {
     val userChats = states.filterValues { !it.scheduled }
     val running = userChats.values.firstOrNull { it.running }
     val helpers = userChats.values.sumOf { it.helpers }
@@ -126,5 +132,6 @@ internal fun agentStatus(states: Map<String, RunState>, questions: List<UserQues
         pausedChat = paused,
         pauseMessage = paused?.let { userChats[it]?.budgetPause?.message },
         chatId = approval?.conversationId ?: question?.chatId ?: paused ?: userChats.entries.firstOrNull { it.value.running }?.key,
+        lockedChat = (approval?.conversationId ?: question?.chatId ?: paused)?.let { it in lockedChats } == true,
     )
 }

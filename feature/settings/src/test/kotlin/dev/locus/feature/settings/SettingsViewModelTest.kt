@@ -50,7 +50,7 @@ class SettingsViewModelTest {
 
     private fun TestScope.fixture(settings: AppSettings = AppSettings()): Fixture {
         val g = TestGraph(backgroundScope, settings, dispatcher = StandardTestDispatcher(testScheduler))
-        val vm = host.add(SettingsViewModel(g.settingsRepository, g.tools, g.ssh, g.onDeviceModels, g.onDevice, g.ggufModels, g.chatGpt, g.telegram, g.email, g.mcpPreference, g.io, g.directory))
+        val vm = host.add(SettingsViewModel(g.settingsRepository, g.tools, g.ssh, g.onDeviceModels, g.onDevice, g.ggufModels, g.chatGpt, g.telegram, g.email, g.reachMe, g.mcpPreference, g.io, g.directory))
         backgroundScope.launch { vm.uiState.collect {} }
         runCurrent()
         return Fixture(g, vm)
@@ -149,6 +149,17 @@ class SettingsViewModelTest {
         assertFalse(s.autoTitle || s.suggestFollowUps || s.reflectAfterTasks || s.subagentReportsContinue || s.clearColdToolResults)
         assertEquals("a", s.helperProviderId)
         assertEquals("small-model", s.helperModel)
+    }
+
+    @Test
+    fun `ask before saving to memory is saved and read back`() = runTest {
+        val f = fixture()
+        assertEquals(dev.locus.core.model.MemoryApproval.OUTSIDE_CONTENT, f.vm.state { !it.loading }.memoryApproval)
+        f.vm.setMemoryApproval(dev.locus.core.model.MemoryApproval.ALWAYS)
+        f.vm.state { it.memoryApproval == dev.locus.core.model.MemoryApproval.ALWAYS }
+        assertEquals(dev.locus.core.model.MemoryApproval.ALWAYS, f.graph.settingsRepository.current().memoryApproval)
+        f.vm.setMemoryApproval(dev.locus.core.model.MemoryApproval.OUTSIDE_CONTENT)
+        f.vm.state { it.memoryApproval == dev.locus.core.model.MemoryApproval.OUTSIDE_CONTENT }
     }
 
     @Test

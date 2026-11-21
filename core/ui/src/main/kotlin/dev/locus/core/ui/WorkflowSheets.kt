@@ -287,38 +287,7 @@ fun WorkflowRunSheet(
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             error?.let { Text(it, color = Locus.colors.critical, style = LocusType.supporting) }
-            workflow.parameters.forEach { p ->
-                when (p.type) {
-                    WorkflowParamType.BOOLEAN -> CardGroup {
-                        SwitchRow(
-                            title = p.title,
-                            subtitle = p.description.ifBlank { null },
-                            checked = values[p.name] == "true",
-                            onCheckedChange = { values[p.name] = it.toString() },
-                        )
-                    }
-                    WorkflowParamType.CHOICE -> if (p.options.isNotEmpty()) {
-                        Text(p.title, style = LocusType.rowSupporting)
-                        if (p.options.size <= 3) {
-                            Segmented(p.options, selected = p.options.indexOf(values[p.name]).coerceAtLeast(0), onSelect = { values[p.name] = p.options[it] }, modifier = Modifier.fillMaxWidth())
-                        } else {
-                            var open by remember { mutableStateOf(false) }
-                            Box {
-                                TextButton(onClick = { open = true }) { Text(values[p.name].orEmpty().ifBlank { stringResource(R.string.ui_workflow_choose) }) }
-                                DropdownMenu(open, onDismissRequest = { open = false }) {
-                                    p.options.forEach { o -> DropdownMenuItem(text = { Text(o) }, onClick = { open = false; values[p.name] = o }) }
-                                }
-                            }
-                        }
-                    }
-                    else -> OutlinedTextField(
-                        values[p.name].orEmpty(), { values[p.name] = it }, Modifier.fillMaxWidth(),
-                        label = { Text(if (p.required) p.title else stringResource(R.string.ui_workflow_optional, p.title)) },
-                        supportingText = p.description.takeIf { it.isNotBlank() }?.let { d -> { Text(d) } },
-                        singleLine = true,
-                    )
-                }
-            }
+            WorkflowInputFields(workflow.parameters, values)
             if (workflow.steps.isNotEmpty()) {
                 Text(stringResource(R.string.ui_workflow_plan), Modifier.padding(top = Spacing.sm), style = LocusType.cardTitle)
                 workflow.steps.forEachIndexed { i, s -> Text(stringResource(R.string.ui_workflow_plan_step, i + 1, s), style = LocusType.supporting) }
@@ -336,6 +305,51 @@ fun WorkflowRunSheet(
         }
     }
 }
+
+/**
+ * The boxes for a set of typed inputs, keyed by [WorkflowParam.name] in [values]: a switch, a choice, or
+ * a text box. Shared by a workflow's run sheet and a saved prompt's form (docs/design/saved-prompts.md).
+ * [multiLine] lets text boxes grow, for prompt fields that take a paragraph.
+ */
+@Composable
+fun WorkflowInputFields(parameters: List<WorkflowParam>, values: MutableMap<String, String>, multiLine: Boolean = false) {
+    parameters.forEach { p ->
+        when (p.type) {
+            WorkflowParamType.BOOLEAN -> CardGroup {
+                SwitchRow(
+                    title = p.title,
+                    subtitle = p.description.ifBlank { null },
+                    checked = values[p.name] == "true",
+                    onCheckedChange = { values[p.name] = it.toString() },
+                )
+            }
+            WorkflowParamType.CHOICE -> if (p.options.isNotEmpty()) {
+                Text(p.title, style = LocusType.rowSupporting)
+                if (p.options.size <= 3) {
+                    Segmented(p.options, selected = p.options.indexOf(values[p.name]).coerceAtLeast(0), onSelect = { values[p.name] = p.options[it] }, modifier = Modifier.fillMaxWidth())
+                } else {
+                    var open by remember { mutableStateOf(false) }
+                    Box {
+                        TextButton(onClick = { open = true }) { Text(values[p.name].orEmpty().ifBlank { stringResource(R.string.ui_workflow_choose) }) }
+                        DropdownMenu(open, onDismissRequest = { open = false }) {
+                            p.options.forEach { o -> DropdownMenuItem(text = { Text(o) }, onClick = { open = false; values[p.name] = o }) }
+                        }
+                    }
+                }
+            }
+            else -> OutlinedTextField(
+                values[p.name].orEmpty(), { values[p.name] = it }, Modifier.fillMaxWidth(),
+                label = { Text(if (p.required) p.title else stringResource(R.string.ui_workflow_optional, p.title)) },
+                supportingText = p.description.takeIf { it.isNotBlank() }?.let { d -> { Text(d) } },
+                singleLine = !multiLine,
+                maxLines = if (multiLine) MULTI_LINE_MAX else 1,
+            )
+        }
+    }
+}
+
+/** Lines a multi-line input box grows to before it scrolls. */
+private const val MULTI_LINE_MAX = 6
 
 /** Pick a saved workflow to run in this chat. */
 @Composable

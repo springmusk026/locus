@@ -218,6 +218,8 @@ dependencies {
     }
     implementation(projects.core.data)
     implementation(projects.core.designsystem)
+    // The lock screen and the system prompt (docs/design/app-lock.md).
+    implementation(projects.core.ui)
     implementation(projects.feature.chat)
     implementation(projects.feature.settings)
     implementation(projects.feature.workspace)

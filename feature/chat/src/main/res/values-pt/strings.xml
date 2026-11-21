@@ -1376,4 +1376,17 @@
         <item quantity="many">%1$d arquivos ficaram como estavam.</item>
         <item quantity="other">%1$d arquivos ficaram como estavam.</item>
     </plurals>
+    <!-- Locked chats (ChatLock.kt, ConversationsScreen.kt, docs/design/app-lock.md). -->
+    <string name="chat_lock_hidden_title">Chat bloqueado</string>
+    <string name="chat_lock_locked_description">Bloqueado</string>
+    <string name="chat_lock_add">Bloquear este chat</string>
+    <string name="chat_lock_remove">Desbloquear este chat</string>
+    <string name="chat_lock_locked">Chat bloqueado. O nome fica oculto, e ele pede sua digital, rosto ou PIN ao ser aberto.</string>
+    <string name="chat_lock_unlocked">Chat desbloqueado</string>
+    <string name="chat_lock_prompt_remove">Desbloquear este chat</string>
+    <string name="chat_composer_prompts">Inserir um prompt</string>
+    <string name="chat_composer_prompts_hint">Preencha a caixa com um texto salvo. Nada é enviado até você tocar em Enviar.</string>
+    <string name="chat_composer_slash_none_title">Prompts salvos</string>
+    <string name="chat_composer_slash_none_body">Nenhum ainda. Crie um aqui e depois digite / para inseri-lo.</string>
+    <string name="chat_prompt_save_failed">Não foi possível salvar o prompt. Tente de novo.</string>
 </resources>

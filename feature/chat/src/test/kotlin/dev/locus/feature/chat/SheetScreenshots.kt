@@ -221,6 +221,54 @@ class SheetScreenshots : ScreenshotTest() {
         )
     }
 
+    // Saved prompts in the composer (docs/design/saved-prompts.md).
+
+    private val savedPrompts = listOf(
+        dev.locus.core.model.SavedPrompt("a", "Translate", "Translate into {{field:Language|Spanish}}, keeping the tone:\n\n{{selection}}"),
+        dev.locus.core.model.SavedPrompt("b", "Daily standup", "Write my standup for {{date}} from these notes:\n{{clipboard}}"),
+        dev.locus.core.model.SavedPrompt("c", "Bug report", "Turn this into a bug report with steps to reproduce."),
+    )
+
+    private fun prompts(list: List<dev.locus.core.model.SavedPrompt> = savedPrompts) =
+        ComposerPrompts(list, pick = { _, _, _ -> }, open = {}, insertion = null, consumed = {})
+
+    /** `/` in a chat's empty box: the saved prompts, then `/btw`. */
+    @Test
+    fun composerSlash() = snap("composer-slash", heightDp = 700) {
+        LocusComposer(
+            text = "/", onTextChange = {}, settings = Fx.settings, actions = ComposerActions(), sheet = null, onSheet = {}, onSend = {},
+            onAsideChange = {}, prompts = prompts(),
+        )
+    }
+
+    /** `/b`: the prompts whose name has a word starting with it, and `/btw`. */
+    @Test
+    fun composerSlashFiltered() = snap("composer-slash-filtered", heightDp = 500) {
+        LocusComposer(
+            text = "/b", onTextChange = {}, settings = Fx.settings, actions = ComposerActions(), sheet = null, onSheet = {}, onSend = {},
+            onAsideChange = {}, prompts = prompts(),
+        )
+    }
+
+    /** Home with no prompts saved: a bare `/` offers to make one. */
+    @Test
+    fun composerSlashNone() = snap("composer-slash-none", heightDp = 400) {
+        LocusComposer(
+            text = "/", onTextChange = {}, settings = Fx.settings, actions = ComposerActions(), sheet = null, onSheet = {}, onSend = {},
+            imeSend = true, prompts = prompts(emptyList()),
+        )
+    }
+
+    /** The + sheet with saved prompts offered: Insert a prompt, beside Run a workflow. */
+    @Test
+    fun morePrompts() = snap("sheet-more-prompts", heightDp = 1200) {
+        LocusComposer(
+            text = "", onTextChange = {}, settings = Fx.settings,
+            actions = ComposerActions(onCompact = {}, onWorkflows = {}, onVoiceMode = {}),
+            sheet = ControlSheet.More, onSheet = {}, onSend = {}, canCompact = true, prompts = prompts(),
+        )
+    }
+
     // What was sent, failure details.
 
     @Test

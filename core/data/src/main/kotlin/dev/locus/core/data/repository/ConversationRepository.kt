@@ -53,6 +53,9 @@ class ConversationRepository @Inject constructor(
     private val chatOnlyRule: ChatOnlyRule = ChatOnlyRule.Never,
 ) : TranscriptStore {
 
+    /** A project's name, for a memory write's approval card (docs/design/memory-approval.md); null when unknown. */
+    suspend fun projectName(projectId: String): String? = projects?.get(projectId)?.name?.takeIf { it.isNotBlank() }
+
     /**
      * The tool-discovery version new chats freeze ([dev.locus.core.model.Conversation.toolDiscovery]); null
      * makes them declare every tool, as chats made before discovery do. Tests of the full list set it to null.

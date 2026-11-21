@@ -228,6 +228,7 @@ fun ChatRoute(
         )
     }
     val workflows = rememberChatWorkflows(conversationId, project.current, hiltViewModel<ChatWorkflowsViewModel>(key = "workflows-$conversationId"))
+    val prompts = rememberComposerPrompts(hiltViewModel<ComposerPromptsViewModel>(key = "prompts-$conversationId"))
     projectNotice?.let { note ->
         dev.locus.core.designsystem.LocusSheet(title = stringResource(R.string.chat_screen_not_moved), subtitle = note.asString(), onDismiss = viewModel::dismissProjectNotice) {}
     }
@@ -274,6 +275,14 @@ fun ChatRoute(
     }
     val providerDrafts by viewModel.providerDrafts.collectAsStateWithLifecycle()
     val rewindPreview by viewModel.rewindPreview.collectAsStateWithLifecycle()
+    // Lock this chat from its top bar, where the phone has a screen lock to ask with (docs/design/app-lock.md).
+    val chatLock: ChatLockViewModel = hiltViewModel()
+    val lockStatus by chatLock.status.collectAsStateWithLifecycle()
+    val locker = rememberChatLocker(chatLock)
+    val lockButton: (@Composable () -> Unit)? = lockStatus?.takeIf { it.available || it.isLockedChat(conversationId) }?.let { status ->
+        val locked = status.isLockedChat(conversationId)
+        ({ ChatLockButton(locked) { locker.toggle(conversationId, !locked, false) } })
+    }
     androidx.compose.runtime.CompositionLocalProvider(
         dev.locus.core.markdown.artifact.LocalArtifactHost provides artifactHost,
         LocalMemoryReads provides memoryReads,
@@ -282,6 +291,7 @@ fun ChatRoute(
     ) { // (body not re-indented, to keep the diff small)
     androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
     ChatScreen(
+        lockButton = lockButton,
         onVoiceMode = if (canVoice) ({ voiceOpen = true }) else null,
         voiceActive = voiceOpen,
         state = state,
@@ -384,6 +394,7 @@ fun ChatRoute(
                 editSummary = viewModel::editSummary,
             )
         },
+        prompts = prompts,
     )
     if (voiceOpen) {
         dev.locus.feature.chat.voice.VoiceMode(
@@ -415,6 +426,8 @@ internal fun ChatScreen(
     state: ChatUiState,
     /** Under the title: the chat's project chip; null when there are no projects. */
     projectHeader: (@Composable () -> Unit)? = null,
+    /** Lock or unlock this chat ([ChatLockButton]); null where the phone has no screen lock. */
+    lockButton: (@Composable () -> Unit)? = null,
     /** Where the chat's short messages show (above the composer); the route shares it with what it sets up. */
     feedbackState: LocusFeedbackState = rememberLocusFeedbackState(),
     onBack: () -> Unit,
@@ -466,6 +479,8 @@ internal fun ChatScreen(
     heatServices: List<String> = emptyList(),
     /** Saving a task as a workflow and running one (docs/design/workflows.md). */
     workflows: WorkflowActions = WorkflowActions(),
+    /** Saved prompts in the composer (docs/design/saved-prompts.md); null where they aren't offered. */
+    prompts: ComposerPrompts? = null,
     /** Opens voice mode over this chat (docs/design/voice-mode.md); null where there's no speech recognizer. */
     onVoiceMode: (() -> Unit)? = null,
     /** Voice mode is open: read-aloud stays quiet. */
@@ -896,6 +911,7 @@ internal fun ChatScreen(
                 },
                 actions = {
                     if (!metersBelow) meters?.invoke()
+                    lockButton?.invoke()
                     // Nothing to share until the chat has a message.
                     if (state.items.isNotEmpty()) ShareChatButton(state.title, state.createdAt, state.items, onSaveExport)
                 },
@@ -1095,6 +1111,7 @@ internal fun ChatScreen(
                     onStop = onStop,
                     // The current turn's checklist, while there's something left to do or it's being worked
                     // on: one slim row in the composer's top edge rather than a card floating above it.
+                    prompts = prompts,
                     dock = state.todos?.takeIf { todos -> state.run.running || todos.any { it.status != dev.locus.core.model.TodoStatus.COMPLETED } }?.let { todos ->
                         { ChecklistStrip(todos, running = state.run.running) }
                     },

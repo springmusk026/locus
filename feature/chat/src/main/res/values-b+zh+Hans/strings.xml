@@ -1254,4 +1254,17 @@
     <plurals name="chat_run_rewound_skipped">
         <item quantity="other">%1$d 个文件保持原样。</item>
     </plurals>
+    <!-- Locked chats (ChatLock.kt, ConversationsScreen.kt, docs/design/app-lock.md). -->
+    <string name="chat_lock_hidden_title">已锁定的对话</string>
+    <string name="chat_lock_locked_description">已锁定</string>
+    <string name="chat_lock_add">锁定此对话</string>
+    <string name="chat_lock_remove">解锁此对话</string>
+    <string name="chat_lock_locked">对话已锁定。它的名称会被隐藏，打开时需要指纹、面孔或 PIN 码。</string>
+    <string name="chat_lock_unlocked">对话已解锁</string>
+    <string name="chat_lock_prompt_remove">解锁此对话</string>
+    <string name="chat_composer_prompts">插入提示词</string>
+    <string name="chat_composer_prompts_hint">用保存的文本填入输入框。点按“发送”之前不会发送任何内容。</string>
+    <string name="chat_composer_slash_none_title">保存的提示词</string>
+    <string name="chat_composer_slash_none_body">还没有。在这里新建一个，之后输入 / 即可插入。</string>
+    <string name="chat_prompt_save_failed">无法保存提示词。请重试。</string>
 </resources>

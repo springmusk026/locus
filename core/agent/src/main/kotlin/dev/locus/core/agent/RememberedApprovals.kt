@@ -198,6 +198,8 @@ object ApprovalScopes {
             toolName in RECIPIENT_TOOLS -> "only a single recipient can be remembered."
             toolName == dev.locus.core.model.DeviceIntegrations.CALENDAR_CREATE || toolName == dev.locus.core.model.DeviceIntegrations.CALENDAR_UPDATE ->
                 "only events without guests, in the calendar picked in Settings → Phone, can be remembered."
+            // docs/design/memory-approval.md: each change is shown in full for the user to check.
+            toolName == "memory_save" || toolName == "memory_forget" -> "memory changes can't be remembered: each one is shown in full for you to check."
             else -> "Locus asks for this kind of action every time."
         }
     }

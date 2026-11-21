@@ -40,8 +40,39 @@ data class PageAction(val host: String, val carriesText: Boolean)
  * [outward] rows are the ones that reach other people (an event's guests) and are drawn in the caution
  * tone. Shown only on the card in Locus; notifications, voice and Telegram keep the one-line summary.
  */
-data class ApprovalPreview(val rows: List<Row>) {
+data class ApprovalPreview(
+    val rows: List<Row>,
+    /**
+     * A memory write in full, for the card to show in the app's language: which memory, new or replacing
+     * which note, and exactly the text that will be saved or forgotten ([rows] say the same in English).
+     * Null for every other call. See docs/design/memory-approval.md.
+     */
+    val memory: MemoryChange? = null,
+) {
     data class Row(val label: String, val value: String, val outward: Boolean = false)
+}
+
+/**
+ * What a `memory_save` or `memory_forget` call changes, as the approval card shows it
+ * ([ApprovalPreview.memory]). [summary] and [content] are exactly what will be written (after the
+ * clean-up a tainted run gets), or, for [Kind.FORGET], what is removed.
+ */
+data class MemoryChange(
+    val kind: Kind,
+    /** The topic as Library names it (its file name, dashes as spaces). */
+    val topic: String,
+    /** The memory it changes: null for general memory, else the project's id. */
+    val projectId: String? = null,
+    /** The project's name, when known; null outside projects or when it can't be read. */
+    val projectName: String? = null,
+    /** The line for the memory index (every new chat's system prompt). */
+    val summary: String = "",
+    /** The note in full. */
+    val content: String = "",
+    /** [Kind.REPLACE]: the index line of the note being replaced. */
+    val replacedSummary: String? = null,
+) {
+    enum class Kind { NEW, REPLACE, FORGET }
 }
 
 /** Who may approve a call that asks ([Tool.reviewerClearance]). */
