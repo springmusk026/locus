@@ -167,4 +167,13 @@
     <string name="data_service_home_assistant_missing">Home Assistant isn\'t in the catalogue.</string>
     <string name="data_service_home_assistant_no_token">Paste a long-lived access token.</string>
     <string name="data_service_home_assistant_passed">Reached Home Assistant at %1$s and it accepted the token.</string>
+    <string name="data_reachme_token_missing">Paste the application token from Gotify (Apps → Create Application).</string>
+    <string name="data_reachme_token_invalid">That doesn\'t look like a Gotify application token: copy it whole, without spaces.</string>
+    <string name="data_reachme_token_again">The address changed, so paste the token again. Locus only sends a saved token to the server it was saved for.</string>
+    <string name="data_reachme_secret_invalid">A signing secret needs at least 16 characters and no spaces.</string>
+    <string name="data_reachme_secret_again">The address changed, so enter the signing secret again, or turn signing off. Locus only uses a saved secret for the address it was saved for.</string>
+    <string name="data_reachme_redirect">%1$s redirects to another address. Locus doesn\'t follow redirects: use the address it redirects to.</string>
+    <string name="data_reachme_gotify_refused">%1$s refused the token (HTTP %2$d). Use an application token (Apps), not a client token, and copy it whole.</string>
+    <string name="data_reachme_webhook_refused">%1$s refused the request (HTTP %2$d). If it checks signatures, make sure it has the same secret.</string>
+    <string name="data_reachme_not_found">Nothing found at that address (HTTP 404). Check it, including any sub-path.</string>
 </resources>

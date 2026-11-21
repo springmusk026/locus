@@ -8,7 +8,7 @@ import kotlin.test.assertTrue
 
 class IntegrationIconsTest {
     /** Integrations without a brand mark; IntegrationIcon draws a plain icon for these. */
-    private val fallbacks = setOf("email")
+    private val fallbacks = setOf("email", "gotify", "webhook")
 
     @Test
     fun `every integration has a logo or an allowed fallback`() {

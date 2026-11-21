@@ -515,6 +515,16 @@ class LibraryScreenshots : ScreenshotTest() {
         ServicePicker(onPickService = {}, onPickMcp = {}, onDismiss = {})
     }
 
+    /** Jellyfin: the quoted MediaBrowser header, the admin-key note and its read-only operations. */
+    @Test
+    fun serviceJellyfin() = snap("library-sheet-service-jellyfin", heightDp = 1600) {
+        ServiceTemplateSheet(
+            checkNotNull(dev.locus.core.data.connectors.ConnectorTemplates.byId("jellyfin")), ServiceSetup(), dev.locus.core.designsystem.rememberLocalNetworkGate(),
+            onTest = { _, _, _ -> }, onAdd = { _, _, _ -> }, onEdited = {}, onDismiss = {},
+            initialForm = filled("media.example.com"),
+        )
+    }
+
     /** A LAN address over http: accepted, with the warning and (on Android 17) the Nearby devices note. */
     @Test
     fun serviceMiniflux() = snap("library-sheet-service-miniflux", heightDp = 1600) {

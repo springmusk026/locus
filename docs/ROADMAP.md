@@ -363,7 +363,8 @@ Everyday integrations that remove friction ([design](design/integrations.md)).
 - [x] **Connect a folder** (M): Workspace → **Connected folders** grants a folder outside the workspace (an Obsidian or Logseq vault, a Syncthing folder, Documents/Notes) through the system folder picker with a persisted grant. The file tools reach it as `folders/<name>/…` (no new tools); reads are allowed, writes ask with "Always for this folder", deletes always ask, read-only folders and hidden folders (`.obsidian`, `.git`, `.trash`) refuse writes, and before-copies go to Locus's trash so undo works. Project chats see only linked folders. Linux can't see them. Settings only, no Room change. See [connected folders](design/connected-folders.md). *Not yet tried on the phone. Next: Obsidian URI open after a write; a small full-text index for large vaults; "clippings" subfolders marked untrusted.*
 - [ ] **A Client ID Metadata Document** on GitHub Pages (S): lets Locus use Home Assistant's own OAuth sign-in instead of a long-lived token.
 - [ ] **WebDAV/CalDAV template for Nextcloud** (S), if the community server doesn't run in Locus's Linux on phones.
-- [ ] **More templates** (S each): Gotify and webhooks as reach-me channels, Jellyfin, a Places search with a user-supplied Nominatim URL.
+- [x] **More templates** (S each): Gotify and webhooks as reach-me channels, Jellyfin. See [reach-me channels](design/reach-me-channels.md) and [integrations](design/integrations.md).
+- [ ] **Places search** with a user-supplied Nominatim URL (needs the decision above).
 
 ## Phase 2b: Learns as it goes
 
