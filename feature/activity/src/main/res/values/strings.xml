@@ -94,4 +94,5 @@
     <string name="activity_deleted_chat">Deleted chat</string>
     <string name="activity_helper_chat">%1$s helper · %2$s</string>
     <string name="activity_helper_chat_untyped">Helper · %1$s</string>
+    <string name="activity_decision_proposed">Proposed</string>
 </resources>

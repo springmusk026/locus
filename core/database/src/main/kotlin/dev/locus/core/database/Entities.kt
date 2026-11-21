@@ -198,6 +198,54 @@ data class ScheduledTaskEntity(
     val triggerJson: String? = null,
     /** Where the trigger's source stands (v19): its cursor and how the last check went, as JSON. Never holds a secret. */
     val triggerStateJson: String? = null,
+    /**
+     * The [lastRunAt] the user has seen in Needs you (v20): a later run's result is unread until they open or
+     * dismiss it. The migration sets it to [lastRunAt], so results from before aren't all new at once.
+     */
+    val lastSeenRunAt: Long? = null,
+)
+
+/**
+ * A call an unattended (scheduled or event-triggered) run proposed instead of making it (v20), waiting in Needs you
+ * for the user to approve or decline (docs/design/needs-you.md). [status] moves PENDING → RUNNING → DONE or FAILED
+ * on approval (RUNNING is claimed in one statement, so a double tap runs it once; one left RUNNING by a dead process
+ * becomes INTERRUPTED, never run again), PENDING → DECLINED, and PENDING → STALE when a restore brings it back from a
+ * backup. Past [expiresAt] a PENDING one shows as expired and can't run. Goes with its chat.
+ */
+@Entity(
+    tableName = "proposals",
+    foreignKeys = [ForeignKey(ConversationEntity::class, ["id"], ["conversationId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("conversationId"), Index("status")],
+)
+data class ProposalEntity(
+    @PrimaryKey val id: String,
+    val conversationId: String,
+    /** The task whose run proposed it; a plain column, so deleting the task keeps what it proposed. */
+    val taskId: String?,
+    /** The task's title when it was proposed, for the card. */
+    val source: String,
+    val callId: String,
+    val toolName: String,
+    val argumentsJson: String,
+    /** The tool's one line (`Tool.describe`), for the card and the notification. */
+    val summary: String,
+    /** Why it needs the user beyond its tool's own setting, as the approval card would say it. */
+    val reason: String?,
+    /** `ApprovalFlag` names, newline-separated. */
+    val flags: String,
+    /** The tools whose outside content the run had read, newline-separated. */
+    val taintSources: String,
+    /** `ApprovalPreview` rows as JSON; null when the tool has none. */
+    val previewJson: String?,
+    val createdAt: Long,
+    val expiresAt: Long,
+    /** `ProposalStatus` name. */
+    val status: String,
+    val decidedAt: Long? = null,
+    /** How it went once run (or why it didn't), shortened. */
+    val outcome: String? = null,
+    /** The user cleared it from Needs you (an expired, failed or interrupted one). */
+    @ColumnInfo(defaultValue = "0") val dismissed: Boolean = false,
 )
 
 /**

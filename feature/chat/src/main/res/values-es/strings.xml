@@ -1416,4 +1416,52 @@
     <string name="chat_waiting_kind_approval">Necesita tu aprobación</string>
     <string name="chat_waiting_kind_question">Tiene una pregunta para ti</string>
     <string name="chat_waiting_kind_budget">En pausa por su presupuesto</string>
+    <string name="chat_needs_you_title">Te necesita</string>
+    <plurals name="chat_home_needs_you">
+        <item quantity="one">%1$d cosa te necesita</item>
+        <item quantity="many">%1$d cosas te necesitan</item>
+        <item quantity="other">%1$d cosas te necesitan</item>
+    </plurals>
+    <string name="chat_needs_you_mark_all_read">Marcar todo como leído</string>
+    <string name="chat_needs_you_mark_read">Marcar «%1$s» como leído</string>
+    <string name="chat_needs_you_in_chat">En %1$s</string>
+    <string name="chat_needs_you_untitled">Chat sin título</string>
+    <string name="chat_needs_you_locked_waiting">Te está esperando</string>
+    <string name="chat_needs_you_locked_proposal">Propuso una acción</string>
+    <string name="chat_needs_you_question">Te hace una pregunta</string>
+    <string name="chat_needs_you_budget">En pausa por su presupuesto</string>
+    <string name="chat_needs_you_proposes">%1$s propone</string>
+    <string name="chat_needs_you_proposed">%1$s propuso</string>
+    <plurals name="chat_needs_you_expires_in">
+        <item quantity="one">Propuesta %2$s · caduca en %1$d día</item>
+        <item quantity="many">Propuesta %2$s · caduca en %1$d días</item>
+        <item quantity="other">Propuesta %2$s · caduca en %1$d días</item>
+    </plurals>
+    <string name="chat_needs_you_expires_today">Propuesta %1$s · caduca hoy</string>
+    <string name="chat_needs_you_expired">Caducó %1$s · nunca se ejecutó</string>
+    <string name="chat_needs_you_approve">Aprobar</string>
+    <string name="chat_needs_you_decline">Rechazar</string>
+    <string name="chat_needs_you_dismiss">Descartar</string>
+    <string name="chat_needs_you_running">Ejecutándose ahora</string>
+    <string name="chat_needs_you_failed">Aprobada, pero falló o se detuvo</string>
+    <string name="chat_needs_you_interrupted">Locus se cerró mientras se ejecutaba: comprueba si ocurrió</string>
+    <string name="chat_needs_you_stale">De una copia restaurada: no se ejecutará</string>
+    <string name="chat_needs_you_result_new">Resultado nuevo</string>
+    <string name="chat_needs_you_result_done">Hecha</string>
+    <string name="chat_needs_you_result_failed">Falló</string>
+    <string name="chat_needs_you_result_stopped">Detenida</string>
+    <plurals name="chat_needs_you_show_more">
+        <item quantity="one">Mostrar %1$d más</item>
+        <item quantity="many">Mostrar %1$d más</item>
+        <item quantity="other">Mostrar %1$d más</item>
+    </plurals>
+    <string name="chat_needs_you_show_less">Mostrar menos</string>
+    <string name="chat_needs_you_ran">Hecho. Su chat tiene el resultado.</string>
+    <string name="chat_needs_you_ran_failed">Se ejecutó, pero falló. Su chat tiene el error.</string>
+    <string name="chat_needs_you_blocked">Las comprobaciones de Locus la detuvieron y no se ejecutó. Su chat explica por qué.</string>
+    <string name="chat_needs_you_expired_message">Caducó, así que no se ejecutó.</string>
+    <string name="chat_needs_you_gone">Ya estaba respondida.</string>
+    <string name="chat_needs_you_busy">Su chat está trabajando. Inténtalo de nuevo cuando termine.</string>
+    <string name="chat_needs_you_declined">Rechazada. No se ejecutará.</string>
+    <string name="chat_note_proposal_approved">Aprobada en Te necesita: %1$s</string>
 </resources>

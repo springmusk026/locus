@@ -75,4 +75,5 @@
     <string name="activity_deleted_chat">已删除的对话</string>
     <string name="activity_helper_chat">%1$s 助手 · %2$s</string>
     <string name="activity_helper_chat_untyped">助手 · %1$s</string>
+    <string name="activity_decision_proposed">已提议</string>
 </resources>

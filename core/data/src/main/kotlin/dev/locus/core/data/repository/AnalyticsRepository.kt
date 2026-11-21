@@ -431,7 +431,8 @@ class AnalyticsRepository @Inject constructor(
                     ApprovalDecision.USER_APPROVED -> approved++
                     ApprovalDecision.USER_DENIED, ApprovalDecision.POLICY_DENIED, ApprovalDecision.REVIEWER_DENIED -> denied++
                     ApprovalDecision.INVALID_INPUT -> invalid++
-                    null -> Unit
+                    // Not run yet: waiting in Needs you, where the user's answer is counted if it runs.
+                    ApprovalDecision.PROPOSED, null -> Unit
                 }
                 if (failed) failures++
                 val b = bucketOf(row.startedAt)

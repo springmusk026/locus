@@ -87,4 +87,5 @@
     <string name="activity_deleted_chat">Chat excluído</string>
     <string name="activity_helper_chat">Ajudante %1$s · %2$s</string>
     <string name="activity_helper_chat_untyped">Ajudante · %1$s</string>
+    <string name="activity_decision_proposed">Proposta</string>
 </resources>

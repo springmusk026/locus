@@ -496,6 +496,8 @@ private fun decisionPill(entry: AuditEntry): Pair<Int, Tone>? = when (entry.deci
     ApprovalDecision.POLICY_DENIED -> R.string.activity_decision_blocked to Tone.Caution
     ApprovalDecision.REVIEWER_DENIED -> R.string.activity_decision_reviewer_blocked to Tone.Caution
     ApprovalDecision.INVALID_INPUT -> R.string.activity_decision_invalid to Tone.Critical
+    // An unattended run's call waiting in Needs you (docs/design/needs-you.md).
+    ApprovalDecision.PROPOSED -> R.string.activity_decision_proposed to Tone.Caution
 }
 
 /** The full decision for the detail sheet, including the quiet automatic case. */

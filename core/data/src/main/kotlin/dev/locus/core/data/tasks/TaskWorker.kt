@@ -38,6 +38,8 @@ class TaskWorker @AssistedInject constructor(
     private val conditions: dev.locus.core.llm.DeviceConditions,
     private val settings: dev.locus.core.data.repository.SettingsRepository,
     private val appLock: AppLock,
+    /** The one "N things need you" notification, for what this run proposed (docs/design/needs-you.md). */
+    private val needsYou: dev.locus.core.data.needsyou.NeedsYouNotifier,
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
@@ -48,6 +50,7 @@ class TaskWorker @AssistedInject constructor(
         if (!runNow && conditions.state.value.hot && settings.current().power.deferWhenHot) return Result.retry()
         // Read once, before the run: the result's notification hides a locked chat's text (docs/design/app-lock.md).
         val lock = appLock.loaded().settings
+        val startedAt = System.currentTimeMillis()
         val result = scheduled.run(
             taskId = taskId,
             workId = id.toString(),
@@ -57,6 +60,8 @@ class TaskWorker @AssistedInject constructor(
             fromApp = inputData.getString(KEY_FROM_APP),
             eventId = inputData.getString(KEY_EVENT_ID),
         )
+        // What it proposed waits in Needs you: one summary notification for all of it, never one per proposal.
+        runCatching { needsYou.refresh(newSince = startedAt) }
         // The result name tells Tasks' "Run now" whether it ran or was skipped (another run was going).
         val output = workDataOf(KEY_RESULT to result.name)
         return if (result == ScheduledRun.Result.FAILED) Result.failure(output) else Result.success(output)

@@ -17,6 +17,8 @@ import dev.locus.core.database.MessageHitRow
 import dev.locus.core.database.MessageStatRow
 import dev.locus.core.database.ProjectDao
 import dev.locus.core.database.ProjectEntity
+import dev.locus.core.database.ProposalDao
+import dev.locus.core.database.ProposalEntity
 import dev.locus.core.database.ScheduledTaskDao
 import dev.locus.core.database.ScheduledTaskEntity
 import dev.locus.core.database.TriggerEventDao
@@ -53,6 +55,7 @@ class FakeDatabase {
         val taskRuns: List<TaskRunEntity> = emptyList(),
         val projects: Map<String, ProjectEntity> = emptyMap(),
         val triggerEvents: List<TriggerEventEntity> = emptyList(),
+        val proposals: Map<String, ProposalEntity> = emptyMap(),
     )
 
     private val tables = MutableStateFlow(Tables())
@@ -138,6 +141,7 @@ class FakeDatabase {
                 fileChanges = t.fileChanges.filterNot { it.conversationId == id },
                 taskRuns = t.taskRuns.filterNot { it.conversationId == id },
                 usageEvents = t.usageEvents.filterNot { it.conversationId == id },
+                proposals = t.proposals.filterValues { it.conversationId != id },
             )
         }
         override suspend fun importedStamps() = tables.value.conversations.values.filter { it.id.startsWith("imported-") }
@@ -279,6 +283,14 @@ class FakeDatabase {
 
         override suspend fun setTriggerState(id: String, stateJson: String?) = update(id) { it.copy(triggerStateJson = stateJson) }
 
+        override suspend fun markSeen(id: String) = update(id) { it.copy(lastSeenRunAt = it.lastRunAt) }
+
+        override suspend fun markAllSeen(): Int = synchronized(this@FakeDatabase) {
+            val ran = tables.value.tasks.values.filter { it.lastRunAt != null }
+            tables.value = tables.value.copy(tasks = tables.value.tasks + ran.associate { it.id to it.copy(lastSeenRunAt = it.lastRunAt) })
+            ran.size
+        }
+
         override suspend fun setLastRun(id: String, at: Long, conversationId: String, summary: String?, outcome: String) {
             update(id) { it.copy(lastRunAt = at, lastConversationId = conversationId, lastSummary = summary, lastOutcome = outcome) }
         }
@@ -305,6 +317,43 @@ class FakeDatabase {
 
         override suspend fun releaseRun(id: String, workId: String) = update(id) {
             if (it.runWorkId == workId) it.copy(runWorkId = null, runConversationId = null, runStartedAt = null) else null
+        }
+    }
+
+    /** Needs you's proposals, for assertions. */
+    val proposalRows: List<ProposalEntity> get() = tables.value.proposals.values.sortedBy { it.createdAt }
+
+    /** Following the SQL in Daos.kt (CLAIM_PROPOSAL and the guarded updates), each change in one locked step. */
+    val proposalDao: ProposalDao = object : ProposalDao {
+        override suspend fun insert(proposal: ProposalEntity) = write { t ->
+            check(t.conversations.containsKey(proposal.conversationId)) { "FOREIGN KEY constraint failed" }
+            check(proposal.id !in t.proposals) { "UNIQUE constraint failed" }
+            t.copy(proposals = t.proposals + (proposal.id to proposal))
+        }
+        override suspend fun get(id: String) = tables.value.proposals[id]
+        override fun observeOpen() = select { t ->
+            t.proposals.values.filter { !it.dismissed }.sortedWith(compareByDescending<ProposalEntity> { it.createdAt }.thenByDescending { it.id })
+        }
+        override suspend fun pendingDuplicate(conversationId: String, toolName: String, argumentsJson: String, now: Long) =
+            tables.value.proposals.values.firstOrNull {
+                it.conversationId == conversationId && it.toolName == toolName && it.argumentsJson == argumentsJson && it.status == "PENDING" && it.expiresAt > now
+            }?.id
+        override suspend fun pendingCount(now: Long) = tables.value.proposals.values.count { it.status == "PENDING" && it.expiresAt > now }
+
+        private fun change(id: String, block: (ProposalEntity) -> ProposalEntity?): Int = synchronized(this@FakeDatabase) {
+            val old = tables.value.proposals[id] ?: return 0
+            val new = block(old) ?: return 0
+            tables.value = tables.value.copy(proposals = tables.value.proposals + (id to new))
+            1
+        }
+        override suspend fun claim(id: String, now: Long) = change(id) { if (it.status == "PENDING" && it.expiresAt > now) it.copy(status = "RUNNING", decidedAt = now) else null }
+        override suspend fun finish(id: String, status: String, outcome: String?) = change(id) { if (it.status == "RUNNING") it.copy(status = status, outcome = outcome) else null }
+        override suspend fun decline(id: String, now: Long) = change(id) { if (it.status == "PENDING") it.copy(status = "DECLINED", decidedAt = now) else null }
+        override suspend fun dismiss(id: String) = change(id) { it.copy(dismissed = true) }
+        override suspend fun interruptRunning(outcome: String): Int = synchronized(this@FakeDatabase) {
+            val running = tables.value.proposals.values.filter { it.status == "RUNNING" }
+            tables.value = tables.value.copy(proposals = tables.value.proposals + running.associate { it.id to it.copy(status = "INTERRUPTED", outcome = outcome) })
+            running.size
         }
     }
 

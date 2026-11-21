@@ -173,6 +173,16 @@ class TaskRepository(
         dao.setLastRun(id, System.currentTimeMillis(), conversationId, summary?.take(500), outcome.name)
     }
 
+    /** The user has seen task [id]'s latest result (opened or dismissed it in Needs you). */
+    suspend fun markSeen(id: String) {
+        dao.markSeen(id)
+    }
+
+    /** Every task's latest result counts as seen ("Mark all read" in Needs you). */
+    suspend fun markAllSeen() {
+        dao.markAllSeen()
+    }
+
     /**
      * The task's run marker, if a run holds it and its worker hasn't returned yet (see
      * [ScheduledTaskEntity.runWorkId]). [RunMarker.conversationId] is empty while the run has claimed the
@@ -343,6 +353,7 @@ internal fun ScheduledTaskEntity.toModel(): ScheduledTask {
         conditions = conditions,
         lastConversationId = lastConversationId,
         trigger = TaskTrigger.fromJson(triggerJson),
+        lastSeenRunAt = lastSeenRunAt,
     )
     if (task.trigger == null) return task
     val state = TriggerState.fromJson(triggerStateJson)

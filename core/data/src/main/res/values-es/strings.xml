@@ -180,4 +180,16 @@
     <string name="data_reachme_gotify_refused">%1$s rechazó el token (HTTP %2$d). Usa un token de aplicación (Apps), no uno de cliente, y cópialo entero.</string>
     <string name="data_reachme_webhook_refused">%1$s rechazó la solicitud (HTTP %2$d). Si comprueba firmas, asegúrate de que tenga el mismo secreto.</string>
     <string name="data_reachme_not_found">No hay nada en esa dirección (HTTP 404). Revísala, incluida cualquier subruta.</string>
+    <string name="data_needs_you_channel">Te necesita</string>
+    <plurals name="data_needs_you_title">
+        <item quantity="one">%1$d cosa te necesita</item>
+        <item quantity="many">%1$d cosas te necesitan</item>
+        <item quantity="other">%1$d cosas te necesitan</item>
+    </plurals>
+    <string name="data_needs_you_open">Abre Locus para ver lo que espera.</string>
+    <plurals name="data_needs_you_more">
+        <item quantity="one">y %1$d más</item>
+        <item quantity="many">y %1$d más</item>
+        <item quantity="other">y %1$d más</item>
+    </plurals>
 </resources>
