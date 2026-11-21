@@ -185,6 +185,20 @@ fun ProjectEditorRoute(
                     }
                 }
                 item(key = "rules-note") { SectionNote(stringResource(R.string.chat_projecteditor_rules_note), Modifier.padding(top = Spacing.sm)) }
+                // Undo for commands (docs/design/shell-snapshots.md): off by default, per project.
+                item(key = "snapshots-label") { SectionLabel(stringResource(R.string.chat_projecteditor_snapshots)) }
+                item(key = "snapshots") {
+                    CardGroup {
+                        SwitchRow(
+                            title = stringResource(R.string.chat_projecteditor_snapshots_title),
+                            checked = state.shellSnapshots,
+                            onCheckedChange = viewModel::setShellSnapshots,
+                            subtitle = stringResource(if (state.shellSnapshots) R.string.chat_projecteditor_snapshots_on else R.string.chat_projecteditor_snapshots_off),
+                            icon = LocusIcons.Restore,
+                        )
+                    }
+                }
+                item(key = "snapshots-note") { SectionNote(snapshotsNote(), Modifier.padding(top = Spacing.sm)) }
                 item(key = "perm-label") { SectionLabel(stringResource(R.string.chat_projecteditor_permissions)) }
                 item(key = "perm-note") {
                     SettingsLink(
@@ -276,6 +290,21 @@ fun ProjectEditorRoute(
             onDismiss = { confirmDelete = false },
         )
     }
+}
+
+/** The limits "Snapshot before shell commands" works within, from the tracker's own [ShellSnapshots.Limits]. */
+@Composable
+private fun snapshotsNote(): String {
+    val limits = dev.locus.core.agent.tools.ShellSnapshots.Limits()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    return stringResource(
+        R.string.chat_projecteditor_snapshots_note,
+        formatCount(limits.maxFiles),
+        android.text.format.Formatter.formatShortFileSize(context, limits.maxBytes),
+        formatCount((limits.maxMillis / 1000).toInt()),
+        formatCount(limits.keepTurns),
+        formatCount(limits.keepDays),
+    )
 }
 
 /** "12 tools · 2 ask · 1 denied": how a permission group stands in this project. */

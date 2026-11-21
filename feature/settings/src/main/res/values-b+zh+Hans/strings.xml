@@ -543,6 +543,10 @@
     <string name="settings_storage_trash_title">清空回收站？</string>
     <string name="settings_storage_trash_message">将永久删除工作区回收站中的所有文件。之后无法恢复，且旧版本保存在回收站中的文件改动将无法再撤销。</string>
     <string name="settings_storage_trash_confirm">清空回收站</string>
+    <string name="settings_storage_snapshots_title">清除命令快照？</string>
+    <string name="settings_storage_snapshots_message">删除 Locus 在运行 shell 命令前保存的项目文件副本。这些命令所做的更改仍会显示在对话中，但“撤销”和“回退到这里”将无法再恢复它们。你的文件、对话和工作区回收站不受影响。已开启快照的项目仍会继续创建新快照。</string>
+    <string name="settings_storage_snapshots_confirm">清除快照</string>
+    <string name="settings_storage_snapshots_cleared">已清除 %1$s 的命令快照。</string>
     <string name="settings_storage_title">存储空间</string>
     <string name="settings_storage_error_title">无法测量存储空间</string>
     <string name="settings_storage_measuring">正在测量 Locus 的各个部分…</string>

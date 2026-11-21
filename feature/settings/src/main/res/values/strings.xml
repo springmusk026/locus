@@ -557,6 +557,10 @@
     <string name="settings_storage_trash_title">Empty the trash?</string>
     <string name="settings_storage_trash_message">Deletes every file in the workspace trash for good. They can\'t be restored afterwards, and Undo stops working for earlier file changes whose old version was kept there.</string>
     <string name="settings_storage_trash_confirm">Empty trash</string>
+    <string name="settings_storage_snapshots_title">Clear command snapshots?</string>
+    <string name="settings_storage_snapshots_message">Deletes the copies of project files Locus saved before shell commands. The changes those commands made still show on their chats, but Undo and Rewind here can\'t put them back any more. Your files, chats and the workspace trash aren\'t touched. New snapshots are taken for projects that have them on.</string>
+    <string name="settings_storage_snapshots_confirm">Clear snapshots</string>
+    <string name="settings_storage_snapshots_cleared">Cleared %1$s of command snapshots.</string>
     <string name="settings_storage_title">Storage</string>
     <string name="settings_storage_error_title">Couldn\'t measure storage</string>
     <string name="settings_storage_measuring">Measuring each part of Locus…</string>

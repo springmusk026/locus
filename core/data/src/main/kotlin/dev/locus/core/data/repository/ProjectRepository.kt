@@ -114,6 +114,7 @@ class ProjectRepository @Inject constructor(
         settings.setProjectPolicy(id, null)
         settings.setProjectRemote(id, null)
         settings.setProjectRules(id, emptyList())
+        settings.setShellSnapshots(id, false)
         settings.forgetRememberedApprovals(projectId = id)
         withContext(io) { home.removeProject(id) }
     }

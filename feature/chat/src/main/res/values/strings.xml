@@ -211,6 +211,20 @@
     <string name="chat_changes_undo">Undo</string>
     <string name="chat_changes_you_undid">You undid this change.</string>
     <string name="chat_changes_cannot_undo">The earlier version is no longer in the workspace trash, so this can\'t be undone.</string>
+    <string name="chat_changes_cannot_undo_snapshot">The earlier version was in a command snapshot that\'s no longer kept, so this can\'t be undone.</string>
+    <string name="chat_changes_by_command">By a command</string>
+    <string name="chat_changes_edit_label_command">Changed by a command</string>
+    <string name="chat_changes_untracked_title">Command changes not tracked</string>
+    <string name="chat_changes_skip_too_many_files">A command\'s changes weren\'t tracked: the project has more than %1$s files.</string>
+    <string name="chat_changes_skip_too_large">A command\'s changes weren\'t tracked: the project is larger than %1$s.</string>
+    <string name="chat_changes_skip_too_slow">A command\'s changes weren\'t tracked: reading the project took longer than %1$s seconds.</string>
+    <string name="chat_changes_skip_too_many_changes">A command changed more than %1$s files, too many to track: its changes can\'t be undone here.</string>
+    <string name="chat_changes_skip_busy">A command\'s changes weren\'t tracked: another command was running in this project.</string>
+    <string name="chat_changes_skip_failed">A command\'s changes weren\'t tracked: Locus couldn\'t read the project\'s folder.</string>
+    <plurals name="chat_changes_skip_times">
+        <item quantity="one">%1$d command</item>
+        <item quantity="other">%1$d commands</item>
+    </plurals>
     <string name="chat_changes_net">Net change this turn</string>
     <string name="chat_changes_folder">A folder: there are no lines to compare.</string>
     <string name="chat_changes_binary">A binary file: there are no lines to compare.</string>
@@ -694,6 +708,11 @@
     <string name="chat_projecteditor_where_linked">Files sync before and after each command. Applies at once, also to running chats; results say where they ran.</string>
     <string name="chat_projecteditor_where_new">Long builds can run on one of your own machines over SSH instead. Choosing one saves the project first, so its folder exists to copy. Files are copied there; secrets never are.</string>
     <string name="chat_projecteditor_where_existing">Long builds can run on one of your own machines over SSH instead. Files are copied there; secrets never are.</string>
+    <string name="chat_projecteditor_snapshots">Undo for commands</string>
+    <string name="chat_projecteditor_snapshots_title">Snapshot before shell commands</string>
+    <string name="chat_projecteditor_snapshots_on">Files a command changes show under its turn, and can be undone.</string>
+    <string name="chat_projecteditor_snapshots_off">Off: only the file tools\' changes can be undone.</string>
+    <string name="chat_projecteditor_snapshots_note">Before each command, Locus copies the project\'s files into its own storage; a file that didn\'t change is kept once. It skips the snapshot, and says so, when the folder has more than %1$s files or %2$s, or reading it takes over %3$s seconds. Left out: links, and folders such as .git, node_modules, build, dist, .venv and __pycache__. Snapshots are kept for the latest %4$s turns, up to %5$s days.</string>
     <string name="chat_projecteditor_permissions">Permissions</string>
     <string name="chat_projecteditor_permissions_hint">These can only make a tool stricter in this project; Allow needs your confirmation. Changes apply at once, also to running chats. Everywhere else, tools follow</string>
     <string name="chat_projecteditor_set">%1$d set</string>
@@ -1310,6 +1329,10 @@
     <plurals name="chat_rewind_effects_command">
         <item quantity="one">%1$d shell command ran after this; its effects stay.</item>
         <item quantity="other">%1$d shell commands ran after this; their effects stay.</item>
+    </plurals>
+    <plurals name="chat_rewind_effects_command_tracked">
+        <item quantity="one">%1$d shell command ran after this: the project files it changed go back with the others above; anything else it did (packages, files outside the project) stays.</item>
+        <item quantity="other">%1$d shell commands ran after this: the project files they changed go back with the others above; anything else they did (packages, files outside the project) stays.</item>
     </plurals>
     <plurals name="chat_rewind_effects_outside">
         <item quantity="one">%1$d call reached a service outside the phone (a connector, mail, a deploy); it can\'t be taken back.</item>

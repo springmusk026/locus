@@ -171,6 +171,11 @@ class SettingsRepository @Inject constructor(
         it.copy(projectRules = if (rules.isEmpty()) it.projectRules - projectId else it.projectRules + (projectId to rules.take(dev.locus.core.model.ProjectRule.MAX_PER_PROJECT)))
     }
 
+    /** Whether [projectId]'s folder is snapshotted before shell commands (docs/design/shell-snapshots.md). */
+    suspend fun setShellSnapshots(projectId: String, enabled: Boolean) = store.updateData {
+        it.copy(shellSnapshotProjects = if (enabled) it.shellSnapshotProjects + projectId else it.shellSnapshotProjects - projectId)
+    }
+
     /** Lets other apps ask Locus to start tasks (docs/design/android-bridge.md). */
     suspend fun setAutomationEnabled(enabled: Boolean) = store.updateData { it.copy(automationEnabled = enabled) }
 

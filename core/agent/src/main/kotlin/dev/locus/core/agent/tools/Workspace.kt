@@ -228,6 +228,19 @@ class Workspace(
     }
 
     /**
+     * Puts [payload] (a command snapshot's blob; docs/design/shell-snapshots.md) back at [originalPath], a path
+     * relative to the whole workspace, with permission bits [mode]. Whatever is there now goes to the trash
+     * first, as [restore] does. The payload is copied, never moved: other snapshots share it. Written without
+     * following a link ([NoFollowFiles]).
+     */
+    fun restoreCopy(originalPath: String, payload: File, mode: Int) {
+        val target = resolveStored(originalPath)
+        if (FileTrees.exists(target)) trash(target, TrashEntry.Reason.MOVED_OVER)
+        write(target) { out -> java.nio.file.Files.newInputStream(payload.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS).use { it.copyTo(out) } }
+        ShellSnapshots.setMode(target.toPath(), mode)
+    }
+
+    /**
      * The kept copy of trash entry [id] (a file, or a folder for a trashed folder), or null once it has
      * been restored or purged. Read it, never move it: [restore] does that.
      */

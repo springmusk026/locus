@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.StatFs
 import androidx.annotation.StringRes
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.locus.core.agent.tools.ShellSnapshots
 import dev.locus.core.agent.tools.Workspace
 import dev.locus.core.data.R
 import dev.locus.core.database.DatabaseBackup
@@ -23,6 +24,7 @@ enum class StorageArea(@param:StringRes val titleRes: Int, @param:StringRes val 
     Database(R.string.data_storage_database_title, R.string.data_storage_database_note),
     Workspace(R.string.data_storage_workspace_title, R.string.data_storage_workspace_note),
     Trash(R.string.data_storage_trash_title, R.string.data_storage_trash_note),
+    Snapshots(R.string.data_storage_snapshots_title, R.string.data_storage_snapshots_note),
     Linux(R.string.data_storage_linux_title, R.string.data_storage_linux_note),
     Models(R.string.data_storage_models_title, R.string.data_storage_models_note),
     Browser(R.string.data_storage_browser_title, R.string.data_storage_browser_note),
@@ -53,12 +55,15 @@ class StorageUsage internal constructor(
     private val workspace: Workspace,
     private val phone: () -> Pair<Long, Long>?,
     private val clock: () -> Long = System::currentTimeMillis,
+    /** Command snapshots (docs/design/shell-snapshots.md), cleared from here. */
+    private val snapshots: ShellSnapshots? = null,
 ) {
-    @Inject constructor(@ApplicationContext context: Context, workspace: Workspace, linux: LinuxEnvironment) : this(
-        areas = { StorageMeter.areas(context, workspace, linux) },
+    @Inject constructor(@ApplicationContext context: Context, workspace: Workspace, linux: LinuxEnvironment, snapshots: ShellSnapshots) : this(
+        areas = { StorageMeter.areas(context, workspace, linux, snapshots) },
         cacheDir = context.cacheDir,
         workspace = workspace,
         phone = { runCatching { StatFs(context.filesDir.path).let { it.availableBytes to it.totalBytes } }.getOrNull() },
+        snapshots = snapshots,
     )
 
     /** Every area's size. Cancelling the caller stops the walk between files. */
@@ -74,6 +79,12 @@ class StorageUsage internal constructor(
 
     /** Empties the workspace trash the user confirmed; returns how many entries went. */
     suspend fun emptyTrash(): Int = withContext(Dispatchers.IO) { workspace.emptyTrash() }
+
+    /**
+     * Deletes every command snapshot the user confirmed; returns the bytes freed. The commands' changes stay on
+     * their cards, but can't be undone any more (their earlier versions were in the snapshots).
+     */
+    suspend fun clearSnapshots(): Long = withContext(Dispatchers.IO) { snapshots?.clear() ?: 0L }
 }
 
 /** Where each area lives and how it's measured and cleaned; kept apart from Android's APIs so it's tested on temp folders. */
@@ -84,13 +95,14 @@ internal object StorageMeter {
     /** A cache entry touched this recently may be in use (a backup's scratch copy, a photo being taken): kept. */
     const val IN_USE_MS = 10 * 60_000L
 
-    fun areas(context: Context, workspace: Workspace, linux: LinuxEnvironment): Map<StorageArea, List<File>> {
+    fun areas(context: Context, workspace: Workspace, linux: LinuxEnvironment, snapshots: ShellSnapshots): Map<StorageArea, List<File>> {
         val db = context.getDatabasePath(DatabaseBackup.NAME)
         val cache = context.cacheDir
         return linkedMapOf(
             StorageArea.Database to listOf(db, File(db.path + "-wal"), File(db.path + "-shm")),
             StorageArea.Workspace to listOf(workspace.base),
             StorageArea.Trash to listOf(workspace.trashFolder),
+            StorageArea.Snapshots to listOf(snapshots.folder),
             StorageArea.Linux to listOf(linux.storageDir),
             StorageArea.Models to modelRoots(context.filesDir),
             StorageArea.Browser to listOf(File(context.dataDir, "app_webview")) + BROWSER_CACHES.map { File(cache, it) },

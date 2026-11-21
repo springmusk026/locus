@@ -50,6 +50,8 @@
     <string name="data_storage_workspace_note">Arquivos que você e o agente guardam.</string>
     <string name="data_storage_trash_title">Lixeira do espaço de trabalho</string>
     <string name="data_storage_trash_note">Arquivos excluídos e substituídos, guardados para que as alterações possam ser desfeitas.</string>
+    <string name="data_storage_snapshots_title">Snapshots de comandos</string>
+    <string name="data_storage_snapshots_note">Arquivos do projeto salvos antes dos comandos de shell, para que as alterações deles possam ser desfeitas.</string>
     <string name="data_storage_linux_title">Linux</string>
     <string name="data_storage_linux_note">O Alpine Linux, seus pacotes e caches.</string>
     <string name="data_storage_models_title">Modelos no dispositivo</string>
