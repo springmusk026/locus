@@ -75,6 +75,7 @@ A trip out that Locus starts itself and expects back from (its own credential pr
 
 - **With Lock Locus on**, each notification is `VISIBILITY_PRIVATE` with a public version that says only "Locus" and "Unlock your phone to see details". On a secure lock screen that is all that shows. The shade on an unlocked phone shows the full text: Locus's own lock covers its screens, not the phone's shade.
 - **With Lock Locus on**, every action (Deny as well as Allow, answers, Reply, Stop and Continue) has `setAuthenticationRequired(true)` on Android 12+, so the keyguard comes first on a locked phone. Below Android 12 that call does nothing, so the actions are left off: the tap opens Locus, which shows its lock.
+- **Needs you's** one notification counts a locked chat's proposals but never describes them; it has no actions ([needs you](needs-you.md)).
 - **A locked chat's** approval, question, budget pause or scheduled result is never described, lock on or off: the notification says "A locked chat is waiting for you. Open Locus to see it." and offers no actions. A reminder set in a locked chat says "Reminder from a locked chat". Until the lock's settings have been read in a fresh process, a reminder from any chat errs on the side of saying less.
 - The widget never named chats (counts and fixed phrases only). With Lock Locus on it also drops the latest task result line, a model's words on the home screen.
 - **Launcher and Direct Share shortcuts**: a locked chat is never one, and with Lock Locus on there are no chat shortcuts at all (the launcher's long-press menu and the share sheet would show chat names to anyone). The static ones (New chat, Voice, Workspace) stay; they open Locus, which asks.
@@ -82,6 +83,7 @@ A trip out that Locus starts itself and expects back from (its own credential pr
 ## Inside Locus
 
 A locked chat this session hasn't unlocked:
+- **Needs you** on home: a locked chat's approval, question, proposal or result keeps its place as "Locked chat" with a padlock and its state, nothing else; the tap opens the chat, which asks ([needs you](needs-you.md)).
 - **Home, All chats, Recent chats, the active-chat card, projects**: keeps its place and state (working, waiting), shown as "Locked chat" with a padlock instead of its model's logo. The view model blanks the title, so nothing can show it by mistake. Rename is hidden; Delete says "Locked chat".
 - **Search**: left out entirely, even a match on its name, so a search can't reveal that a locked chat contains a word.
 - **Activity**: its steps (and its helpers') are left out of the list. **Analytics**: listed as "Locked chat".

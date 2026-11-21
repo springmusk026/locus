@@ -251,6 +251,14 @@ interface ScheduledTaskDao {
     @Query("UPDATE scheduled_tasks SET triggerStateJson = :stateJson WHERE id = :id")
     suspend fun setTriggerState(id: String, stateJson: String?): Int
 
+    /** The user has seen task [id]'s latest result in Needs you (opened or dismissed it). */
+    @Query("UPDATE scheduled_tasks SET lastSeenRunAt = lastRunAt WHERE id = :id")
+    suspend fun markSeen(id: String): Int
+
+    /** Every task's latest result counts as seen ("Mark all read"). */
+    @Query("UPDATE scheduled_tasks SET lastSeenRunAt = lastRunAt WHERE lastRunAt IS NOT NULL")
+    suspend fun markAllSeen(): Int
+
     /** Records how a run ended, leaving the marker alone. */
     @Query(
         "UPDATE scheduled_tasks SET lastRunAt = :at, lastConversationId = :conversationId, lastSummary = :summary, lastOutcome = :outcome WHERE id = :id",
@@ -534,3 +542,56 @@ interface TriggerEventDao {
     )
     suspend fun prune(taskId: String, keep: Int)
 }
+
+/** Needs you's proposals (docs/design/needs-you.md). Every change of state is one guarded statement. */
+@Dao
+interface ProposalDao {
+    @Insert
+    suspend fun insert(proposal: ProposalEntity)
+
+    @Query("SELECT * FROM proposals WHERE id = :id")
+    suspend fun get(id: String): ProposalEntity?
+
+    /** What Needs you lists: every proposal not dismissed, newest first (decided ones are filtered by the caller). */
+    @Query("SELECT * FROM proposals WHERE dismissed = 0 ORDER BY createdAt DESC, id DESC")
+    fun observeOpen(): Flow<List<ProposalEntity>>
+
+    /** A proposal still waiting with exactly this call, in this chat: the run asked twice. */
+    @Query(
+        "SELECT id FROM proposals WHERE conversationId = :conversationId AND toolName = :toolName AND argumentsJson = :argumentsJson " +
+            "AND status = 'PENDING' AND expiresAt > :now LIMIT 1",
+    )
+    suspend fun pendingDuplicate(conversationId: String, toolName: String, argumentsJson: String, now: Long): String?
+
+    /** How many wait now (not expired). */
+    @Query("SELECT COUNT(*) FROM proposals WHERE status = 'PENDING' AND expiresAt > :now")
+    suspend fun pendingCount(now: Long): Int
+
+    /** See [CLAIM_PROPOSAL]. 1 when this caller may run it, 0 when it isn't waiting any more (run, declined, expired). */
+    @Query(CLAIM_PROPOSAL)
+    suspend fun claim(id: String, now: Long): Int
+
+    /** Records how a claimed proposal went; only while it's RUNNING. */
+    @Query("UPDATE proposals SET status = :status, outcome = :outcome WHERE id = :id AND status = 'RUNNING'")
+    suspend fun finish(id: String, status: String, outcome: String?): Int
+
+    /** Declines a waiting one (expired or not: it never runs either way). */
+    @Query("UPDATE proposals SET status = 'DECLINED', decidedAt = :now WHERE id = :id AND status = 'PENDING'")
+    suspend fun decline(id: String, now: Long): Int
+
+    @Query("UPDATE proposals SET dismissed = 1 WHERE id = :id")
+    suspend fun dismiss(id: String): Int
+
+    /** A process that died while running one: it may or may not have run, so it is never run again. */
+    @Query("UPDATE proposals SET status = 'INTERRUPTED', outcome = :outcome WHERE status = 'RUNNING'")
+    suspend fun interruptRunning(outcome: String): Int
+}
+
+/**
+ * Behind [ProposalDao.claim]: one statement, so two taps (or a tap and a notification) can't both run it. It
+ * succeeds only for a proposal still waiting and not past its expiry.
+ */
+const val CLAIM_PROPOSAL = "UPDATE proposals SET status = 'RUNNING', decidedAt = :now WHERE id = :id AND status = 'PENDING' AND expiresAt > :now"
+
+/** Run on a restored database before it's swapped in: a proposal from a backup can be seen but never run. */
+const val RETIRE_RESTORED_PROPOSALS = "UPDATE proposals SET status = 'STALE' WHERE status IN ('PENDING', 'RUNNING')"

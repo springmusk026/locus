@@ -181,4 +181,14 @@
     <string name="data_reachme_gotify_refused">%1$s refused the token (HTTP %2$d). Use an application token (Apps), not a client token, and copy it whole.</string>
     <string name="data_reachme_webhook_refused">%1$s refused the request (HTTP %2$d). If it checks signatures, make sure it has the same secret.</string>
     <string name="data_reachme_not_found">Nothing found at that address (HTTP 404). Check it, including any sub-path.</string>
+    <string name="data_needs_you_channel">Needs you</string>
+    <plurals name="data_needs_you_title">
+        <item quantity="one">%1$d thing needs you</item>
+        <item quantity="other">%1$d things need you</item>
+    </plurals>
+    <string name="data_needs_you_open">Open Locus to see what\'s waiting.</string>
+    <plurals name="data_needs_you_more">
+        <item quantity="one">and %1$d more</item>
+        <item quantity="other">and %1$d more</item>
+    </plurals>
 </resources>

@@ -96,10 +96,19 @@ sealed interface ChatItem {
      * note of ours is "You ran the blocked call anyway: …" ([ranAnyway]), whose [text] is the call it
      * names; the screen says the sentence in its language ([shown]) and the export in English.
      */
-    data class Note(override val key: String, val text: String, val ranAnyway: Boolean = false) : ChatItem {
+    data class Note(
+        override val key: String,
+        val text: String,
+        val ranAnyway: Boolean = false,
+        /** A proposal of this chat's run the user approved in Needs you (docs/design/needs-you.md). */
+        val approvedProposal: Boolean = false,
+    ) : ChatItem {
         /** What the screen shows for this note. */
-        fun shown(resources: android.content.res.Resources): String =
-            if (ranAnyway) resources.getString(R.string.chat_note_ran_anyway, text) else text
+        fun shown(resources: android.content.res.Resources): String = when {
+            ranAnyway -> resources.getString(R.string.chat_note_ran_anyway, text)
+            approvedProposal -> resources.getString(R.string.chat_note_proposal_approved, text)
+            else -> text
+        }
     }
 
     /**
@@ -1045,7 +1054,7 @@ internal fun transcriptItems(
         // A note from Locus belongs to the turn it joined: an undo the agent was told about mid-task shows
         // nothing; a call the user ran anyway mid-task shows as a step of that turn.
         if (ModeNote.isAgentNote(message)) {
-            if (ModeNote.ranAnyway(message) != null) turn += message
+            if (ModeNote.ranAnyway(message) != null || ModeNote.proposalApproved(message) != null) turn += message
             endedHere += ends
             return@forEach
         }
@@ -1118,6 +1127,7 @@ internal fun turnItems(turn: List<Message>, results: Map<String, Part.ToolResult
         turn.forEach { message ->
             if (message.role == Role.USER) {
                 ModeNote.ranAnyway(message)?.let { add(ChatItem.Note("${message.id}:ran", it, ranAnyway = true)) }
+                ModeNote.proposalApproved(message)?.let { add(ChatItem.Note("${message.id}:proposal", it, approvedProposal = true)) }
                 return@forEach
             }
             message.reasoning?.let { r -> add(ChatItem.Thought("${message.id}:thought", r.content, r.durationMs, inSteps = message.toolCalls.isNotEmpty())) }

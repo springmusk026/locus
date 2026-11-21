@@ -64,7 +64,15 @@ internal object ChatExport {
                 }
                 is ChatItem.Note -> {
                     speak("Locus")
-                    step(oneLine(if (item.ranAnyway) "You ran the blocked call anyway: ${item.text}" else item.text))
+                    step(
+                        oneLine(
+                            when {
+                                item.ranAnyway -> "You ran the blocked call anyway: ${item.text}"
+                                item.approvedProposal -> "You approved it in Needs you: ${item.text}"
+                                else -> item.text
+                            },
+                        ),
+                    )
                 }
                 is ChatItem.Plan -> {
                     speak("Locus")

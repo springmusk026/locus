@@ -202,9 +202,15 @@ class TestGraph(
         database.taskRunDao, database.receiptDao, conversations, changes, settingsRepository, directory, io,
     )
 
+    /** The clock proposals are stamped and expired by; tests move it to make one expire. */
+    var proposalClock: Long = 1_000_000L
+
+    /** Needs you's proposals (docs/design/needs-you.md), on [proposalClock]. */
+    val proposals = dev.locus.core.data.needsyou.ProposalRepository(database.proposalDao, { proposalClock }, { java.util.UUID.randomUUID().toString() })
+
     /** Created on first use: its init starts recovery and helper tracking in [scope]. */
     val runner: AgentRunner by lazy {
-        AgentRunner(context, scope, access, conversations, settingsRepository, tools, library, onDevice, helper, reviewer, subagents, sentRequests, questions, usage, directory, receipts, projects, deferred, changes)
+        AgentRunner(context, scope, access, conversations, settingsRepository, tools, library, onDevice, helper, reviewer, subagents, sentRequests, questions, usage, directory, receipts, projects, deferred, changes, proposals)
     }
 
     /** Deletes temporary chats when they're left (docs/design/temporary-chats.md). */

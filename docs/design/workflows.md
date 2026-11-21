@@ -147,7 +147,7 @@ A workflow is a task of its own, so it isn't queued into a running one. If the c
 Escalation only ever adds an approval:
 
 - Deny, a chat's mode and plan mode, and project limits still decide first.
-- A background (read-only) run refuses an escalated call instead of asking, as it does for any Ask.
+- A background (read-only) run refuses an escalated call instead of asking, as it does for any Ask, unless the tool is one a scheduled run may propose ([needs you](needs-you.md)): then the call waits in Needs you with the workflow's reason on its card.
 - The approval card gives the reason, for example "send_email isn't one of the workflow “Test and deploy”'s tools".
 
 When the safety reviewer is set to review Ask calls, it also reviews escalated ones. This is the same rule as for taint.

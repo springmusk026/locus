@@ -68,6 +68,21 @@ fun ApprovalCard(
     onRemember: (String, ApprovalAnswer) -> Unit,
     modifier: Modifier = Modifier,
     onDetails: (() -> Unit)? = null,
+    /** Needs you (docs/design/needs-you.md): the card's title instead of "Allow this action?" ("Morning inbox proposes"). */
+    title: String? = null,
+    /** One muted line under the title: which chat asks, or when a proposal was made and until when it can run. */
+    byline: String? = null,
+    /** The answer buttons' labels instead of Allow and Deny (Approve and Decline for a proposal). */
+    allowLabel: String? = null,
+    denyLabel: String? = null,
+    /** False for a card that can't be answered any more (an expired proposal): no answer buttons, no "Don't ask again". */
+    answerable: Boolean = true,
+    /** The caution outline; off for a card that no longer needs the user. */
+    outlined: Boolean = true,
+    /** Scrolls the answer buttons into view when the card appears: in the chat's dock, not in a list the user scrolls. */
+    bringIntoView: Boolean = true,
+    /** Under the answers, or in their place on a card that can't be answered: Needs you's Dismiss. */
+    footer: (@Composable () -> Unit)? = null,
 ) {
     var showDetails by remember(request.callId) { mutableStateOf(false) }
     val caution = Locus.colors.caution
@@ -75,8 +90,8 @@ fun ApprovalCard(
     // The caution outline marks it; no glow, which would be decoration on top.
     // The answer buttons scroll into view in the dock when the card is taller than its room.
     val answers = remember { BringIntoViewRequester() }
-    LaunchedEffect(request.callId) { answers.bringIntoView() }
-    LocusCard(modifier, outline = caution.copy(alpha = Emphasis.toneOutline)) {
+    LaunchedEffect(request.callId) { if (bringIntoView) answers.bringIntoView() }
+    LocusCard(modifier, outline = if (outlined) caution.copy(alpha = Emphasis.toneOutline) else null) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             // At a large font the text gets the tile's width: the address is what's being decided on.
             if (!large) {
@@ -85,7 +100,8 @@ fun ApprovalCard(
             }
             Column(Modifier.weight(1f).then(if (large) Modifier else Modifier.padding(start = Spacing.md))) {
                 // A helper's request says which helper is asking.
-                Text(request.origin?.let { stringResource(R.string.ui_approval_origin_wants, it.label) } ?: stringResource(R.string.ui_approval_title), style = LocusType.cardTitle)
+                Text(title ?: request.origin?.let { stringResource(R.string.ui_approval_origin_wants, it.label) } ?: stringResource(R.string.ui_approval_title), style = LocusType.cardTitle)
+                byline?.let { SupportingText(it, style = LocusType.rowSupporting, maxLines = 2) }
                 // Whole at a large font: the address or command is what's being decided on.
                 SupportingText(request.summary, style = LocusType.rowSupporting, maxLines = if (large) Int.MAX_VALUE else 3)
                 // What the safety reviewer made of it, when it was asked: read whole, in the readable caution shade.
@@ -108,24 +124,33 @@ fun ApprovalCard(
                 Text(stringResource(if (showDetails && onDetails == null) R.string.ui_approval_hide_details else R.string.ui_approval_details))
             }
         }
-        if (large) {
+        val allow = allowLabel ?: stringResource(R.string.ui_approval_allow)
+        val deny = denyLabel ?: stringResource(R.string.ui_approval_deny)
+        if (!answerable) {
+            Row(Modifier.fillMaxWidth().padding(top = Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
+                details()
+                Box(Modifier.weight(1f))
+                footer?.invoke()
+            }
+        } else if (large) {
             // Stacked at a large font, full width, so no label breaks inside its button.
             Column(Modifier.fillMaxWidth().padding(top = Spacing.sm).bringIntoViewRequester(answers), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                Button(onClick = { onAnswer(request.callId, true) }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.ui_approval_allow)) }
-                OutlinedButton(onClick = { onAnswer(request.callId, false) }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.ui_approval_deny)) }
+                Button(onClick = { onAnswer(request.callId, true) }, modifier = Modifier.fillMaxWidth()) { Text(allow) }
+                OutlinedButton(onClick = { onAnswer(request.callId, false) }, modifier = Modifier.fillMaxWidth()) { Text(deny) }
                 details()
             }
         } else {
             Row(Modifier.fillMaxWidth().padding(top = Spacing.sm).bringIntoViewRequester(answers), verticalAlignment = Alignment.CenterVertically) {
                 details()
                 Box(Modifier.weight(1f))
-                OutlinedButton(onClick = { onAnswer(request.callId, false) }) { Text(stringResource(R.string.ui_approval_deny)) }
-                Button(onClick = { onAnswer(request.callId, true) }, modifier = Modifier.padding(start = Spacing.sm)) { Text(stringResource(R.string.ui_approval_allow)) }
+                OutlinedButton(onClick = { onAnswer(request.callId, false) }) { Text(deny) }
+                Button(onClick = { onAnswer(request.callId, true) }, modifier = Modifier.padding(start = Spacing.sm)) { Text(allow) }
             }
         }
+        if (answerable) footer?.invoke()
         // "Don't ask again", only where Locus offers it: a scope it can name, never for payments, flagged or
         // tainted calls, or dangerous commands (docs/design/remembered-approvals.md).
-        request.remember?.let { offer ->
+        request.remember?.takeIf { answerable }?.let { offer ->
             // The scope wraps whole; at a large font the buttons go under it.
             SideOrBelow(Modifier.fillMaxWidth(), main = {
                 SupportingText(dontAskAgainText(offer.scope), modifier = Modifier.padding(start = Spacing.sm))
@@ -152,7 +177,7 @@ fun ApprovalCard(
             }
         }
         // A site the address gates asked about: allow it until this task ends, never longer (docs/design/taint.md).
-        request.siteForTask?.let { host ->
+        request.siteForTask?.takeIf { answerable }?.let { host ->
             SideOrBelow(Modifier.fillMaxWidth(), main = {
                 SupportingText(siteForTaskText(host), modifier = Modifier.padding(start = Spacing.sm))
             }) {

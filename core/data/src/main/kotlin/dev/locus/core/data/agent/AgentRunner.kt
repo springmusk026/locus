@@ -235,7 +235,12 @@ class AgentRunner @Inject constructor(
     private val deferred: DeferredWork,
     /** Change tracking, for Rewind here's files (docs/design/rewind.md). */
     private val changes: dev.locus.core.data.repository.ChangeRepository,
+    /** What scheduled and triggered runs propose instead of doing (docs/design/needs-you.md). */
+    private val proposals: dev.locus.core.data.needsyou.ProposalRepository,
 ) {
+    /** The task each running scheduled run belongs to, by chat: its proposals are recorded under it. */
+    private val proposers = ConcurrentHashMap<String, dev.locus.core.data.needsyou.ProposalOrigin>()
+
     /** Each chat's project folder from its last run, to show undone paths as its agent sees them. */
     private val folders = ConcurrentHashMap<String, String>()
 
@@ -1328,11 +1333,140 @@ class AgentRunner @Inject constructor(
     fun dismissMessages(conversationId: String) = update(conversationId) { it.copy(error = null, failure = null, notice = null, interrupted = false) }
 
     /**
+     * Approve in Needs you: runs proposal [id] once, exactly as proposed, through the same checks as a call in a chat
+     * with today's settings (docs/design/needs-you.md), and adds how it went to the run's chat as a note the agent
+     * reads next time. It holds the chat while it runs, so it never lands in the middle of a turn.
+     */
+    suspend fun approveProposal(id: String): ProposalApproval {
+        val p = proposals.get(id) ?: return ProposalApproval.Gone
+        if (p.expired(proposals.now())) return ProposalApproval.Expired
+        if (p.status != dev.locus.core.data.needsyou.ProposalStatus.PENDING) return ProposalApproval.Gone
+        val held = holdSlot(p.conversationId) { runProposal(p) } ?: return ProposalApproval.Busy
+        return held.await()
+    }
+
+    private suspend fun runProposal(p: dev.locus.core.data.needsyou.Proposal): ProposalApproval {
+        // The claim decides: of two taps (or a tap racing an expiry) exactly one gets past it.
+        if (!proposals.claim(p.id)) {
+            return if (proposals.get(p.id)?.expired(proposals.now()) == true) ProposalApproval.Expired else ProposalApproval.Gone
+        }
+        try {
+            val conversation = conversations.get(p.conversationId) ?: run {
+                proposals.finish(p.id, ran = false, outcome = "Its chat was deleted.")
+                return ProposalApproval.Blocked("Its chat was deleted.")
+            }
+            val current = settings.current()
+            val registry = tools.forChat(conversation)
+            val chatScope = projects.scopeOf(conversation)
+            val history = conversations.history(p.conversationId)
+            val workflowPlan = dev.locus.core.agent.workflow.WorkflowRender.active(history)
+            // A path that now leads into a folder connected from the phone's storage (the user's own files) was never
+            // proposable; it isn't run from a proposal either, whatever the card said.
+            val target = registry[p.toolName]
+            val callArgs = runCatching { kotlinx.serialization.json.Json.parseToJsonElement(p.argumentsJson) as kotlinx.serialization.json.JsonObject }.getOrNull()
+            if (target != null && callArgs != null && kotlinx.coroutines.withContext(dev.locus.core.agent.ChatScope.element(chatScope)) { target.asksFirst(callArgs) }) {
+                val why = "It now writes to a folder connected from the phone's storage, which a proposal can't. Ask for it in a chat."
+                proposals.finish(p.id, ran = false, outcome = why)
+                conversations.append(
+                    Message(
+                        UUID.randomUUID().toString(), p.conversationId, Role.USER,
+                        listOf(Part.Text(ModeNote.wrap(ModeNote.proposalApproved(p.summary))), Part.Text(ModeNote.result(dev.locus.core.agent.Proposals.blockedNote(p.toolName, p.callId, why)))),
+                        System.currentTimeMillis(),
+                    ),
+                )
+                return ProposalApproval.Blocked(why)
+            }
+            // The user's tap on Approve, for this call only: the request the checks build must be the proposed call,
+            // asking for nothing the card didn't show. Nothing can be remembered (no ApprovalMemory below).
+            var refusal: String? = null
+            val gate = ApprovalGate { request ->
+                val shown = p.flags - dev.locus.core.agent.ApprovalFlag.ESCALATED
+                val asked = (request.flags ?: dev.locus.core.agent.ApprovalFlag.entries.toSet()) - dev.locus.core.agent.ApprovalFlag.ESCALATED
+                val more = asked - shown
+                when {
+                    request.toolName != p.toolName || request.argumentsJson != p.argumentsJson -> {
+                        refusal = "It isn't the call that was proposed."
+                        false
+                    }
+                    more.isNotEmpty() -> {
+                        refusal = "Since it was proposed, it also needs a confirmation for something the card didn't show (" +
+                            more.sorted().joinToString { it.label } + "). Ask for it again in a chat."
+                        false
+                    }
+                    else -> true
+                }
+            }
+            val loop = AgentLoop(
+                model = NoModel,
+                tools = registry,
+                policyFor = { tool -> tools.policy(tool, current, conversation.projectId) },
+                gate = gate,
+                store = conversations,
+                config = AgentConfig(
+                    restrict = { tool, args ->
+                        val c = conversations.get(p.conversationId)
+                        ChatPolicy.denial(tool, args, planMode = c?.planMode == true, disabled = c?.disabledTools.orEmpty(), temporary = c?.temporary == true)
+                            ?: ChatPolicy.projectDenial(tool, args, c?.projectId?.let { settings.current().projectPolicies[it] })
+                    },
+                    // Always asks, so the user's Approve is what lets it run (recorded as approved by the user), and a
+                    // workflow's own approval points still apply.
+                    escalate = { tool, args ->
+                        workflowPlan?.let { plan -> dev.locus.core.agent.workflow.WorkflowScope.escalation(plan, tool, args) } ?: PROPOSAL_ESCALATION
+                    },
+                    trustedHosts = { tools.userHosts(settings.current()) + tools.addressBarHosts(p.conversationId) },
+                    skillManifests = dev.locus.core.agent.SkillManifests { library.skillManifest(it) },
+                    scope = chatScope,
+                    spill = tools.outputSpill,
+                ),
+                ids = { UUID.randomUUID().toString() },
+            )
+            update(p.conversationId) { it.copy(activeTool = p.toolName) }
+            val ran = try {
+                loop.runApproved(p.conversationId, Part.ToolCall(p.callId, p.toolName, p.argumentsJson), history, p.taintSources)
+            } finally {
+                update(p.conversationId) { it.copy(activeTool = null) }
+            }
+            val output = ran.content.take(OVERRIDE_RESULT_CHARS)
+            val result: ProposalApproval
+            val note: String
+            if (ran.ran) {
+                result = if (ran.isError) ProposalApproval.Failed(output) else ProposalApproval.Ran
+                note = dev.locus.core.agent.Proposals.approvedNote(p.toolName, p.callId, ran.isError, output)
+            } else {
+                val why = refusal ?: output
+                result = ProposalApproval.Blocked(why)
+                note = dev.locus.core.agent.Proposals.blockedNote(p.toolName, p.callId, why)
+            }
+            proposals.finish(p.id, ran = result == ProposalApproval.Ran, outcome = (result as? ProposalApproval.Blocked)?.reason ?: output)
+            conversations.append(
+                Message(
+                    UUID.randomUUID().toString(), p.conversationId, Role.USER,
+                    listOf(Part.Text(ModeNote.wrap(ModeNote.proposalApproved(p.summary))), Part.Text(ModeNote.result(note))),
+                    System.currentTimeMillis(),
+                ),
+            )
+            return result
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { proposals.finish(p.id, ran = false, outcome = "Stopped before it finished.") }
+            throw e
+        } catch (e: Exception) {
+            val why = "${e::class.simpleName}: ${e.message}"
+            proposals.finish(p.id, ran = false, outcome = why)
+            return ProposalApproval.Failed(why)
+        }
+    }
+
+    /** Declines proposal [id] in Needs you; false when it was no longer waiting. */
+    suspend fun declineProposal(id: String): Boolean = proposals.decline(id)
+
+    /**
      * After the process was killed mid-run (update, crash, Android reclaiming memory), a transcript
      * can end with tool calls that never got results, which providers reject. Answer those calls as
      * interrupted, and mark every conversation whose last turn the agent never finished.
      */
     private suspend fun recoverInterrupted() {
+        // A proposal a dead process was running may or may not have happened: it is never run again.
+        runCatching { proposals.recoverInterrupted() }
         // Tasks the app was killed in the middle of end now, as interrupted, so their receipts say so.
         receipts.closeInterrupted { id -> jobs.containsKey(id) || _states.value[id]?.scheduled == true }
         // Queued messages survive the app being killed: forget those already in their chat (added just
@@ -1387,7 +1521,13 @@ class AgentRunner @Inject constructor(
      * own final reply. It holds the chat's slot like any run, so nothing else (the user opening the
      * chat and sending) starts a second agent on it meanwhile; their message waits in the queue.
      */
-    suspend fun runInBackground(conversationId: String, text: String, notes: List<String> = emptyList()): BackgroundRun {
+    suspend fun runInBackground(
+        conversationId: String,
+        text: String,
+        notes: List<String> = emptyList(),
+        /** The task the run belongs to: its outward calls become proposals under it instead of being refused (docs/design/needs-you.md). */
+        origin: dev.locus.core.data.needsyou.ProposalOrigin? = null,
+    ): BackgroundRun {
         // A marker for the slot: not cancelled by Stop (the worker owns this run's end), not counted as busy.
         val slot = Job()
         quietJobs += slot
@@ -1397,6 +1537,7 @@ class AgentRunner @Inject constructor(
         }
         val record = RunRecord(UUID.randomUUID().toString())
         runRecords[conversationId] = record
+        if (origin != null) proposers[conversationId] = origin
         try {
             update(conversationId) { it.copy(scheduled = true) }
             taskEnds.remove(conversationId)
@@ -1424,6 +1565,7 @@ class AgentRunner @Inject constructor(
             }
         } finally {
             runRecords.remove(conversationId, record)
+            proposers.remove(conversationId)
             jobs.remove(conversationId, slot)
             quietJobs -= slot
             slot.complete()
@@ -1545,6 +1687,8 @@ class AgentRunner @Inject constructor(
                 longCache = !background,
                 // Old tool results leave what's sent after a day's gap, never on Anthropic (docs/design/cold-cache-clearing.md).
                 coldClearing = current.clearColdToolResults,
+                // A scheduled or triggered task's outward calls wait in Needs you instead of being refused (docs/design/needs-you.md).
+                proposals = if (background) proposers[conversationId]?.let(proposals::sink) else null,
             ),
             ids = { UUID.randomUUID().toString() },
         )
@@ -1799,6 +1943,9 @@ class AgentRunner @Inject constructor(
         /** Steps a scheduled (unwatched) run may take; chats the user watches have no step limit. */
         const val BACKGROUND_MAX_STEPS = 40
         const val REFLECT_AFTER_TOOLS = 6
+        /** The line that makes a proposal ask when it's approved, so the user's tap is what runs it. */
+        private const val PROPOSAL_ESCALATION = "Proposed by a scheduled or triggered run; the user approved it in Needs you."
+
         const val OVERRIDE_RESULT_CHARS = 20_000
 
         /** Finished runs kept for [awaitRun]; a caller asks right after starting one. */

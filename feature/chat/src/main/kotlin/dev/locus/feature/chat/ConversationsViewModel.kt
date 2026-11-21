@@ -176,7 +176,52 @@ class ConversationsViewModel @Inject constructor(
     private val checklist: dev.locus.core.data.setup.SetupChecklist? = null,
     /** Lock Locus and locked chats; null in tests that don't need it (nothing is locked then). */
     private val appLock: dev.locus.core.data.lock.AppLock? = null,
+    /** Needs you (docs/design/needs-you.md); null in tests that don't need it (the section is then empty). */
+    private val needsYou: dev.locus.core.data.needsyou.NeedsYou? = null,
 ) : ViewModel() {
+    /** Approvals, questions and budget pauses waiting now, proposals, and unread results, for home's Needs you. */
+    val needsYouFeed: StateFlow<dev.locus.core.data.needsyou.NeedsYouFeed> =
+        (needsYou?.feed ?: kotlinx.coroutines.flow.flowOf(dev.locus.core.data.needsyou.NeedsYouFeed()))
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), dev.locus.core.data.needsyou.NeedsYouFeed())
+
+    /** What a tap on a proposal did, for the screen's one feedback line. */
+    private val _needsYouEvents = kotlinx.coroutines.flow.MutableSharedFlow<Pair<dev.locus.core.designsystem.UiText, dev.locus.core.designsystem.Tone>>(extraBufferCapacity = 4)
+    internal val needsYouEvents: kotlinx.coroutines.flow.SharedFlow<Pair<dev.locus.core.designsystem.UiText, dev.locus.core.designsystem.Tone>> = _needsYouEvents
+
+    /** Approve on a proposal's card: it runs once, and the screen says how it went. */
+    fun approveProposal(id: String) {
+        val n = needsYou ?: return
+        viewModelScope.launch { _needsYouEvents.emit(approvalMessage(n.approve(id))) }
+    }
+
+    fun declineProposal(id: String) {
+        val n = needsYou ?: return
+        viewModelScope.launch {
+            val message = if (n.decline(id)) dev.locus.core.designsystem.UiText.Res(R.string.chat_needs_you_declined) else dev.locus.core.designsystem.UiText.Res(R.string.chat_needs_you_gone)
+            _needsYouEvents.emit(message to dev.locus.core.designsystem.Tone.Neutral)
+        }
+    }
+
+    fun dismissProposal(id: String) {
+        val n = needsYou ?: return
+        viewModelScope.launch { n.dismiss(id) }
+    }
+
+    /** A live approval answered from home, exactly as in its chat. */
+    fun answerApproval(callId: String, answer: dev.locus.core.agent.ApprovalAnswer) {
+        needsYou?.answer(callId, answer) ?: runner.answer(callId, answer)
+    }
+
+    fun markResultRead(taskId: String) {
+        val n = needsYou ?: return
+        viewModelScope.launch { n.markRead(taskId) }
+    }
+
+    fun markAllResultsRead() {
+        val n = needsYou ?: return
+        viewModelScope.launch { n.markAllRead() }
+    }
+
     init {
         // A deferred step set up anywhere (Settings, the Workspace, the agent) is cleared for good, so its
         // card doesn't come back if, say, the machine is later removed.
