@@ -1167,6 +1167,101 @@
     <string name="chat_checks_check_timedout_n">检查 · 第 %1$d 次运行（共 %1$d 次）超时</string>
     <string name="chat_checks_check_stopped">检查已停止</string>
     <string name="chat_checks_check_stopped_n">检查 · 第 %1$d 次运行（共 %1$d 次）已停止</string>
+    <!-- Rewind here and Summarise from here (docs/design/rewind.md) -->
+    <string name="chat_history_rewind">回退到这里</string>
+    <string name="chat_history_summarise">从这里开始总结</string>
+    <string name="chat_history_unavailable_running">智能体工作时不可用</string>
+    <string name="chat_rewind_unavailable_first">这是第一条消息：请用“编辑”修改</string>
+    <string name="chat_rewind_unavailable_nothing_after">这条回复之后没有内容</string>
+    <string name="chat_rewind_unavailable_branch">不在当前显示的分支上</string>
+    <string name="chat_summarise_unavailable_summarised">已包含在之前的摘要中</string>
+    <string name="chat_summarise_unavailable_nothing_after">这条回复之后没有可总结的内容</string>
+    <string name="chat_summarise_unavailable_too_little">从这里往后的内容太少，无需总结</string>
+    <string name="chat_summarise_unavailable_server">提供商已在其服务器上压缩了这一部分</string>
+    <string name="chat_rewind_title">回退到这里？</string>
+    <string name="chat_rewind_body_user">对话会回到这条消息之前，消息文字会放回输入框。之后的消息保留在另一个分支上，你可以随时切换回去。</string>
+    <string name="chat_rewind_body_reply">对话将从这条回复继续。之后的消息保留在另一个分支上，你可以随时切换回去。</string>
+    <string name="chat_rewind_no_files">此后工作区中没有文件发生变化。</string>
+    <string name="chat_rewind_file_created">此后创建：移到回收站</string>
+    <string name="chat_rewind_file_modified">此后修改：恢复原样</string>
+    <string name="chat_rewind_file_deleted">此后删除：恢复回来</string>
+    <string name="chat_rewind_file_changed_since">之后又有改动：保持现状</string>
+    <string name="chat_rewind_file_gone">回收站中已没有之前的版本</string>
+    <string name="chat_rewind_trash_note">当前的内容会先移到工作区回收站，不会丢失任何东西。</string>
+    <string name="chat_rewind_changed_since_title">之后在 Locus 之外被修改过</string>
+    <string name="chat_rewind_gone_title">无法恢复</string>
+    <string name="chat_rewind_effects_title">保持不变</string>
+    <string name="chat_rewind_more">还有 %1$d 项</string>
+    <string name="chat_rewind_agent_note">Locus 会在智能体下次回复前告诉它发生了哪些变化。</string>
+    <string name="chat_rewind_action">回退</string>
+    <string name="chat_later_branch">之后的消息在另一个分支上。</string>
+    <string name="chat_later_branch_show">显示</string>
+    <string name="chat_summarise_title">从这里开始总结？</string>
+    <string name="chat_summarise_review_note">摘要在使用前会先给你查看，你可以修改。消息仍保留在对话中。</string>
+    <string name="chat_summarise_instructions_label">要保留或省略的内容（可选）</string>
+    <string name="chat_summarise_instructions_hint">保留 API 方面的决定，省略调试过程</string>
+    <string name="chat_summarise_action">生成摘要</string>
+    <string name="chat_summary_review_title">查看摘要</string>
+    <string name="chat_summary_edit_title">编辑摘要</string>
+    <string name="chat_summary_edit_body">模型还没有读过这份摘要。你的版本会另存为新的摘要；旧文本保留在对话历史中。</string>
+    <string name="chat_summary_use">使用摘要</string>
+    <string name="chat_summary_save">保存</string>
+    <string name="chat_summary_discard">丢弃</string>
+    <string name="chat_summary_empty">摘要不能为空。</string>
+    <string name="chat_summary_review">查看</string>
+    <string name="chat_summary_pending_title">摘要已就绪，待查看</string>
+    <string name="chat_screen_summary_note_partial">对于这份摘要涵盖的消息，Locus 依据摘要工作；更早的消息仍按原样发送。</string>
+    <string name="chat_screen_summary_edited">你编辑过这份摘要。</string>
+    <string name="chat_screen_summary_edit">编辑摘要</string>
+    <string name="chat_run_summarising_from">正在从所选消息开始总结</string>
+    <string name="chat_run_summarise_failed">无法生成摘要：%1$s</string>
+    <string name="chat_run_summary_stale">摘要生成后对话有了变化，因此没有使用它。请重新总结。</string>
+    <string name="chat_run_summary_saved">摘要已保存。模型会从下一次回复开始读取它。</string>
+    <string name="chat_run_rewound">已回退。</string>
+    <plurals name="chat_rewind_files_title">
+        <item quantity="other">%1$d 个文件会恢复</item>
+    </plurals>
+    <plurals name="chat_rewind_changed_since_body">
+        <item quantity="other">%1$d 个文件在智能体改完后又被改动过（你、某条命令或其他应用）。Locus 会保持它们现状。</item>
+    </plurals>
+    <plurals name="chat_rewind_effects_command">
+        <item quantity="other">此后运行了 %1$d 条 shell 命令；其影响会保留。</item>
+    </plurals>
+    <plurals name="chat_rewind_effects_outside">
+        <item quantity="other">有 %1$d 次调用到达了手机之外的服务（连接器、邮件、部署）；无法撤回。</item>
+    </plurals>
+    <plurals name="chat_rewind_effects_helper">
+        <item quantity="other">此后有 %1$d 个助手工作过：它们对文件的修改会恢复，其他操作会保留。</item>
+    </plurals>
+    <plurals name="chat_rewind_effects_other">
+        <item quantity="other">另有 %1$d 项改动（记忆、浏览器、手机、git）会保留。</item>
+    </plurals>
+    <plurals name="chat_summarise_body_user">
+        <item quantity="other">这条消息及其后的所有内容（%1$d 条消息）会合并为一份摘要。之前的消息仍按原样发送，模型可以继续从缓存读取它们。</item>
+    </plurals>
+    <plurals name="chat_summarise_body_reply">
+        <item quantity="other">这条回复之后的所有内容（%1$d 条消息）会合并为一份摘要。这条回复及之前的内容仍按原样发送，模型可以继续从缓存读取它们。</item>
+    </plurals>
+    <plurals name="chat_summary_review_body">
+        <item quantity="other">模型会读取这段内容来代替 %1$d 条消息。你可以随意修改，然后使用。</item>
+    </plurals>
+    <plurals name="chat_summary_pending_body">
+        <item quantity="other">为 %1$d 条消息生成。在你查看之前不会使用。</item>
+    </plurals>
+    <plurals name="chat_run_rewound_restored">
+        <item quantity="other">已恢复 %1$d 个文件。</item>
+    </plurals>
+    <plurals name="chat_run_rewound_skipped">
+        <item quantity="other">%1$d 个文件保持原样。</item>
+    </plurals>
+    <!-- Locked chats (ChatLock.kt, ConversationsScreen.kt, docs/design/app-lock.md). -->
+    <string name="chat_lock_hidden_title">已锁定的对话</string>
+    <string name="chat_lock_locked_description">已锁定</string>
+    <string name="chat_lock_add">锁定此对话</string>
+    <string name="chat_lock_remove">解锁此对话</string>
+    <string name="chat_lock_locked">对话已锁定。它的名称会被隐藏，打开时需要指纹、面孔或 PIN 码。</string>
+    <string name="chat_lock_unlocked">对话已解锁</string>
+    <string name="chat_lock_prompt_remove">解锁此对话</string>
     <string name="chat_composer_prompts">插入提示词</string>
     <string name="chat_composer_prompts_hint">用保存的文本填入输入框。点按“发送”之前不会发送任何内容。</string>
     <string name="chat_composer_slash_none_title">保存的提示词</string>

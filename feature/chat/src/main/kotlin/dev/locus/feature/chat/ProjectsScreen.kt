@@ -127,6 +127,8 @@ fun ProjectRoute(
     val rows by viewModel.rows.collectAsStateWithLifecycle()
     val chatsFlow = remember(projectId) { viewModel.chats(projectId) }
     val chats by chatsFlow.collectAsStateWithLifecycle()
+    // A locked chat this session hasn't unlocked is listed as "Locked chat" (docs/design/app-lock.md).
+    val lock = viewModel.lock.collectAsStateWithLifecycle().value ?: dev.locus.core.model.AppLockStatus()
     val row = rows?.firstOrNull { it.project.id == projectId }
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -199,7 +201,7 @@ fun ProjectRoute(
                         Column {
                             if (i > 0) GroupDivider()
                             ListRow(
-                                title = c.title,
+                                title = if (lock.redactInApp(c.id)) stringResource(R.string.chat_lock_hidden_title) else c.title,
                                 subtitle = relativeTime(c.updatedAt),
                                 onClick = { onOpenChat(c.id) },
                                 trailing = { RowChevron() },

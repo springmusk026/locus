@@ -73,6 +73,10 @@ attaches each new row to the current leaf, inside a Room transaction that also m
   carry `copiedFrom`; Insights skips them. Tool call ids are kept, so a copied `agent_spawn` still
   opens the original helper's transcript. Audit entries stay with the chat where the call ran.
 
+- **Rewind here** ([rewind](rewind.md)): moves the leaf back to a message (and puts the later turns' files
+  back); the old continuation stays, shown as "The later messages are on another branch · Show them" until the
+  next message makes the usual switcher (`ChatThread.continuation`).
+
 ### "Edit as new message"
 
 Folded into Edit. Edit puts the text in the composer with an "Editing" banner; sending creates the

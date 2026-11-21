@@ -124,6 +124,12 @@
     <string name="settings_agent_instructions_note">Se añaden a cada chat nuevo. Que sean breves; Locus también aprende de la memoria y las habilidades.</string>
     <string name="settings_agent_budget_section">Presupuesto de tareas</string>
     <string name="settings_agent_budget_note">El límite predeterminado de cada tarea y de los ayudantes que inicia. Al llegar a un límite, Locus se pausa entre pasos y pregunta si continuar. La entrada en caché cuenta una décima parte, y el tiempo que esperas no cuenta. Un chat puede definir el suyo en las opciones del campo de mensaje.</string>
+    <string name="settings_agent_memory_section">Memoria</string>
+    <string name="settings_agent_memory_ask_title">Preguntar antes de guardar en la memoria</string>
+    <string name="settings_agent_memory_ask_outside">Tras contenido externo</string>
+    <string name="settings_agent_memory_ask_always">Siempre</string>
+    <string name="settings_agent_memory_note_outside">Locus pregunta antes de guardar u olvidar una nota solo cuando el chat ya ha leído contenido externo (una página web, un correo, la salida de un comando), que podría haberla colado. Las demás notas se guardan solas; revísalas en Biblioteca → Memoria.</string>
+    <string name="settings_agent_memory_note_always">Cada vez que guarde u olvide algo en la memoria preguntará antes, con la nota completa en la tarjeta, también en los proyectos. Aprender tras las tareas no guardará nada entonces, porque no hay nadie para aprobarlo. Los chats mantienen las mismas herramientas y el mismo prompt.</string>
     <string name="settings_agent_long_chats_section">Chats largos</string>
     <string name="settings_agent_cold_clearing_title">Borrar resultados de herramientas antiguos tras una pausa larga</string>
     <string name="settings_agent_cold_clearing_subtitle">Cuando un chat continúa tras un día o más, los resultados largos de antes se envían como una nota breve. El chat los sigue mostrando completos</string>
@@ -1242,4 +1248,22 @@
     <string name="settings_ondevice_kind_projector">Proyector de visión</string>
     <string name="settings_ondevice_kind_draft">Cabeza de borrador</string>
     <string name="settings_ondevice_kind_other">No es un modelo</string>
+    <!-- Lock Locus (AppLockSettings.kt, docs/design/app-lock.md). -->
+    <string name="settings_lock_section">Bloqueo</string>
+    <string name="settings_lock_title">Bloquear Locus</string>
+    <string name="settings_lock_subtitle">Pedir tu huella, tu cara o el bloqueo de pantalla antes de mostrar nada</string>
+    <string name="settings_lock_subtitle_no_screen_lock">Necesita un bloqueo de pantalla en este teléfono</string>
+    <string name="settings_lock_after_title">Bloquear tras</string>
+    <string name="settings_lock_after_subtitle">Cuánto tiempo puede estar Locus en segundo plano antes de volver a pedirlo</string>
+    <string name="settings_lock_after_now">Ya</string>
+    <string name="settings_lock_after_minutes">%1$d min</string>
+    <string name="settings_lock_needs_screen_lock">Configura un PIN, patrón o contraseña en este teléfono para bloquear Locus o un chat. Locus usa el bloqueo del propio teléfono y no guarda ningún PIN propio.</string>
+    <string name="settings_lock_suspended">Este teléfono ya no tiene bloqueo de pantalla, así que Locus y sus chats bloqueados se abren sin pedir nada. Configura un PIN, patrón o contraseña para volver a bloquearlos.</string>
+    <string name="settings_lock_open_security">Abrir ajustes de seguridad</string>
+    <string name="settings_lock_note">El bloqueo oculta lo que Locus muestra en este teléfono: chats, archivos, ajustes y los detalles de sus notificaciones en la pantalla de bloqueo. Las tareas, las ejecuciones programadas y la automatización que configuraste siguen funcionando mientras está bloqueado. Para ocultar un chat aunque Locus esté abierto, usa Bloquear este chat en su menú.</string>
+    <plurals name="settings_lock_locked_chats">
+        <item quantity="one">%1$d chat está bloqueado. Desbloquéalo desde su menú.</item>
+        <item quantity="many">%1$d chats están bloqueados. Desbloquea uno desde su menú.</item>
+        <item quantity="other">%1$d chats están bloqueados. Desbloquea uno desde su menú.</item>
+    </plurals>
 </resources>

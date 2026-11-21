@@ -16,6 +16,10 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import dev.locus.core.data.R
 import dev.locus.core.data.agent.OpenChatLink
+import dev.locus.core.data.lock.AppLock
+import dev.locus.core.data.lock.LockedNotifications
+import dev.locus.core.data.lock.LockedNotifications.privateWhenLocked
+import dev.locus.core.model.AppLockSettings
 
 /**
  * Runs a scheduled task: a fresh conversation, read-only tools only (it can look things up and
@@ -33,6 +37,7 @@ class TaskWorker @AssistedInject constructor(
     private val scheduled: ScheduledRun,
     private val conditions: dev.locus.core.llm.DeviceConditions,
     private val settings: dev.locus.core.data.repository.SettingsRepository,
+    private val appLock: AppLock,
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
@@ -41,12 +46,14 @@ class TaskWorker @AssistedInject constructor(
         // tries again later with WorkManager's backoff, before it sends anything. "Run now" isn't held.
         val runNow = TAG_RUN_NOW in tags
         if (!runNow && conditions.state.value.hot && settings.current().power.deferWhenHot) return Result.retry()
+        // Read once, before the run: the result's notification hides a locked chat's text (docs/design/app-lock.md).
+        val lock = appLock.loaded().settings
         val result = scheduled.run(
             taskId = taskId,
             workId = id.toString(),
             runNow = runNow,
             stopReason = { if (Build.VERSION.SDK_INT >= 31) stopReason else WorkInfo.STOP_REASON_UNKNOWN },
-            notify = { title, text, conversationId -> notify(taskId, title, text, conversationId) },
+            notify = { title, text, conversationId -> notify(taskId, title, text, conversationId, lock) },
             fromApp = inputData.getString(KEY_FROM_APP),
             eventId = inputData.getString(KEY_EVENT_ID),
         )
@@ -55,7 +62,7 @@ class TaskWorker @AssistedInject constructor(
         return if (result == ScheduledRun.Result.FAILED) Result.failure(output) else Result.success(output)
     }
 
-    private fun notify(taskId: String, title: String, text: String, conversationId: String) {
+    private fun notify(taskId: String, title: String, text: String, conversationId: String, lock: AppLockSettings) {
         val manager = NotificationManagerCompat.from(applicationContext)
         if (!manager.areNotificationsEnabled()) return
         applicationContext.getSystemService(NotificationManager::class.java)
@@ -67,16 +74,19 @@ class TaskWorker @AssistedInject constructor(
             OpenChatLink.attach(applicationContext, it, link.chatId)
             PendingIntent.getActivity(applicationContext, link.requestCode, it, link.flags)
         }
+        // A locked run's answer stays in its chat; the task's own title isn't the chat's content.
+        val shown = if (conversationId in lock.lockedChats) LockedNotifications.lockedChatText(applicationContext) else text
         @Suppress("MissingPermission")
         manager.notify(
             link.notificationId,
             NotificationCompat.Builder(applicationContext, CHANNEL)
                 .setSmallIcon(R.drawable.ic_stat_agent)
                 .setContentTitle(title)
-                .setContentText(text.lineSequence().firstOrNull { it.isNotBlank() }?.take(120))
-                .setStyle(NotificationCompat.BigTextStyle().bigText(text.take(1500)))
+                .setContentText(shown.lineSequence().firstOrNull { it.isNotBlank() }?.take(120))
+                .setStyle(NotificationCompat.BigTextStyle().bigText(shown.take(1500)))
                 .setContentIntent(open)
                 .setAutoCancel(true)
+                .privateWhenLocked(applicationContext, lock, CHANNEL)
                 .build(),
         )
     }

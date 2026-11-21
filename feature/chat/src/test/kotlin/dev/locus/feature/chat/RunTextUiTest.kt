@@ -132,6 +132,8 @@ class RunTextUiTest {
             RunNote.Refused(null), RunNote.Refused("safety"), RunNote.StepLimit(1), RunNote.StepLimit(40), RunNote.BudgetStopped(reached),
             RunNote.BranchUnfinished, RunNote.ClosedMidTask, RunNote.BackgroundRefused(true), RunNote.BackgroundRefused(false),
             RunNote.ToolGone, RunNote.NoProvider, RunNote.LessonsSaved(1), RunNote.LessonsSaved(3),
+            RunNote.SummarisingFrom, RunNote.SummariseFailed("timeout\nmore"), RunNote.SummariseFailed(null), RunNote.SummaryStale, RunNote.SummarySaved,
+            RunNote.Rewound(0, 0), RunNote.Rewound(1, 0), RunNote.Rewound(3, 1), RunNote.Rewound(0, 2),
         )
         notes.forEach {
             assertEquals(it.english, runNoteInWords(english, it), it.toString())

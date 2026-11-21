@@ -274,6 +274,15 @@ fun ChatRoute(
         MemoryReadActions(forgotten = forgottenMemory, forget = viewModel::forgetMemoryRead, check = viewModel::checkMemoryReads)
     }
     val providerDrafts by viewModel.providerDrafts.collectAsStateWithLifecycle()
+    val rewindPreview by viewModel.rewindPreview.collectAsStateWithLifecycle()
+    // Lock this chat from its top bar, where the phone has a screen lock to ask with (docs/design/app-lock.md).
+    val chatLock: ChatLockViewModel = hiltViewModel()
+    val lockStatus by chatLock.status.collectAsStateWithLifecycle()
+    val locker = rememberChatLocker(chatLock)
+    val lockButton: (@Composable () -> Unit)? = lockStatus?.takeIf { it.available || it.isLockedChat(conversationId) }?.let { status ->
+        val locked = status.isLockedChat(conversationId)
+        ({ ChatLockButton(locked) { locker.toggle(conversationId, !locked, false) } })
+    }
     androidx.compose.runtime.CompositionLocalProvider(
         dev.locus.core.markdown.artifact.LocalArtifactHost provides artifactHost,
         LocalMemoryReads provides memoryReads,
@@ -282,6 +291,7 @@ fun ChatRoute(
     ) { // (body not re-indented, to keep the diff small)
     androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
     ChatScreen(
+        lockButton = lockButton,
         onVoiceMode = if (canVoice) ({ voiceOpen = true }) else null,
         voiceActive = voiceOpen,
         state = state,
@@ -372,6 +382,18 @@ fun ChatRoute(
             )
         },
         workflows = workflows,
+        rewindPreview = rewindPreview,
+        history = remember(viewModel) {
+            HistoryActions(
+                prepareRewind = viewModel::prepareRewind,
+                confirmRewind = viewModel::confirmRewind,
+                dismissRewind = viewModel::dismissRewind,
+                summariseFrom = viewModel::summariseFrom,
+                useSummary = viewModel::useSummary,
+                discardSummary = viewModel::discardSummary,
+                editSummary = viewModel::editSummary,
+            )
+        },
         prompts = prompts,
     )
     if (voiceOpen) {
@@ -404,6 +426,8 @@ internal fun ChatScreen(
     state: ChatUiState,
     /** Under the title: the chat's project chip; null when there are no projects. */
     projectHeader: (@Composable () -> Unit)? = null,
+    /** Lock or unlock this chat ([ChatLockButton]); null where the phone has no screen lock. */
+    lockButton: (@Composable () -> Unit)? = null,
     /** Where the chat's short messages show (above the composer); the route shares it with what it sets up. */
     feedbackState: LocusFeedbackState = rememberLocusFeedbackState(),
     onBack: () -> Unit,
@@ -461,6 +485,9 @@ internal fun ChatScreen(
     onVoiceMode: (() -> Unit)? = null,
     /** Voice mode is open: read-aloud stays quiet. */
     voiceActive: Boolean = false,
+    /** What Rewind here would do, while its confirm sheet is open (docs/design/rewind.md). */
+    rewindPreview: dev.locus.core.data.agent.RewindPreview? = null,
+    history: HistoryActions = HistoryActions(),
 ) {
     // Opening at a search result: until it's been shown, keep the list where we put it.
     var focus by rememberSaveable { mutableStateOf(focusMessageId) }
@@ -513,6 +540,72 @@ internal fun ChatScreen(
     var editingQueued by rememberSaveable { mutableStateOf<String?>(null) }
     // Branch actions wait while the agent works: a run continues the branch it started on.
     val canBranch = !state.run.running
+    // Rewind here and Summarise from here (docs/design/rewind.md): the confirm sheets and the summary editor.
+    rewindPreview?.let { preview ->
+        RewindSheet(
+            preview,
+            onConfirm = {
+                history.confirmRewind { draft ->
+                    // A user message rewound to goes back into the composer, as Edit would put it there.
+                    editing = null
+                    editingQueued = null
+                    text = draft
+                }
+            },
+            onDismiss = history.dismissRewind,
+        )
+    }
+    var summariseFrom by rememberSaveable { mutableStateOf<String?>(null) }
+    // No longer offered (a run started, the chat moved on): the sheet closes.
+    val summariseActions = summariseFrom?.let { state.messageActions[it] }?.takeIf { it.summarise == null && !state.run.running }
+    LaunchedEffect(summariseFrom, summariseActions, state.loading) { if (summariseActions == null && !state.loading) summariseFrom = null }
+    summariseFrom?.let { id ->
+        summariseActions?.let { actions ->
+            SummariseSheet(
+                userMessage = state.items.any { it is ChatItem.User && it.key == id },
+                count = actions.summariseCount,
+                onConfirm = { instructions -> summariseFrom = null; history.summariseFrom(id, instructions) },
+                onDismiss = { summariseFrom = null },
+            )
+        }
+    }
+    // A new draft opens its editor once; closing it leaves the draft as a card at the end of the chat.
+    val draftSummary = state.run.summaryDraft
+    var reviewedDraft by rememberSaveable { mutableStateOf<String?>(null) }
+    var reviewing by rememberSaveable { mutableStateOf(false) }
+    val draftKey = draftSummary?.let { "${it.messageId}:${it.text.hashCode()}" }
+    LaunchedEffect(draftKey) {
+        if (draftKey != null && draftKey != reviewedDraft) {
+            reviewedDraft = draftKey
+            reviewing = true
+        }
+    }
+    if (draftSummary != null && reviewing) {
+        SummaryEditorSheet(
+            initial = draftSummary.text,
+            count = draftSummary.replaced,
+            review = true,
+            onSave = { reviewing = false; history.useSummary(it) },
+            onDismiss = { reviewing = false },
+            onDiscard = { reviewing = false; history.discardSummary() },
+        )
+    }
+    var editingSummary by rememberSaveable { mutableStateOf<String?>(null) }
+    // Only while the model hasn't read it: the sheet closes once that changes.
+    val editedCheckpoint = editingSummary?.takeIf { it == state.editableCheckpoint && !state.run.running }
+        ?.let { id -> state.items.firstOrNull { it.key == id } as? ChatItem.Checkpoint }
+    LaunchedEffect(editingSummary, editedCheckpoint, state.loading) { if (editedCheckpoint == null && !state.loading) editingSummary = null }
+    editingSummary?.let { id ->
+        editedCheckpoint?.let { checkpoint ->
+            SummaryEditorSheet(
+                initial = checkpoint.summary,
+                count = checkpoint.replaced,
+                review = false,
+                onSave = { editingSummary = null; history.editSummary(id, it) },
+                onDismiss = { editingSummary = null },
+            )
+        }
+    }
     // Read aloud: one reply at a time; a new message (any run starting) or leaving the chat stops it.
     val readAloud = rememberReadAloud()
     LaunchedEffect(state.run.running) { if (state.run.running) readAloud.stop() }
@@ -679,6 +772,14 @@ internal fun ChatScreen(
                                     branchEnabled = canBranch,
                                     onSwitch = branches.switchTo,
                                     onFork = { branches.fork(item.key, true) },
+                                    historyMenu = { close ->
+                                        HistoryMenuItems(
+                                            state.messageActions[item.key] ?: MessageActions(),
+                                            running = state.run.running,
+                                            onRewind = { close(); history.prepareRewind(item.key) },
+                                            onSummarise = { close(); summariseFrom = item.key },
+                                        )
+                                    },
                                 )
                                 is ChatItem.Assistant -> if (item.text.isNotBlank()) androidx.compose.runtime.CompositionLocalProvider(
                                     LocalLinkContext provides state.links.copy(outsideContent = item.outsideContent),
@@ -694,6 +795,14 @@ internal fun ChatScreen(
                                         onRegenerate = branches.regenerate,
                                         onSwitch = branches.switchTo,
                                         onFork = { branches.fork(item.key, false) },
+                                        historyMenu = { close ->
+                                            HistoryMenuItems(
+                                                state.messageActions[item.key] ?: MessageActions(),
+                                                running = state.run.running,
+                                                onRewind = { close(); history.prepareRewind(item.key) },
+                                                onSummarise = { close(); summariseFrom = item.key },
+                                            )
+                                        },
                                         onWhatWasSent = { onShowSent(item.key) },
                                         whatWasSentKept = { sentKept(item.key) },
                                         reading = readAloud.reading == item.key,
@@ -708,7 +817,10 @@ internal fun ChatScreen(
                                     )
                                 }
                                 is ChatItem.TurnEnd -> if (canBranch) TurnEndRow(item.turn, onRegenerate = branches.regenerate, onSwitch = branches.switchTo)
-                                is ChatItem.Checkpoint -> CheckpointCard(item)
+                                is ChatItem.Checkpoint -> CheckpointCard(
+                                    item,
+                                    onEdit = { editingSummary = item.key }.takeIf { state.editableCheckpoint == item.key && !state.run.running },
+                                )
                                 is ChatItem.Thought -> if (item.inSteps) StepsGroup(listOf(item), activeTool = activeTool) else ThoughtRow(item)
                                 is ChatItem.Plan -> PlanCard(
                                     item,
@@ -726,6 +838,16 @@ internal fun ChatScreen(
                             }
                             is TranscriptRow.Steps -> StepsGroup(row.steps, activeTool = activeTool)
                         }
+                    }
+                }
+                // After a rewind: the later messages are one tap away, on their branch.
+                if (state.laterBranch != null && !state.run.running) item(key = "later-branch", contentType = "later-branch") {
+                    Box(Modifier.animateItem()) { LaterBranchRow(onShow = { state.laterBranch?.let(branches.switchTo) }) }
+                }
+                // A summary waiting for review: used only when the user says so.
+                state.run.summaryDraft?.let { d ->
+                    if (!state.run.running) item(key = "summary-draft", contentType = "summary-draft") {
+                        Box(Modifier.animateItem()) { PendingSummaryCard(d, onReview = { reviewing = true }, onDiscard = history.discardSummary) }
                     }
                 }
                 if (showLive) item(key = "live", contentType = "live") {
@@ -789,6 +911,7 @@ internal fun ChatScreen(
                 },
                 actions = {
                     if (!metersBelow) meters?.invoke()
+                    lockButton?.invoke()
                     // Nothing to share until the chat has a message.
                     if (state.items.isNotEmpty()) ShareChatButton(state.title, state.createdAt, state.items, onSaveExport)
                 },
@@ -1049,6 +1172,18 @@ internal class BranchActions(
     val fork: (messageId: String, userMessage: Boolean) -> Unit = { _, _ -> },
 )
 
+/** Rewind here and Summarise from here (docs/design/rewind.md): the menus' entries, their sheets and the summary editor. */
+internal class HistoryActions(
+    val prepareRewind: (messageId: String) -> Unit = {},
+    /** Confirms the open rewind; a user message's text comes back for the composer. */
+    val confirmRewind: (onDraft: (String) -> Unit) -> Unit = {},
+    val dismissRewind: () -> Unit = {},
+    val summariseFrom: (messageId: String, instructions: String) -> Unit = { _, _ -> },
+    val useSummary: (String) -> Unit = {},
+    val discardSummary: () -> Unit = {},
+    val editSummary: (checkpointId: String, text: String) -> Unit = { _, _ -> },
+)
+
 /** Callbacks for the composer's controls and the plan card. */
 internal class ChatControlActions(
     val setModel: (providerId: String, model: String?) -> Unit = { _, _ -> },
@@ -1213,6 +1348,8 @@ private fun UserBubble(
     branchEnabled: Boolean = true,
     onSwitch: (String) -> Unit = {},
     onFork: () -> Unit = {},
+    /** Rewind here and Summarise from here ([HistoryMenuItems]); given a way to close the menu first. */
+    historyMenu: @Composable (close: () -> Unit) -> Unit = {},
 ) {
     var menu by remember { mutableStateOf(false) }
     val clipboard = androidx.compose.ui.platform.LocalClipboard.current
@@ -1247,6 +1384,7 @@ private fun UserBubble(
                         )
                         DropdownMenuItem(text = { Text(stringResource(R.string.chat_screen_edit)) }, leadingIcon = { Icon(LocusIcons.Edit, null) }, enabled = branchEnabled, onClick = { menu = false; onEdit() })
                         DropdownMenuItem(text = { Text(stringResource(R.string.chat_screen_fork)) }, leadingIcon = { Icon(LocusIcons.Branch, null) }, onClick = { menu = false; onFork() })
+                        historyMenu { menu = false }
                     }
                 }
             }
@@ -1346,6 +1484,8 @@ private fun AssistantText(
     onRegenerate: (String) -> Unit = {},
     onSwitch: (String) -> Unit = {},
     onFork: () -> Unit = {},
+    /** Rewind here and Summarise from here ([HistoryMenuItems]); given a way to close the menu first. */
+    historyMenu: @Composable (close: () -> Unit) -> Unit = {},
     onWhatWasSent: () -> Unit = {},
     /** Read when the menu opens: false after a restart or for older replies, whose request isn't kept. */
     whatWasSentKept: () -> Boolean = { true },
@@ -1413,6 +1553,7 @@ private fun AssistantText(
                         onClick = { menu = false; onReadAloud() },
                     )
                     DropdownMenuItem(text = { Text(stringResource(R.string.chat_screen_fork)) }, leadingIcon = { Icon(LocusIcons.Branch, null) }, onClick = { menu = false; onFork() })
+                    historyMenu { menu = false }
                     onSaveWorkflow?.let { save ->
                         DropdownMenuItem(text = { Text(stringResource(R.string.chat_receipt_save_workflow)) }, leadingIcon = { Icon(LocusIcons.Play, null) }, onClick = { menu = false; save() })
                     }
@@ -1762,7 +1903,11 @@ private fun FollowUps(ideas: List<String>, visible: Boolean, onPick: (String) ->
 
 /** A compaction checkpoint: older messages above stay readable, but the model now works from this summary. */
 @Composable
-private fun CheckpointCard(item: ChatItem.Checkpoint) {
+internal fun CheckpointCard(
+    item: ChatItem.Checkpoint,
+    /** Edit the summary: only while the model hasn't read it yet (it's the chat's last message); null otherwise. */
+    onEdit: (() -> Unit)? = null,
+) {
     var open by rememberSaveable(item.key) { mutableStateOf(false) }
     LocusCard(onClick = { open = !open }) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1774,8 +1919,19 @@ private fun CheckpointCard(item: ChatItem.Checkpoint) {
             )
             Text(stringResource(if (open) R.string.chat_screen_hide else R.string.chat_screen_show), style = LocusType.chip, color = MaterialTheme.colorScheme.primary)
         }
-        SupportingText(stringResource(R.string.chat_screen_summary_note))
+        SupportingText(
+            listOfNotNull(
+                stringResource(if (item.partial) R.string.chat_screen_summary_note_partial else R.string.chat_screen_summary_note),
+                stringResource(R.string.chat_screen_summary_edited).takeIf { item.edited },
+            ).joinToString(" "),
+        )
         AnimatedVisibility(open) { Column(Modifier.padding(top = Spacing.sm)) { AssistantMarkdown(item.summary) } }
+        if (onEdit != null) {
+            TextButton(onClick = onEdit, modifier = Modifier.offset(x = -Spacing.md)) {
+                Icon(LocusIcons.Edit, contentDescription = null, modifier = Modifier.size(IconSize.small))
+                Text(stringResource(R.string.chat_screen_summary_edit), Modifier.padding(start = Spacing.xs))
+            }
+        }
     }
 }
 

@@ -19,6 +19,20 @@
     <string name="ui_approval_dont_ask_again">Don\'t ask again for %1$s</string>
     <!-- %1$s is a host name. -->
     <string name="ui_approval_site_for_task">Allow %1$s for the rest of this task</string>
+    <!-- A memory write on the approval card (docs/design/memory-approval.md). -->
+    <string name="ui_approval_memory_label">Memory</string>
+    <string name="ui_approval_memory_general">General memory</string>
+    <string name="ui_approval_memory_this_project">This project\'s memory</string>
+    <!-- %1$s is the project's name. -->
+    <string name="ui_approval_memory_project">Project “%1$s”</string>
+    <string name="ui_approval_memory_topic">Topic</string>
+    <string name="ui_approval_memory_change">Change</string>
+    <string name="ui_approval_memory_new">New note</string>
+    <string name="ui_approval_memory_replace">Replaces the saved note</string>
+    <string name="ui_approval_memory_forget">Forgets this note</string>
+    <string name="ui_approval_memory_replaces">Replaces</string>
+    <string name="ui_approval_memory_summary">Summary</string>
+    <string name="ui_approval_memory_note">Note</string>
 
     <!-- Save login sheet (SaveLoginSheet.kt); %1$s is the site's host. -->
     <string name="ui_save_login_title">Save this login for %1$s?</string>
@@ -503,6 +517,19 @@
     <string name="ui_workflow_tool_commit">commit changes</string>
     <string name="ui_workflow_tool_look_at_changes">look at changes</string>
     <string name="ui_workflow_tool_ask_questions">ask you questions</string>
+    <!-- Lock screen and the system prompt (LockScreen.kt, DeviceAuth.kt, docs/design/app-lock.md). -->
+    <string name="ui_lock_app_title">Locus is locked</string>
+    <string name="ui_lock_app_body">Unlock with your fingerprint, face, PIN, pattern or password. Tasks you started keep running while it\'s locked.</string>
+    <string name="ui_lock_chat_title">This chat is locked</string>
+    <string name="ui_lock_chat_body">Unlock it with your fingerprint, face, PIN, pattern or password. Its name and messages stay hidden everywhere else.</string>
+    <string name="ui_lock_unlock">Unlock</string>
+    <string name="ui_lock_prompt_app">Unlock Locus</string>
+    <string name="ui_lock_prompt_chat">Open locked chat</string>
+    <string name="ui_lock_prompt_confirm">Confirm it\'s you</string>
+    <string name="ui_lock_lockout">Too many tries. Wait 30 seconds, or use your PIN, pattern or password.</string>
+    <string name="ui_lock_lockout_permanent">Fingerprint and face are off until you unlock with your PIN, pattern or password.</string>
+    <string name="ui_lock_no_credential">This phone no longer has a screen lock, so Locus can\'t check it\'s you.</string>
+    <string name="ui_lock_failed">Couldn\'t check that it\'s you. Try again.</string>
     <!-- Saved prompts (docs/design/saved-prompts.md). Keep {{clipboard}}, {{date}}, {{time}}, {{selection}}, {{field:…}} and \{{ exactly as written: they are what the user types. -->
     <string name="ui_prompt_new_title">New prompt</string>
     <string name="ui_prompt_edit_title">Edit prompt</string>

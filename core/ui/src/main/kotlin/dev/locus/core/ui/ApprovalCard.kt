@@ -31,6 +31,7 @@ import dev.locus.core.agent.ApprovalAnswer
 import dev.locus.core.agent.ApprovalPreview
 import dev.locus.core.agent.ApprovalRequest
 import dev.locus.core.agent.ApprovalScope
+import dev.locus.core.agent.MemoryChange
 import dev.locus.core.designsystem.AccentTile
 import dev.locus.core.designsystem.CodeSurface
 import dev.locus.core.designsystem.Emphasis
@@ -196,6 +197,11 @@ private fun ApprovalArguments(request: ApprovalRequest) {
 /** The approval card's field list ([dev.locus.core.agent.Tool.preview]): label and value, rows reaching other people in caution. */
 @Composable
 private fun ApprovalPreviewRows(preview: ApprovalPreview) {
+    // A memory write is shown in the app's language, with its note in full (docs/design/memory-approval.md).
+    preview.memory?.let { change ->
+        MemoryChangeRows(change)
+        return
+    }
     Column(Modifier.fillMaxWidth().padding(top = Spacing.sm)) {
         preview.rows.forEach { row ->
             KeyValueRow(
@@ -205,6 +211,39 @@ private fun ApprovalPreviewRows(preview: ApprovalPreview) {
                 tone = if (row.outward) Tone.Caution else null,
                 valueMaxLines = 8,
             )
+        }
+    }
+}
+
+/**
+ * A memory write ([MemoryChange]): which memory, the topic, whether it's new, replaces a note (caution) or
+ * forgets one (critical), the index line every new chat reads, and the whole note, selectable. Approving
+ * saves exactly this; the card can't edit it (an approval answers yes or no to the call as the model made it).
+ */
+@Composable
+internal fun MemoryChangeRows(change: MemoryChange) {
+    val projectName = change.projectName
+    val memory = when {
+        change.projectId == null -> stringResource(R.string.ui_approval_memory_general)
+        projectName.isNullOrBlank() -> stringResource(R.string.ui_approval_memory_this_project)
+        else -> stringResource(R.string.ui_approval_memory_project, projectName)
+    }
+    val (kind, tone) = when (change.kind) {
+        MemoryChange.Kind.NEW -> stringResource(R.string.ui_approval_memory_new) to null
+        MemoryChange.Kind.REPLACE -> stringResource(R.string.ui_approval_memory_replace) to Tone.Caution
+        MemoryChange.Kind.FORGET -> stringResource(R.string.ui_approval_memory_forget) to Tone.Critical
+    }
+    Column(Modifier.fillMaxWidth().padding(top = Spacing.sm)) {
+        KeyValueRow(stringResource(R.string.ui_approval_memory_label), memory, dense = true)
+        KeyValueRow(stringResource(R.string.ui_approval_memory_topic), change.topic, dense = true)
+        KeyValueRow(stringResource(R.string.ui_approval_memory_change), kind, dense = true, tone = tone)
+        change.replacedSummary?.takeIf { it.isNotBlank() }?.let { KeyValueRow(stringResource(R.string.ui_approval_memory_replaces), it, dense = true) }
+        if (change.summary.isNotBlank()) {
+            KeyValueRow(stringResource(R.string.ui_approval_memory_summary), change.summary, dense = true, valueMaxLines = Int.MAX_VALUE)
+        }
+        SupportingText(stringResource(R.string.ui_approval_memory_note), modifier = Modifier.padding(top = Spacing.xs, bottom = Spacing.xxs))
+        CodeSurface(Modifier.fillMaxWidth()) {
+            SelectionContainer { Text(change.content, Modifier.padding(Spacing.sm), style = LocusType.rowSupporting) }
         }
     }
 }

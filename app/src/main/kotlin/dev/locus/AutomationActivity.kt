@@ -61,6 +61,8 @@ class AutomationActivity : ComponentActivity() {
 
     @Inject lateinit var settings: SettingsRepository
 
+    @Inject lateinit var appLock: dev.locus.core.data.lock.AppLock
+
     private var prompt by mutableStateOf<Prompt?>(null)
 
     /** What the sheet shows: the request, who asked, and whether automation is still off. */
@@ -73,7 +75,18 @@ class AutomationActivity : ComponentActivity() {
             finish()
             return
         }
-        setContent { LocusTheme { prompt?.let { Sheet(it) } } }
+        // A request that needs the user is confirmed only after Locus is unlocked: the sheet can turn
+        // automation on and remember an app. One that runs without asking shows nothing, so it keeps
+        // working while Locus is locked (docs/design/app-lock.md).
+        setContent {
+            LocusTheme {
+                dev.locus.core.designsystem.ProvideSecureWindow(window) {
+                    prompt?.let { p ->
+                        dev.locus.core.ui.AppLockGate(appLock, onBack = { prompt = null; refuse("The user didn't allow it.", p.request.requestId) }) { Sheet(p) }
+                    }
+                }
+            }
+        }
         lifecycleScope.launch { receive(intent) }
     }
 

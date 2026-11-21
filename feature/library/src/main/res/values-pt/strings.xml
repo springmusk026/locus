@@ -452,6 +452,59 @@
     <string name="library_memory_taint_helper">o relatório de um ajudante</string>
     <string name="library_memory_taint_outside">conteúdo externo</string>
     <string name="library_memory_taint_separator">", "</string>
+    <string name="library_tidy_title">Organizar</string>
+    <string name="library_tidy_subtitle">Sugere notas para juntar ou esquecer. Nada muda até você aceitar.</string>
+    <string name="library_tidy_no_model">Precisa de um modelo: adicione um provedor primeiro.</string>
+    <string name="library_tidy_helper_unavailable">Precisa de um modelo auxiliar que possa responder agora: modelos no dispositivo são lentos demais para isso, e um provedor precisa da chave ou de login.</string>
+    <string name="library_tidy_sheet_title">Organizar a memória</string>
+    <string name="library_tidy_sheet_subtitle">Sugestões do modelo auxiliar. Nada muda até você aplicar as que marcar.</string>
+    <string name="library_tidy_working">O modelo auxiliar está lendo suas notas…</string>
+    <string name="library_tidy_failed_title">Não foi possível organizar</string>
+    <string name="library_tidy_failed_unavailable">O modelo auxiliar não pode ser usado agora. Nada foi alterado.</string>
+    <string name="library_tidy_failed_no_answer">O modelo auxiliar não respondeu. Nada foi alterado.</string>
+    <string name="library_tidy_failed_malformed">Não foi possível ler a resposta do modelo auxiliar. Nada foi alterado; tente de novo ou escolha outro modelo auxiliar.</string>
+    <string name="library_tidy_failed_nothing">Não há notas para organizar.</string>
+    <string name="library_tidy_none_title">Nada para organizar</string>
+    <string name="library_tidy_review_note">Marque as alterações que quer fazer. Notas substituídas ou esquecidas ficam no histórico, e uma nota juntada guarda de onde vieram as notas.</string>
+    <string name="library_tidy_merge_title">Juntar %1$s em “%2$s”</string>
+    <string name="library_tidy_delete_title">Esquecer %1$s</string>
+    <string name="library_tidy_in_general">Na memória geral</string>
+    <string name="library_tidy_in_project">No projeto %1$s</string>
+    <string name="library_tidy_project_unnamed">Projeto sem título</string>
+    <string name="library_tidy_apply_none">Aplicar</string>
+    <string name="library_tidy_applied_skipped">%1$s; %2$s</string>
+    <string name="library_memory_saved_by_tidy">Juntada em uma organização que você aceitou</string>
+    <string name="library_memory_merged_from">Juntada a partir de %1$s</string>
+    <plurals name="library_tidy_apply">
+        <item quantity="one">Aplicar %1$d</item>
+        <item quantity="many">Aplicar %1$d</item>
+        <item quantity="other">Aplicar %1$d</item>
+    </plurals>
+    <plurals name="library_tidy_none_body">
+        <item quantity="one">O modelo auxiliar leu %1$d nota e não encontrou nada para juntar ou esquecer.</item>
+        <item quantity="many">O modelo auxiliar leu %1$d notas e não encontrou nada para juntar ou esquecer.</item>
+        <item quantity="other">O modelo auxiliar leu %1$d notas e não encontrou nada para juntar ou esquecer.</item>
+    </plurals>
+    <plurals name="library_tidy_left_out">
+        <item quantity="one">%1$d nota mais antiga não foi lida: era demais para enviar de uma vez. Organize de novo depois destas alterações.</item>
+        <item quantity="many">%1$d notas mais antigas não foram lidas: era demais para enviar de uma vez. Organize de novo depois destas alterações.</item>
+        <item quantity="other">%1$d notas mais antigas não foram lidas: era demais para enviar de uma vez. Organize de novo depois destas alterações.</item>
+    </plurals>
+    <plurals name="library_tidy_dropped">
+        <item quantity="one">%1$d sugestão foi descartada: citava notas que não existem ou misturava memórias.</item>
+        <item quantity="many">%1$d sugestões foram descartadas: citavam notas que não existem ou misturavam memórias.</item>
+        <item quantity="other">%1$d sugestões foram descartadas: citavam notas que não existem ou misturavam memórias.</item>
+    </plurals>
+    <plurals name="library_tidy_applied">
+        <item quantity="one">%1$d alteração aplicada</item>
+        <item quantity="many">%1$d alterações aplicadas</item>
+        <item quantity="other">%1$d alterações aplicadas</item>
+    </plurals>
+    <plurals name="library_tidy_skipped">
+        <item quantity="one">%1$d ignorada: a nota mudou nesse meio-tempo</item>
+        <item quantity="many">%1$d ignoradas: as notas mudaram nesse meio-tempo</item>
+        <item quantity="other">%1$d ignoradas: as notas mudaram nesse meio-tempo</item>
+    </plurals>
     <string name="library_prompts_label">Prompts</string>
     <string name="library_prompts_note">Textos que você envia com frequência. Digite / na caixa vazia, ou toque em + → Inserir um prompt, para colocá-lo na caixa e conferir antes de enviar.</string>
     <string name="library_prompts_new">Novo prompt</string>

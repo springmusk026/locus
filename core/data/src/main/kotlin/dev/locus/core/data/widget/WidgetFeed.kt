@@ -4,6 +4,7 @@ import dev.locus.core.agent.SecretScrubber
 import dev.locus.core.data.agent.AgentRunner
 import dev.locus.core.data.agent.RunState
 import dev.locus.core.data.di.ApplicationScope
+import dev.locus.core.data.lock.AppLock
 import dev.locus.core.data.tasks.TaskRepository
 import dev.locus.core.datastore.SecretStore
 import dev.locus.core.model.ScheduledTask
@@ -38,6 +39,9 @@ data class WidgetStatus(val text: String, val tone: WidgetTone, val chatId: Stri
 
 /** Everything the widget shows: the status line and the latest scheduled-task result (one line, cleaned), if any. */
 data class WidgetModel(val status: WidgetStatus = WidgetStatus.IDLE, val task: String? = null)
+
+/** The widget's model; with Lock Locus on ([appLocked]) it leaves out the task line, a model's words on the home screen. */
+fun widgetModel(status: WidgetStatus, task: String?, appLocked: Boolean): WidgetModel = WidgetModel(status, task.takeUnless { appLocked })
 
 /** The parts of the latest scheduled run the widget shows, before cleaning. */
 data class LatestTaskRun(val title: String, val summary: String?, val outcome: TaskRunOutcome?, val at: Long)
@@ -180,6 +184,8 @@ object WidgetText {
  * What the home-screen widget shows, as it changes: from [AgentRunner.states] (the same source as the
  * status notification) and the tasks table. No polling: it emits only when either changes and the
  * widget's text would differ. The vault is read for scrubbing only when the latest task run changes.
+ * With Lock Locus on, the task line (a model's answer) isn't shown on the home screen
+ * ([widgetModel], docs/design/app-lock.md); the status is counts and fixed phrases only.
  */
 @Singleton
 class WidgetFeed @Inject constructor(
@@ -187,12 +193,15 @@ class WidgetFeed @Inject constructor(
     tasks: TaskRepository,
     private val secrets: SecretStore,
     @param:ApplicationScope scope: CoroutineScope,
+    appLock: AppLock,
 ) {
     @OptIn(ExperimentalCoroutinesApi::class)
     val state: SharedFlow<WidgetModel> = combine(
         runner.states.map(::widgetStatus).distinctUntilChanged(),
         tasks.tasks.map(::latestTaskRun).distinctUntilChanged().mapLatest { run -> run?.let { scrubbedTaskLine(it, secrets::valuesForScrubbing) } },
-    ) { status, task -> WidgetModel(status, task) }
+        // Until the lock's settings are read, as if it were on: no task line rather than one shown by mistake.
+        appLock.status.map { it?.enabled ?: true }.distinctUntilChanged(),
+    ) { status, task, locked -> widgetModel(status, task, locked) }
         .distinctUntilChanged()
         .shareIn(scope, SharingStarted.WhileSubscribed(5_000), replay = 1)
 }

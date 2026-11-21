@@ -100,6 +100,8 @@ class ActivityViewModel @Inject constructor(
     private val activity: ActivityRepository,
     conversations: ConversationRepository,
     settings: SettingsRepository,
+    /** Lock Locus and locked chats; null in tests that don't need it (nothing is locked then). */
+    appLock: dev.locus.core.data.lock.AppLock? = null,
 ) : ViewModel() {
 
     private val filters = MutableStateFlow(ActivityFilters())
@@ -181,8 +183,13 @@ class ActivityViewModel @Inject constructor(
         combine(activity.observeCounts(0L, s.conversationId), activity.observeCounts(startOfDay(0), s.conversationId)) { all, today -> all.total to today }
     }
 
-    private val sections: Flow<Pair<Window, List<DaySection>>> = combine(window, chats) { w, c ->
-        val runs = clusterRuns(w.entries, { id -> c[id] ?: RunChat(UiText.Res(R.string.activity_deleted_chat), exists = false) })
+    /** Locked chats this session hasn't unlocked (docs/design/app-lock.md): their steps aren't listed here. */
+    private val hidden: Flow<dev.locus.core.model.AppLockStatus> =
+        (appLock?.status ?: kotlinx.coroutines.flow.flowOf(null)).map { it ?: dev.locus.core.model.AppLockStatus() }
+
+    private val sections: Flow<Pair<Window, List<DaySection>>> = combine(window, chats, hidden) { w, c, lock ->
+        val shown = visibleEntries(w.entries, lock) { id -> c[id]?.openId }
+        val runs = clusterRuns(shown, { id -> c[id] ?: RunChat(UiText.Res(R.string.activity_deleted_chat), exists = false) })
         w to runs.groupBy { dayLabel(it.latest.startedAt) }.map { (day, list) -> DaySection(day, list) }
     }.flowOn(Dispatchers.Default)
 
@@ -273,3 +280,14 @@ internal fun helperTitle(agentType: String?, parentTitle: String?): UiText {
     return if (agentType == null) UiText.Res(R.string.activity_helper_chat_untyped, parent)
     else UiText.Res(R.string.activity_helper_chat, agentType.replaceFirstChar { it.uppercase() }, parent)
 }
+
+/**
+ * [entries] without those of a locked chat this session hasn't unlocked, its helpers' included
+ * ([openIdOf] names the chat a helper worked for). Pure.
+ */
+internal fun visibleEntries(
+    entries: List<dev.locus.core.model.AuditEntry>,
+    lock: dev.locus.core.model.AppLockStatus,
+    openIdOf: (String) -> String?,
+): List<dev.locus.core.model.AuditEntry> =
+    if (lock.settings.lockedChats.isEmpty()) entries else entries.filterNot { e -> lock.redactInApp(e.conversationId) || lock.redactInApp(openIdOf(e.conversationId)) }

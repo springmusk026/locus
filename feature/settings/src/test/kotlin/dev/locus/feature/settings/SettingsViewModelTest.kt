@@ -152,6 +152,17 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun `ask before saving to memory is saved and read back`() = runTest {
+        val f = fixture()
+        assertEquals(dev.locus.core.model.MemoryApproval.OUTSIDE_CONTENT, f.vm.state { !it.loading }.memoryApproval)
+        f.vm.setMemoryApproval(dev.locus.core.model.MemoryApproval.ALWAYS)
+        f.vm.state { it.memoryApproval == dev.locus.core.model.MemoryApproval.ALWAYS }
+        assertEquals(dev.locus.core.model.MemoryApproval.ALWAYS, f.graph.settingsRepository.current().memoryApproval)
+        f.vm.setMemoryApproval(dev.locus.core.model.MemoryApproval.OUTSIDE_CONTENT)
+        f.vm.state { it.memoryApproval == dev.locus.core.model.MemoryApproval.OUTSIDE_CONTENT }
+    }
+
+    @Test
     fun `integration keys show as set without exposing them`() = runTest {
         val f = fixture()
         val tavily = Integrations.all.first { it.id == "tavily" }

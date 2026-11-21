@@ -57,6 +57,7 @@
     <string name="analytics_source_reviewer">Revisor de segurança</string>
     <string name="analytics_source_reflection">Lições para a memória</string>
     <string name="analytics_source_side_question">Perguntas paralelas</string>
+    <string name="analytics_source_memory_tidy">Organização da memória</string>
     <string name="analytics_source_other">Outros</string>
     <string name="analytics_tools_calls">Chamadas</string>
     <string name="analytics_tools_succeeded">Bem-sucedidas</string>
@@ -110,4 +111,5 @@
         <item quantity="other">Pelos preços do models.dev. %1$d de %2$d solicitações em 30 dias não tinham preço, então os totais marcados com + são no mínimo esse valor.</item>
     </plurals>
     <string name="analytics_cost_note_priced">Pelos preços de tabela do models.dev; a cobrança do seu provedor pode ser diferente.</string>
+    <string name="analytics_locked_chat">Chat bloqueado</string>
 </resources>
