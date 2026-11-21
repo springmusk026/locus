@@ -2,6 +2,7 @@ package dev.locus.core.data.connectors
 
 import dev.locus.core.agent.home.AgentHome
 import dev.locus.core.agent.home.Connector
+import dev.locus.core.agent.home.ConnectorKeys
 import dev.locus.core.data.mcp.McpTemplates
 import java.net.URI
 import org.junit.Test
@@ -64,12 +65,40 @@ class ConnectorTemplatesTest {
         assertEquals(Connector.Auth("bearer", secret = "k"), auth("vikunja"))
         assertEquals(Connector.Auth("header", "Authorization", "k", prefix = "GoogleLogin auth="), auth("freshrss"))
         assertEquals(ConnectorTemplate.Login.GOOGLE_READER, ConnectorTemplates.byId("freshrss")!!.auth.login)
+        // Jellyfin: the Authorization header's MediaBrowser scheme with the key quoted (legacy X-Emby-Token is off by default from 12.0).
+        val jellyfin = auth("jellyfin")
+        assertEquals(Connector.Auth("header", "Authorization", "k", prefix = "MediaBrowser Token=\"", suffix = "\""), jellyfin)
+        assertEquals("Authorization" to "MediaBrowser Token=\"abc123\"", ConnectorKeys.header(jellyfin, "abc123"))
+        assertEquals("the Authorization header (Authorization: MediaBrowser Token=\"…\")", ConnectorTemplates.byId("jellyfin")!!.auth.sentAs)
+    }
+
+    @Test
+    fun `jellyfin only reads, with bounded searches, from the documented endpoints`() {
+        val t = ConnectorTemplates.byId("jellyfin")!!
+        assertEquals(listOf("search", "recently_added", "item", "now_playing"), t.operations.map { it.name })
+        assertTrue(t.operations.all { it.method == "GET" && it.sideEffect == "read" })
+        assertTrue(t.operations.all { it.path.startsWith("/Items?") || it.path.startsWith("/Sessions?") })
+        // Listing the whole library would be huge: the model has to say how many.
+        listOf("search", "recently_added").forEach { name -> assertTrue(t.operations.first { it.name == name }.params.first { it.name == "limit" }.required, name) }
+        assertEquals("/Items?limit=1&enableImages=false", t.testPath)
+        assertEquals("https://media.example.com", t.connector("jellyfin", "https://media.example.com", "k").baseUrl)
+    }
+
+    @Test
+    fun `a header suffix is short, one line, and only for header auth`() {
+        fun valid(auth: Connector.Auth) = runCatching {
+            Connector(id = "x", name = "X", description = "x", baseUrl = "https://x.example", auth = auth, operations = listOf(Connector.Operation("a", "a", path = "/a"))).validate()
+        }.isSuccess
+        assertTrue(valid(Connector.Auth("header", "Authorization", "k", prefix = "MediaBrowser Token=\"", suffix = "\"")))
+        assertFalse(valid(Connector.Auth("bearer", secret = "k", suffix = "\"")))
+        assertFalse(valid(Connector.Auth("header", "Authorization", "k", suffix = "\r\nX: 1")))
+        assertFalse(valid(Connector.Auth("header", "Authorization", "k", suffix = "123456789")))
     }
 
     @Test
     fun `only posting is outward, and the read-only services change nothing`() {
         assertEquals(mapOf("mastodon" to listOf("post")), all.filter { it.outward.isNotEmpty() }.associate { it.id to it.outward })
-        listOf("freshrss", "paperless", "immich").forEach { id ->
+        listOf("freshrss", "paperless", "immich", "jellyfin").forEach { id ->
             assertTrue(ConnectorTemplates.byId(id)!!.operations.all { it.sideEffect == "read" }, id)
         }
         assertTrue(all.flatMap { it.operations }.none { it.sideEffect == "destructive" }, "no template deletes anything")
