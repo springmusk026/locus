@@ -148,6 +148,8 @@ One term per concept, reused across modules. New translations follow this table;
 | quiet hours | horas de silencio | horário silencioso | 免打扰时段 |
 | reminder | recordatorio | lembrete | 提醒 |
 | receipt (of a run) | recibo | recibo | 回执 |
+| command (shell) | comando | comando | 命令 |
+| snapshot (of files) | instantánea | snapshot | 快照 |
 | failed | con error | com falha | 失败 |
 | preview | vista previa | prévia | 预览 |
 | library | biblioteca | biblioteca | 资料库 |

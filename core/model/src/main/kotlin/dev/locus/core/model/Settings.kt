@@ -124,6 +124,12 @@ data class AppSettings(
      */
     val projectRemotes: Map<String, ProjectRemote> = emptyMap(),
     /**
+     * Projects (by id) whose folder is snapshotted before each shell command, so the files a command
+     * changes show on the changes card and can be undone (docs/design/shell-snapshots.md). Off by default.
+     * Not sealed: it only adds a safety net, it never lets a project do more.
+     */
+    val shellSnapshotProjects: Set<String> = emptySet(),
+    /**
      * Whether other apps (Tasker, Automate…) may ask Locus to start tasks through its automation
      * intents (docs/design/android-bridge.md). Off by default; sealed with the permissions.
      */

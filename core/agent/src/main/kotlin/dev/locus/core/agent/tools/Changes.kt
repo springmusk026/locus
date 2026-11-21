@@ -32,3 +32,13 @@ data class FileChange(
 fun interface ChangeRecorder {
     suspend fun record(change: FileChange)
 }
+
+/**
+ * Wraps a shell command so the files it changes in a project's folder are tracked like the file tools'
+ * changes (docs/design/shell-snapshots.md): a snapshot before, a diff after, each changed file recorded
+ * for the call's turn. Lives in core/data, which knows the project's setting; the command only calls
+ * [track]. Tracking never changes what the command returns and never fails it.
+ */
+interface CommandChangeTracker {
+    suspend fun track(block: suspend () -> dev.locus.core.agent.ToolResult): dev.locus.core.agent.ToolResult
+}

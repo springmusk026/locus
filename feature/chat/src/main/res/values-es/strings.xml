@@ -225,6 +225,21 @@
     <string name="chat_changes_undo">Deshacer</string>
     <string name="chat_changes_you_undid">Deshiciste este cambio.</string>
     <string name="chat_changes_cannot_undo">La versión anterior ya no está en la papelera del espacio de trabajo, así que no se puede deshacer.</string>
+    <string name="chat_changes_cannot_undo_snapshot">La versión anterior estaba en una instantánea de comando que ya no se conserva, así que no se puede deshacer.</string>
+    <string name="chat_changes_by_command">Por un comando</string>
+    <string name="chat_changes_edit_label_command">Cambiado por un comando</string>
+    <string name="chat_changes_untracked_title">Cambios de comandos sin seguimiento</string>
+    <string name="chat_changes_skip_too_many_files">No se hizo seguimiento de los cambios de un comando: el proyecto tiene más de %1$s archivos.</string>
+    <string name="chat_changes_skip_too_large">No se hizo seguimiento de los cambios de un comando: el proyecto ocupa más de %1$s.</string>
+    <string name="chat_changes_skip_too_slow">No se hizo seguimiento de los cambios de un comando: leer el proyecto tardó más de %1$s segundos.</string>
+    <string name="chat_changes_skip_too_many_changes">Un comando cambió más de %1$s archivos, demasiados para hacer seguimiento: sus cambios no se pueden deshacer aquí.</string>
+    <string name="chat_changes_skip_busy">No se hizo seguimiento de los cambios de un comando: otro comando se estaba ejecutando en este proyecto.</string>
+    <string name="chat_changes_skip_failed">No se hizo seguimiento de los cambios de un comando: Locus no pudo leer la carpeta del proyecto.</string>
+    <plurals name="chat_changes_skip_times">
+        <item quantity="one">%1$d comando</item>
+        <item quantity="many">%1$d comandos</item>
+        <item quantity="other">%1$d comandos</item>
+    </plurals>
     <string name="chat_changes_net">Cambio neto de este turno</string>
     <string name="chat_changes_folder">Una carpeta: no hay líneas que comparar.</string>
     <string name="chat_changes_binary">Un archivo binario: no hay líneas que comparar.</string>
@@ -709,6 +724,11 @@
     <string name="chat_projecteditor_where_linked">Los archivos se sincronizan antes y después de cada comando. Se aplica al instante, también a los chats en curso; los resultados indican dónde se ejecutaron.</string>
     <string name="chat_projecteditor_where_new">Las compilaciones largas pueden ejecutarse en una de tus máquinas por SSH. Al elegir una, primero se guarda el proyecto para que exista su carpeta que copiar. Los archivos se copian allí; los secretos, nunca.</string>
     <string name="chat_projecteditor_where_existing">Las compilaciones largas pueden ejecutarse en una de tus máquinas por SSH. Los archivos se copian allí; los secretos, nunca.</string>
+    <string name="chat_projecteditor_snapshots">Deshacer comandos</string>
+    <string name="chat_projecteditor_snapshots_title">Instantánea antes de los comandos de shell</string>
+    <string name="chat_projecteditor_snapshots_on">Los archivos que cambia un comando aparecen bajo su turno y se pueden deshacer.</string>
+    <string name="chat_projecteditor_snapshots_off">Desactivado: solo se pueden deshacer los cambios de las herramientas de archivos.</string>
+    <string name="chat_projecteditor_snapshots_note">Antes de cada comando, Locus copia los archivos del proyecto en su propio almacenamiento; un archivo que no cambió se guarda una sola vez. Omite la instantánea, y lo indica, cuando la carpeta tiene más de %1$s archivos o %2$s, o leerla tarda más de %3$s segundos. Se excluyen los enlaces y carpetas como .git, node_modules, build, dist, .venv y __pycache__. Las instantáneas se conservan para los últimos %4$s turnos, hasta %5$s días.</string>
     <string name="chat_projecteditor_permissions">Permisos</string>
     <string name="chat_projecteditor_permissions_hint">Estos ajustes solo pueden hacer una herramienta más estricta en este proyecto; Permitir requiere tu confirmación. Los cambios se aplican al instante, también a los chats en curso. En el resto de lugares, las herramientas siguen</string>
     <string name="chat_projecteditor_set">%1$d definidos</string>
@@ -1330,6 +1350,11 @@
         <item quantity="one">%1$d comando de shell se ejecutó después; sus efectos se quedan.</item>
         <item quantity="many">%1$d comandos de shell se ejecutaron después; sus efectos se quedan.</item>
         <item quantity="other">%1$d comandos de shell se ejecutaron después; sus efectos se quedan.</item>
+    </plurals>
+    <plurals name="chat_rewind_effects_command_tracked">
+        <item quantity="one">%1$d comando de shell se ejecutó después: los archivos del proyecto que cambió vuelven con los de arriba; lo demás que hizo (paquetes, archivos fuera del proyecto) se queda.</item>
+        <item quantity="many">%1$d comandos de shell se ejecutaron después: los archivos del proyecto que cambiaron vuelven con los de arriba; lo demás que hicieron (paquetes, archivos fuera del proyecto) se queda.</item>
+        <item quantity="other">%1$d comandos de shell se ejecutaron después: los archivos del proyecto que cambiaron vuelven con los de arriba; lo demás que hicieron (paquetes, archivos fuera del proyecto) se queda.</item>
     </plurals>
     <plurals name="chat_rewind_effects_outside">
         <item quantity="one">%1$d llamada llegó a un servicio fuera del teléfono (un conector, correo, un despliegue); no se puede deshacer.</item>

@@ -81,7 +81,7 @@ What undo does on disk: a changed or deleted path is put back with `Workspace.re
 The row holds the net change; the sheet also lists each change to the file in the turn, in order.
 
 - **What's recorded.** Each time a file tool reports a path, `ChangeRepository` also adds an entry to the turn's history: the time, the tool and call, its own +/− counts and unified diff (that call's trash copy against the file now), and a SHA-256 of the result. The file tools already keep a trash copy before every write, so no extra snapshot is taken.
-- **Changes in between.** If the trash copy taken before an edit doesn't match the hash the previous edit left, something else changed the file in between (most often a command, or you). That shows as "Changed outside the file tools (a command, or you)", with no diff of its own: the net diff covers it. A change after the agent's last edit shows the same way at the end of the sheet ("Changed again since…"), from the same check Undo uses. A file only ever changed by a command still isn't tracked: that would need a snapshot of the workspace before every command.
+- **Changes in between.** If the trash copy taken before an edit doesn't match the hash the previous edit left, something else changed the file in between (most often a command, or you). That shows as "Changed outside the file tools (a command, or you)", with no diff of its own: the net diff covers it. A change after the agent's last edit shows the same way at the end of the sheet ("Changed again since…"), from the same check Undo uses. A file only ever changed by a command isn't tracked, unless its project has "Snapshot before shell commands" on (below).
 - **Where it's kept.** `ChangeHistory`: one small JSON file per turn in the app's no-backup storage (`change-history/`), beside the `file_changes` table rather than in it, so the database schema didn't change. Files are written through `FileTrees.writeReplacing` and never read through a link. After a restore the cards come back with their net diffs and the sheet says there's no per-edit history.
 - **Limits.** 50,000 characters of diff per edit and 1,000,000 per turn (later edits keep only their counts), 500 edits per turn, 16 MB for all turns (oldest first). A turn's history goes when its records are pruned or its chat is deleted.
 - **Undo is unchanged.** It still puts the file back to how it was before the turn. Undoing one edit isn't offered: later edits in the turn were made on top of it, so taking it back alone would need a merge, and could leave a file the agent never wrote or tested (the same reason per-hunk undo was left out above).
@@ -98,6 +98,17 @@ An undo changes files under the agent. Two things keep it from working from a st
    The chat hides the note. A note-only message doesn't start a turn (`Message.startsTurn()`), so the turn and its card carry on past it.
 
 The transcript stays append-only. The note is added at the end, never inserted, and the system prompt and tool list don't change, so the provider's cached prefix holds. The test `ChangesFlowTest` checks that each request starts with exactly the messages of the one before.
+
+### Shell commands (opt-in, per project)
+
+With **Snapshot before shell commands** on in a project's editor, `run_command` in that project's chats is wrapped by a
+snapshot of the project's folder before and a scan after ([shell-snapshots.md](shell-snapshots.md)). Each file the
+command added, changed or deleted is recorded through the same `ChangeRepository.record`, with tool name `run_command`,
+so it shows on the card ("By a command"), in the diff sheet's history ("Changed by a command") and goes back with Undo,
+Undo all and Rewind here. Its "before" isn't a trash entry: the change row's `beforeTrashId` holds
+`shell:<sha256>:<mode>`, a blob in the snapshot store, and undo copies the blob back (what's there now still goes to
+the trash first). The changed-since check is the same. A command that couldn't be snapshotted says why on the card. Off
+by default: without it nothing here changes.
 
 ### Storage cap
 
@@ -147,7 +158,7 @@ Receipts count a finished run as "unclear", workflow checks as not checked, and 
 **In the transcript.** Runs are part of the turn's work section, not cards of their own. All runs of one kind (tests, build, check) in a turn are one row, grouped by kind rather than by exact command, so a build-fix-rerun loop with `npm test`, `npm test -- --run` and `npx vitest run` stays one row; a chained command counts as the check it ends with. The row shows the latest result ("Tests · passed on run 5 of 5", or "Tests passed" for one run), a dot per run (`RunDots`) and the latest duration. A run still going (its call saved, no result yet) is already in the row ("Tests · running (run 5)"), so it updates in place. Only a run that didn't pass says more: its tally and its first three failing tests or error lines on a soft critical tint, then **Output**. A tap opens every run, newest first, each with its result, command, tally and selectable output (the latest open). The run stays in the terminal panel and in exports.
 
 
-- Changes made by `run_command`, services, browser downloads, `sftp_download` and other non-file tools aren't tracked, as in Claude Code. The trash still keeps what those tools overwrite.
+- Changes made by `run_command` aren't tracked, as in Claude Code, unless the chat is in a project with "Snapshot before shell commands" on ([shell snapshots](shell-snapshots.md)). Services, browser downloads, `sftp_download` and other non-file tools aren't tracked. The trash still keeps what those tools overwrite.
 - Folder moves aren't tracked. Folder deletes and copies are tracked, without a diff.
 - Rewind here (docs/design/rewind.md) undoes every later turn's changes at once through the same undo, newest first, but leaves a file that changed since as it is instead of warning.
 - A pending note lives in memory. If Locus restarts first, the agent isn't told, but it also has to read every file again before changing it, since `FileReads` is in memory too.

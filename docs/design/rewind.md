@@ -42,7 +42,15 @@ already, `ChangeRepository.rewindPlan` says what happens:
 - **left as it is** when it changed since the newest of those turns left it (SHA-256 against what the agent left,
   as Undo checks): you, a command or another app changed it, and a rewind never overwrites that. This is stricter
   than Undo, which warns and goes ahead: a rewind touches many files at once, and you can still Undo one by hand;
-- **can't be put back** when an earlier version is no longer in the trash.
+- **can't be put back** when an earlier version is no longer in the trash (or, for a command's change, in its
+  snapshot).
+
+In a project with "Snapshot before shell commands" on ([shell-snapshots.md](shell-snapshots.md)), the files the later
+turns' `run_command` calls changed are tracked changes like any other: they go back too, newest first, through the
+same undo and the same changed-since rule (a file changed after the command is left as it is). The sheet then says
+"3 shell commands ran after this: the project files they changed go back with the others above; anything else they
+did (packages, files outside the project) stays", instead of "their effects stay". A command that wasn't snapshotted
+(over the caps, the setting off) is still only an effect that stays.
 
 The check runs again under the recorder's lock when you confirm, so a change made while the sheet was open is
 never overwritten either.

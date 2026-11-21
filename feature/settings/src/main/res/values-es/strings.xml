@@ -555,6 +555,10 @@
     <string name="settings_storage_trash_title">¿Vaciar la papelera?</string>
     <string name="settings_storage_trash_message">Elimina definitivamente todos los archivos de la papelera del espacio de trabajo. Después no se podrán restaurar, y Deshacer deja de funcionar para cambios anteriores de archivos cuya versión antigua se conservaba allí.</string>
     <string name="settings_storage_trash_confirm">Vaciar papelera</string>
+    <string name="settings_storage_snapshots_title">¿Borrar las instantáneas de comandos?</string>
+    <string name="settings_storage_snapshots_message">Elimina las copias de los archivos del proyecto que Locus guardó antes de los comandos de shell. Los cambios de esos comandos siguen apareciendo en sus chats, pero Deshacer y Rebobinar hasta aquí ya no podrán revertirlos. Tus archivos, chats y la papelera del espacio de trabajo no se tocan. Se seguirán tomando instantáneas en los proyectos que las tengan activadas.</string>
+    <string name="settings_storage_snapshots_confirm">Borrar instantáneas</string>
+    <string name="settings_storage_snapshots_cleared">Se borraron %1$s de instantáneas de comandos.</string>
     <string name="settings_storage_title">Almacenamiento</string>
     <string name="settings_storage_error_title">No se pudo medir el almacenamiento</string>
     <string name="settings_storage_measuring">Midiendo cada parte de Locus…</string>

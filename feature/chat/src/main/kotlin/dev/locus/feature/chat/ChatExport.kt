@@ -82,7 +82,8 @@ internal object ChatExport {
                     speak("Locus")
                     step(stepLabel(item.call) + ": " + dev.locus.core.model.Verification.title(item.outcome).lowercase())
                 }
-                is ChatItem.Changes -> {
+                // A card holding only notes about untracked commands has no files to list.
+                is ChatItem.Changes -> if (item.files.isNotEmpty()) {
                     speak("Locus")
                     item.files.forEach { f -> step("Changed " + code(f.path) + " (" + changeSummaryEnglish(f) + if (f.undone) ", undone)" else ")") }
                 }
