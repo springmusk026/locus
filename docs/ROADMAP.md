@@ -222,7 +222,7 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 - [x] **Android 16 Live Updates** (S) for running and waiting runs, with Approve and Deny (#35). *Not yet tried on the phone.*
 - [ ] **Semantic memory recall** (M) with on-device embeddings and provenance per fact. *Nov 2026: the FTS5 part is built: unicode61 and trigram indexes, ranked by `bm25()` and merged by reciprocal rank fusion. Non-Latin queries work, and provenance shows in Library ([memory search](design/memory-search.md)). Embeddings are still to come; the research is in [memory search § embeddings](design/memory-search.md#embeddings-follow-up). Before this, substring search returned nothing for non-Latin queries on the JVM. Provenance (who saved a note, when, in which chat, and whether the run was tainted) is done (#72, [taint](design/taint.md#memory-provenance)). EmbeddingGemma is a candidate model ([algorithms #9](research/agent-algorithms-2026.md#9-ranked-memory-search-with-provenance-s-for-fts5-and-provenance-m-for-embeddings-medium)).*
 - [x] **Skill import** (S) from a GitHub link or zip, as a draft to approve. Done: see "Skill import" in Phase 2b (#27).
-- [ ] **Translated UI** (M, ongoing), falling back to English for missing strings.
+- [x] **Translated UI** (M): Spanish, Portuguese (Brazil) and Simplified Chinese for every screen, shipped in 0.2.0; English is the fallback ([localization](design/localization.md)). Native-speaker review is still to do.
 - [~] **Workspace AGENTS.md** (S), read when a chat starts. *Now part of Projects (each project's instructions file); see [Recommended next](#recommended-next-nov-2026) #2.*
 - [x] **Calendar and contacts read access** (S–M), read-only, Ask by default. *`calendar_read` (READ_CALENDAR asked on first use) and `contacts_pick` (the system picker, no contacts permission), plus `photos_pick`; see [android bridge](design/android-bridge.md). Not yet tried on the phone.*
 - [x] **Calendar writes, reminders, and three phone hand-offs** (M). *`calendar_create` / `calendar_update` / `calendar_delete` to the one calendar picked in Settings → Phone (WRITE_CALENDAR with a rationale; guests and deletes always confirm; repeating events only as a whole series); `remind_me` notifications through AlarmManager (exact only with "Alarms & reminders", else a 10-minute window; set again after reboot; listed in Scheduled tasks); `device_contact_add` (insert intent), `device_save_file` (Save as) and `device_copy` (scrubbed, sensitive). Discovery-only, no Room change. See [phone integrations](design/phone-integrations.md). Not yet tried on the phone. Next: single-occurrence edits, repeating reminders.*
@@ -365,6 +365,21 @@ Everyday integrations that remove friction ([design](design/integrations.md)).
 - [ ] **WebDAV/CalDAV template for Nextcloud** (S), if the community server doesn't run in Locus's Linux on phones.
 - [x] **More templates** (S each): Gotify and webhooks as reach-me channels, Jellyfin. See [reach-me channels](design/reach-me-channels.md) and [integrations](design/integrations.md).
 - [ ] **Places search** with a user-supplied Nominatim URL (needs the decision above).
+
+## From the feature-opportunities research (2026-11-21)
+
+Ranked by value over effort; sources, positioning and what not to copy are in [feature opportunities](research/feature-opportunities-2026-11.md).
+
+- [ ] **App lock and locked chats** (S): biometric or device-credential gate on opening Locus and on chosen chats (ChatGPT shipped it on 2026-10-20).
+- [ ] **Saved prompts with variables** (S): `/` in the composer, `{{clipboard}}`, `{{date}}` and form fields.
+- [ ] **Approve memory writes** (S): a setting that makes every `memory_save` ask, and a periodic consolidation proposed as a diff. Policy and UI only.
+- [ ] **Rewind here, summarise from here** (S–M): rewind files and conversation to a message; summarise only the tail so the cached prefix stays. Covers "Compaction: editable summary".
+- [ ] **"Needs you" feed** (M): trigger and scheduled results plus drafts waiting for approval in one place; builds on "let a run propose a write as an approval card".
+- [ ] **Deep-research workflow** (M): researcher helpers, a verifier pass, a cited report with unverifiable claims marked.
+- [ ] **Import ChatGPT and Claude exports** (M): parsed on the phone into read-only, tainted chats.
+- [ ] **Office files** (M): skills that write docx, xlsx and pptx in Linux, and viewers for them.
+- [ ] **Snapshots that include shell changes** (M), **Rules (hooks)** (M), **Compare models** (M), **Publish to your own host** (S–M), **Desktop agents reach the phone over a token-guarded MCP endpoint** (M–L), **Health Connect, read-only** (M).
+- [ ] Small: usage and budget widget, "questions waiting" banner, a reason when the user denies an action.
 
 ## Phase 2b: Learns as it goes
 
