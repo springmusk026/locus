@@ -365,6 +365,21 @@ Everyday integrations that remove friction ([design](design/integrations.md)).
 - [ ] **WebDAV/CalDAV template for Nextcloud** (S), if the community server doesn't run in Locus's Linux on phones.
 - [ ] **More templates** (S each): Gotify and webhooks as reach-me channels, Jellyfin, a Places search with a user-supplied Nominatim URL.
 
+## From the feature-opportunities research (2026-11-21)
+
+Ranked by value over effort; sources, positioning and what not to copy are in [feature opportunities](research/feature-opportunities-2026-11.md).
+
+- [ ] **App lock and locked chats** (S): biometric or device-credential gate on opening Locus and on chosen chats (ChatGPT shipped it on 2026-10-20).
+- [ ] **Saved prompts with variables** (S): `/` in the composer, `{{clipboard}}`, `{{date}}` and form fields.
+- [ ] **Approve memory writes** (S): a setting that makes every `memory_save` ask, and a periodic consolidation proposed as a diff. Policy and UI only.
+- [ ] **Rewind here, summarise from here** (S–M): rewind files and conversation to a message; summarise only the tail so the cached prefix stays. Covers "Compaction: editable summary".
+- [ ] **"Needs you" feed** (M): trigger and scheduled results plus drafts waiting for approval in one place; builds on "let a run propose a write as an approval card".
+- [ ] **Deep-research workflow** (M): researcher helpers, a verifier pass, a cited report with unverifiable claims marked.
+- [ ] **Import ChatGPT and Claude exports** (M): parsed on the phone into read-only, tainted chats.
+- [ ] **Office files** (M): skills that write docx, xlsx and pptx in Linux, and viewers for them.
+- [ ] **Snapshots that include shell changes** (M), **Rules (hooks)** (M), **Compare models** (M), **Publish to your own host** (S–M), **Desktop agents reach the phone over a token-guarded MCP endpoint** (M–L), **Health Connect, read-only** (M).
+- [ ] Small: usage and budget widget, "questions waiting" banner, a reason when the user denies an action.
+
 ## Phase 2b: Learns as it goes
 
 - [x] **Memory.** The agent saves facts and preferences as it works, recalls them in later chats, and shows you all of it to edit or forget.
