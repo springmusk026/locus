@@ -127,7 +127,7 @@
     <string name="settings_agent_long_chats_section">Chats largos</string>
     <string name="settings_agent_cold_clearing_title">Borrar resultados de herramientas antiguos tras una pausa larga</string>
     <string name="settings_agent_cold_clearing_subtitle">Cuando un chat continúa tras un día o más, los resultados largos de antes se envían como una nota breve. El chat los sigue mostrando completos</string>
-    <string name="settings_agent_cold_clearing_note">Tras un día, la caché de prompts del proveedor ya ha caducado, así que esto nunca cuesta un acierto de caché, y el agente puede volver a ejecutar una herramienta cuando necesite un resultado. No se usa con modelos de Anthropic. Un cambio se aplica desde la siguiente solicitud, que entonces puede no aprovechar la caché una vez.</string>
+    <string name="settings_agent_cold_clearing_note">Tras un día, la caché de prompts del proveedor ya ha caducado, así que esto nunca cuesta un acierto de caché, y el agente puede volver a ejecutar una herramienta cuando necesite un resultado. Todavía no se usa con modelos de Anthropic ni con la API Responses de OpenAI (incluido Iniciar sesión con ChatGPT). Un cambio se aplica desde la siguiente solicitud, que entonces puede no aprovechar la caché una vez.</string>
     <string name="settings_agent_helpers_section">Ayudantes</string>
     <string name="settings_agent_helper_reports_title">Continuar cuando un ayudante informa</string>
     <string name="settings_agent_helper_reports_subtitle">Cuando un ayudante en segundo plano termina después de la respuesta, Locus retoma el chat con su informe</string>

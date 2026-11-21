@@ -121,7 +121,7 @@
     <string name="settings_agent_long_chats_section">长对话</string>
     <string name="settings_agent_cold_clearing_title">长时间暂停后清除旧的工具结果</string>
     <string name="settings_agent_cold_clearing_subtitle">对话在一天或更久之后继续时，之前较长的结果会以简短说明发送。对话中仍完整显示它们</string>
-    <string name="settings_agent_cold_clearing_note">一天之后，提供商的提示缓存反正已经过期，因此这不会损失任何缓存命中；智能体需要某个结果时可以再次运行工具。Anthropic 模型不使用此功能。更改从下一次请求开始生效，该请求可能会有一次未命中缓存。</string>
+    <string name="settings_agent_cold_clearing_note">一天之后，提供商的提示缓存反正已经过期，因此这不会损失任何缓存命中；智能体需要某个结果时可以再次运行工具。Anthropic 模型和 OpenAI Responses API（包括“使用 ChatGPT 登录”）暂不使用此功能。更改从下一次请求开始生效，该请求可能会有一次未命中缓存。</string>
     <string name="settings_agent_helpers_section">助手</string>
     <string name="settings_agent_helper_reports_title">助手回报后继续</string>
     <string name="settings_agent_helper_reports_subtitle">后台助手在回复之后才完成时，Locus 会带着其报告继续该对话</string>

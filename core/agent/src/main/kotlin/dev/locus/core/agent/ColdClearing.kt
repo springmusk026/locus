@@ -72,6 +72,10 @@ object ColdClearing {
     fun policyFor(format: ApiFormat?, enabled: Boolean): Policy? = when {
         !enabled || format == null -> null
         format == ApiFormat.ANTHROPIC_MESSAGES -> null
+        // Not yet: Locus replays encrypted reasoning items statelessly there, and whether OpenAI accepts an
+        // edited earlier function_call_output beside them hasn't been checked with a live key
+        // (docs/design/cold-cache-clearing.md, "Not done").
+        format == ApiFormat.OPENAI_RESPONSES || format == ApiFormat.CHATGPT -> null
         else -> Policy(coldAfterMs = COLD_AFTER_BY_FORMAT[format] ?: COLD_AFTER_MS)
     }
 

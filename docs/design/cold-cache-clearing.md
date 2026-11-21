@@ -12,6 +12,8 @@ Once the cache has expired, though, the next request pays full price for the who
 
 Only what a request **sends** changes. The store stays append-only, the chat shows every result in full, `chat_history_read` with `include_tool_results` still reads them, and taint, receipts and compaction's checkpoint all read the stored transcript.
 
+It applies to OpenAI-compatible Chat Completions servers (OpenAI, OpenRouter, Gemini, DeepSeek, Groq, Ollama, LM Studio, llama.cpp) and on-device models. It never applies to Anthropic models (see Why), and not yet to the OpenAI Responses API or Sign in with ChatGPT (see [Not done](#not-done-and-unverified)).
+
 ### Cold boundaries
 
 A message is a *cold boundary* when it was created more than **24 hours** (`ColdClearing.COLD_AFTER_MS`) after the last assistant reply before it. Only the first message after each such gap counts (the rest, up to the next reply, are past the same gap).
@@ -94,7 +96,7 @@ Insights isn't changed: it records the tokens each request used (so the saving s
 ## Not done, and unverified
 
 - **Not tried against a live key or on a phone.** The rules are pinned by tests on the request bodies.
-- **OpenAI Responses reasoning items.** Locus replays encrypted reasoning items statelessly (`store: false`). OpenAI doesn't document them as bound to the exact earlier input the way Anthropic's thinking blocks are, so editing an earlier `function_call_output` should be accepted; this was not verified with a live key. Verify with a live key; if a 400 shows up there, exclude `OPENAI_RESPONSES` and `CHATGPT` in `policyFor`.
+- **OpenAI Responses reasoning items.** Locus replays encrypted reasoning items statelessly (`store: false`). OpenAI doesn't document them as bound to the exact earlier input the way Anthropic's thinking blocks are, so editing an earlier `function_call_output` should be accepted, but this hasn't been checked with a live key. Until it is, `policyFor` leaves `OPENAI_RESPONSES` and `CHATGPT` (Sign in with ChatGPT) out, like Anthropic. To turn them on: run a chat on a Responses model past a 25-hour gap with clearing forced, check the request succeeds and reasoning continues, then remove the exclusion and its test.
 - **A side question or helper in the gap.** A side question asked 23 hours after the last reply reads (and refreshes) the uncleared prefix; the user's message an hour later is still a boundary, measured from the chat's last reply, and that request misses a cache that was in fact warm. Rare, and costs one cache miss.
 - **Keeping cleared results somewhere the model can name.** The research proposal suggested pointing at a saved copy (`.locus/out/…`). Long output is already spilled there when it's written ([tool output](tool-output.md)), and the note tells the model to run the tool again; `chat_history_read` with `include_tool_results` also reaches the original.
 - **Clearing at compaction instead of summarising.** Not done: the summary replaces everything anyway.

@@ -125,7 +125,7 @@
     <string name="settings_agent_long_chats_section">Long chats</string>
     <string name="settings_agent_cold_clearing_title">Clear old tool results after a long pause</string>
     <string name="settings_agent_cold_clearing_subtitle">When a chat goes on after a day or more, long results from earlier are sent as a short note. The chat still shows them in full</string>
-    <string name="settings_agent_cold_clearing_note">After a day the provider\'s prompt cache has expired anyway, so this never costs a cache hit, and the agent can run a tool again when it needs a result. Not used with Anthropic models. A change applies from the next request, which may then miss the cache once.</string>
+    <string name="settings_agent_cold_clearing_note">After a day the provider\'s prompt cache has expired anyway, so this never costs a cache hit, and the agent can run a tool again when it needs a result. Not used with Anthropic models or the OpenAI Responses API (including Sign in with ChatGPT) yet. A change applies from the next request, which may then miss the cache once.</string>
     <string name="settings_agent_helpers_section">Helpers</string>
     <string name="settings_agent_helper_reports_title">Continue when a helper reports back</string>
     <string name="settings_agent_helper_reports_subtitle">When a background helper finishes after the reply, Locus picks the chat up again with its report</string>

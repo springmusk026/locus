@@ -185,9 +185,12 @@ class ColdClearingTest {
         assertNull(ColdClearing.policyFor(ApiFormat.ANTHROPIC_MESSAGES, enabled = true))
         assertNull(ColdClearing.policyFor(ApiFormat.OPENAI_RESPONSES, enabled = false))
         assertNull(ColdClearing.policyFor(null, enabled = true))
-        listOf(ApiFormat.OPENAI_CHAT, ApiFormat.OPENAI_RESPONSES, ApiFormat.CHATGPT, ApiFormat.ON_DEVICE).forEach {
+        listOf(ApiFormat.OPENAI_CHAT, ApiFormat.ON_DEVICE).forEach {
             assertEquals(ColdClearing.COLD_AFTER_MS, assertNotNull(ColdClearing.policyFor(it, enabled = true)).coldAfterMs)
         }
+        // Not until a live-key check of the encrypted reasoning items they replay.
+        assertNull(ColdClearing.policyFor(ApiFormat.OPENAI_RESPONSES, enabled = true))
+        assertNull(ColdClearing.policyFor(ApiFormat.CHATGPT, enabled = true))
         val chat = Chat()
         chat.user("Read the logs")
         repeat(12) { chat.step(big(it)) }
@@ -304,7 +307,7 @@ class ColdClearingTest {
     @Test
     fun `the loop sends the cleared view and stores every result in full`() {
         val history = coldChat()
-        val model = Model(ApiFormat.OPENAI_RESPONSES)
+        val model = Model(ApiFormat.OPENAI_CHAT)
         val store = Store()
         run(model, history, store = store)
         val sent = model.requests.single().messages
@@ -312,7 +315,7 @@ class ColdClearingTest {
         assertTrue(store.messages.flatMap { it.toolResults }.none { it.content.startsWith(ColdClearing.PREFIX) })
         assertTrue(history.flatMap { it.toolResults }.none { it.content.startsWith(ColdClearing.PREFIX) })
 
-        val off = Model(ApiFormat.OPENAI_RESPONSES)
+        val off = Model(ApiFormat.OPENAI_CHAT)
         run(off, history, enabled = false)
         assertNull(ColdClearing.clearedIn(off.requests.single().messages))
 
