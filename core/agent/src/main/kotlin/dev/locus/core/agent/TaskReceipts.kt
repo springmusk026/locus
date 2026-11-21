@@ -171,7 +171,23 @@ object TaskReceipts {
     private fun workflow(messages: List<Message>, checks: List<ReceiptCheck>, changed: List<String>): ReceiptWorkflow? {
         val plan = messages.firstNotNullOfOrNull { WorkflowRender.planIn(it) } ?: return null
         val reply = messages.lastOrNull { it.role == Role.ASSISTANT && it.text.isNotBlank() }?.text
-        return ReceiptWorkflow(plan.id, plan.name, WorkflowChecks.evaluate(plan.checks, checks, reply, changed))
+        return ReceiptWorkflow(plan.id, plan.name, WorkflowChecks.evaluate(plan.checks, checks, reply, changed, written(messages)))
+    }
+
+    /** What the task wrote with write_file calls that succeeded, by path, the last write of a path winning. */
+    private fun written(messages: List<Message>): Map<String, String> {
+        val ok = messages.flatMap { m -> m.parts.filterIsInstance<dev.locus.core.model.Part.ToolResult>() }.filter { !it.isError }.map { it.callId }.toSet()
+        val out = LinkedHashMap<String, String>()
+        messages.flatMap { m -> m.parts.filterIsInstance<dev.locus.core.model.Part.ToolCall>() }
+            .filter { it.name == "write_file" && it.id in ok }
+            .forEach { call ->
+                val args = runCatching { kotlinx.serialization.json.Json.parseToJsonElement(call.argumentsJson) as? kotlinx.serialization.json.JsonObject }.getOrNull() ?: return@forEach
+                val path = (args["path"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: return@forEach
+                val content = (args["content"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: return@forEach
+                out.remove(path)
+                out[path] = content
+            }
+        return out
     }
 
     /** "Workflow checks: 2 of 3 passed". Null without checks. */

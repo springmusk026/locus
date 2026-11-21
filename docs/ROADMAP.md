@@ -375,7 +375,7 @@ Ranked by value over effort; sources, positioning and what not to copy are in [f
 - [ ] **Approve memory writes** (S): a setting that makes every `memory_save` ask, and a periodic consolidation proposed as a diff. Policy and UI only.
 - [ ] **Rewind here, summarise from here** (S–M): rewind files and conversation to a message; summarise only the tail so the cached prefix stays. Covers "Compaction: editable summary".
 - [ ] **"Needs you" feed** (M): trigger and scheduled results plus drafts waiting for approval in one place; builds on "let a run propose a write as an approval card".
-- [ ] **Deep-research workflow** (M): researcher helpers, a verifier pass, a cited report with unverifiable claims marked.
+- [x] **Deep-research workflow** (M): researcher helpers, a verifier pass, a cited report with unverifiable claims marked. Built 2026-11-21: [deep research](design/deep-research.md); *not yet tried on the phone*.
 - [ ] **Import ChatGPT and Claude exports** (M): parsed on the phone into read-only, tainted chats.
 - [ ] **Office files** (M): skills that write docx, xlsx and pptx in Linux, and viewers for them.
 - [ ] **Snapshots that include shell changes** (M), **Rules (hooks)** (M), **Compare models** (M), **Publish to your own host** (S–M), **Desktop agents reach the phone over a token-guarded MCP endpoint** (M–L), **Health Connect, read-only** (M).

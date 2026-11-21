@@ -44,7 +44,8 @@ class WorkflowStore(private val home: AgentHome) {
         var id = workflow.id
         if (id != replacing) {
             var n = 2
-            while (File(folder, "$id.json").exists()) id = "${workflow.id.take(60)}-${n++}"
+            // A built-in workflow's id (the research workflow) is taken too, so a copy of it never looks like the original.
+            while (File(folder, "$id.json").exists() || id in RESERVED_IDS) id = "${workflow.id.take(60)}-${n++}"
         }
         val saved = workflow.copy(schema = Workflow.SCHEMA, id = id, createdAt = workflow.createdAt.takeIf { it > 0 } ?: now, updatedAt = now)
         val file = File(folder, "$id.json")
@@ -71,6 +72,9 @@ class WorkflowStore(private val home: AgentHome) {
 
     companion object {
         const val DIR = "workflows"
+
+        /** Ids of the workflows that ship with Locus; a saved one gets a numbered id instead. */
+        val RESERVED_IDS = setOf(ResearchWorkflow.ID)
         private val json = Json { ignoreUnknownKeys = true; prettyPrint = true; encodeDefaults = true; coerceInputValues = true }
 
         /** Throws [IllegalArgumentException] with a message for the user when [w] can't be saved. */

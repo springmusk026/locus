@@ -39,10 +39,13 @@ import dev.locus.core.designsystem.UiText
 import dev.locus.core.designsystem.asString
 import dev.locus.core.designsystem.relativeTime
 import dev.locus.core.model.SavedWorkflow
+import dev.locus.core.model.TaskBudget
 import dev.locus.core.model.Workflow
 import dev.locus.core.ui.WorkflowDraftState
 import dev.locus.core.ui.WorkflowEditorSheet
-import dev.locus.core.ui.WorkflowRunSheet
+import dev.locus.core.ui.RunWorkflowSheet
+import dev.locus.core.ui.isBuiltInResearch
+import dev.locus.core.ui.shownWorkflow
 import dev.locus.core.ui.checkHow
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
@@ -56,8 +59,12 @@ import kotlinx.coroutines.launch
 
 /** Which workflow sheet Library has open. */
 sealed interface LibraryWorkflowSheet {
-    data class Run(val saved: SavedWorkflow, val error: UiText? = null) : LibraryWorkflowSheet
+    /** [lacksTools]: a new chat's model can't call tools, so the sheet explains instead of running. */
+    data class Run(val saved: SavedWorkflow, val error: UiText? = null, val lacksTools: Boolean = false) : LibraryWorkflowSheet
     data class Edit(val saved: SavedWorkflow, val error: UiText? = null) : LibraryWorkflowSheet
+
+    /** A copy of a built-in workflow to edit and save as the user's own; the built-in one stays as it is. */
+    data class Duplicate(val saved: SavedWorkflow, val error: UiText? = null) : LibraryWorkflowSheet
     data class Remove(val saved: SavedWorkflow) : LibraryWorkflowSheet
     data class Schedule(val saved: SavedWorkflow, val error: UiText? = null) : LibraryWorkflowSheet
 }
@@ -80,14 +87,21 @@ class LibraryWorkflowsViewModel @Inject constructor(
 
     fun open(sheet: LibraryWorkflowSheet?) {
         _sheet.value = sheet
+        // A run starts a new chat on the default model: say so up front if that model can't call tools.
+        if (sheet is LibraryWorkflowSheet.Run) {
+            viewModelScope.launch {
+                val lacks = repository.lacksTools(null)
+                (_sheet.value as? LibraryWorkflowSheet.Run)?.takeIf { it.saved == sheet.saved }?.let { _sheet.value = it.copy(lacksTools = lacks) }
+            }
+        }
     }
 
-    /** Runs [saved] in a new chat (its project's, for a project workflow) and opens it. */
-    fun run(saved: SavedWorkflow, values: Map<String, String>, onOpenChat: (String) -> Unit) {
+    /** Runs [saved] in a new chat (its project's, for a project workflow) and opens it; [budget] is the research workflow's. */
+    fun run(saved: SavedWorkflow, values: Map<String, String>, onOpenChat: (String) -> Unit, budget: TaskBudget? = null) {
         val rendered = try {
-            repository.render(saved.workflow, values)
+            repository.render(saved, values, budget)
         } catch (e: WorkflowInputException) {
-            _sheet.value = LibraryWorkflowSheet.Run(saved, e.message?.let(UiText::Plain))
+            _sheet.value = LibraryWorkflowSheet.Run(saved, e.message?.let(UiText::Plain), (_sheet.value as? LibraryWorkflowSheet.Run)?.lacksTools == true)
             return
         }
         _sheet.value = null
@@ -98,6 +112,20 @@ class LibraryWorkflowsViewModel @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 _sheet.value = LibraryWorkflowSheet.Run(saved, e.message?.let(UiText::Plain) ?: UiText.Res(R.string.library_workflows_start_failed))
+            }
+        }
+    }
+
+    /** Saves an edited copy of a built-in workflow as a new workflow of the user's own. */
+    fun saveCopy(saved: SavedWorkflow, workflow: Workflow) {
+        viewModelScope.launch {
+            try {
+                repository.save(workflow, projectId = null, replacing = null)
+                _sheet.value = null
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _sheet.value = LibraryWorkflowSheet.Duplicate(saved.copy(workflow = workflow), e.message?.let(UiText::Plain) ?: UiText.Res(R.string.library_workflows_save_failed))
             }
         }
     }
@@ -118,7 +146,7 @@ class LibraryWorkflowsViewModel @Inject constructor(
     /** Schedules [saved] with fixed [values]; it then shows in Tasks. */
     fun schedule(saved: SavedWorkflow, values: Map<String, String>, intervalMinutes: Long, onScheduled: () -> Unit) {
         try {
-            repository.render(saved.workflow, values)
+            repository.render(saved, values)
         } catch (e: WorkflowInputException) {
             _sheet.value = LibraryWorkflowSheet.Schedule(saved, e.message?.let(UiText::Plain))
             return
@@ -169,12 +197,24 @@ internal fun WorkflowsCard(viewModel: LibraryWorkflowsViewModel, onOpenChat: (St
     val sheet by viewModel.sheet.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     when (val s = sheet) {
-        is LibraryWorkflowSheet.Run -> WorkflowRunSheet(
-            s.saved.workflow, s.error?.asString(),
-            onRun = { values -> viewModel.run(s.saved, values, onOpenChat) },
+        is LibraryWorkflowSheet.Run -> RunWorkflowSheet(
+            s.saved, s.error?.asString(),
+            lacksTools = s.lacksTools,
+            onRun = { values, budget -> viewModel.run(s.saved, values, onOpenChat, budget) },
             onDismiss = { viewModel.open(null) },
             actionLabel = stringResource(R.string.library_workflows_run_in_chat),
         )
+        is LibraryWorkflowSheet.Duplicate -> {
+            // The copy starts from the built-in workflow's own (English) plan, named in the app's language.
+            val copyName = stringResource(R.string.library_workflows_copy_name, shownWorkflow(s.saved).name)
+            val copy = remember(s.saved) { s.saved.workflow.copy(name = copyName, createdAt = 0, updatedAt = 0) }
+            WorkflowEditorSheet(
+                WorkflowDraftState.Ready(copy, projectId = null, replacing = null, error = s.error?.asString()),
+                projectName = null,
+                onSave = { w, _, _ -> viewModel.saveCopy(s.saved, w) },
+                onDismiss = { viewModel.open(null) },
+            )
+        }
         is LibraryWorkflowSheet.Edit -> WorkflowEditorSheet(
             WorkflowDraftState.Ready(s.saved.workflow, s.saved.projectId, replacing = s.saved.workflow.id, error = s.error?.asString()),
             projectName = s.saved.projectId?.let { names[it] },
@@ -209,15 +249,20 @@ internal fun WorkflowsCard(viewModel: LibraryWorkflowsViewModel, onOpenChat: (St
 
 @Composable
 private fun WorkflowRow(saved: SavedWorkflow, project: String?, viewModel: LibraryWorkflowsViewModel) {
-    val w = saved.workflow
+    // A built-in workflow shows its translated name, inputs and phases; a saved one, the user's own words.
+    val w = shownWorkflow(saved)
     ExpandableRow(
         title = w.name,
         subtitle = w.description.ifBlank { w.goal },
-        icon = LocusIcons.Play,
-        iconDescription = stringResource(if (project != null) R.string.library_workflows_icon_project else R.string.library_workflows_icon),
-        meta = listOfNotNull(project, w.updatedAt.takeIf { it > 0 }?.let { relativeTime(it) }).joinToString(" · ").ifEmpty { null },
+        icon = if (saved.builtIn) LocusIcons.Search else LocusIcons.Play,
+        iconDescription = stringResource(if (saved.builtIn) R.string.library_workflows_icon_built_in else if (project != null) R.string.library_workflows_icon_project else R.string.library_workflows_icon),
+        meta = listOfNotNull(
+            if (saved.builtIn) stringResource(R.string.library_workflows_built_in) else null,
+            project,
+            w.updatedAt.takeIf { it > 0 }?.let { relativeTime(it) },
+        ).joinToString(" · ").ifEmpty { null },
     ) {
-        Text(w.goal, style = LocusType.rowSupporting)
+        if (!saved.builtIn) Text(w.goal, style = LocusType.rowSupporting)
         if (w.parameters.isNotEmpty()) {
             Text(stringResource(R.string.library_workflows_inputs, w.parameters.joinToString { "${it.title} (${it.type.name.lowercase()})" }), style = LocusType.supporting)
         }
@@ -229,8 +274,13 @@ private fun WorkflowRow(saved: SavedWorkflow, project: String?, viewModel: Libra
         // Four actions: they wrap on a narrow phone instead of squeezing.
         @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
         androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            TextButton(onClick = { viewModel.open(LibraryWorkflowSheet.Remove(saved)) }) { Text(stringResource(R.string.library_action_remove), color = Locus.colors.critical) }
-            TextButton(onClick = { viewModel.open(LibraryWorkflowSheet.Edit(saved)) }) { Text(stringResource(R.string.library_action_edit)) }
+            if (saved.builtIn) {
+                // Built in: it can't be removed or changed, only copied into a workflow of the user's own.
+                TextButton(onClick = { viewModel.open(LibraryWorkflowSheet.Duplicate(saved)) }) { Text(stringResource(R.string.library_workflows_duplicate)) }
+            } else {
+                TextButton(onClick = { viewModel.open(LibraryWorkflowSheet.Remove(saved)) }) { Text(stringResource(R.string.library_action_remove), color = Locus.colors.critical) }
+                TextButton(onClick = { viewModel.open(LibraryWorkflowSheet.Edit(saved)) }) { Text(stringResource(R.string.library_action_edit)) }
+            }
             TextButton(onClick = { viewModel.open(LibraryWorkflowSheet.Schedule(saved)) }) { Text(stringResource(R.string.library_workflows_schedule)) }
             TextButton(onClick = { viewModel.open(LibraryWorkflowSheet.Run(saved)) }) { Text(stringResource(R.string.library_workflows_run)) }
         }
@@ -250,9 +300,13 @@ private fun ScheduleSheet(s: LibraryWorkflowSheet.Schedule, viewModel: LibraryWo
     val feedback = Locus.feedback
     val scheduledMessage = stringResource(R.string.library_workflows_scheduled)
     val limits = remember(s.saved.workflow) { dev.locus.core.agent.workflow.WorkflowScope.unattended(s.saved.workflow) }
-    WorkflowRunSheet(
-        s.saved.workflow, s.error?.asString(),
-        onRun = { values ->
+    val research = isBuiltInResearch(s.saved)
+    RunWorkflowSheet(
+        s.saved, s.error?.asString(),
+        // A scheduled run starts a chat on the default model, like Run; the research sheet says what it can't do unattended.
+        lacksTools = false,
+        scheduled = true,
+        onRun = { values, _ ->
             viewModel.schedule(s.saved, values, interval) { feedback.show(scheduledMessage, Tone.Live) }
         },
         onDismiss = { viewModel.open(null) },
@@ -266,6 +320,8 @@ private fun ScheduleSheet(s: LibraryWorkflowSheet.Schedule, viewModel: LibraryWo
                 modifier = Modifier.fillMaxWidth(),
                 compact = true,
             )
+            // The research sheet says in its own words what a scheduled run can't do.
+            if (research) return@RunWorkflowSheet
             val lines = buildList {
                 add(stringResource(R.string.library_workflows_schedule_read_only))
                 if (limits.needYou.isNotEmpty()) add(stringResource(R.string.library_workflows_schedule_need_you, limits.needYou.map { workflowToolName(it) }.distinct().joinToString()))

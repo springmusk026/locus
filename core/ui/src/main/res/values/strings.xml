@@ -548,4 +548,39 @@
     <string name="ui_prompt_form_selection">Text to use</string>
     <string name="ui_prompt_form_selection_empty">Nothing was shared or typed before you picked this prompt. Paste or type it here.</string>
     <string name="ui_prompt_insert">Insert</string>
+
+    <!-- Built-in workflows and the research workflow (ResearchWorkflowUi, docs/design/deep-research.md) -->
+    <string name="ui_workflow_built_in">Built in</string>
+    <string name="ui_workflow_check_report">Locus checks the report for citations, a sources list and an unverified section</string>
+    <string name="ui_workflow_unavailable_no_tools">This chat\'s model can\'t use tools, so it can\'t run a workflow. Switch to a model with tool calling to run it.</string>
+    <string name="ui_research_name">Research</string>
+    <string name="ui_research_description">Searches several sources, checks the key claims and writes a cited report.</string>
+    <string name="ui_research_question">Question</string>
+    <string name="ui_research_scope">Scope notes</string>
+    <string name="ui_research_scope_hint">Time range, places, sites to prefer or avoid. Sites you name here open without asking.</string>
+    <string name="ui_research_depth">Depth</string>
+    <string name="ui_research_depth_quick">Quick</string>
+    <string name="ui_research_depth_standard">Standard</string>
+    <string name="ui_research_depth_thorough">Thorough</string>
+    <string name="ui_research_phases">How it works</string>
+    <string name="ui_research_phase_plan">Plan: splits the question into smaller ones, shown as a checklist</string>
+    <string name="ui_research_phase_research">Research: helpers search the web and read sources</string>
+    <string name="ui_research_phase_verify">Verify: checks each key claim against its source and marks the ones it can\'t confirm</string>
+    <string name="ui_research_phase_report">Report: writes a cited Markdown report to the research folder of your workspace</string>
+    <plurals name="ui_research_helpers">
+        <item quantity="one">%1$d researcher</item>
+        <item quantity="other">%1$d researchers</item>
+    </plurals>
+    <plurals name="ui_research_sources">
+        <item quantity="one">about %1$d source</item>
+        <item quantity="other">about %1$d sources</item>
+    </plurals>
+    <string name="ui_research_budget_title">Task budget</string>
+    <string name="ui_research_budget_line">%1$s · a run like this usually uses about %2$s tokens</string>
+    <string name="ui_research_budget_off">No budget · a run like this usually uses about %1$s tokens</string>
+    <string name="ui_research_budget_low">That\'s less than a run like this usually uses, so the report may be thin.</string>
+    <string name="ui_research_budget_note">When the budget runs out, it stops researching and writes the report from what it has, with what\'s missing.</string>
+    <string name="ui_research_budget_change">Change budget</string>
+    <string name="ui_research_scheduled_note">A scheduled run can\'t ask you anything: it skips sites you haven\'t named in the scope notes and puts the report in the chat instead of a file.</string>
+    <string name="ui_research_outside">Everything it reads counts as outside content. Sending or changing anything outside your phone asks you first, and so does opening a site you haven\'t named.</string>
 </resources>
