@@ -230,17 +230,21 @@ class ScheduledRunTest {
     /**
      * Starts the schedule's worker and a Run now worker on two real threads, both held at
      * [ScheduledRun.beforeClaim] until each has looked at the marker and found the task free: the window
-     * in which, before the atomic claim, both went on to send the prompt.
+     * in which, before the atomic claim, both went on to send the prompt. Both then wait at
+     * [ScheduledRun.afterClaim] until each has tried to claim, so the winner can't finish and free the task
+     * before the other start's claim: the two starts really overlap in every round.
      */
     private suspend fun race(f: Fixture, periodic: String, once: String): List<ScheduledRun.Result> {
         val barrier = CyclicBarrier(2)
         f.run.beforeClaim = { runInterruptible { barrier.await(10, TimeUnit.SECONDS) } }
+        val claimed = CyclicBarrier(2)
+        f.run.afterClaim = { runInterruptible { claimed.await(10, TimeUnit.SECONDS) } }
         return withContext(Dispatchers.IO) {
             listOf(
                 async { f.run.run(TASK, periodic, runNow = false, stopReason = { 0 }, notify = { t, x, _ -> synchronized(f) { f.notified += t to x } }) },
                 async { f.run.run(TASK, once, runNow = true, stopReason = { 0 }, notify = { t, x, _ -> synchronized(f) { f.notified += t to x } }) },
             ).awaitAll()
-        }.also { f.run.beforeClaim = {} }
+        }.also { f.run.beforeClaim = {}; f.run.afterClaim = {} }
     }
 
     @Test
