@@ -730,7 +730,8 @@ class AgentRunner @Inject constructor(
         val model = if (provider.format == ApiFormat.ON_DEVICE) onDevice.chatModel(provider.model) else access.chatModel(provider)
         val startedAt = System.currentTimeMillis()
         val chatTools = tools.forChat(conversation)
-        val turn = model.stream(compactionRequest(conversation, history, chatTools.specs, current).copy(deferredTools = chatTools.requestDeferred()))
+        val clearing = dev.locus.core.agent.ColdClearing.policyFor(model.format, current.clearColdToolResults)
+        val turn = model.stream(compactionRequest(conversation, history, chatTools.specs, current, clearing = clearing).copy(deferredTools = chatTools.requestDeferred()))
             .filterIsInstance<dev.locus.core.llm.ChatEvent.Completed>().first().turn
         usage.record(dev.locus.core.model.UsageSource.COMPACTION, conversationId, provider.id, provider.model, turn.usage, System.currentTimeMillis() - startedAt)
         val summary = turn.text.trim()
@@ -1345,6 +1346,8 @@ class AgentRunner @Inject constructor(
                 // The user pauses between turns (reading, approving, answering): keep the conversation cached
                 // for an hour (docs/design/cost.md). A scheduled or triggered run has nobody pausing it.
                 longCache = !background,
+                // Old tool results leave what's sent after a day's gap, never on Anthropic (docs/design/cold-cache-clearing.md).
+                coldClearing = current.clearColdToolResults,
             ),
             ids = { UUID.randomUUID().toString() },
         )
@@ -1573,6 +1576,8 @@ class AgentRunner @Inject constructor(
                 author = dev.locus.core.agent.home.MemoryAuthor.REFLECTION,
                 // Lessons from a project chat go to the project's memory.
                 scope = projects.scopeOf(conversation),
+                // The chat's own view of its history, so this pass reads the chat's cached prefix.
+                coldClearing = settings.clearColdToolResults,
             ),
             ids = { UUID.randomUUID().toString() },
         )
@@ -1637,9 +1642,12 @@ internal fun compactionRequest(
     settings: dev.locus.core.model.AppSettings,
     id: String = UUID.randomUUID().toString(),
     now: Long = System.currentTimeMillis(),
+    /** The chat's [dev.locus.core.agent.ColdClearing] policy for the model that summarises, as its turns use it. */
+    clearing: dev.locus.core.agent.ColdClearing.Policy? = null,
 ): dev.locus.core.llm.ChatRequest = dev.locus.core.agent.Compaction.request(
     conversation.systemPrompt, history, tools, dev.locus.core.llm.PromptCacheKey.forChat(conversation.id), taskBudget = null,
     prompt = dev.locus.core.model.HelperPrompts.compaction(settings), ask = Message(id, conversation.id, Role.USER, emptyList(), now),
+    clearing = clearing,
 )
 
 /**

@@ -53,6 +53,12 @@ data class AppSettings(
      */
     val subagentReportsContinue: Boolean = true,
     /**
+     * Clear old tool results from what a long chat sends once the provider's prompt cache has surely
+     * expired (a gap of a day), never on Anthropic (docs/design/cold-cache-clearing.md). The chat itself
+     * keeps every result. On by default; Settings → Agent.
+     */
+    val clearColdToolResults: Boolean = true,
+    /**
      * How long one helper (sub-agent) run may take before it stops and hands back what it had, in
      * minutes (one of [HelperTimeLimit.CHOICES]). Waiting for the user's approval counts.
      */

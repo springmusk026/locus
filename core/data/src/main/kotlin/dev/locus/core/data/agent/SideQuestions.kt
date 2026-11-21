@@ -129,10 +129,11 @@ class SideQuestions @Inject constructor(
         // A snapshot of the chat as it is now; the task appending meanwhile doesn't change it.
         val history = modelContext(conversations.history(conversationId))
         val chatTools = tools.forChat(conversation)
-        val request = sideQuestionRequest(conversation, history, chatTools.specs, question, earlier, runner.taskBudgetTokens(conversationId))
+        val model = access.chatModel(provider)
+        val clearing = dev.locus.core.agent.ColdClearing.policyFor(model.format, settings.current().clearColdToolResults)
+        val request = sideQuestionRequest(conversation, history, chatTools.specs, question, earlier, runner.taskBudgetTokens(conversationId), clearing = clearing)
             .copy(deferredTools = chatTools.requestDeferred())
         val startedAt = System.currentTimeMillis()
-        val model = access.chatModel(provider)
         val text = StringBuilder()
         val stream = suspend {
             model.stream(request).collect { event ->
@@ -185,6 +186,8 @@ internal const val STILL_RUNNING = "Still running; no result yet."
  * The side question's request: the chat's own system prompt, tools and history exactly as a step
  * sends them (so the prompt cache is reused), then the question as one clearly marked user message.
  *
+ * Old tool results are cleared exactly as the chat's own steps clear them ([dev.locus.core.agent.ColdClearing]).
+ *
  * The history is a read-only copy. A step in progress can leave calls without results (providers
  * reject that), so those get a placeholder result in the copy. When the copy ends on the user's own
  * message, the question joins that message rather than adding a second user turn in a row.
@@ -198,8 +201,13 @@ internal fun sideQuestionRequest(
     taskBudget: Long? = null,
     id: String = UUID.randomUUID().toString(),
     now: Long = System.currentTimeMillis(),
+    /**
+     * The chat's [dev.locus.core.agent.ColdClearing] policy: applied to the stored history only (the question
+     * and any placeholder results come after), so the copy sends what the chat's next step would.
+     */
+    clearing: dev.locus.core.agent.ColdClearing.Policy? = null,
 ): ChatRequest {
-    val copy = closeOpenCalls(history, id, now)
+    val copy = closeOpenCalls(dev.locus.core.agent.ColdClearing.view(history, clearing), id, now)
     val ask = Part.Text(sideQuestionText(question, earlier))
     val last = copy.lastOrNull()
     val messages = if (last != null && last.role == Role.USER && last.parts.none { it is Part.ToolResult }) {

@@ -40,6 +40,8 @@ data class SentView(
      * default, "5m" for the default alone. Null where the request doesn't choose (automatic caching).
      */
     val cacheLifetime: String? = null,
+    /** Earlier tool results this request sent cleared past a cold-cache gap ([ColdClearing]); null when none were. */
+    val cleared: ColdClearing.Cleared? = null,
 ) {
     val onDevice: Boolean get() = format == ApiFormat.ON_DEVICE
 

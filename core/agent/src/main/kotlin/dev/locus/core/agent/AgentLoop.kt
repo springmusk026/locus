@@ -446,6 +446,12 @@ class AgentConfig(
      * reflection and background runs work in short bursts and keep the default.
      */
     val longCache: Boolean = false,
+    /**
+     * Clear old tool results from what's sent once the provider's cache has surely expired ([ColdClearing];
+     * Settings → Agent). Applied per request with the serving model's format, so never on Anthropic, and
+     * after a fallback with the backup's. The store is never touched.
+     */
+    val coldClearing: Boolean = false,
 )
 
 /**
@@ -559,13 +565,16 @@ class AgentLoop(
             var compactedForOverflow = false
             var summarised = false
             while (true) {
-                // Display-only parts (kept reasoning) never go back to the provider.
-                request = ChatRequest(
-                    conversation.systemPrompt, transcript.map { it.forModel() }, tools.specs, cacheKey, taskBudget = serverBudget,
-                    deferredTools = tools.requestDeferred(), longCache = config.longCache,
-                )
+                // Display-only parts (kept reasoning) never go back to the provider. Old tool results are
+                // cleared only past a cold-cache boundary, for the model serving it (rebuilt after a fallback).
+                val build = {
+                    ChatRequest(
+                        conversation.systemPrompt, ColdClearing.view(transcript.map { it.forModel() }, clearingFor(serving)), tools.specs, cacheKey,
+                        taskBudget = serverBudget, deferredTools = tools.requestDeferred(), longCache = config.longCache,
+                    ).also { request = it }
+                }
                 try {
-                    streamed = streamWithRetry(request, serving)
+                    streamed = streamWithRetry(build(), serving, rebuild = build)
                     break
                 } catch (e: CancellationException) {
                     throw e
@@ -816,7 +825,7 @@ class AgentLoop(
         for (attempt in 1..MAX_COMPACTION_TRIES) {
             val ask = Message(ids(), conversation.id, Role.USER, emptyList(), clock())
             try {
-                val summaryRequest = Compaction.request(conversation.systemPrompt, source, tools.specs, cacheKey, taskBudget, setup.prompt, ask)
+                val summaryRequest = Compaction.request(conversation.systemPrompt, source, tools.specs, cacheKey, taskBudget, setup.prompt, ask, clearingFor(serving))
                 summary = complete(summaryRequest.copy(deferredTools = tools.requestDeferred()), serving)
                 break
             } catch (e: CancellationException) {
@@ -848,6 +857,9 @@ class AgentLoop(
         emit(AgentEvent.Compacted(checkpoint, replaced, turn.usage, serving.servedBy.first, turn.servedModel ?: serving.servedBy.second, clock() - startedAt))
         return true
     }
+
+    /** How the request about to go to [serving]'s model clears old tool results ([ColdClearing]); null: it doesn't. */
+    private fun clearingFor(serving: Serving): ColdClearing.Policy? = ColdClearing.policyFor(serving.model.format, config.coldClearing)
 
     /** One whole turn, not streamed to the UI (the summary), retrying transient failures as a step does. */
     private suspend fun complete(request: ChatRequest, serving: Serving): AssistantTurn {
@@ -893,7 +905,8 @@ class AgentLoop(
      * is discarded, never sent on, so a reply is never stitched from two models. Each model gets its
      * own retries. A dropped connection doesn't switch: it's the phone's network, not the model.
      */
-    private suspend fun FlowCollector<AgentEvent>.streamWithRetry(request: ChatRequest, serving: Serving): Streamed {
+    private suspend fun FlowCollector<AgentEvent>.streamWithRetry(first: ChatRequest, serving: Serving, rebuild: () -> ChatRequest = { first }): Streamed {
+        var request = first
         var attempt = 0
         while (true) {
             var toolCallStarted = false
@@ -942,6 +955,8 @@ class AgentLoop(
                 if (serving.canSwitch && (Failover.switchesNow(e) || (spent && Failover.switchesAfterRetries(e)))) {
                     if (with(serving) { switch(e, request) }) {
                         attempt = 0
+                        // The backup's own view: its format decides whether old results are cleared.
+                        request = rebuild()
                         continue
                     }
                 }

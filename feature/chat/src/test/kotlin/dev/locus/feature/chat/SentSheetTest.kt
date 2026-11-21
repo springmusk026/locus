@@ -49,4 +49,15 @@ class SentSheetTest {
         assertEquals("Cache" to "warm · 90% read · 1K written (1h)", rows.last())
         assertTrue(requestRows(testResources, view("api.anthropic.com", ApiFormat.ANTHROPIC_MESSAGES, emptyList(), 10_000)).none { it.first == "Cache" })
     }
+
+    @Test
+    fun `a request that cleared old tool results says how many, before the cache line`() {
+        val v = view("api.openai.com", ApiFormat.OPENAI_RESPONSES, emptyList(), 10_000)
+            .copy(reportedUsage = dev.locus.core.model.TokenUsage(10_000, 5), cleared = dev.locus.core.agent.ColdClearing.Cleared(12, 48_210))
+        val rows = requestRows(testResources, v)
+        assertEquals("Earlier tool results" to "12 cleared · ≈48.2k tokens saved", rows[rows.size - 2])
+        assertEquals("Cache", rows.last().first)
+        assertEquals("1 cleared · ≈900 tokens saved", requestRows(testResources, v.copy(cleared = dev.locus.core.agent.ColdClearing.Cleared(1, 900))).first { it.first == "Earlier tool results" }.second)
+        assertTrue(requestRows(testResources, view("api.openai.com", ApiFormat.OPENAI_RESPONSES, emptyList(), 10_000)).none { it.first == "Earlier tool results" })
+    }
 }

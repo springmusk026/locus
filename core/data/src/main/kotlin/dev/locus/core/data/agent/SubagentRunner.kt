@@ -171,6 +171,7 @@ class SubagentRunner @Inject constructor(
             compaction = compactionSetup(provider, current, price),
             price = price,
             spill = tools.outputSpill,
+            coldClearing = current.clearColdToolResults,
         )
     }
 
@@ -247,6 +248,7 @@ class SubagentRunner @Inject constructor(
             compaction = compaction,
             price = price,
             spill = tools.outputSpill,
+            coldClearing = current.clearColdToolResults,
         )
     }
 

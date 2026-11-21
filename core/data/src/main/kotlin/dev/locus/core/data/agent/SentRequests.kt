@@ -1,5 +1,6 @@
 package dev.locus.core.data.agent
 
+import dev.locus.core.agent.ColdClearing
 import dev.locus.core.agent.SecretScrubber
 import dev.locus.core.agent.SentRequest
 import dev.locus.core.agent.SentRequestLog
@@ -43,9 +44,15 @@ class SentRequests @Inject constructor(
     }
 
     private suspend fun build(conversationId: String, sent: SentRequest): SentView = withContext(Dispatchers.IO) {
+        // Read from the request's own messages, so it holds for every format (on-device too).
+        val cleared = ColdClearing.clearedIn(sent.request.messages)
+        buildBody(conversationId, sent).copy(cleared = cleared)
+    }
+
+    private suspend fun buildBody(conversationId: String, sent: SentRequest): SentView {
         val scrubber = SecretScrubber(secrets.valuesForScrubbing())
         val provider = sent.provider
-        if (provider.format == ApiFormat.ON_DEVICE) {
+        return if (provider.format == ApiFormat.ON_DEVICE) {
             SentView.fromOnDevice(provider.name, provider.model, sent.request.system, OnDeviceText.declaredTools(sent.model, sent.request), OnDeviceText.turns(sent.request), scrubber)
         } else {
             val reported = sent.replyId?.let { id -> conversations.history(conversationId).firstOrNull { it.id == id }?.usage }
