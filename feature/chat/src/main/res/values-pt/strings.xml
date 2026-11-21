@@ -1265,4 +1265,115 @@
     <string name="chat_checks_check_timedout_n">Verificação · tempo esgotado na execução %1$d de %1$d</string>
     <string name="chat_checks_check_stopped">Verificação interrompida</string>
     <string name="chat_checks_check_stopped_n">Verificação · interrompida na execução %1$d de %1$d</string>
+    <!-- Rewind here and Summarise from here (docs/design/rewind.md) -->
+    <string name="chat_history_rewind">Voltar até aqui</string>
+    <string name="chat_history_summarise">Resumir a partir daqui</string>
+    <string name="chat_history_unavailable_running">Não enquanto o agente trabalha</string>
+    <string name="chat_rewind_unavailable_first">É a primeira mensagem: use Editar para mudá-la</string>
+    <string name="chat_rewind_unavailable_nothing_after">Não há nada depois desta resposta</string>
+    <string name="chat_rewind_unavailable_branch">Não está no ramo exibido</string>
+    <string name="chat_summarise_unavailable_summarised">Já faz parte de um resumo anterior</string>
+    <string name="chat_summarise_unavailable_nothing_after">Não há nada para resumir depois desta resposta</string>
+    <string name="chat_summarise_unavailable_too_little">Há muito pouco a partir daqui para resumir</string>
+    <string name="chat_summarise_unavailable_server">O provedor já compactou esta parte no servidor dele</string>
+    <string name="chat_rewind_title">Voltar até aqui?</string>
+    <string name="chat_rewind_body_user">O chat volta para logo antes desta mensagem, e o texto dela volta para a caixa de mensagem. As mensagens seguintes ficam em outro ramo, para o qual você pode voltar.</string>
+    <string name="chat_rewind_body_reply">O chat continua a partir desta resposta. As mensagens seguintes ficam em outro ramo, para o qual você pode voltar.</string>
+    <string name="chat_rewind_no_files">Nenhum arquivo do espaço de trabalho mudou depois deste ponto.</string>
+    <string name="chat_rewind_file_created">Criado depois deste ponto: vai para a lixeira</string>
+    <string name="chat_rewind_file_modified">Alterado depois deste ponto: volta ao que era</string>
+    <string name="chat_rewind_file_deleted">Excluído depois deste ponto: volta</string>
+    <string name="chat_rewind_file_changed_since">Alterado desde então: fica como está</string>
+    <string name="chat_rewind_file_gone">A versão anterior não está mais na lixeira</string>
+    <string name="chat_rewind_trash_note">O que está lá agora vai primeiro para a lixeira do espaço de trabalho, então nada se perde.</string>
+    <string name="chat_rewind_changed_since_title">Alterado fora do Locus desde então</string>
+    <string name="chat_rewind_gone_title">Não dá para restaurar</string>
+    <string name="chat_rewind_effects_title">Fica como está</string>
+    <string name="chat_rewind_more">e mais %1$d</string>
+    <string name="chat_rewind_agent_note">O Locus conta ao agente o que mudou antes da próxima resposta dele.</string>
+    <string name="chat_rewind_action">Voltar</string>
+    <string name="chat_later_branch">As mensagens seguintes estão em outro ramo.</string>
+    <string name="chat_later_branch_show">Mostrar</string>
+    <string name="chat_summarise_title">Resumir a partir daqui?</string>
+    <string name="chat_summarise_review_note">Você lê o resumo e pode editá-lo antes de ele ser usado. As mensagens continuam no chat para você.</string>
+    <string name="chat_summarise_instructions_label">O que manter ou deixar de fora (opcional)</string>
+    <string name="chat_summarise_instructions_hint">Manter as decisões da API, deixar de fora a depuração</string>
+    <string name="chat_summarise_action">Escrever resumo</string>
+    <string name="chat_summary_review_title">Revise o resumo</string>
+    <string name="chat_summary_edit_title">Edite o resumo</string>
+    <string name="chat_summary_edit_body">O modelo ainda não leu este resumo. Sua versão é salva como um novo resumo; o texto antigo fica no histórico do chat.</string>
+    <string name="chat_summary_use">Usar resumo</string>
+    <string name="chat_summary_save">Salvar</string>
+    <string name="chat_summary_discard">Descartar</string>
+    <string name="chat_summary_empty">Um resumo não pode ficar vazio.</string>
+    <string name="chat_summary_review">Revisar</string>
+    <string name="chat_summary_pending_title">Resumo pronto para revisar</string>
+    <string name="chat_screen_summary_note_partial">O Locus trabalha com este resumo para as mensagens que ele cobre; as anteriores continuam sendo enviadas como eram.</string>
+    <string name="chat_screen_summary_edited">Você editou este resumo.</string>
+    <string name="chat_screen_summary_edit">Editar resumo</string>
+    <string name="chat_run_summarising_from">Resumindo a partir da mensagem escolhida</string>
+    <string name="chat_run_summarise_failed">Não foi possível escrever o resumo: %1$s</string>
+    <string name="chat_run_summary_stale">O chat mudou depois que o resumo foi escrito, então ele não foi usado. Resuma de novo.</string>
+    <string name="chat_run_summary_saved">Resumo salvo. O modelo o lê a partir da próxima resposta.</string>
+    <string name="chat_run_rewound">Voltou.</string>
+    <plurals name="chat_rewind_files_title">
+        <item quantity="one">%1$d arquivo volta ao que era</item>
+        <item quantity="many">%1$d arquivos voltam ao que eram</item>
+        <item quantity="other">%1$d arquivos voltam ao que eram</item>
+    </plurals>
+    <plurals name="chat_rewind_changed_since_body">
+        <item quantity="one">%1$d arquivo mudou depois que o agente o deixou (por você, um comando ou outro app). O Locus o deixa como está.</item>
+        <item quantity="many">%1$d arquivos mudaram depois que o agente os deixou (por você, um comando ou outro app). O Locus os deixa como estão.</item>
+        <item quantity="other">%1$d arquivos mudaram depois que o agente os deixou (por você, um comando ou outro app). O Locus os deixa como estão.</item>
+    </plurals>
+    <plurals name="chat_rewind_effects_command">
+        <item quantity="one">%1$d comando de shell foi executado depois disto; os efeitos dele continuam.</item>
+        <item quantity="many">%1$d comandos de shell foram executados depois disto; os efeitos deles continuam.</item>
+        <item quantity="other">%1$d comandos de shell foram executados depois disto; os efeitos deles continuam.</item>
+    </plurals>
+    <plurals name="chat_rewind_effects_outside">
+        <item quantity="one">%1$d chamada chegou a um serviço fora do telefone (um conector, e-mail, um deploy); não dá para desfazer.</item>
+        <item quantity="many">%1$d chamadas chegaram a serviços fora do telefone (conectores, e-mail, deploys); não dá para desfazer.</item>
+        <item quantity="other">%1$d chamadas chegaram a serviços fora do telefone (conectores, e-mail, deploys); não dá para desfazer.</item>
+    </plurals>
+    <plurals name="chat_rewind_effects_helper">
+        <item quantity="one">%1$d ajudante trabalhou depois disto: as edições de arquivos voltam, o resto que ele fez continua.</item>
+        <item quantity="many">%1$d ajudantes trabalharam depois disto: as edições de arquivos voltam, o resto que eles fizeram continua.</item>
+        <item quantity="other">%1$d ajudantes trabalharam depois disto: as edições de arquivos voltam, o resto que eles fizeram continua.</item>
+    </plurals>
+    <plurals name="chat_rewind_effects_other">
+        <item quantity="one">%1$d outra mudança (memória, navegador, telefone, git) continua.</item>
+        <item quantity="many">%1$d outras mudanças (memória, navegador, telefone, git) continuam.</item>
+        <item quantity="other">%1$d outras mudanças (memória, navegador, telefone, git) continuam.</item>
+    </plurals>
+    <plurals name="chat_summarise_body_user">
+        <item quantity="one">Esta mensagem e tudo o que vem depois (%1$d mensagem) viram um resumo. As mensagens anteriores continuam sendo enviadas como estão, então o modelo continua lendo-as do cache.</item>
+        <item quantity="many">Esta mensagem e tudo o que vem depois (%1$d mensagens) viram um resumo. As mensagens anteriores continuam sendo enviadas como estão, então o modelo continua lendo-as do cache.</item>
+        <item quantity="other">Esta mensagem e tudo o que vem depois (%1$d mensagens) viram um resumo. As mensagens anteriores continuam sendo enviadas como estão, então o modelo continua lendo-as do cache.</item>
+    </plurals>
+    <plurals name="chat_summarise_body_reply">
+        <item quantity="one">Tudo o que vem depois desta resposta (%1$d mensagem) vira um resumo. Esta resposta e tudo antes dela continuam sendo enviados como estão, então o modelo continua lendo-os do cache.</item>
+        <item quantity="many">Tudo o que vem depois desta resposta (%1$d mensagens) vira um resumo. Esta resposta e tudo antes dela continuam sendo enviados como estão, então o modelo continua lendo-os do cache.</item>
+        <item quantity="other">Tudo o que vem depois desta resposta (%1$d mensagens) vira um resumo. Esta resposta e tudo antes dela continuam sendo enviados como estão, então o modelo continua lendo-os do cache.</item>
+    </plurals>
+    <plurals name="chat_summary_review_body">
+        <item quantity="one">O modelo lê isto no lugar de %1$d mensagem. Mude o que quiser e depois use.</item>
+        <item quantity="many">O modelo lê isto no lugar de %1$d mensagens. Mude o que quiser e depois use.</item>
+        <item quantity="other">O modelo lê isto no lugar de %1$d mensagens. Mude o que quiser e depois use.</item>
+    </plurals>
+    <plurals name="chat_summary_pending_body">
+        <item quantity="one">Escrito para %1$d mensagem. Só é usado depois que você revisar.</item>
+        <item quantity="many">Escrito para %1$d mensagens. Só é usado depois que você revisar.</item>
+        <item quantity="other">Escrito para %1$d mensagens. Só é usado depois que você revisar.</item>
+    </plurals>
+    <plurals name="chat_run_rewound_restored">
+        <item quantity="one">%1$d arquivo restaurado.</item>
+        <item quantity="many">%1$d arquivos restaurados.</item>
+        <item quantity="other">%1$d arquivos restaurados.</item>
+    </plurals>
+    <plurals name="chat_run_rewound_skipped">
+        <item quantity="one">%1$d arquivo ficou como estava.</item>
+        <item quantity="many">%1$d arquivos ficaram como estavam.</item>
+        <item quantity="other">%1$d arquivos ficaram como estavam.</item>
+    </plurals>
 </resources>

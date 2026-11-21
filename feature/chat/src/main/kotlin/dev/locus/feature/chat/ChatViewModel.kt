@@ -102,8 +102,12 @@ sealed interface ChatItem {
             if (ranAnyway) resources.getString(R.string.chat_note_ran_anyway, text) else text
     }
 
-    /** Where older messages were summarised; the model only sees the summary from here on. */
-    data class Checkpoint(override val key: String, val summary: String, val replaced: Int) : ChatItem
+    /**
+     * Where older messages were summarised; the model only sees the summary from here on. [partial]: a summary
+     * of the later part only (Summarise from here), the messages before it still go to the model as they were;
+     * [edited]: the user corrected an earlier summary (docs/design/rewind.md).
+     */
+    data class Checkpoint(override val key: String, val summary: String, val replaced: Int, val partial: Boolean = false, val edited: Boolean = false) : ChatItem
     data class ToolCall(override val key: String, val name: String, val argumentsJson: String, val result: Part.ToolResult?) : ChatItem
 
     /**
@@ -310,6 +314,12 @@ data class ChatUiState(
     val voice: dev.locus.core.model.VoiceSettings = dev.locus.core.model.VoiceSettings(),
     /** Links in replies: what the chat has read and the hosts the user named or set up ([LinkContext]). */
     val links: LinkContext = LinkContext(outsideContent = false),
+    /** Each message's Rewind here and Summarise from here, by message id (docs/design/rewind.md). */
+    val messageActions: Map<String, MessageActions> = emptyMap(),
+    /** A message that continues the chat's last one on another branch (after a rewind), to show the later messages; null when none. */
+    val laterBranch: String? = null,
+    /** The summary the model hasn't read yet (the chat's last message is a checkpoint): it can still be edited. */
+    val editableCheckpoint: String? = null,
 ) {
     val pendingApproval: ApprovalRequest? get() = run.pendingApproval
 
@@ -512,6 +522,9 @@ class ChatViewModel @AssistedInject constructor(
             chatNeeds(thread.messages),
             outsideContent = dev.locus.core.agent.Taint.sourcesIn(thread.messages).isNotEmpty(),
             typedHosts = dev.locus.core.agent.LinkGuard.namedHosts(thread.messages, emptyList()),
+            actions = messageActions(thread.messages, dev.locus.core.agent.Compaction.modelContext(thread.messages)),
+            continuation = thread.continuation,
+            editableCheckpoint = thread.messages.lastOrNull()?.takeIf { m -> m.parts.any { it is Part.Checkpoint } }?.id,
         )
         // The screen shows the latest transcript only; a queue of whole transcripts behind a busy run just holds memory.
     }.flowOn(compute).conflate()
@@ -591,6 +604,9 @@ class ChatViewModel @AssistedInject constructor(
             browserTitle = browserState.title,
             browserUrl = browserState.url,
             voice = s.voice,
+            messageActions = transcript.actions,
+            laterBranch = transcript.continuation,
+            editableCheckpoint = transcript.editableCheckpoint,
             links = LinkContext(
                 outsideContent = transcript.outsideContent,
                 // Hosts the user typed in this chat, plus model providers and connectors they set up: taint's trusted hosts.
@@ -843,6 +859,48 @@ class ChatViewModel @AssistedInject constructor(
     /** Shows the branch through [messageId] (a sibling from a ‹ i/n › switcher). */
     fun switchBranch(messageId: String) = runner.switchBranch(conversationId, messageId)
 
+    // ---- Rewind here and Summarise from here (docs/design/rewind.md) -----------------------------
+
+    private val _rewind = MutableStateFlow<dev.locus.core.data.agent.RewindPreview?>(null)
+
+    /** What Rewind here would do, while its confirm sheet is open; null otherwise. */
+    val rewindPreview: StateFlow<dev.locus.core.data.agent.RewindPreview?> = _rewind
+
+    /** Opens Rewind here's confirm sheet for [messageId]: what the files and the chat would go back to. */
+    fun prepareRewind(messageId: String) {
+        viewModelScope.launch { _rewind.value = runner.previewRewind(conversationId, messageId) }
+    }
+
+    fun dismissRewind() {
+        _rewind.value = null
+    }
+
+    /**
+     * Rewinds to the message in the open sheet. A user message's text comes back through [onDraft] for the
+     * composer (its attachments go back to the pending ones).
+     */
+    fun confirmRewind(onDraft: (String) -> Unit) {
+        val preview = _rewind.value ?: return
+        _rewind.value = null
+        viewModelScope.launch {
+            val result = runner.rewind(conversationId, preview.messageId) ?: return@launch
+            result.draft?.let(onDraft)
+        }
+    }
+
+    /** Summarise from here on [messageId], with the user's [instructions]; the draft then waits for review. */
+    fun summariseFrom(messageId: String, instructions: String) = runner.summariseFrom(conversationId, messageId, instructions.ifBlank { null })
+
+    /** Uses the reviewed draft summary, as edited to [text]. */
+    fun useSummary(text: String) = runner.useSummary(conversationId, text)
+
+    fun discardSummary() = runner.discardSummary(conversationId)
+
+    /** Saves [text] as the summary of the checkpoint [checkpointId] the model hasn't read yet. */
+    fun editSummary(checkpointId: String, text: String) {
+        viewModelScope.launch { runner.editSummary(conversationId, checkpointId, text) }
+    }
+
     /**
      * Starts a new chat from this one: up to and including the reply [messageId], or for a user message
      * everything before it, with its text handed back as a draft. Calls [onCreated] with the new chat.
@@ -916,6 +974,9 @@ private data class Transcript(
     val outsideContent: Boolean = false,
     /** Hosts the user typed in the chat. */
     val typedHosts: Set<String> = emptySet(),
+    val actions: Map<String, MessageActions> = emptyMap(),
+    val continuation: String? = null,
+    val editableCheckpoint: String? = null,
 )
 
 private data class Extras(
@@ -954,6 +1015,7 @@ internal fun transcriptItems(
     var from: String? = null
     var turnStart: String? = null
     val lastTurnStart = messages.lastOrNull { it.startsTurn() }?.let { last -> messages.drop(messages.indexOf(last) + 1).firstOrNull()?.id }
+    val superseded = messages.mapNotNullTo(HashSet()) { m -> m.parts.filterIsInstance<Part.Checkpoint>().lastOrNull()?.supersedes }
     fun flushTurn() {
         val start = turnStart
         val answered = from
@@ -991,8 +1053,10 @@ internal fun transcriptItems(
             Role.USER -> {
                 flushTurn()
                 from = message.id
-                out += message.parts.filterIsInstance<Part.Checkpoint>().firstOrNull()
-                    ?.let { ChatItem.Checkpoint(message.id, it.summary, it.replacedMessages) }
+                // A summary the user corrected shows once, as the corrected one; the earlier text stays stored.
+                if (message.id in superseded) return@forEach
+                out += message.parts.filterIsInstance<Part.Checkpoint>().lastOrNull()
+                    ?.let { ChatItem.Checkpoint(message.id, it.summary, it.replacedMessages, partial = it.from != null, edited = it.supersedes != null) }
                     ?: ChatItem.User(
                         message.id, message.userText, message.attachments,
                         planMode = ModeNote.isPlanMode(message),

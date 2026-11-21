@@ -4,6 +4,11 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Added
+- **Rewind here.** Long-press a message you sent, or a reply's ⋯ menu: the chat goes back to that point and continues as a new branch (the later messages stay, one tap away), and the workspace files the later turns changed go back as they were, newest change first. A file changed outside Locus since (by you, a command or another app) is left exactly as it is and listed; nothing is overwritten, and what was there goes to the workspace trash. What file tracking can't take back is said plainly before you confirm: "3 shell commands ran after this; their effects stay", calls to connectors, mail or deploys, helpers, and other changes. Rewinding to a message you sent puts its text back in the message box. The agent is told what changed before its next reply. See [rewind](docs/design/rewind.md). *Not yet tried on the phone.*
+- **Summarise from here.** From the same menus: everything from that message on becomes one summary, with your own instructions if you like ("keep the API decisions, drop the debugging"), while the messages before it are still sent exactly as before, so the model keeps reading them from its cache (also Claude's saved reasoning in them stays valid). You read and can edit the summary before it's used; closing the sheet keeps it as a card to review later. Not offered where an earlier summary or Anthropic's own server-side compaction already covers that part, and the menu says why. *Not yet tried on the phone or against a live key.*
+- **Edit a summary before the model reads it.** A summary that is still the chat's last message (from "Summarise now", Summarise from here, or an automatic one) has Edit summary on its card. Your version is saved as a new summary; the old one stays in the chat's history.
+
 ## [0.2.0] - 2026-11-21
 
 ### Added

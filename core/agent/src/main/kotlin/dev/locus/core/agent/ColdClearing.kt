@@ -94,11 +94,21 @@ object ColdClearing {
         }
     }
 
-    /** The indices of cold boundaries in [messages], oldest first. */
+    /**
+     * The indices of cold boundaries in [messages], oldest first. A checkpoint's view is never a boundary itself.
+     * The view of a summary of the later part ([Part.Checkpoint.from], docs/design/rewind.md) also counts like a
+     * reply for measuring the gap: its summary request read the cache, kept messages included, when it was
+     * written. (An ordinary checkpoint's view starts the context, so nothing before it could be cleared.)
+     */
     fun boundaries(messages: List<Message>, coldAfterMs: Long = COLD_AFTER_MS): List<Int> {
         val out = mutableListOf<Int>()
         var lastReplyAt: Long? = null
         messages.forEachIndexed { i, m ->
+            val checkpoint = m.parts.filterIsInstance<Part.Checkpoint>().lastOrNull()
+            if (checkpoint != null) {
+                if (checkpoint.from != null) lastReplyAt = m.createdAt
+                return@forEachIndexed
+            }
             val replied = lastReplyAt
             if (replied != null && m.createdAt - replied > coldAfterMs) {
                 out += i
@@ -113,10 +123,14 @@ object ColdClearing {
     /** Message index to the indices of its parts to clear. */
     private fun clearedPositions(messages: List<Message>, policy: Policy): Map<Int, Set<Int>> {
         val boundaries = boundaries(messages, policy.coldAfterMs)
-        if (boundaries.isEmpty()) return emptyMap()
         // Every tool result in order: (message index, part index).
         val results = messages.flatMapIndexed { i, m -> m.parts.mapIndexedNotNull { p, part -> if (part is Part.ToolResult) Triple(i, p, part) else null } }
-        val cleared = mutableSetOf<Pair<Int, Int>>()
+        // Results a summary of the later part found cleared in what was last sent: cleared from the start, so the
+        // messages it kept go out as they did ([Part.Checkpoint.clearedResults]).
+        val precleared = messages.mapIndexedNotNull { i, m -> m.parts.filterIsInstance<Part.Checkpoint>().lastOrNull()?.let { i to it.clearedResults.toSet() } }
+            .filter { it.second.isNotEmpty() }
+        val cleared = results.filter { (i, _, r) -> precleared.any { (at, ids) -> i < at && r.callId in ids } }.map { it.first to it.second }.toMutableSet()
+        if (boundaries.isEmpty()) return cleared.groupBy({ it.first }, { it.second }).mapValues { it.value.toSet() }
         for (b in boundaries) {
             val before = results.filter { it.first < b }
             val recent = before.takeLast(policy.keepRecent).map { it.first to it.second }.toSet()
@@ -129,6 +143,16 @@ object ColdClearing {
             if (saved / CHARS_PER_TOKEN >= policy.minClearedTokens) fresh.forEach { cleared += it.first to it.second }
         }
         return cleared.groupBy({ it.first }, { it.second }).mapValues { it.value.toSet() }
+    }
+
+    /**
+     * The call ids of the tool results before [end] in [messages] that [policy]'s view clears: what a summary of
+     * the part from [end] on keeps cleared ([Part.Checkpoint.clearedResults]). Empty with no policy.
+     */
+    fun clearedBefore(messages: List<Message>, end: Int, policy: Policy?): List<String> {
+        if (policy == null) return emptyList()
+        val positions = clearedPositions(messages, policy)
+        return positions.filterKeys { it < end }.flatMap { (i, parts) -> parts.mapNotNull { (messages[i].parts[it] as? Part.ToolResult)?.callId } }.distinct()
     }
 
     /** What a result weighs: its text, and each image as [IMAGE_CHARS]. */
