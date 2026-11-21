@@ -283,6 +283,10 @@ fun ChatRoute(
         val locked = status.isLockedChat(conversationId)
         ({ ChatLockButton(locked) { locker.toggle(conversationId, !locked, false) } })
     }
+    // Other chats waiting for the user: a banner under the title that opens the one waiting longest.
+    val waitingChats: WaitingChatsViewModel = hiltViewModel()
+    val waitingEntries by waitingChats.entries.collectAsStateWithLifecycle()
+    val waiting = remember(waitingEntries, conversationId) { waitingBanner(waitingEntries, exclude = setOf(conversationId)) }
     androidx.compose.runtime.CompositionLocalProvider(
         dev.locus.core.markdown.artifact.LocalArtifactHost provides artifactHost,
         LocalMemoryReads provides memoryReads,
@@ -290,8 +294,13 @@ fun ChatRoute(
         LocalOpenWorkspaceFile provides onOpenWorkspaceFile,
     ) { // (body not re-indented, to keep the diff small)
     androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
+    // "Continue in Locus" on an imported archive: a new chat whose first message (a draft the user sends) names this one.
+    val continueDraft = state.importedFrom?.let { stringResource(R.string.chat_imported_continue_draft, state.title, it.displayName, conversationId) }
     ChatScreen(
+        waiting = waiting,
+        onOpenWaiting = { id -> onOpenChat(id, null) },
         lockButton = lockButton,
+        onContinueImported = { viewModel.continueImported { id -> onOpenChat(id, continueDraft) } },
         onVoiceMode = if (canVoice) ({ voiceOpen = true }) else null,
         voiceActive = voiceOpen,
         state = state,
@@ -307,6 +316,7 @@ fun ChatRoute(
         onStop = viewModel::stop,
         onAnswer = viewModel::answer,
         onRemember = viewModel::answerRemembering,
+        onDenyWithReason = viewModel::denyWithReason,
         onAnswerQuestion = viewModel::answerQuestion,
         onDismissMessages = viewModel::dismissMessages,
         onResume = viewModel::resume,
@@ -440,6 +450,8 @@ internal fun ChatScreen(
     onAnswer: (String, Boolean) -> Unit,
     /** "Allow for this chat" or "Always allow …" on an approval card that offers them. */
     onRemember: (String, dev.locus.core.agent.ApprovalAnswer) -> Unit = { _, _ -> },
+    /** Deny with the user's reason for the agent (the card's "Deny with a reason"). */
+    onDenyWithReason: ((String, String) -> Unit)? = { _, _ -> },
     onAnswerQuestion: (String, dev.locus.core.agent.tools.QuestionAnswer) -> Unit = { _, _ -> },
     onDismissMessages: () -> Unit,
     onResume: () -> Unit,
@@ -488,6 +500,12 @@ internal fun ChatScreen(
     /** What Rewind here would do, while its confirm sheet is open (docs/design/rewind.md). */
     rewindPreview: dev.locus.core.data.agent.RewindPreview? = null,
     history: HistoryActions = HistoryActions(),
+    /** Other chats waiting for the user ("2 chats are waiting for you"); null when none is. */
+    waiting: WaitingBannerState? = null,
+    /** Opens the chat that has waited longest, from that banner. */
+    onOpenWaiting: (String) -> Unit = {},
+    /** An imported archive's "Continue in Locus" (docs/design/import-chats.md). */
+    onContinueImported: () -> Unit = {},
 ) {
     // Opening at a search result: until it's been shown, keep the list where we put it.
     var focus by rememberSaveable { mutableStateOf(focusMessageId) }
@@ -780,6 +798,7 @@ internal fun ChatScreen(
                                             onSummarise = { close(); summariseFrom = item.key },
                                         )
                                     },
+                                    archive = state.importedFrom != null,
                                 )
                                 is ChatItem.Assistant -> if (item.text.isNotBlank()) androidx.compose.runtime.CompositionLocalProvider(
                                     LocalLinkContext provides state.links.copy(outsideContent = item.outsideContent),
@@ -803,6 +822,7 @@ internal fun ChatScreen(
                                                 onSummarise = { close(); summariseFrom = item.key },
                                             )
                                         },
+                                        archive = state.importedFrom != null,
                                         onWhatWasSent = { onShowSent(item.key) },
                                         whatWasSentKept = { sentKept(item.key) },
                                         reading = readAloud.reading == item.key,
@@ -816,7 +836,7 @@ internal fun ChatScreen(
                                         },
                                     )
                                 }
-                                is ChatItem.TurnEnd -> if (canBranch) TurnEndRow(item.turn, onRegenerate = branches.regenerate, onSwitch = branches.switchTo)
+                                is ChatItem.TurnEnd -> if (canBranch && state.importedFrom == null) TurnEndRow(item.turn, onRegenerate = branches.regenerate, onSwitch = branches.switchTo)
                                 is ChatItem.Checkpoint -> CheckpointCard(
                                     item,
                                     onEdit = { editingSummary = item.key }.takeIf { state.editableCheckpoint == item.key && !state.run.running },
@@ -895,7 +915,13 @@ internal fun ChatScreen(
             // At a large font the meters move under the title, so the title keeps the width.
             val metersBelow = meters != null && largeFont()
             // A temporary chat says so under its title, where a project chip would be (it's never in one).
-            val titleHeader: (@Composable () -> Unit)? = if (state.controls.temporary) ({ TemporaryMarker(onClick = { temporarySheet = true }) }) else projectHeader
+            val titleHeader: (@Composable () -> Unit)? = when {
+                state.importedFrom != null -> ({ ImportedMarker(state.importedFrom) })
+                state.controls.temporary -> ({ TemporaryMarker(onClick = { temporarySheet = true }) })
+                else -> projectHeader
+            }
+            // Other chats waiting for the user sit under the title, on the bar's own background so the transcript doesn't show through.
+            Surface(color = MaterialTheme.colorScheme.background) { Column {
             LocusTopBar(
                 state.title,
                 onBack = onBack,
@@ -916,8 +942,15 @@ internal fun ChatScreen(
                     if (state.items.isNotEmpty()) ShareChatButton(state.title, state.createdAt, state.items, onSaveExport)
                 },
             )
+            WaitingChatsSlot(waiting, onOpenWaiting, Modifier.padding(start = Spacing.lg, end = Spacing.lg, bottom = Spacing.xs))
+            } }
         },
         bottomBar = {
+            // An imported archive has no composer: a read-only band and "Continue in Locus" instead.
+            val imported = state.importedFrom
+            if (imported != null) {
+                ImportedDock(imported, state.createdAt, onContinueImported)
+            } else {
             // One solid band under the composer and what's docked to it, with a short fade above, so the
             // transcript never shows through the gaps between cards. The transcript gets the band's height
             // as bottom padding, so its last item ends above it.
@@ -1012,7 +1045,7 @@ internal fun ChatScreen(
                     }
                     ReviewerBlockChips(state.run.reviewerBlocks, controls.runAnyway, controls.dismissReviewerBlock, bannerModifier)
                     state.run.budgetPause?.let { pause -> BudgetPauseCard(pause, state.run.budget, controls.answerBudget, bannerModifier) }
-                    state.pendingApproval?.let { ApprovalCard(it, onAnswer, onRemember, bannerModifier) }
+                    state.pendingApproval?.let { ApprovalCard(it, onAnswer, onRemember, bannerModifier, onDenyWithReason = onDenyWithReason) }
                     state.pendingQuestion?.let { QuestionCard(it, onAnswerQuestion, bannerModifier) }
                     aside?.takeIf { it.open }?.let { thread ->
                         SideQuestionCard(thread, running = state.run.running, onDismiss = asideActions.dismiss, onClear = asideActions.clear, modifier = bannerModifier)
@@ -1117,6 +1150,7 @@ internal fun ChatScreen(
                     },
                 )
             } } }
+            }
         },
     ) { padding ->
         if (!state.loading && state.items.isEmpty() && !state.run.running && panel == null) {
@@ -1350,6 +1384,8 @@ private fun UserBubble(
     onFork: () -> Unit = {},
     /** Rewind here and Summarise from here ([HistoryMenuItems]); given a way to close the menu first. */
     historyMenu: @Composable (close: () -> Unit) -> Unit = {},
+    /** In an imported archive: copy only (no edit or fork); the ‹ i/n › switcher stays. */
+    archive: Boolean = false,
 ) {
     var menu by remember { mutableStateOf(false) }
     val clipboard = androidx.compose.ui.platform.LocalClipboard.current
@@ -1382,9 +1418,11 @@ private fun UserBubble(
                                 scope.launch { clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(android.content.ClipData.newPlainText("Locus", text))) }
                             },
                         )
-                        DropdownMenuItem(text = { Text(stringResource(R.string.chat_screen_edit)) }, leadingIcon = { Icon(LocusIcons.Edit, null) }, enabled = branchEnabled, onClick = { menu = false; onEdit() })
-                        DropdownMenuItem(text = { Text(stringResource(R.string.chat_screen_fork)) }, leadingIcon = { Icon(LocusIcons.Branch, null) }, onClick = { menu = false; onFork() })
-                        historyMenu { menu = false }
+                        if (!archive) {
+                            DropdownMenuItem(text = { Text(stringResource(R.string.chat_screen_edit)) }, leadingIcon = { Icon(LocusIcons.Edit, null) }, enabled = branchEnabled, onClick = { menu = false; onEdit() })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.chat_screen_fork)) }, leadingIcon = { Icon(LocusIcons.Branch, null) }, onClick = { menu = false; onFork() })
+                            historyMenu { menu = false }
+                        }
                     }
                 }
             }
@@ -1486,6 +1524,8 @@ private fun AssistantText(
     onFork: () -> Unit = {},
     /** Rewind here and Summarise from here ([HistoryMenuItems]); given a way to close the menu first. */
     historyMenu: @Composable (close: () -> Unit) -> Unit = {},
+    /** In an imported archive: no regenerate, fork or "what was sent" (it was never sent from here). */
+    archive: Boolean = false,
     onWhatWasSent: () -> Unit = {},
     /** Read when the menu opens: false after a restart or for older replies, whose request isn't kept. */
     whatWasSentKept: () -> Boolean = { true },
@@ -1541,7 +1581,7 @@ private fun AssistantText(
                 modifier = action,
                 tint = tint,
             )
-            if (turn != null && branchEnabled) {
+            if (turn != null && branchEnabled && !archive) {
                 CompactIconButton(LocusIcons.Regenerate, stringResource(R.string.chat_screen_regenerate), onClick = { onRegenerate(turn.from) }, modifier = action, tint = tint)
             }
             Box {
@@ -1552,8 +1592,10 @@ private fun AssistantText(
                         leadingIcon = { Icon(if (reading) LocusIcons.Stop else LocusIcons.Speaker, null) },
                         onClick = { menu = false; onReadAloud() },
                     )
-                    DropdownMenuItem(text = { Text(stringResource(R.string.chat_screen_fork)) }, leadingIcon = { Icon(LocusIcons.Branch, null) }, onClick = { menu = false; onFork() })
-                    historyMenu { menu = false }
+                    if (!archive) {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.chat_screen_fork)) }, leadingIcon = { Icon(LocusIcons.Branch, null) }, onClick = { menu = false; onFork() })
+                        historyMenu { menu = false }
+                    }
                     onSaveWorkflow?.let { save ->
                         DropdownMenuItem(text = { Text(stringResource(R.string.chat_receipt_save_workflow)) }, leadingIcon = { Icon(LocusIcons.Play, null) }, onClick = { menu = false; save() })
                     }
@@ -1562,11 +1604,13 @@ private fun AssistantText(
                     }
                     // Still opens when not kept: the sheet says why it can't be shown.
                     val kept = remember(menu) { menu && whatWasSentKept() }
-                    DropdownMenuItem(
-                        text = { Text(stringResource(if (kept) R.string.chat_sent_title else R.string.chat_screen_sent_not_kept)) },
-                        leadingIcon = { Icon(LocusIcons.Code, null) },
-                        onClick = { menu = false; onWhatWasSent() },
-                    )
+                    if (!archive) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(if (kept) R.string.chat_sent_title else R.string.chat_screen_sent_not_kept)) },
+                            leadingIcon = { Icon(LocusIcons.Code, null) },
+                            onClick = { menu = false; onWhatWasSent() },
+                        )
+                    }
                 }
             }
             turn?.branch?.let { BranchSwitcher(it, enabled = branchEnabled, onSwitch = onSwitch) }

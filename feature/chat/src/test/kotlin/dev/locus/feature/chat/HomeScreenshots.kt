@@ -115,10 +115,50 @@ class HomeScreenshots : ScreenshotTest() {
         projects: List<HomeProject> = emptyList(),
         remoteUntil: Long? = null,
         needsYou: NeedsYouFeed = NeedsYouFeed(),
-    ) = ConversationsScreen(state, actions, composer = HomeComposer(Fx.settings), projects = projects, remoteModeUntil = remoteUntil, needsYou = needsYou, now = now)
+        waiting: List<WaitingEntry> = emptyList(),
+    ) = ConversationsScreen(state, actions, composer = HomeComposer(Fx.settings), projects = projects, remoteModeUntil = remoteUntil, needsYou = needsYou, now = now, waiting = waiting)
 
     @Test
     fun home() = snap("home") { Home(ready, projects) }
+
+    // ---- "Questions waiting": chats beyond the featured one that wait for the user
+
+    /** c2 waits on an approval (the featured card); the banner counts the two others, the oldest named. */
+    @Test
+    fun homeWaiting() = snap("home-waiting") {
+        Home(
+            ready,
+            projects,
+            waiting = listOf(
+                WaitingEntry("c3", dev.locus.core.data.agent.WaitingKind.QUESTION, "Plan a 3-day trip to Lisbon"),
+                WaitingEntry("c2", dev.locus.core.data.agent.WaitingKind.APPROVAL, "Book a table at Lula's"),
+                WaitingEntry("c4", dev.locus.core.data.agent.WaitingKind.BUDGET, "Debounce a search field"),
+            ),
+        )
+    }
+
+    /** Chats imported from ChatGPT and Claude among the user's own (docs/design/import-chats.md): the source's badge and label, original dates. */
+    @Test
+    fun homeImported() = snap("home-imported", heightDp = 1500) {
+        fun imported(source: dev.locus.core.model.ChatImportSource, id: String, title: String, ago: Long) = ConversationRow(
+            Conversation(dev.locus.core.model.ImportedChats.chatId(source, id), title, null, "", now - ago - hour, now - ago),
+            running = false, needsApproval = false, providerName = source.displayName, model = importedLogoHint(source),
+        )
+        Home(
+            ready.copy(
+                rows = rows.drop(2).take(3) + listOf(
+                    imported(dev.locus.core.model.ChatImportSource.CHATGPT, "6789abcd", "Trip to Kyoto", 40 * day),
+                    imported(dev.locus.core.model.ChatImportSource.CLAUDE, "c0ffee00", "Sourdough schedule", 260 * day),
+                ),
+            ),
+        )
+    }
+
+    /** No chat featured, one locked chat waiting: counted, never named. */
+    @Test
+    fun homeWaitingLocked() = snap("home-waiting-locked") {
+        Home(calm, waiting = listOf(WaitingEntry("c9", dev.locus.core.data.agent.WaitingKind.APPROVAL, title = null)))
+    }
 
     // ---- The projects shelf: none, a few, many, and a project with a chat working or waiting
 

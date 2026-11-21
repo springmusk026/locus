@@ -171,6 +171,8 @@ fun ConversationsRoute(
     }
     val chatLock: ChatLockViewModel = hiltViewModel()
     val locker = rememberChatLocker(chatLock)
+    val waitingChats: WaitingChatsViewModel = hiltViewModel()
+    val waiting by waitingChats.entries.collectAsStateWithLifecycle()
     // Android 17 blocks LAN providers (Ollama, LM Studio…) until the user allows local network access.
     val localNetwork = dev.locus.core.designsystem.rememberLocalNetworkGate()
     val composerActions = remember(viewModel) {
@@ -201,6 +203,7 @@ fun ConversationsRoute(
         remoteModeUntil = remoteModeUntil,
         needsYou = needsYou,
         needsYouActions = needsYouActions,
+        waiting = waiting,
         actions = HomeActions(
             onStart = { text -> localNetwork.run(composer.settings.provider?.baseUrl.orEmpty()) { viewModel.start(text, onOpenConversation) } },
             onNewChat = { viewModel.newConversation(onOpenConversation) },
@@ -314,6 +317,8 @@ internal fun ConversationsScreen(
     needsYouActions: NeedsYouActions = NeedsYouActions(),
     /** The time proposals' expiry is shown against; screenshots fix it. */
     now: Long = System.currentTimeMillis(),
+    /** Chats waiting for the user, oldest first, for the "questions waiting" banner. */
+    waiting: List<WaitingEntry> = emptyList(),
 ) {
     var pendingDelete by remember { mutableStateOf<ConversationRow?>(null) }
     var pendingRename by remember { mutableStateOf<ConversationRow?>(null) }
@@ -366,7 +371,7 @@ internal fun ConversationsScreen(
                     val settings = Locus.settings
                     Button(onClick = { settings?.open(SettingsDestination.Models) ?: actions.onOpenSettings() }) { Text(stringResource(R.string.chat_home_choose_model)) }
                 }
-                else -> HomeList(ready, padding, actions, rowActions, onAllChats = { allChats = true; focusSearch = false }, projects = projects, remoteModeUntil = remoteModeUntil, needsYou = needsYou, needsYouActions = needsYouActions, now = now)
+                else -> HomeList(ready, padding, actions, rowActions, onAllChats = { allChats = true; focusSearch = false }, projects = projects, remoteModeUntil = remoteModeUntil, needsYou = needsYou, needsYouActions = needsYouActions, now = now, waiting = waiting)
             }
         }
     }
@@ -444,11 +449,18 @@ private fun HomeList(
     needsYou: dev.locus.core.data.needsyou.NeedsYouFeed = dev.locus.core.data.needsyou.NeedsYouFeed(),
     needsYouActions: NeedsYouActions = NeedsYouActions(),
     now: Long = System.currentTimeMillis(),
+    waiting: List<WaitingEntry> = emptyList(),
 ) {
     // The chat that needs the user most, featured on top while it's active. Once Needs you lists what's waiting
     // (answerable there), the featured card is the chat that's working.
     val featured = (if (needsYou.waiting.isEmpty()) state.rows.firstOrNull { it.needsApproval } else null)
         ?: state.rows.firstOrNull { it.running && !it.needsApproval }
+    // The banner counts the chats waiting beyond the one the featured card already shows waiting for an approval.
+    // Under that card it says "2 more chats…". Needs you already lists every waiting chat, so while it does, no banner.
+    val waitingBanner = remember(waiting, featured, needsYou.waiting.isEmpty()) {
+        if (needsYou.waiting.isNotEmpty()) null
+        else waitingBanner(waiting, exclude = setOfNotNull(featured?.takeIf { it.needsApproval }?.conversation?.id), sayMore = true)
+    }
     val pinned = state.rows.filter { it !== featured && it.conversation.pinned }
     // Scheduled runs stay out of Recent: the task result card carries their news, All chats keeps them.
     val recent = state.rows.filter { it !== featured && !it.conversation.pinned && !it.isScheduledRun }
@@ -465,6 +477,10 @@ private fun HomeList(
         remoteModeUntil?.let { until -> item(key = "remote-mode") { RemoteModeStatus(until, Modifier.padding(bottom = Spacing.md)) } }
         featured?.let { row ->
             item(key = "featured") { ActiveChatCard(row, onClick = { rowActions.open(row) }, modifier = Modifier.animateItem().padding(bottom = Spacing.md)) }
+        }
+        // Other chats waiting for the user: one compact card that opens the one waiting longest.
+        waitingBanner?.let { banner ->
+            item(key = "waiting") { WaitingChatsBanner(banner, actions.onOpenConversation, Modifier.animateItem().padding(bottom = Spacing.md)) }
         }
         item(key = "launcher") { Launcher(state.counts, actions, Modifier.entrance(0)) }
         // What needs the user, from every chat and every scheduled or triggered run (docs/design/needs-you.md).
@@ -704,6 +720,10 @@ private fun ConversationRowItem(row: ConversationRow, actions: RowActions, showM
                     row.needsApproval -> StatusLine(stringResource(R.string.chat_home_needs_your_approval), Tone.Caution)
                     row.running -> StatusLine(stringResource(R.string.chat_home_working_status), Tone.Live)
                     row.interrupted -> StatusLine(stringResource(R.string.chat_home_stopped_early), Tone.Caution)
+                    row.imported != null -> SupportingText(
+                        stringResource(R.string.chat_imported_row_meta, row.imported!!.displayName, relativeTime(row.conversation.updatedAt)),
+                        maxLines = 1,
+                    )
                     else -> SupportingText(
                         listOf(relativeTime(row.conversation.updatedAt), if (row.isScheduledRun) stringResource(R.string.chat_home_scheduled_task) else row.providerName)
                             .filter { it.isNotBlank() }.joinToString(" · "),

@@ -221,6 +221,7 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>, appLock: AppLock) 
                     LaunchActions.VOICE -> share.newChat { id -> backStack.add(ChatRoute(id, voice = true)) }
                     LaunchActions.ASK -> { home(); askFocus++ }
                     LaunchActions.WORKSPACE -> if (backStack.lastOrNull() != WorkspaceRoute()) backStack.add(WorkspaceRoute())
+                    LaunchActions.INSIGHTS -> if (backStack.lastOrNull() != AnalyticsRoute) backStack.add(AnalyticsRoute)
                     LaunchActions.UPDATES -> SettingsRoute(dev.locus.core.model.SettingsDestination.About).let { if (backStack.lastOrNull() != it) backStack.add(it) }
                 }
             }

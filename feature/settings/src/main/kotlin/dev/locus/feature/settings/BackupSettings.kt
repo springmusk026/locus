@@ -63,8 +63,12 @@ import dev.locus.core.designsystem.asString
 
 /** Settings → Backup & restore: an encrypted file the user saves wherever they like, and restoring from one. */
 @Composable
-internal fun BackupRoute(onBack: () -> Unit, viewModel: BackupViewModel = hiltViewModel()) {
+internal fun BackupRoute(onBack: () -> Unit, viewModel: BackupViewModel = hiltViewModel(), imports: ImportChatsViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val importState by imports.state.collectAsStateWithLifecycle()
+    // Exports are zips, or the conversations JSON on its own; several at once for Claude's split download.
+    val pickExport = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { imports.picked(it) }
+    val resources = LocalResources.current
     val save = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { viewModel.backup(it) }
     val open = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { viewModel.pickedRestoreFile(it) }
     var askPassword by remember { mutableStateOf(false) }
@@ -78,6 +82,17 @@ internal fun BackupRoute(onBack: () -> Unit, viewModel: BackupViewModel = hiltVi
         onCancelBackup = viewModel::cancelBackup,
         onDismissResult = viewModel::dismissResult,
         onRestore = { open.launch(arrayOf("*/*")) },
+        importState = importState,
+        onImportChats = { pickExport.launch(arrayOf("*/*")) },
+        onDismissImport = imports::dismissOutcome,
+    )
+    ImportChatsSheet(
+        step = importState.step,
+        onChoose = imports::choose,
+        onImport = { imports.import(importTexts(resources)) },
+        onCancel = imports::cancel,
+        onClose = imports::close,
+        onChooseAnother = { imports.close(); pickExport.launch(arrayOf("*/*")) },
     )
 
     if (askPassword) {
@@ -111,6 +126,10 @@ internal fun BackupSettings(
     onCancelBackup: () -> Unit,
     onDismissResult: () -> Unit,
     onRestore: () -> Unit,
+    /** Importing chats from ChatGPT or Claude (docs/design/import-chats.md). */
+    importState: ImportChatsUiState = ImportChatsUiState(),
+    onImportChats: () -> Unit = {},
+    onDismissImport: () -> Unit = {},
 ) {
     val estimate = state.estimate
     val busy = state.backupProgress != null
@@ -212,6 +231,8 @@ internal fun BackupSettings(
             }
         }
         item { SectionNote(stringResource(R.string.settings_backup_restore_note), NotePadding) }
+
+        importChatsSection(importState, enabled = !busy, onImport = onImportChats, onDismissOutcome = onDismissImport)
     }
 }
 

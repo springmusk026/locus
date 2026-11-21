@@ -13,6 +13,8 @@
     <string name="widget_label">Estado de Locus</string>
     <string name="widget_description">Qué está haciendo Locus, aprobaciones pendientes, la última tarea programada y Preguntar a Locus</string>
     <string name="widget_ask">Preguntar a Locus</string>
+    <string name="widget_usage_label">Uso de Locus</string>
+    <string name="widget_usage_description">Gasto y tokens de hoy en todos tus proveedores, y el presupuesto de la tarea en curso</string>
     <string name="assist_label">Locus</string>
     <string name="app_restore_unfinished_title">La restauración no terminó</string>
     <string name="app_restore_tasks_off_title">Las tareas programadas están desactivadas</string>

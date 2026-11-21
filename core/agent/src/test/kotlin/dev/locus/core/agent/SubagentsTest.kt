@@ -300,7 +300,14 @@ class SubagentsTest {
         val price: dev.locus.core.model.ModelPrice? = null,
         /** The user's helper time limit; null: the engine's default. */
         val timeout: Long? = null,
+        /** Denies every helper card with this reason ("Deny with a reason"); null: plain answers through [approve]. */
+        val denyReason: String? = null,
     ) : SubagentBackend {
+        override suspend fun requestReply(parentConversationId: String, request: ApprovalRequest): ApprovalReply {
+            val reason = denyReason ?: return super.requestReply(parentConversationId, request)
+            approvals += request
+            return ApprovalReply(ApprovalAnswer.DENY, reason)
+        }
         override suspend fun timeoutMs(): Long? = timeout
         val compactions = mutableListOf<AgentEvent.Compacted>()
         override fun compacted(state: SubagentState, event: AgentEvent.Compacted) { compactions += event }
@@ -643,6 +650,20 @@ class SubagentsTest {
         val request = backend.approvals.single()
         assertEquals("Researcher #1", request.origin?.label)
         assertEquals("agent-1", request.origin?.agentId)
+        assertEquals(0, backend.webSearch.runs)
+    }
+
+    @Test
+    fun `a reason the user gives when denying a helper's call reaches the helper's model`() = runTest {
+        val backend = Backend(
+            { Scripted(listOf(Turn(calls = listOf(call("web_search"))), Turn("done"))) },
+            userPolicy = ToolPolicy.ASK,
+            denyReason = "Use the docs site instead",
+        )
+        engine(work(), backend).spawn(ctx, "researcher", task)
+        assertEquals("Researcher #1", backend.approvals.single().origin?.label)
+        val result = backend.stores.values.flatMap { s -> s.messages.flatMap { it.toolResults } }.single()
+        assertEquals(DenyReason.result("Use the docs site instead"), result.content)
         assertEquals(0, backend.webSearch.runs)
     }
 

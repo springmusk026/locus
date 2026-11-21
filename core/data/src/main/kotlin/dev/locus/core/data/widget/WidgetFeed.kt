@@ -4,7 +4,10 @@ import dev.locus.core.agent.SecretScrubber
 import dev.locus.core.data.agent.AgentRunner
 import dev.locus.core.data.agent.RunState
 import dev.locus.core.data.di.ApplicationScope
+import dev.locus.core.agent.RunBudget
 import dev.locus.core.data.lock.AppLock
+import dev.locus.core.data.repository.AnalyticsRepository
+import dev.locus.core.data.repository.UsageToday
 import dev.locus.core.data.tasks.TaskRepository
 import dev.locus.core.datastore.SecretStore
 import dev.locus.core.model.ScheduledTask
@@ -84,6 +87,48 @@ fun widgetStatus(states: Map<String, RunState>): WidgetStatus {
 }
 
 private fun count(n: Int, noun: String) = if (n == 1) "1 $noun" else "$n ${noun}s"
+
+/**
+ * The usage widget (docs/design/android-bridge.md, "The usage widget"): [headline] is today's estimated
+ * spend, or its tokens when no request had a price; [detail] the rest of today; [task] the running task's
+ * use of its budget, when one runs with a budget. Numbers and Locus's own words only: no chat's name, no
+ * model's words, so it shows the same with Lock Locus on.
+ */
+data class UsageWidgetModel(val headline: String, val detail: String, val task: String? = null)
+
+/** The usage widget's text from [today] (Insights' figures) and the running task's [task] line ([taskBudgetLine]). Pure. */
+fun usageWidgetModel(today: UsageToday, task: String?): UsageWidgetModel {
+    val tokens = "${RunBudget.compactTokens(today.tokens)} tokens"
+    val cost = today.cost
+    val model = when {
+        today.requests == 0 -> UsageWidgetModel("No usage yet", "Today")
+        // "+" when some requests had no price: the amount is a floor ("<$0.01" already says "at most").
+        cost.priced > 0 -> UsageWidgetModel(RunBudget.usd(cost.usd) + if (cost.partial && cost.usd >= 0.01) "+" else "", "Today · $tokens")
+        else -> UsageWidgetModel(tokens, if (today.pricesOn) "Today · cost unknown" else "Today · prices off")
+    }
+    return model.copy(task = task)
+}
+
+/**
+ * "Task: 12k of 50k tokens · $0.08 of $0.50" for the running task with a budget, the chat waiting at its
+ * budget first, else the first one running; "Task paused: …" while it waits. Null when no task with a
+ * budget runs. Time isn't shown: it would change the widget every second. Scheduled runs count too, as
+ * their budget is the user's money as much as a chat's.
+ */
+fun taskBudgetLine(states: Map<String, RunState>): String? {
+    val (state, meter) = states.values.filter { it.budget != null && (it.running || it.budgetPause != null) }
+        .sortedByDescending { it.budgetPause != null }
+        .firstOrNull()?.let { it to it.budget!! } ?: return null
+    val tokens = meter.tokenLimit?.let { "${RunBudget.compactTokens(meter.tokens)} of ${RunBudget.compactTokens(it)} tokens" }
+        ?: "${RunBudget.compactTokens(meter.tokens)} tokens"
+    val spent = meter.costUsd?.let { usd ->
+        val shown = RunBudget.usd(usd) + if (meter.costPartial) "+" else ""
+        val limit = meter.costLimit?.takeIf { meter.costUnavailable == null }
+        if (limit != null) "$shown of ${RunBudget.usd(limit)}" else shown
+    }
+    val lead = if (state.budgetPause != null) "Task paused" else "Task"
+    return "$lead: " + listOfNotNull(tokens, spent).joinToString(" · ")
+}
 
 /** The most recently run scheduled task, or null before any task has run. */
 fun latestTaskRun(tasks: List<ScheduledTask>): LatestTaskRun? =
@@ -194,6 +239,7 @@ class WidgetFeed @Inject constructor(
     private val secrets: SecretStore,
     @param:ApplicationScope scope: CoroutineScope,
     appLock: AppLock,
+    analytics: AnalyticsRepository,
 ) {
     @OptIn(ExperimentalCoroutinesApi::class)
     val state: SharedFlow<WidgetModel> = combine(
@@ -202,6 +248,19 @@ class WidgetFeed @Inject constructor(
         // Until the lock's settings are read, as if it were on: no task line rather than one shown by mistake.
         appLock.status.map { it?.enabled ?: true }.distinctUntilChanged(),
     ) { status, task, locked -> widgetModel(status, task, locked) }
+        .distinctUntilChanged()
+        .shareIn(scope, SharingStarted.WhileSubscribed(5_000), replay = 1)
+
+    /**
+     * The usage widget's text: today's figures from Insights ([AnalyticsRepository.today]) and the running
+     * task's budget from the run states. Emits only when the text changes. Not affected by Lock Locus:
+     * amounts and token counts name no chat and quote no one (docs/design/app-lock.md).
+     */
+    val usage: SharedFlow<UsageWidgetModel> = combine(
+        analytics.today(),
+        runner.states.map(::taskBudgetLine).distinctUntilChanged(),
+        ::usageWidgetModel,
+    )
         .distinctUntilChanged()
         .shareIn(scope, SharingStarted.WhileSubscribed(5_000), replay = 1)
 }

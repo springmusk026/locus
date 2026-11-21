@@ -98,6 +98,14 @@ interface ConversationDao {
     @Query("DELETE FROM conversations WHERE id = :id")
     suspend fun delete(id: String)
 
+    /**
+     * Chats imported from a ChatGPT or Claude export (their ids start with `imported-`; see
+     * `dev.locus.core.model.ImportedChats`), with when they were last updated, so importing the same
+     * export again skips them or replaces older copies. Read-only.
+     */
+    @Query("SELECT id, updatedAt, pinned FROM conversations WHERE id LIKE 'imported-%'")
+    suspend fun importedStamps(): List<ImportedStamp>
+
     /** Chats with no messages at all, e.g. a "New chat" opened and left. Read-only. */
     @Query("SELECT id FROM conversations WHERE hidden = 0 AND NOT EXISTS (SELECT 1 FROM messages WHERE messages.conversationId = conversations.id)")
     fun observeEmptyIds(): Flow<List<String>>
@@ -180,6 +188,24 @@ interface MessageDao {
     suspend fun insertAsLeaf(message: MessageEntity, updatedAt: Long) {
         insert(message)
         moveLeaf(message.conversationId, message.id, updatedAt)
+    }
+
+    @Upsert
+    suspend fun upsertImportedConversation(conversation: ConversationEntity)
+
+    @Query("DELETE FROM conversations WHERE id = :id")
+    suspend fun deleteImportedConversation(id: String)
+
+    /**
+     * Writes one imported chat (docs/design/import-chats.md): its row and all its messages, in one
+     * transaction, so a cancelled or failed import never leaves half a chat. With [replacing], the older
+     * copy of the same chat goes first (its messages with it, by cascade).
+     */
+    @Transaction
+    suspend fun saveImportedChat(conversation: ConversationEntity, messages: List<MessageEntity>, replacing: Boolean) {
+        if (replacing) deleteImportedConversation(conversation.id)
+        upsertImportedConversation(conversation)
+        insertAll(messages)
     }
 
     /**
@@ -402,6 +428,9 @@ const val SEARCH_MESSAGES = "SELECT m.id AS messageId, m.conversationId AS conve
 const val MESSAGE_STATS = "SELECT m.conversationId AS conversationId, m.role AS role, m.createdAt AS createdAt, m.usageJson AS usageJson, " +
     "p.createdAt AS parentCreatedAt, m.providerId AS providerId, m.model AS model, m.firstTokenMs AS firstTokenMs, m.totalMs AS totalMs " +
     "FROM messages AS m LEFT JOIN messages AS p ON p.id = m.parentId WHERE m.createdAt >= :since AND m.copiedFrom IS NULL ORDER BY m.seq"
+
+/** An imported chat's id and last update (see [ConversationDao.importedStamps]). Read-only projection. */
+data class ImportedStamp(val id: String, val updatedAt: Long, val pinned: Boolean)
 
 /** A message found by [MessageDao.search]. Read-only projection. */
 data class MessageHitRow(val messageId: String, val conversationId: String, val role: String, val createdAt: Long, val snippet: String)

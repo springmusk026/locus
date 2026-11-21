@@ -263,7 +263,8 @@ class LibraryScreenshots : ScreenshotTest() {
         val repository = WorkflowRepository(g.home, g.helper, g.conversations, g.receipts, g.changes, g.settingsRepository, g.runner, g.tasks, g.io)
         runBlocking { saved.forEach { (w, project) -> repository.save(w, project) } }
         val vm = LibraryWorkflowsViewModel(repository, g.projects)
-        runBlocking { withTimeout(10_000) { vm.all.first { it.size == saved.size } } }
+        // + the built-in Research workflow, which is always listed first (docs/design/deep-research.md).
+        runBlocking { withTimeout(10_000) { vm.all.first { it.size == saved.size + WorkflowRepository.BUILT_IN.size } } }
         return vm
     }
 
@@ -779,7 +780,7 @@ class LibraryScreenshots : ScreenshotTest() {
         val vm = LibraryViewModel(g.library)
         vm.ready()
         val wf = workflows(g, listOf(invoiceWorkflow to null))
-        wf.open(LibraryWorkflowSheet.Edit(SavedWorkflow(wf.all.value.single().workflow)))
+        wf.open(LibraryWorkflowSheet.Edit(SavedWorkflow(wf.all.value.single { !it.builtIn }.workflow /* the saved one, not the built-in Research */)))
         snap("library-sheet-workflow-edit", heightDp = 2400, content = screen(vm, wf, 1))
     }
 
@@ -789,7 +790,7 @@ class LibraryScreenshots : ScreenshotTest() {
         val vm = LibraryViewModel(g.library)
         vm.ready()
         val wf = workflows(g, listOf(invoiceWorkflow to null))
-        wf.open(LibraryWorkflowSheet.Remove(SavedWorkflow(wf.all.value.single().workflow)))
+        wf.open(LibraryWorkflowSheet.Remove(SavedWorkflow(wf.all.value.single { !it.builtIn }.workflow /* the saved one, not the built-in Research */)))
         snap("library-sheet-workflow-remove", heightDp = 900, content = screen(vm, wf, 1))
     }
 

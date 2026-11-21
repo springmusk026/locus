@@ -141,6 +141,19 @@
                 android:resource="@xml/locus_widget_info" />
         </receiver>
 
+        <!-- The usage widget (LocusUsageWidget): today's spend and the running task's budget. -->
+        <receiver
+            android:name=".widget.LocusUsageWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_usage_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/locus_usage_widget_info" />
+        </receiver>
+
         <!-- WorkManager is initialised on demand with Hilt's worker factory (LocusApplication). -->
         <provider
             android:name="androidx.startup.InitializationProvider"

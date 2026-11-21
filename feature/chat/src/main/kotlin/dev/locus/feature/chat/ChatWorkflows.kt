@@ -13,11 +13,12 @@ import dev.locus.core.agent.workflow.WorkflowInputException
 import dev.locus.core.data.repository.WorkflowRepository
 import dev.locus.core.model.Project
 import dev.locus.core.model.SavedWorkflow
+import dev.locus.core.model.TaskBudget
 import dev.locus.core.model.Workflow
 import dev.locus.core.ui.WorkflowDraftState
 import dev.locus.core.ui.WorkflowEditorSheet
 import dev.locus.core.ui.WorkflowPickerSheet
-import dev.locus.core.ui.WorkflowRunSheet
+import dev.locus.core.ui.RunWorkflowSheet
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,7 +40,8 @@ sealed interface ChatWorkflowSheet {
     /** [error] says why a save failed; the review sheet shows it from [WorkflowDraftState.Ready.error]. */
     data class Editor(val state: WorkflowDraftState, val error: UiText? = null) : ChatWorkflowSheet
     data object Picker : ChatWorkflowSheet
-    data class Run(val saved: SavedWorkflow, val error: UiText? = null) : ChatWorkflowSheet
+    /** [lacksTools]: the chat's model can't call tools, so the sheet explains instead of running (docs/design/deep-research.md). */
+    data class Run(val saved: SavedWorkflow, val error: UiText? = null, val lacksTools: Boolean = false) : ChatWorkflowSheet
 }
 
 /** Saving a chat's task as a workflow and running one in it (docs/design/workflows.md). */
@@ -92,20 +94,26 @@ class ChatWorkflowsViewModel @Inject constructor(private val repository: Workflo
         _sheet.value = ChatWorkflowSheet.Picker
     }
 
-    fun choose(saved: SavedWorkflow) {
+    fun choose(conversationId: String, saved: SavedWorkflow) {
         _sheet.value = ChatWorkflowSheet.Run(saved)
+        viewModelScope.launch {
+            val lacks = repository.lacksTools(conversationId)
+            (_sheet.value as? ChatWorkflowSheet.Run)?.takeIf { it.saved == saved }?.let { _sheet.value = it.copy(lacksTools = lacks) }
+        }
     }
 
-    fun run(conversationId: String, saved: SavedWorkflow, values: Map<String, String>) {
+    /** Runs [saved] in the chat with [values] and, for the research workflow, the [budget] chosen in its sheet. */
+    fun run(conversationId: String, saved: SavedWorkflow, values: Map<String, String>, budget: TaskBudget? = null) {
+        val lacks = (_sheet.value as? ChatWorkflowSheet.Run)?.lacksTools == true
         val rendered = try {
-            repository.render(saved.workflow, values)
+            repository.render(saved, values, budget)
         } catch (e: WorkflowInputException) {
             // The input's own message (core/agent), shown as it came.
-            _sheet.value = ChatWorkflowSheet.Run(saved, e.message?.let(UiText::Plain))
+            _sheet.value = ChatWorkflowSheet.Run(saved, e.message?.let(UiText::Plain), lacks)
             return
         }
         if (!repository.run(conversationId, rendered)) {
-            _sheet.value = ChatWorkflowSheet.Run(saved, UiText.Res(R.string.chat_workflow_busy))
+            _sheet.value = ChatWorkflowSheet.Run(saved, UiText.Res(R.string.chat_workflow_busy), lacks)
             return
         }
         _sheet.value = null
@@ -132,13 +140,14 @@ internal fun rememberChatWorkflows(conversationId: String, project: Project?, vi
         ChatWorkflowSheet.Picker -> WorkflowPickerSheet(
             workflows = all.filter { it.projectId == null || it.projectId == project?.id }.sortedBy { if (it.projectId == null) 1 else 0 },
             projectName = project?.name,
-            onPick = viewModel::choose,
+            onPick = { viewModel.choose(conversationId, it) },
             onDismiss = viewModel::dismiss,
         )
-        is ChatWorkflowSheet.Run -> WorkflowRunSheet(
-            workflow = s.saved.workflow,
+        is ChatWorkflowSheet.Run -> RunWorkflowSheet(
+            saved = s.saved,
             error = s.error?.asString(),
-            onRun = { values -> viewModel.run(conversationId, s.saved, values) },
+            lacksTools = s.lacksTools,
+            onRun = { values, budget -> viewModel.run(conversationId, s.saved, values, budget) },
             onDismiss = viewModel::dismiss,
         )
         null -> Unit

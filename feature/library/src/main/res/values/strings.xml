@@ -523,4 +523,10 @@
     <string name="library_prompts_remove_body">It goes from the / list and the picker. Messages you already sent with it stay as they are.</string>
     <string name="library_prompts_save_failed">Couldn\'t save the prompt. Try again.</string>
     <string name="library_prompts_change_failed">Couldn\'t change “%1$s”. Try again.</string>
+
+    <!-- Built-in workflows (docs/design/deep-research.md) -->
+    <string name="library_workflows_built_in">Built in</string>
+    <string name="library_workflows_icon_built_in">Built-in workflow</string>
+    <string name="library_workflows_duplicate">Duplicate</string>
+    <string name="library_workflows_copy_name">%1$s (copy)</string>
 </resources>

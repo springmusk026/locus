@@ -6,6 +6,12 @@
     <string name="ui_approval_hide_details">Ocultar detalles</string>
     <string name="ui_approval_allow">Permitir</string>
     <string name="ui_approval_deny">Rechazar</string>
+    <string name="ui_approval_deny_reason">Rechazar con un motivo</string>
+    <string name="ui_approval_reason_title">Rechazar con un motivo</string>
+    <string name="ui_approval_reason_message">El agente lee tu motivo, para que pueda hacerlo de otra forma o preguntarte.</string>
+    <string name="ui_approval_reason_denying">Acción</string>
+    <string name="ui_approval_reason_label">Motivo</string>
+    <string name="ui_approval_reason_placeholder">No les escribas un correo, usa Slack</string>
     <string name="ui_approval_this_chat">Este chat</string>
     <string name="ui_approval_always">Siempre</string>
     <string name="ui_approval_allow_site">Permitir sitio</string>
@@ -516,4 +522,41 @@
     <string name="ui_prompt_form_selection">Texto que usar</string>
     <string name="ui_prompt_form_selection_empty">No se compartió ni escribió nada antes de elegir este prompt. Pégalo o escríbelo aquí.</string>
     <string name="ui_prompt_insert">Insertar</string>
+
+    <!-- Built-in workflows and the research workflow (ResearchWorkflowUi, docs/design/deep-research.md) -->
+    <string name="ui_workflow_built_in">Incluido</string>
+    <string name="ui_workflow_check_report">Locus comprueba que el informe tenga citas, una lista de fuentes y una sección de afirmaciones no verificadas</string>
+    <string name="ui_workflow_unavailable_no_tools">El modelo de este chat no puede usar herramientas, así que no puede ejecutar un flujo de trabajo. Cambia a un modelo con llamadas a herramientas para ejecutarlo.</string>
+    <string name="ui_research_name">Investigación</string>
+    <string name="ui_research_description">Busca en varias fuentes, comprueba las afirmaciones clave y escribe un informe con citas.</string>
+    <string name="ui_research_question">Pregunta</string>
+    <string name="ui_research_scope">Notas de alcance</string>
+    <string name="ui_research_scope_hint">Periodo, lugares, sitios que preferir o evitar. Los sitios que nombres aquí se abren sin preguntar.</string>
+    <string name="ui_research_depth">Profundidad</string>
+    <string name="ui_research_depth_quick">Rápida</string>
+    <string name="ui_research_depth_standard">Estándar</string>
+    <string name="ui_research_depth_thorough">A fondo</string>
+    <string name="ui_research_phases">Cómo funciona</string>
+    <string name="ui_research_phase_plan">Planificar: divide la pregunta en otras más pequeñas, que se muestran como lista de tareas</string>
+    <string name="ui_research_phase_research">Investigar: los ayudantes buscan en la web y leen las fuentes</string>
+    <string name="ui_research_phase_verify">Verificar: comprueba cada afirmación clave con su fuente y marca las que no puede confirmar</string>
+    <string name="ui_research_phase_report">Informe: escribe un informe en Markdown con citas en la carpeta research de tu espacio de trabajo</string>
+    <plurals name="ui_research_helpers">
+        <item quantity="one">%1$d investigador</item>
+        <item quantity="many">%1$d investigadores</item>
+        <item quantity="other">%1$d investigadores</item>
+    </plurals>
+    <plurals name="ui_research_sources">
+        <item quantity="one">unas %1$d fuente</item>
+        <item quantity="many">unas %1$d fuentes</item>
+        <item quantity="other">unas %1$d fuentes</item>
+    </plurals>
+    <string name="ui_research_budget_title">Presupuesto de la tarea</string>
+    <string name="ui_research_budget_line">%1$s · una ejecución así suele usar unos %2$s tokens</string>
+    <string name="ui_research_budget_off">Sin presupuesto · una ejecución así suele usar unos %1$s tokens</string>
+    <string name="ui_research_budget_low">Es menos de lo que suele usar una ejecución así, así que el informe puede quedar escaso.</string>
+    <string name="ui_research_budget_note">Cuando se acaba el presupuesto, deja de investigar y escribe el informe con lo que tiene, indicando lo que falta.</string>
+    <string name="ui_research_budget_change">Cambiar presupuesto</string>
+    <string name="ui_research_scheduled_note">Una ejecución programada no puede preguntarte nada: omite los sitios que no hayas nombrado en las notas de alcance y pone el informe en el chat en lugar de en un archivo.</string>
+    <string name="ui_research_outside">Todo lo que lee cuenta como contenido externo. Enviar o cambiar algo fuera de tu teléfono te pide permiso antes, y también abrir un sitio que no hayas nombrado.</string>
 </resources>

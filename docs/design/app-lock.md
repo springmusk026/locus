@@ -77,7 +77,8 @@ A trip out that Locus starts itself and expects back from (its own credential pr
 - **With Lock Locus on**, every action (Deny as well as Allow, answers, Reply, Stop and Continue) has `setAuthenticationRequired(true)` on Android 12+, so the keyguard comes first on a locked phone. Below Android 12 that call does nothing, so the actions are left off: the tap opens Locus, which shows its lock.
 - **Needs you's** one notification counts a locked chat's proposals but never describes them; it has no actions ([needs you](needs-you.md)).
 - **A locked chat's** approval, question, budget pause or scheduled result is never described, lock on or off: the notification says "A locked chat is waiting for you. Open Locus to see it." and offers no actions. A reminder set in a locked chat says "Reminder from a locked chat". Until the lock's settings have been read in a fresh process, a reminder from any chat errs on the side of saying less.
-- The widget never named chats (counts and fixed phrases only). With Lock Locus on it also drops the latest task result line, a model's words on the home screen.
+- The widget never named chats (counts and fixed phrases only). With Lock Locus on it also drops the latest task result line, a model's words on the home screen. The usage widget shows only amounts and token counts, the same with the lock on or off ([usage widget](android-bridge.md#the-usage-widget)).
+- The "questions waiting" banner inside Locus counts a locked chat but never names it, even once the session is unlocked ([approvals waiting](approvals-waiting.md)).
 - **Launcher and Direct Share shortcuts**: a locked chat is never one, and with Lock Locus on there are no chat shortcuts at all (the launcher's long-press menu and the share sheet would show chat names to anyone). The static ones (New chat, Voice, Workspace) stay; they open Locus, which asks.
 
 ## Inside Locus

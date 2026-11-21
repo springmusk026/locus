@@ -23,6 +23,8 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.serialization.json.Json
 import java.time.Instant
@@ -191,6 +193,25 @@ internal fun priceLookup(settings: AppSettings, catalog: ModelCatalogIndex?): Pr
     }
 }
 
+/**
+ * Today's usage across every provider (the usage widget): [tokens] and [requests] as Insights totals them,
+ * and the estimated [cost] from models.dev prices, [pricesOn] when those are switched on.
+ */
+data class UsageToday(val tokens: Long = 0, val requests: Int = 0, val cost: CostEstimate = CostEstimate(), val pricesOn: Boolean = false)
+
+/**
+ * The start of each local day, in epoch millis: today's at once, then the next one at each midnight while
+ * collected. A delay, not polling: one wake-up a day.
+ */
+internal fun dayStarts(zone: ZoneId, clock: () -> Long = System::currentTimeMillis): Flow<Long> = kotlinx.coroutines.flow.flow {
+    while (true) {
+        val today = Instant.ofEpochMilli(clock()).atZone(zone).toLocalDate()
+        emit(today.atStartOfDay(zone).toInstant().toEpochMilli())
+        val next = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        kotlinx.coroutines.delay((next - clock()).coerceAtLeast(1_000L))
+    }
+}
+
 /** Read-only usage figures computed from the local database: tokens, requests, tools and tasks. */
 @Singleton
 class AnalyticsRepository @Inject constructor(
@@ -215,10 +236,30 @@ class AnalyticsRepository @Inject constructor(
             conversations.observeAll(),
             settings.settings,
             tasks.tasks,
-        ) { (m, e, catalog), a, c, s, t -> buildReport(period, since, now, m, a, c, s, t, zone, e, priceLookup(s, catalog), s.modelCatalog) }
+        ) { (m, e, catalog), a, c, s, t ->
+            // The spend's windows end now, not when the screen opened: a request made while Insights is open counts today.
+            buildReport(period, since, maxOf(now, System.currentTimeMillis()), m, a, c, s, t, zone, e, priceLookup(s, catalog), s.modelCatalog)
+        }
             .debounce(500)
             .flowOn(Dispatchers.Default)
     }
+
+    /**
+     * Today's usage across every provider and source, counted exactly as Insights counts it ([buildReport]'s
+     * tokens, requests and `cost.today`), for the usage widget. Reads only today's requests, starts over at
+     * local midnight while collected, and re-computes (at most twice a second) as requests land.
+     */
+    @OptIn(FlowPreview::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    fun today(zone: ZoneId = ZoneId.systemDefault()): Flow<UsageToday> = dayStarts(zone).flatMapLatest { from ->
+        combine(messages.observeStats(from), usageEvents.observeSince(from), directory.catalog, settings.settings) { m, e, catalog, s ->
+            // No chats or tool log: today's rows all store their provider and model (v9), and only totals are read.
+            val report = buildReport(AnalyticsPeriod.Week, from, System.currentTimeMillis(), m, emptyList(), emptyList(), s, emptyList(), zone, e, priceLookup(s, catalog), s.modelCatalog)
+            UsageToday(tokens = report.tokens.total, requests = report.requests, cost = report.cost.today, pricesOn = s.modelCatalog)
+        }
+    }
+        .distinctUntilChanged()
+        .debounce(500)
+        .flowOn(Dispatchers.Default)
 
     internal companion object {
         private val json = Json { ignoreUnknownKeys = true }

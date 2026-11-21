@@ -145,4 +145,6 @@ class LocusWidgetReceiver : GlanceAppWidgetReceiver() {
 @InstallIn(SingletonComponent::class)
 internal interface WidgetEntryPoint {
     fun widgetFeed(): WidgetFeed
+
+    fun widgetUpdater(): LocusWidgetUpdater
 }

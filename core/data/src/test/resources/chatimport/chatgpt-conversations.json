@@ -1,0 +1,124 @@
+[
+  {
+    "title": "Trip to Kyoto 🍵",
+    "create_time": 1704067200.123,
+    "update_time": 1704070800.5,
+    "conversation_id": "6789abcd-0000-4000-8000-000000000001",
+    "id": "6789abcd-0000-4000-8000-000000000001",
+    "default_model_slug": "gpt-4o",
+    "gizmo_id": null,
+    "is_archived": false,
+    "current_node": "a2",
+    "mapping": {
+      "client-created-root": { "id": "client-created-root", "message": null, "parent": null, "children": ["sys"] },
+      "sys": {
+        "id": "sys",
+        "parent": "client-created-root",
+        "children": ["ctx"],
+        "message": { "id": "sys", "author": { "role": "system", "name": null, "metadata": {} }, "create_time": null, "content": { "content_type": "text", "parts": [""] }, "recipient": "all", "metadata": { "is_visually_hidden_from_conversation": true } }
+      },
+      "ctx": {
+        "id": "ctx",
+        "parent": "sys",
+        "children": ["u1"],
+        "message": { "id": "ctx", "author": { "role": "user" }, "create_time": 1704067200.2, "content": { "content_type": "user_editable_context", "user_profile": "I live in Lisbon", "user_instructions": "Be brief" }, "recipient": "all", "metadata": { "is_visually_hidden_from_conversation": true } }
+      },
+      "u1": {
+        "id": "u1",
+        "parent": "ctx",
+        "children": ["a1"],
+        "message": {
+          "id": "u1",
+          "author": { "role": "user", "name": null },
+          "create_time": 1704067260.0,
+          "content": {
+            "content_type": "multimodal_text",
+            "parts": [
+              { "content_type": "image_asset_pointer", "asset_pointer": "file-service://file-abc", "size_bytes": 12345, "width": 800, "height": 600 },
+              "Plan 3 days in Kyoto — 京都 — for a tea lover.",
+              { "content_type": "audio_transcription", "text": "Also temples, please." },
+              { "content_type": "some_future_part", "blob": 1 }
+            ]
+          },
+          "recipient": "all",
+          "metadata": { "attachments": [ { "id": "file-xyz", "name": "itinerary.pdf", "mime_type": "application/pdf", "size": 2048 } ] }
+        }
+      },
+      "a1": {
+        "id": "a1",
+        "parent": "u1",
+        "children": ["th"],
+        "message": { "id": "a1", "author": { "role": "assistant" }, "create_time": 1704067270.0, "content": { "content_type": "code", "language": "python", "text": "search('kyoto tea')" }, "recipient": "web.run", "metadata": {} }
+      },
+      "th": {
+        "id": "th",
+        "parent": "a1",
+        "children": ["t1"],
+        "message": { "id": "th", "author": { "role": "assistant" }, "create_time": 1704067271.0, "content": { "content_type": "thoughts", "thoughts": [ { "summary": "Planning", "content": "Think about Uji." } ] }, "recipient": "all", "metadata": {} }
+      },
+      "t1": {
+        "id": "t1",
+        "parent": "th",
+        "children": ["a1b"],
+        "message": { "id": "t1", "author": { "role": "tool", "name": "web.run" }, "create_time": 1704067272.0, "content": { "content_type": "tether_quote", "url": "https://example.org/uji", "domain": "example.org", "title": "Uji", "text": "Uji is famous for matcha." }, "recipient": "all", "metadata": {} }
+      },
+      "a1b": {
+        "id": "a1b",
+        "parent": "t1",
+        "children": ["a1c"],
+        "message": { "id": "a1b", "author": { "role": "assistant" }, "create_time": 1704067280.0, "content": { "content_type": "text", "parts": ["Day 1: Uji for matcha 【12†source】."] }, "recipient": "all", "end_turn": false, "metadata": { "model_slug": "gpt-4o" } }
+      },
+      "a1c": {
+        "id": "a1c",
+        "parent": "a1b",
+        "children": ["u2", "u2b"],
+        "message": { "id": "a1c", "author": { "role": "assistant" }, "create_time": 1704067290.0, "content": { "content_type": "text", "parts": ["Day 2: Fushimi Inari.citeturn0search0"] }, "recipient": "all", "end_turn": true, "metadata": {} }
+      },
+      "u2": {
+        "id": "u2",
+        "parent": "a1c",
+        "children": ["a2"],
+        "message": { "id": "u2", "author": { "role": "user" }, "create_time": 1704070000.0, "content": { "content_type": "text", "parts": ["What about day 3?"] }, "recipient": "all", "metadata": {} }
+      },
+      "a2": {
+        "id": "a2",
+        "parent": "u2",
+        "children": [],
+        "message": { "id": "a2", "author": { "role": "assistant" }, "create_time": 1704070100.0, "content": { "content_type": "text", "parts": ["Day 3: Arashiyama."] }, "recipient": "all", "metadata": {} }
+      },
+      "u2b": {
+        "id": "u2b",
+        "parent": "a1c",
+        "children": ["a2b"],
+        "message": { "id": "u2b", "author": { "role": "user" }, "create_time": 1704070500.0, "content": { "content_type": "text", "parts": ["Make it 4 days instead."] }, "recipient": "all", "metadata": {} }
+      },
+      "a2b": {
+        "id": "a2b",
+        "parent": "u2b",
+        "children": [],
+        "message": { "id": "a2b", "author": { "role": "assistant" }, "create_time": 1704070600.0, "content": { "content_type": "text", "parts": ["Sure: add Nara on day 4."] }, "recipient": "all", "metadata": {} }
+      }
+    }
+  },
+  {
+    "title": "Empty one",
+    "create_time": 1704067200,
+    "update_time": 1704067200,
+    "id": "empty-1",
+    "current_node": "s",
+    "mapping": {
+      "s": { "id": "s", "parent": null, "message": { "id": "s", "author": { "role": "system" }, "content": { "content_type": "text", "parts": [""] }, "recipient": "all" } }
+    }
+  },
+  {
+    "id": "no-title-2",
+    "mapping": {
+      "x1": { "id": "x1", "parent": "missing-parent", "message": { "id": "x1", "author": { "role": "user" }, "create_time": "2023-05-01T10:00:00Z", "content": { "content_type": "text", "parts": ["Héllo without a title\nsecond line"] } } },
+      "x2": { "id": "x2", "parent": "x1", "message": { "id": "x2", "author": { "role": "assistant" }, "content": { "content_type": "brand_new_type", "mystery": true } } },
+      "x3": { "id": "x3", "parent": "x2", "message": { "id": "x3", "author": { "role": "assistant" }, "create_time": 1682935300, "content": { "content_type": "brand_new_type", "parts": ["Readable despite the new type"] } } }
+    }
+  },
+  {},
+  { "title": "null mapping", "mapping": null },
+  "not an object"
+]

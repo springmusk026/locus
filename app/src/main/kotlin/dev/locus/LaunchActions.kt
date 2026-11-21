@@ -16,7 +16,10 @@ object LaunchActions {
     /** Settings → About & privacy, from the "Update available" notification (docs/design/updates.md). */
     const val UPDATES = dev.locus.core.data.updates.UpdateLinks.ACTION_OPEN
 
-    val ALL = setOf(NEW_CHAT, VOICE, WORKSPACE, ASK, UPDATES)
+    /** Insights, from the usage widget (docs/design/android-bridge.md). */
+    const val INSIGHTS = "dev.locus.action.INSIGHTS"
+
+    val ALL = setOf(NEW_CHAT, VOICE, WORKSPACE, ASK, UPDATES, INSIGHTS)
 
     /**
      * The action to take for an intent's [action]: Android's assist gesture (Locus as the default digital

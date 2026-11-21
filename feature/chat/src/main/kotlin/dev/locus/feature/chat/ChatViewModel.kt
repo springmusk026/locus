@@ -329,6 +329,11 @@ data class ChatUiState(
     val laterBranch: String? = null,
     /** The summary the model hasn't read yet (the chat's last message is a checkpoint): it can still be edited. */
     val editableCheckpoint: String? = null,
+    /**
+     * Where this chat was imported from (docs/design/import-chats.md): a read-only archive with no composer,
+     * no regenerate, edit or fork, and "Continue in Locus" instead. Null for Locus's own chats.
+     */
+    val importedFrom: dev.locus.core.model.ChatImportSource? = null,
 ) {
     val pendingApproval: ApprovalRequest? get() = run.pendingApproval
 
@@ -431,6 +436,16 @@ class ChatViewModel @AssistedInject constructor(
         val title = conversations.get(conversationId)?.title.orEmpty()
         val chat = conversations.create(null, projectId)
         onCreated(chat.id, "Continue from our earlier chat “$title” (id $conversationId): read it with chat_history_read first.")
+    }
+
+    /**
+     * "Continue in Locus" on an imported archive: a new chat on the default model, opened with [draft]
+     * (which names this chat's id) in its composer for the user to send. The agent there reads the archive
+     * with chat_history_read, as outside content, so nothing imported is replayed into a request.
+     */
+    fun continueImported(onCreated: (id: String) -> Unit) = viewModelScope.launch {
+        if (!dev.locus.core.model.ImportedChats.isImported(conversationId)) return@launch
+        onCreated(conversations.create(settings.current().defaultProviderId).id)
     }
 
     private val _notice = MutableStateFlow<UiText?>(null)
@@ -616,6 +631,7 @@ class ChatViewModel @AssistedInject constructor(
             messageActions = transcript.actions,
             laterBranch = transcript.continuation,
             editableCheckpoint = transcript.editableCheckpoint,
+            importedFrom = dev.locus.core.model.ImportedChats.sourceOf(conversationId),
             links = LinkContext(
                 outsideContent = transcript.outsideContent,
                 // Hosts the user typed in this chat, plus model providers and connectors they set up: taint's trusted hosts.
@@ -845,6 +861,9 @@ class ChatViewModel @AssistedInject constructor(
 
     /** Allow, and remember it for this chat or always (docs/design/remembered-approvals.md). */
     fun answerRemembering(callId: String, answer: dev.locus.core.agent.ApprovalAnswer) = runner.answer(callId, answer)
+
+    /** Deny, with the user's reason for the agent (the card's "Deny with a reason"). */
+    fun denyWithReason(callId: String, reason: String) = runner.denyWithReason(callId, reason)
 
     fun answerQuestion(callId: String, answer: dev.locus.core.agent.tools.QuestionAnswer) {
         runner.answerQuestion(callId, answer)

@@ -9,6 +9,7 @@ import dev.locus.core.database.AuditEntity
 import dev.locus.core.database.AuditStatRow
 import dev.locus.core.database.ConversationDao
 import dev.locus.core.database.ConversationEntity
+import dev.locus.core.database.ImportedStamp
 import dev.locus.core.database.LinkRow
 import dev.locus.core.database.MessageDao
 import dev.locus.core.database.MessageEntity
@@ -143,6 +144,8 @@ class FakeDatabase {
                 proposals = t.proposals.filterValues { it.conversationId != id },
             )
         }
+        override suspend fun importedStamps() = tables.value.conversations.values.filter { it.id.startsWith("imported-") }
+            .map { ImportedStamp(it.id, it.updatedAt, it.pinned) }
         override fun observeEmptyIds() = select { t ->
             t.conversations.values.filter { c -> !c.hidden && t.messages.none { it.conversationId == c.id } }.map { it.id }
         }
@@ -170,6 +173,22 @@ class FakeDatabase {
             t.copy(messages = t.messages + message.copy(seq = nextSeq++))
         }
         override suspend fun insertAll(messages: List<MessageEntity>) = messages.forEach { insert(it) }
+        override suspend fun upsertImportedConversation(conversation: ConversationEntity) = conversationDao.upsert(conversation)
+        override suspend fun deleteImportedConversation(id: String) = conversationDao.delete(id)
+
+        /** One write, as Room's transaction: either the whole chat is there afterwards or none of it. */
+        override suspend fun saveImportedChat(conversation: ConversationEntity, messages: List<MessageEntity>, replacing: Boolean) = write { t ->
+            val kept = if (replacing) t.copy(conversations = t.conversations - conversation.id, messages = t.messages.filterNot { it.conversationId == conversation.id }) else t
+            val ids = kept.messages.mapTo(HashSet()) { it.id }
+            messages.forEach { m ->
+                require(m.conversationId == conversation.id) { "FOREIGN KEY constraint failed: no conversation ${m.conversationId}" }
+                require(ids.add(m.id)) { "UNIQUE constraint failed: messages.id ${m.id}" }
+            }
+            kept.copy(
+                conversations = kept.conversations + (conversation.id to conversation),
+                messages = kept.messages + messages.map { it.copy(seq = nextSeq++) },
+            )
+        }
         override suspend fun leaf(conversationId: String): String? {
             val t = tables.value
             val mine = t.messages.filter { it.conversationId == conversationId }

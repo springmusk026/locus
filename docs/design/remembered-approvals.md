@@ -198,6 +198,18 @@ Approving the same scope again renews it. "This chat" rules don't expire; they e
 
 Settings → Permissions → Remembered lists every live rule. Each row shows the tool and scope, whether it's for one chat or always, and the days left, with a Revoke button. Rules are read fresh for every call, so a revoke applies to the very next one.
 
+## Deny with a reason
+
+Built 2026-11-21 (the "Smaller" list of [feature opportunities](../research/feature-opportunities-2026-11.md)). Code: `ApprovalReply`, `DenyReason` (core/agent `DenyReason.kt`), `ApprovalGate.reply`, `AgentRunner.denyWithReason`, `DenyReasonSheet` and the card's Deny (core/ui `ApprovalCard.kt`).
+
+A person denying a call could say no but not why; the AI reviewer could. Now the in-app card can carry a short reason ("Don't email them, use Slack") to the model.
+
+- **On the card.** A tap on Deny denies at once, as before. A long press on Deny opens **Deny with a reason**: a sheet with what is being denied, one field (up to 300 characters, with a count) and Deny, off until something is typed. TalkBack offers it as Deny's long-press action. It is a long press only, with no extra button: the card is the one thing docked over the composer, and at a large font another row pushed it past the screen in the renders. Cancelling the sheet leaves the card waiting. The chat's card and the full-screen browser's card both have it; a helper's card in its parent chat too.
+- **What the model reads.** The denied call's result is `The user declined this action and said: "<reason>"` and a line telling it to take that into account (change course as asked, or ask). With no reason it is exactly the old `The user declined this action. Ask them how they would like to proceed.`, so every existing request, and its prompt cache, is byte-identical (`DenyReasonTest`). The reason is cleaned (`DenyReason.clean`: hidden characters out, white space folded to single spaces, trimmed, cut to 300 characters without splitting a surrogate pair) and an empty one is a plain Deny.
+- **It's the user's words.** Typed in Locus by the person answering the card, so it is read like a message they sent: no taint, no untrusted-content wrapper. It is in the transcript (and exports) as part of that tool result, and nowhere else; the audit log records the denial as before.
+- **Only in the app.** Notifications, Telegram and voice mode answer plain Deny (`ApprovalGate.reply` defaults to `answer` with no reason). A reason needs a keyboard and a moment to think, and voice would have to tell a reason from an answer.
+- **Helpers.** `SubagentBackend.requestReply` carries the reason from the parent chat's card to the helper's loop; an allowing answer is still a plain Allow for a helper (nothing is remembered from its card).
+
 ## Not done
 
 - Notification actions only allow once.
