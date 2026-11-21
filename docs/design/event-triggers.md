@@ -26,7 +26,7 @@ A task can start in two ways:
 - **On a schedule**, as before.
 - **When…** something happens. The task names a *source*, a *filter* on what the source sends, a *rate limit* and optional *quiet hours*.
 
-A matching event starts the same read-only background run a schedule does. The event's text rides along as untrusted input.
+A matching event starts the same read-only background run a schedule does. The event's text rides along as untrusted input. What the run wants to send or write waits in Needs you as a proposal, flagged as tainted ([needs you](needs-you.md)).
 
 The roadmap names "new mail, a calendar entry, an ntfy message" and a morning digest. Those are examples. The general capability is: Locus watches a source it can read without reading another app's data, and turns what the source reports into a run under the rules that already govern unattended runs.
 

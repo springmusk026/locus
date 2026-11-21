@@ -1,7 +1,22 @@
 package dev.locus.feature.chat
 
 import androidx.compose.runtime.Composable
+import dev.locus.core.agent.ApprovalFlag
+import dev.locus.core.agent.ApprovalPreview
+import dev.locus.core.agent.ApprovalRequest
+import dev.locus.core.agent.BudgetLimit
+import dev.locus.core.agent.tools.UserQuestion
+import dev.locus.core.data.agent.BudgetPause
+import dev.locus.core.data.needsyou.NeedsYouFeed
+import dev.locus.core.data.needsyou.Proposal
+import dev.locus.core.data.needsyou.ProposalItem
+import dev.locus.core.data.needsyou.ProposalState
+import dev.locus.core.data.needsyou.ProposalStatus
+import dev.locus.core.data.needsyou.ResultItem
+import dev.locus.core.data.needsyou.Waiting
 import dev.locus.core.data.repository.WorkspaceEntry
+import dev.locus.core.model.TaskRunOutcome
+import dev.locus.core.model.ToolRisk
 import dev.locus.core.model.Conversation
 import dev.locus.core.model.Project
 import dev.locus.core.data.search.ChatSearchHit
@@ -95,11 +110,32 @@ class HomeScreenshots : ScreenshotTest() {
     )
 
     @Composable
-    private fun Home(state: ConversationsUiState, projects: List<HomeProject> = emptyList(), remoteUntil: Long? = null) =
-        ConversationsScreen(state, actions, composer = HomeComposer(Fx.settings), projects = projects, remoteModeUntil = remoteUntil)
+    private fun Home(
+        state: ConversationsUiState,
+        projects: List<HomeProject> = emptyList(),
+        remoteUntil: Long? = null,
+        needsYou: NeedsYouFeed = NeedsYouFeed(),
+        waiting: List<WaitingEntry> = emptyList(),
+    ) = ConversationsScreen(state, actions, composer = HomeComposer(Fx.settings), projects = projects, remoteModeUntil = remoteUntil, needsYou = needsYou, now = now, waiting = waiting)
 
     @Test
     fun home() = snap("home") { Home(ready, projects) }
+
+    // ---- "Questions waiting": chats beyond the featured one that wait for the user
+
+    /** c2 waits on an approval (the featured card); the banner counts the two others, the oldest named. */
+    @Test
+    fun homeWaiting() = snap("home-waiting") {
+        Home(
+            ready,
+            projects,
+            waiting = listOf(
+                WaitingEntry("c3", dev.locus.core.data.agent.WaitingKind.QUESTION, "Plan a 3-day trip to Lisbon"),
+                WaitingEntry("c2", dev.locus.core.data.agent.WaitingKind.APPROVAL, "Book a table at Lula's"),
+                WaitingEntry("c4", dev.locus.core.data.agent.WaitingKind.BUDGET, "Debounce a search field"),
+            ),
+        )
+    }
 
     /** Chats imported from ChatGPT and Claude among the user's own (docs/design/import-chats.md): the source's badge and label, original dates. */
     @Test
@@ -116,6 +152,12 @@ class HomeScreenshots : ScreenshotTest() {
                 ),
             ),
         )
+    }
+
+    /** No chat featured, one locked chat waiting: counted, never named. */
+    @Test
+    fun homeWaitingLocked() = snap("home-waiting-locked") {
+        Home(calm, waiting = listOf(WaitingEntry("c9", dev.locus.core.data.agent.WaitingKind.APPROVAL, title = null)))
     }
 
     // ---- The projects shelf: none, a few, many, and a project with a chat working or waiting
@@ -220,4 +262,110 @@ class HomeScreenshots : ScreenshotTest() {
     /** All chats with the locked rows. (A row's menu is a popup the screenshot steps can't settle, so it isn't drawn here.) */
     @Test
     fun allChatsLocked() = snapAfter("home-all-chats-locked", listOf(Step.Tap("All chats")), heightDp = 1400) { Home(locked, projects) }
+
+    // ---- Needs you (docs/design/needs-you.md)
+
+    private fun proposal(
+        id: String,
+        source: String,
+        tool: String,
+        summary: String,
+        args: String,
+        ago: Long,
+        preview: ApprovalPreview? = null,
+        reason: String? = null,
+    ) = Proposal(
+        id = id, conversationId = "r-$id", taskId = "t-$id", source = source, callId = "call-$id", toolName = tool,
+        argumentsJson = args, summary = summary, reason = reason, flags = setOfNotNull(ApprovalFlag.MUST_CONFIRM.takeIf { reason != null }),
+        taintSources = emptySet(), preview = preview, createdAt = now - ago, expiresAt = now - ago + 7 * day, status = ProposalStatus.PENDING,
+    )
+
+    private val email = proposal(
+        "mail", "Morning inbox", "email_send", "Send email to landlord@example.com: “Boiler” — The boiler is fixed, thank you for sending someone so quickly.",
+        """{"to":"landlord@example.com","subject":"Boiler","body":"The boiler is fixed, thank you for sending someone so quickly."}""", 2 * hour,
+        reason = "Sends a real email to landlord@example.com from the agent's mailbox.",
+    )
+    private val event = proposal(
+        "cal", "Trip planner", "calendar_create", "Add “Lisbon flight” to Personal, Fri 14:05", """{"title":"Lisbon flight"}""", 5 * hour,
+        preview = ApprovalPreview(
+            listOf(ApprovalPreview.Row("Title", "Lisbon flight TP1351"), ApprovalPreview.Row("When", "Fri 14:05 – 16:20"), ApprovalPreview.Row("Guests", "ana@example.com", outward = true)),
+        ),
+    )
+    private val draft = proposal("file", "Weekly review", "write_file", "Create notes/weekly-review.md (1240 characters)", """{"path":"notes/weekly-review.md"}""", day)
+    private val expired = proposal("old", "Morning inbox", "email_send", "Send email to bank@example.com: “Statement” — Please send March's statement.", """{"to":"bank@example.com"}""", 8 * day)
+
+    private val waiting = listOf(
+        Waiting.Approval(ApprovalRequest("c2", "a1", "browser_click", ToolRisk.NETWORK, "Click “Reserve” on lulas.example", "{}"), "Book a table at Lula's", redacted = false, since = 3),
+        Waiting.Question(UserQuestion("c4", "q1", "Should the search wait 300 ms or 500 ms after typing?", listOf("300 ms", "500 ms")), "Debounce a search field", redacted = false, since = 2),
+        Waiting.Budget("c5", BudgetPause(BudgetLimit.TOKENS, "Paused: reached the 200k-token budget for this task."), "Summarise the March bank statement", redacted = false, since = 1),
+    )
+
+    private fun result(id: String, title: String, summary: String, ago: Long, outcome: TaskRunOutcome = TaskRunOutcome.DONE, event: Boolean = false, redacted: Boolean = false) =
+        ResultItem(id, title, outcome, summary, null, now - ago, "r-$id", eventTriggered = event, redacted = redacted)
+
+    private val results = listOf(
+        result("news", "Morning news", "Three stories: the EU AI Act's first fines, a new Pixel update, and rain in Lisbon all weekend.", 40 * min),
+        result("backup", "Backup watch", "The nightly backup failed: the disk on nas.local is full.", 3 * hour, TaskRunOutcome.FAILED, event = true),
+        result("prices", "Flight prices", "Stopped: it took longer than 8 minutes.", 6 * hour, TaskRunOutcome.STOPPED),
+        result("rent", "Rent reminder", "Rent is due on Monday.", 9 * hour),
+    )
+
+    private fun items(vararg p: Proposal, state: ProposalState = ProposalState.WAITING) = p.map { ProposalItem(it, state, "Scheduled: ${it.source}", redacted = false) }
+
+    /** Nothing running, so the section sits right under the launcher. */
+    private val calmHome = ready.copy(rows = rows.drop(2))
+
+    @Test
+    fun needsYouWaiting() = snap("home-needs-you-waiting", heightDp = 1600) { Home(ready, projects, needsYou = NeedsYouFeed(waiting = waiting)) }
+
+    @Test
+    fun needsYouProposals() = snap("home-needs-you-proposals", heightDp = 2400) {
+        Home(calmHome, needsYou = NeedsYouFeed(proposals = items(email, event, draft, expired.copy(id = "more"))))
+    }
+
+    @Test
+    fun needsYouResults() = snap("home-needs-you-results", heightDp = 1400) { Home(calmHome, projects, needsYou = NeedsYouFeed(results = results)) }
+
+    /** Everything at once: a morning after a few scheduled runs. */
+    @Test
+    fun needsYouAll() = snap("home-needs-you-all", heightDp = 2400) {
+        Home(ready, projects, needsYou = NeedsYouFeed(waiting = waiting.take(1), proposals = items(email), results = results.take(2)))
+    }
+
+    /** Nothing needs the user: home as it was (the latest-result card, the featured chat). */
+    @Test
+    fun needsYouEmpty() = snap("home-needs-you-empty") { Home(calmHome, projects, needsYou = NeedsYouFeed()) }
+
+    @Test
+    fun needsYouProposalCard() = snap("home-needs-you-proposal", heightDp = 1200) { Home(calmHome, needsYou = NeedsYouFeed(proposals = items(event))) }
+
+    @Test
+    fun needsYouExpired() = snap("home-needs-you-expired", heightDp = 1200) {
+        Home(calmHome, needsYou = NeedsYouFeed(proposals = items(expired, state = ProposalState.EXPIRED)))
+    }
+
+    /** Approved and running, approved but failed, cut off by a restart, and back from a restored backup. */
+    @Test
+    fun needsYouSettled() = snap("home-needs-you-settled", heightDp = 1400) {
+        Home(
+            calmHome,
+            needsYou = NeedsYouFeed(
+                proposals = items(draft, state = ProposalState.RUNNING) + items(email.copy(id = "f"), state = ProposalState.FAILED) +
+                    items(event.copy(id = "i"), state = ProposalState.INTERRUPTED) + items(expired.copy(id = "s"), state = ProposalState.STALE),
+            ),
+        )
+    }
+
+    /** A locked chat's approval, proposal and result keep their places and say nothing of what they are. */
+    @Test
+    fun needsYouLocked() = snap("home-needs-you-locked", heightDp = 1400) {
+        Home(
+            calmHome,
+            needsYou = NeedsYouFeed(
+                waiting = listOf((waiting[0] as Waiting.Approval).copy(redacted = true, chatTitle = "")),
+                proposals = listOf(ProposalItem(email, ProposalState.WAITING, "", redacted = true)),
+                results = listOf(result("diary", "Diary digest", "", 2 * hour, redacted = true), results[0]),
+            ),
+        )
+    }
 }

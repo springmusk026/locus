@@ -150,8 +150,29 @@ fun ConversationsRoute(
     val projects by viewModel.projects.collectAsStateWithLifecycle()
     val composer by viewModel.composer.collectAsStateWithLifecycle()
     val remoteModeUntil by viewModel.remoteModeUntil.collectAsStateWithLifecycle()
+    val needsYou by viewModel.needsYouFeed.collectAsStateWithLifecycle()
+    // What a tap on a proposal did, in the one feedback channel.
+    val feedback = Locus.feedback
+    val resources = androidx.compose.ui.platform.LocalResources.current
+    androidx.compose.runtime.LaunchedEffect(viewModel) {
+        viewModel.needsYouEvents.collect { (text, tone) -> feedback.show(text.asString(resources), tone) }
+    }
+    val needsYouActions = remember(viewModel) {
+        NeedsYouActions(
+            onAnswer = viewModel::answerApproval,
+            onApprove = viewModel::approveProposal,
+            onDecline = viewModel::declineProposal,
+            onDismiss = viewModel::dismissProposal,
+            onOpenChat = onOpenConversation,
+            onOpenResult = { r -> viewModel.markResultRead(r.taskId); onOpenConversation(r.chatId) },
+            onMarkRead = viewModel::markResultRead,
+            onMarkAllRead = viewModel::markAllResultsRead,
+        )
+    }
     val chatLock: ChatLockViewModel = hiltViewModel()
     val locker = rememberChatLocker(chatLock)
+    val waitingChats: WaitingChatsViewModel = hiltViewModel()
+    val waiting by waitingChats.entries.collectAsStateWithLifecycle()
     // Android 17 blocks LAN providers (Ollama, LM Studio…) until the user allows local network access.
     val localNetwork = dev.locus.core.designsystem.rememberLocalNetworkGate()
     val composerActions = remember(viewModel) {
@@ -180,6 +201,9 @@ fun ConversationsRoute(
         askFocusKey = askFocusKey,
         askListenKey = askListenKey,
         remoteModeUntil = remoteModeUntil,
+        needsYou = needsYou,
+        needsYouActions = needsYouActions,
+        waiting = waiting,
         actions = HomeActions(
             onStart = { text -> localNetwork.run(composer.settings.provider?.baseUrl.orEmpty()) { viewModel.start(text, onOpenConversation) } },
             onNewChat = { viewModel.newConversation(onOpenConversation) },
@@ -288,6 +312,13 @@ internal fun ConversationsScreen(
     remoteModeUntil: Long? = null,
     /** Saved prompts in the ask bar (docs/design/saved-prompts.md); null where they aren't offered. */
     prompts: ComposerPrompts? = null,
+    /** What needs the user (docs/design/needs-you.md); empty shows nothing. */
+    needsYou: dev.locus.core.data.needsyou.NeedsYouFeed = dev.locus.core.data.needsyou.NeedsYouFeed(),
+    needsYouActions: NeedsYouActions = NeedsYouActions(),
+    /** The time proposals' expiry is shown against; screenshots fix it. */
+    now: Long = System.currentTimeMillis(),
+    /** Chats waiting for the user, oldest first, for the "questions waiting" banner. */
+    waiting: List<WaitingEntry> = emptyList(),
 ) {
     var pendingDelete by remember { mutableStateOf<ConversationRow?>(null) }
     var pendingRename by remember { mutableStateOf<ConversationRow?>(null) }
@@ -315,7 +346,7 @@ internal fun ConversationsScreen(
             topBar = {
                 LocusTopBar(
                     stringResource(R.string.chat_brand),
-                    status = if (ready != null && ready.hasProvider) ({ HomeStatus(ready) }) else null,
+                    status = if (ready != null && ready.hasProvider) ({ HomeStatus(ready, needsYou.count) }) else null,
                     actions = {
                         if (ready != null && ready.rows.isNotEmpty()) {
                             IconButton(onClick = { allChats = true; focusSearch = true; actions.onSearch("") }) { Icon(LocusIcons.Search, contentDescription = stringResource(R.string.chat_home_search)) }
@@ -340,7 +371,7 @@ internal fun ConversationsScreen(
                     val settings = Locus.settings
                     Button(onClick = { settings?.open(SettingsDestination.Models) ?: actions.onOpenSettings() }) { Text(stringResource(R.string.chat_home_choose_model)) }
                 }
-                else -> HomeList(ready, padding, actions, rowActions, onAllChats = { allChats = true; focusSearch = false }, projects = projects, remoteModeUntil = remoteModeUntil)
+                else -> HomeList(ready, padding, actions, rowActions, onAllChats = { allChats = true; focusSearch = false }, projects = projects, remoteModeUntil = remoteModeUntil, needsYou = needsYou, needsYouActions = needsYouActions, now = now, waiting = waiting)
             }
         }
     }
@@ -390,10 +421,12 @@ private class RowActions(
 
 /** One line under the title answering "what's happening right now?", most urgent first. */
 @Composable
-private fun HomeStatus(state: ConversationsUiState.Ready) {
+private fun HomeStatus(state: ConversationsUiState.Ready, needsYou: Int = 0) {
     val approvals = state.rows.count { it.needsApproval }
     val running = state.rows.count { it.running }
     when {
+        // Everything Needs you lists (approvals, questions, proposals, unread results), counted once.
+        needsYou > 0 -> WrappingStatusLine(pluralStringResource(R.plurals.chat_home_needs_you, needsYou, needsYou), Tone.Caution)
         // Wraps rather than cutting "needs your approval" at a large font.
         approvals > 0 -> WrappingStatusLine(pluralStringResource(R.plurals.chat_home_needs_approval, approvals, approvals), Tone.Caution)
         running > 0 -> WrappingStatusLine(pluralStringResource(R.plurals.chat_home_working, running, running), Tone.Live)
@@ -413,9 +446,21 @@ private fun HomeList(
     onAllChats: () -> Unit,
     projects: List<HomeProject> = emptyList(),
     remoteModeUntil: Long? = null,
+    needsYou: dev.locus.core.data.needsyou.NeedsYouFeed = dev.locus.core.data.needsyou.NeedsYouFeed(),
+    needsYouActions: NeedsYouActions = NeedsYouActions(),
+    now: Long = System.currentTimeMillis(),
+    waiting: List<WaitingEntry> = emptyList(),
 ) {
-    // The chat that needs the user most, featured on top while it's active.
-    val featured = state.rows.firstOrNull { it.needsApproval } ?: state.rows.firstOrNull { it.running }
+    // The chat that needs the user most, featured on top while it's active. Once Needs you lists what's waiting
+    // (answerable there), the featured card is the chat that's working.
+    val featured = (if (needsYou.waiting.isEmpty()) state.rows.firstOrNull { it.needsApproval } else null)
+        ?: state.rows.firstOrNull { it.running && !it.needsApproval }
+    // The banner counts the chats waiting beyond the one the featured card already shows waiting for an approval.
+    // Under that card it says "2 more chats…". Needs you already lists every waiting chat, so while it does, no banner.
+    val waitingBanner = remember(waiting, featured, needsYou.waiting.isEmpty()) {
+        if (needsYou.waiting.isNotEmpty()) null
+        else waitingBanner(waiting, exclude = setOfNotNull(featured?.takeIf { it.needsApproval }?.conversation?.id), sayMore = true)
+    }
     val pinned = state.rows.filter { it !== featured && it.conversation.pinned }
     // Scheduled runs stay out of Recent: the task result card carries their news, All chats keeps them.
     val recent = state.rows.filter { it !== featured && !it.conversation.pinned && !it.isScheduledRun }
@@ -433,7 +478,13 @@ private fun HomeList(
         featured?.let { row ->
             item(key = "featured") { ActiveChatCard(row, onClick = { rowActions.open(row) }, modifier = Modifier.animateItem().padding(bottom = Spacing.md)) }
         }
+        // Other chats waiting for the user: one compact card that opens the one waiting longest.
+        waitingBanner?.let { banner ->
+            item(key = "waiting") { WaitingChatsBanner(banner, actions.onOpenConversation, Modifier.animateItem().padding(bottom = Spacing.md)) }
+        }
         item(key = "launcher") { Launcher(state.counts, actions, Modifier.entrance(0)) }
+        // What needs the user, from every chat and every scheduled or triggered run (docs/design/needs-you.md).
+        needsYouSection(needsYou, needsYouActions, now)
         item(key = "projects") { ProjectsStrip(projects, actions, Modifier.entrance(1)) }
         // One setup card at a time, the next step Quick start skipped; the eyebrow says how many are left.
         state.setup.firstOrNull()?.let { next ->
@@ -441,7 +492,8 @@ private fun HomeList(
                 HomeSetupCard(next, left = state.setup.size, actions, Modifier.animateItem().padding(top = Spacing.md).entrance(1))
             }
         }
-        state.counts.latestResult?.let { result ->
+        // Unread results are in Needs you; the latest-result card is for when there's nothing new there.
+        state.counts.latestResult?.takeIf { needsYou.results.isEmpty() }?.let { result ->
             item(key = "task-result") { TaskResultCard(result, actions.onOpenTasks, Modifier.padding(top = Spacing.md).entrance(1)) }
         }
         if (pinned.isNotEmpty()) {

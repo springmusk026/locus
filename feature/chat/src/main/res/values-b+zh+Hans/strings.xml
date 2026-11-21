@@ -1296,4 +1296,61 @@
     <string name="chat_imported_body">从 %1$s 导入，开始于 %2$s。无法在这里继续，但新对话可以读取它。</string>
     <string name="chat_imported_continue">在 Locus 中继续</string>
     <string name="chat_imported_continue_draft">接着我从 %2$s 导入的对话“%1$s”（id %3$s）继续：先用 chat_history_read 读取它。</string>
+    <plurals name="chat_waiting_title">
+        <item quantity="other">有 %1$d 个对话在等你</item>
+    </plurals>
+    <plurals name="chat_waiting_more_title">
+        <item quantity="other">还有 %1$d 个对话在等你</item>
+    </plurals>
+    <string name="chat_waiting_named">“%1$s”</string>
+    <string name="chat_waiting_locked">一个已锁定的对话</string>
+    <string name="chat_waiting_untitled">一个无标题对话</string>
+    <string name="chat_waiting_oldest">最早的：“%1$s”</string>
+    <string name="chat_waiting_oldest_locked">最早的：一个已锁定的对话</string>
+    <string name="chat_waiting_oldest_untitled">最早的：一个无标题对话</string>
+    <string name="chat_waiting_kind_approval">需要你批准</string>
+    <string name="chat_waiting_kind_question">有问题要问你</string>
+    <string name="chat_waiting_kind_budget">已因预算暂停</string>
+    <string name="chat_needs_you_title">待你处理</string>
+    <plurals name="chat_home_needs_you">
+        <item quantity="other">%1$d 项待你处理</item>
+    </plurals>
+    <string name="chat_needs_you_mark_all_read">全部标为已读</string>
+    <string name="chat_needs_you_mark_read">将“%1$s”标为已读</string>
+    <string name="chat_needs_you_in_chat">在 %1$s 中</string>
+    <string name="chat_needs_you_untitled">无标题聊天</string>
+    <string name="chat_needs_you_locked_waiting">正在等你</string>
+    <string name="chat_needs_you_locked_proposal">提议了一项操作</string>
+    <string name="chat_needs_you_question">向你提问</string>
+    <string name="chat_needs_you_budget">已达预算，已暂停</string>
+    <string name="chat_needs_you_proposes">%1$s 提议</string>
+    <string name="chat_needs_you_proposed">%1$s 曾提议</string>
+    <plurals name="chat_needs_you_expires_in">
+        <item quantity="other">提议于 %2$s · %1$d 天后过期</item>
+    </plurals>
+    <string name="chat_needs_you_expires_today">提议于 %1$s · 今天过期</string>
+    <string name="chat_needs_you_expired">已于 %1$s 过期 · 从未执行</string>
+    <string name="chat_needs_you_approve">批准</string>
+    <string name="chat_needs_you_decline">拒绝</string>
+    <string name="chat_needs_you_dismiss">移除</string>
+    <string name="chat_needs_you_running">正在执行</string>
+    <string name="chat_needs_you_failed">已批准，但失败或被停止</string>
+    <string name="chat_needs_you_interrupted">执行时 Locus 已关闭：请确认是否已完成</string>
+    <string name="chat_needs_you_stale">来自恢复的备份：不会执行</string>
+    <string name="chat_needs_you_result_new">新结果</string>
+    <string name="chat_needs_you_result_done">已完成</string>
+    <string name="chat_needs_you_result_failed">失败</string>
+    <string name="chat_needs_you_result_stopped">已停止</string>
+    <plurals name="chat_needs_you_show_more">
+        <item quantity="other">再显示 %1$d 项</item>
+    </plurals>
+    <string name="chat_needs_you_show_less">收起</string>
+    <string name="chat_needs_you_ran">已完成。结果在它的聊天中。</string>
+    <string name="chat_needs_you_ran_failed">已执行但失败了。错误在它的聊天中。</string>
+    <string name="chat_needs_you_blocked">Locus 的检查阻止了它，所以没有执行。原因在它的聊天中。</string>
+    <string name="chat_needs_you_expired_message">它已过期，所以没有执行。</string>
+    <string name="chat_needs_you_gone">它已经被处理过了。</string>
+    <string name="chat_needs_you_busy">它的聊天正在工作。完成后再试一次。</string>
+    <string name="chat_needs_you_declined">已拒绝。它不会执行。</string>
+    <string name="chat_note_proposal_approved">已在“待你处理”中批准：%1$s</string>
 </resources>

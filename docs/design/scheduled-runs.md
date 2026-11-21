@@ -164,6 +164,10 @@ screen, so the refusal shouldn't happen; if it does, the turn still runs, as bef
 Continue with only helper reports waiting adds the reports and runs once, instead of first asking the
 model again with nothing new.
 
+## Proposals
+
+A scheduled or triggered run is still read-only, but a call to `email_send`, `calendar_create` or a workspace `write_file` that would be refused is recorded as a proposal instead, for the user to approve or decline in Needs you on home; the run is told it was proposed and says so in its answer. Approving runs exactly that call once, later, through the normal checks. Everything else is refused as before. See [needs you](needs-you.md).
+
 ## Event-triggered runs
 
 A task can also start when an event arrives ([event triggers](event-triggers.md)). Such a run is a one-time `TaskWorker` carrying the event's id. It goes through the same marker, claim, budget, receipt, notification and hot-phone hold described here. The event's history row records whether the claim was taken ("Already running") and how the run ended.

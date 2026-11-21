@@ -182,7 +182,9 @@ class ScheduledRun @Inject constructor(
         }
         try {
             val notes = listOfNotNull(note, fromApp?.let { ModeNote.external(it, textFromApp = false) }, eventNote)
-            val run = withTimeoutOrNull(budget) { runner.runInBackground(conversation.id, prompt(text, event != null), notes) }
+            // Its outward calls (an email, a calendar event, a new file) wait in Needs you under this task (docs/design/needs-you.md).
+            val origin = dev.locus.core.data.needsyou.ProposalOrigin(taskId, task.title)
+            val run = withTimeoutOrNull(budget) { runner.runInBackground(conversation.id, prompt(text, event != null), notes, origin) }
             val (outcome, summary) = when {
                 run == null -> TaskRunOutcome.STOPPED to "Stopped: it took longer than ${budget.inWholeMinutes} minutes, the limit for a scheduled run. The chat has what it found so far."
                 run.error != null -> TaskRunOutcome.FAILED to "Failed: ${run.error}"
@@ -250,7 +252,9 @@ class ScheduledRun @Inject constructor(
     private fun prompt(text: String, fromEvent: Boolean = false) =
         "$text\n\n(This is a scheduled task running in the background" +
             (if (fromEvent) ", started by the event described in the note below" else "") +
-            ". You can open and read web pages, files and connectors, but not click, type, write or send anything. Reply with a short plain-text summary the user will see in a notification.)"
+            ". You can open and read web pages, files and connectors, but not click or type. Sending an email, adding a calendar event " +
+            "or writing a file isn't done now: Locus records it as a proposal the user approves later. Reply with a short plain-text " +
+            "summary the user will see in a notification, including anything you proposed.)"
 
     private fun title(task: String, outcome: TaskRunOutcome) = when (outcome) {
         TaskRunOutcome.DONE -> task

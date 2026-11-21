@@ -63,6 +63,7 @@ class BackupManager @Inject constructor(
 
     /** Runs on the staged database before a restore is offered (docs/design/backup.md, "Restore"). */
     private val databaseCheck = RestoredDatabaseCheck()
+    private val restoredProposals = RestoredProposals()
 
     /** A verified backup waiting for the user to confirm; the vault stays in memory only. */
     private var verified: ExtractedBackup? = null
@@ -195,6 +196,9 @@ class BackupManager @Inject constructor(
         try {
             extracted.vault?.let { secrets.writeVaultFile(it, pending.stagedVault) }
             withContext(Dispatchers.IO) {
+                // A backup is a snapshot: what it holds as waiting in Needs you may have run since. It comes back as
+                // something to read, never to run (docs/design/needs-you.md).
+                restoredProposals.retire(File(pending.staged, BackupArchive.DATABASE_ENTRY))
                 // The backup's permissions and connector approvals were sealed with the key of the
                 // phone it came from; seal them with this phone's, or they'd be reset at the next start.
                 integrity.sealRestored(File(pending.staged, BackupArchive.SETTINGS_ENTRY), File(pending.staged, BackupArchive.AGENT_HOME))

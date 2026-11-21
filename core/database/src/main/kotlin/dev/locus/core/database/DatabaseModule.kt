@@ -51,4 +51,7 @@ internal object DatabaseModule {
 
     @Provides
     fun triggerEventDao(db: LocusDatabase) = db.triggerEventDao()
+
+    @Provides
+    fun proposalDao(db: LocusDatabase) = db.proposalDao()
 }

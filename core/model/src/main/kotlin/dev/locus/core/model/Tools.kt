@@ -30,6 +30,12 @@ enum class ApprovalDecision {
 
     /** Ran without asking because of the user's earlier "Allow for this chat" or "Always allow" (docs/design/remembered-approvals.md). */
     REMEMBERED_ALLOWED,
+
+    /**
+     * Not run: an unattended (scheduled or event-triggered) run recorded the call as a proposal for the user to
+     * approve later in Needs you (docs/design/needs-you.md).
+     */
+    PROPOSED,
 }
 
 /** Which tool calls the AI safety reviewer looks at before they run (Settings → Permissions). */
@@ -117,9 +123,14 @@ data class ScheduledTask(
     val triggerMessage: String? = null,
     /** When the trigger's source was last checked. */
     val triggerCheckedAt: Long? = null,
+    /** The [lastRunAt] the user has seen in Needs you; a later run's result is unread (docs/design/needs-you.md). */
+    val lastSeenRunAt: Long? = null,
 ) {
     /** Whether events start it, rather than a schedule. */
     val eventTriggered: Boolean get() = trigger != null
+
+    /** Its latest run's result hasn't been opened or dismissed in Needs you yet. */
+    val resultUnread: Boolean get() = lastRunAt != null && lastConversationId != null && (lastSeenRunAt == null || lastSeenRunAt < lastRunAt)
 }
 
 /** How a scheduled task's run ended, shown in Tasks ("Last run failed"). Stored by name. */

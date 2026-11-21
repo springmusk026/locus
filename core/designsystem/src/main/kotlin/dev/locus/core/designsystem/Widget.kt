@@ -21,6 +21,9 @@ object WidgetSizes {
     /** The status line's size (Material's titleMedium; Glance can't take a Compose TextStyle). */
     val statusText = 16.sp
 
+    /** The usage widget's figure, today's spend (Material's titleLarge). */
+    val headlineText = 22.sp
+
     /** The latest task result under the status (between bodySmall and bodyMedium, like [MonoCaption]). */
     val lineText = 13.sp
 }

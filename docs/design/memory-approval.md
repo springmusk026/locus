@@ -29,7 +29,7 @@ What happens where nobody can be asked follows the existing paths; nothing new:
 - **Scheduled and other read-only background runs** already refuse every memory write (they aren't observations), with or without the setting.
 - **Helpers**' approvals go to the parent chat's card, as all their asks do.
 - **Learn after tasks** (the reflection pass) has no one to ask; an asking call is refused there. With Always it would therefore save nothing, so it isn't run at all, which saves its request. The setting's note says so.
-- **Voice mode and Telegram** answer plain Ask cards as they do for any tool the user set to Ask; they show the one-line summary ("Remember “coffee”"), not the note. Telegram only gets background approvals, and background runs can't write memory, so in practice this is the voice mode.
+- **Voice mode** never answers a memory change by voice (2026-11-21): it reads only the one-line summary ("Remember “coffee”"), not the note, so it says the card needs a look on the screen and leaves it pending; its card shows the whole change ([voice mode](voice-mode.md#approvals-by-voice)). **Telegram** only gets background approvals, and background runs can't write memory.
 
 ### The card
 
@@ -46,7 +46,7 @@ What the card shows is exactly what is written: the summary's first line cut to 
 
 ### Why the card can't edit the note
 
-An approval answers yes or no to the call the model made: `ApprovalGate.answer` returns an `ApprovalAnswer` (Deny, Allow, Allow for this chat, Always, Allow site), and every gate (the chat, the browser's card, notifications, Telegram, voice) is built on that. Letting the card change the arguments would mean a new answer type carrying edited JSON through every gate, and a tool result that says the user changed the text, or the model would believe it saved what it wrote. That is more than this feature needs, so the card offers **Allow** and **Deny** only. To change a note, deny it and say what to save instead, or edit it afterwards in Library → Memory (which makes it the user's, see [memory provenance](taint.md#memory-provenance)).
+An approval answers yes or no to the call the model made: `ApprovalGate.answer` returns an `ApprovalAnswer` (Deny, Allow, Allow for this chat, Always, Allow site), and every gate (the chat, the browser's card, notifications, Telegram, voice) is built on that. Letting the card change the arguments would mean a new answer type carrying edited JSON through every gate, and a tool result that says the user changed the text, or the model would believe it saved what it wrote. That is more than this feature needs, so the card offers **Allow** and **Deny** only. To change a note, deny it with a reason that says what to save instead ([deny with a reason](remembered-approvals.md#deny-with-a-reason)), or edit it afterwards in Library → Memory (which makes it the user's, see [memory provenance](taint.md#memory-provenance)).
 
 ### Sealed
 

@@ -94,6 +94,7 @@ Locus: an exported `AssistLocus` alias of MainActivity with the `ACTION_ASSIST` 
 | Quick settings tile **Ask Locus** | Home with the ask bar focused and the keyboard up. | `AskTileService`, `LaunchActions.ASK` |
 | Text selection **Ask Locus** | The selection as a new chat's draft. | `AskLocusText` alias, `ShareViewModel` |
 | Home-screen **widget** | The status line, the latest scheduled-task result and an **Ask Locus** button (home with the ask bar focused). Tapping the status opens the waiting or working chat, otherwise Locus. | `LocusWidget`, `WidgetFeed` |
+| **Usage widget** | Today's spend or tokens and the running task's budget; a tap opens Insights. | `LocusUsageWidget`, `WidgetFeed.usage` |
 | **Default assistant** | Once picked in Android's Default apps, the assist gesture (and holding power, where set) opens home with the ask bar focused. | `AssistLocus` alias, `LaunchActions.resolve` |
 
 None of them sends or runs anything by itself; each ends in a composer the user sends from, or in voice mode, which sends only what the user then says. The static shortcut intents name MainActivity explicitly; `targetPackage` comes from a `resValue` because the debug build's application id differs. A chat shortcut opens its chat through `OpenChatLink`'s per-install token, as notifications do, so another app can't open a chat of its choosing through MainActivity.
@@ -106,6 +107,18 @@ None of them sends or runs anything by itself; each ends in a composer the user 
 - **Approvals are never answered from the widget.** Tapping the status opens the waiting chat in Locus (through `OpenChatLink`, as notifications do), where the approval card is; Allow from outside the app stays with the unlocked notification.
 - **Task line** (`taskLine`): "Title: first line of the answer", or "Title: failed" / "Title: stopped" with no detail. The answer is a model's text, possibly from web pages or email, so `WidgetText.clean` runs `SecretScrubber` (vault values and credential patterns) on the whole text first, keeps link labels and turns bare URLs into "[link]", strips Markdown and control, format (zero-width, bidi overrides), private-use and unassigned characters, keeps the first non-empty line and cuts it to 90 characters without splitting a surrogate pair. Home screen only (`widgetCategory="home_screen"`), not the lock screen.
 - **Updates**: no polling and no periodic updates. The first state after the process starts replaces one left from before Android killed Locus mid-run; until Locus next starts, a widget can show "Working" from a run that died with the process (*accepted*).
+
+### The usage widget
+
+Built 2026-11-21 (the "Smaller" list of [feature opportunities](../research/feature-opportunities-2026-11.md), after OpenMinis' Usage & Balance widget). A second widget, **Locus usage** (`LocusUsageWidget`, 2×2), rather than more lines on the status widget: that one's 3×2 is full (status, task line, Ask Locus), and not everyone wants spend on the home screen.
+
+- **Today** (`AnalyticsRepository.today`): the tokens, requests and `cost.today` of the same `buildReport` Insights uses, over today's rows only (chat replies, helpers and side requests from `usage_events`), with models.dev prices when they're on. The headline is the spend ("$0.42", "$1.50+" when some requests had no price, "<$0.01"), or the tokens when no request had a price ("1.2M tokens", with "Today · cost unknown" or "Today · prices off"), or "No usage yet". The figures start over at local midnight while Locus runs (`dayStarts`: one delay to the next midnight, not polling); a widget whose process was killed before midnight shows the old day until Locus next starts (*accepted*, as the status widget's "Working").
+- **The running task** (`taskBudgetLine`): while a task with a budget runs, "Task: 12k of 50k tokens · $0.08 of $0.50" ("Task paused: …" while it waits at the budget, first). A cost limit that can't apply shows no "of". No time: it would change the widget every second. Scheduled runs count too; their budget is the user's money as well.
+- **Lock.** Amounts and token counts name no chat and quote no one, so the widget shows the same with Lock Locus on (decided; [app lock](app-lock.md#notifications)). Never a chat's title, a model's words or a tool's arguments.
+- **Tap**: Insights (`LaunchActions.INSIGHTS`), through the app lock like every way in.
+- **No bitmaps** (text only), one layout (`SizeMode.Single`), `updatePeriodMillis` 0. `LocusWidgetUpdater` pushes it when its text changes, at most once a second, and computes nothing while none is placed: it checks at start, and the receiver's `onEnabled` and `onDisabled` switch the figures on and off.
+- The text is English, like the status widget's lines (core/data, see [localisation](localization.md#text-from-the-engine)); the widget's name and description are translated.
+- **Not done**: Glance has no screenshot rendering in Locus's tests, so the widget isn't in the screenshot set; `UsageWidgetTest` covers its text, the lock behaviour and the midnight start. A balance from the provider (OpenRouter's credits and the like) needs a per-provider API and isn't shown.
 
 ## The intent API (for Tasker, Automate, scripts)
 

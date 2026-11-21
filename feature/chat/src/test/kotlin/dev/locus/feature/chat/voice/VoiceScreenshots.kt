@@ -50,6 +50,26 @@ class VoiceScreenshots : ScreenshotTest() {
         approval = tapApproval,
     )
 
+    /** "Ask before saving to memory = Always": a memory save is tap-only, with the note to read on the card. */
+    private val memoryApproval = ApprovalRequest(
+        "chat", "m1", "memory_save", dev.locus.core.model.ToolRisk.WRITE, "Remember “coffee”", "{}", flags = emptySet(),
+        preview = dev.locus.core.agent.ApprovalPreview(
+            emptyList(),
+            memory = dev.locus.core.agent.MemoryChange(
+                dev.locus.core.agent.MemoryChange.Kind.NEW, "coffee",
+                summary = "Oat-milk flat white, no sugar",
+                content = "Orders an oat-milk flat white, no sugar. Decaf after 3 pm.",
+            ),
+        ),
+    )
+
+    @Test
+    fun tapApprovalMemory() = voice(
+        "voice-tap-approval-memory",
+        VoicePhase.TapApproval(memoryApproval, VoiceApprovals.tapReason(memoryApproval)!!),
+        approval = memoryApproval,
+    )
+
     @Test fun paused() = voice("voice-paused", VoicePhase.Paused("Another app is playing audio. Tap to go on."))
 
     // Failures: the phase a real session reaches for each recognizer error, so the words are the app's own.

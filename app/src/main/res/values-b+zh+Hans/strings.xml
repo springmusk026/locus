@@ -13,6 +13,8 @@
     <string name="widget_label">Locus 状态</string>
     <string name="widget_description">Locus 正在做什么、待批准事项、最近的定时任务，以及“询问 Locus”</string>
     <string name="widget_ask">询问 Locus</string>
+    <string name="widget_usage_label">Locus 用量</string>
+    <string name="widget_usage_description">今天在所有服务商上的花费和 token 数，以及正在运行的任务的预算</string>
     <string name="assist_label">Locus</string>
     <string name="app_restore_unfinished_title">恢复未完成</string>
     <string name="app_restore_tasks_off_title">定时任务已关闭</string>

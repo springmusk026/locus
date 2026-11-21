@@ -21,6 +21,9 @@
     <string name="widget_label">Locus status</string>
     <string name="widget_description">What Locus is doing, approvals waiting, the latest scheduled task, and Ask Locus</string>
     <string name="widget_ask">Ask Locus</string>
+    <!-- The usage widget (LocusUsageWidget). -->
+    <string name="widget_usage_label">Locus usage</string>
+    <string name="widget_usage_description">Today\'s spend and tokens across your providers, and the running task\'s budget</string>
     <!-- The default-assistant entry (ACTION_ASSIST): the name in Settings → Default apps → Digital assistant app. -->
     <string name="assist_label">Locus</string>
     <!-- Notices and sheets in the main window (MainActivity.kt). -->

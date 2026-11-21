@@ -1393,4 +1393,70 @@
     <string name="chat_imported_body">Imported from %1$s; it started on %2$s. It can\'t be continued here, but a new chat can read it.</string>
     <string name="chat_imported_continue">Continue in Locus</string>
     <string name="chat_imported_continue_draft">Continue from my chat “%1$s”, imported from %2$s (id %3$s): read it with chat_history_read first.</string>
+    <!-- The "questions waiting" banner on home and in a chat: other chats waiting for the user. -->
+    <plurals name="chat_waiting_title">
+        <item quantity="one">%1$d chat is waiting for you</item>
+        <item quantity="other">%1$d chats are waiting for you</item>
+    </plurals>
+    <!-- On home, under the card of a chat already shown waiting. -->
+    <plurals name="chat_waiting_more_title">
+        <item quantity="one">%1$d more chat is waiting for you</item>
+        <item quantity="other">%1$d more chats are waiting for you</item>
+    </plurals>
+    <string name="chat_waiting_named">“%1$s”</string>
+    <string name="chat_waiting_locked">A locked chat</string>
+    <string name="chat_waiting_untitled">An untitled chat</string>
+    <string name="chat_waiting_oldest">Oldest: “%1$s”</string>
+    <string name="chat_waiting_oldest_locked">Oldest: a locked chat</string>
+    <string name="chat_waiting_oldest_untitled">Oldest: an untitled chat</string>
+    <string name="chat_waiting_kind_approval">Needs your approval</string>
+    <string name="chat_waiting_kind_question">Has a question for you</string>
+    <string name="chat_waiting_kind_budget">Paused at its budget</string>
+    <!-- Which chat, then why: "“Trip plan” · Needs your approval". -->
+    <string name="chat_waiting_detail" translatable="false">%1$s · %2$s</string>
+    <string name="chat_needs_you_title">Needs you</string>
+    <plurals name="chat_home_needs_you">
+        <item quantity="one">%1$d thing needs you</item>
+        <item quantity="other">%1$d things need you</item>
+    </plurals>
+    <string name="chat_needs_you_mark_all_read">Mark all read</string>
+    <string name="chat_needs_you_mark_read">Mark “%1$s” read</string>
+    <string name="chat_needs_you_in_chat">In %1$s</string>
+    <string name="chat_needs_you_untitled">Untitled chat</string>
+    <string name="chat_needs_you_locked_waiting">Waiting for you</string>
+    <string name="chat_needs_you_locked_proposal">Proposed an action</string>
+    <string name="chat_needs_you_question">Asks you a question</string>
+    <string name="chat_needs_you_budget">Paused at its budget</string>
+    <string name="chat_needs_you_proposes">%1$s proposes</string>
+    <string name="chat_needs_you_proposed">%1$s proposed</string>
+    <plurals name="chat_needs_you_expires_in">
+        <item quantity="one">Proposed %2$s · expires in %1$d day</item>
+        <item quantity="other">Proposed %2$s · expires in %1$d days</item>
+    </plurals>
+    <string name="chat_needs_you_expires_today">Proposed %1$s · expires today</string>
+    <string name="chat_needs_you_expired">Expired %1$s · it never ran</string>
+    <string name="chat_needs_you_approve">Approve</string>
+    <string name="chat_needs_you_decline">Decline</string>
+    <string name="chat_needs_you_dismiss">Dismiss</string>
+    <string name="chat_needs_you_running">Running now</string>
+    <string name="chat_needs_you_failed">Approved, but it failed or was stopped</string>
+    <string name="chat_needs_you_interrupted">Locus closed while it ran: check if it happened</string>
+    <string name="chat_needs_you_stale">From a restored backup: it won\'t run</string>
+    <string name="chat_needs_you_result_new">New result</string>
+    <string name="chat_needs_you_result_done">Done</string>
+    <string name="chat_needs_you_result_failed">Failed</string>
+    <string name="chat_needs_you_result_stopped">Stopped</string>
+    <plurals name="chat_needs_you_show_more">
+        <item quantity="one">Show %1$d more</item>
+        <item quantity="other">Show %1$d more</item>
+    </plurals>
+    <string name="chat_needs_you_show_less">Show less</string>
+    <string name="chat_needs_you_ran">Done. Its chat has the result.</string>
+    <string name="chat_needs_you_ran_failed">It ran but failed. Its chat has the error.</string>
+    <string name="chat_needs_you_blocked">Locus\'s checks stopped it, so it didn\'t run. Its chat says why.</string>
+    <string name="chat_needs_you_expired_message">It expired, so it didn\'t run.</string>
+    <string name="chat_needs_you_gone">It was already answered.</string>
+    <string name="chat_needs_you_busy">Its chat is working. Try again when it\'s done.</string>
+    <string name="chat_needs_you_declined">Declined. It won\'t run.</string>
+    <string name="chat_note_proposal_approved">Approved in Needs you: %1$s</string>
 </resources>

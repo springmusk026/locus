@@ -44,6 +44,10 @@ interface SubagentParent {
     /** Queues a helper's approval request in the parent chat; true when the user allows it. */
     suspend fun requestApproval(parentConversationId: String, request: ApprovalRequest): Boolean
 
+    /** As [requestApproval], with the reason the user gave on the card when they denied it. */
+    suspend fun requestReply(parentConversationId: String, request: ApprovalRequest): dev.locus.core.agent.ApprovalReply =
+        dev.locus.core.agent.ApprovalReply(if (requestApproval(parentConversationId, request)) dev.locus.core.agent.ApprovalAnswer.ALLOW else dev.locus.core.agent.ApprovalAnswer.DENY)
+
     /** A background helper finished after (or while) its parent's turn ran and its report wasn't collected. */
     fun backgroundFinished(parentConversationId: String)
 
@@ -295,6 +299,9 @@ class SubagentRunner @Inject constructor(
 
     override suspend fun requestApproval(parentConversationId: String, request: ApprovalRequest): Boolean =
         parent?.requestApproval(parentConversationId, request) ?: false
+
+    override suspend fun requestReply(parentConversationId: String, request: ApprovalRequest): dev.locus.core.agent.ApprovalReply =
+        parent?.requestReply(parentConversationId, request) ?: dev.locus.core.agent.ApprovalReply(dev.locus.core.agent.ApprovalAnswer.DENY)
 
     override suspend fun finished(state: SubagentState, report: String) {
         conversations.setHelperStatus(state.agentId, state.status)

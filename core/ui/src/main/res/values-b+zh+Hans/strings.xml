@@ -6,6 +6,12 @@
     <string name="ui_approval_hide_details">隐藏详情</string>
     <string name="ui_approval_allow">允许</string>
     <string name="ui_approval_deny">拒绝</string>
+    <string name="ui_approval_deny_reason">拒绝并说明原因</string>
+    <string name="ui_approval_reason_title">拒绝并说明原因</string>
+    <string name="ui_approval_reason_message">智能体会读到你的原因，以便换一种方式完成或向你询问。</string>
+    <string name="ui_approval_reason_denying">操作</string>
+    <string name="ui_approval_reason_label">原因</string>
+    <string name="ui_approval_reason_placeholder">别发邮件给他们，用 Slack</string>
     <string name="ui_approval_this_chat">本次对话</string>
     <string name="ui_approval_always">始终</string>
     <string name="ui_approval_allow_site">允许网站</string>

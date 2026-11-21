@@ -315,6 +315,20 @@ object ModeNote {
         .firstOrNull { isNote(it.text) && RAN_ANYWAY in it.text }
         ?.text?.substringAfter(RAN_ANYWAY)?.substringBefore(CLOSE)
 
+    private const val PROPOSAL_APPROVED = "The user approved a call this chat's run had proposed, in Needs you: "
+
+    /**
+     * Heads the outcome of a proposal the user approved in Needs you (docs/design/needs-you.md). Appended to the
+     * run's chat as a note of its own ([isAgentNote]), with the outcome as a [result] part, so the agent reads it
+     * the next time the chat continues and the chat shows it as a line of the run's turn.
+     */
+    fun proposalApproved(summary: String) = PROPOSAL_APPROVED + summary.lineSequence().first()
+
+    /** The call a [proposalApproved] note in [message] names, for showing it in the chat; null when there's none. */
+    fun proposalApproved(message: Message): String? = message.parts.filterIsInstance<Part.Text>()
+        .firstOrNull { isNote(it.text) && PROPOSAL_APPROVED in it.text }
+        ?.text?.substringAfter(PROPOSAL_APPROVED)?.substringBefore(CLOSE)
+
     /**
      * A user-role message that holds only notes and results from Locus (an undo, or a call the user ran
      * anyway, joining at a step boundary), not something the user typed. It doesn't start a turn: the

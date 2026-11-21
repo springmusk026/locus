@@ -182,4 +182,16 @@
     <string name="data_reachme_gotify_refused">%1$s recusou o token (HTTP %2$d). Use um token de aplicativo (Apps), não um de cliente, e copie-o inteiro.</string>
     <string name="data_reachme_webhook_refused">%1$s recusou a solicitação (HTTP %2$d). Se ele verifica assinaturas, confira se tem o mesmo segredo.</string>
     <string name="data_reachme_not_found">Nada encontrado nesse endereço (HTTP 404). Confira-o, incluindo qualquer subcaminho.</string>
+    <string name="data_needs_you_channel">Precisa de você</string>
+    <plurals name="data_needs_you_title">
+        <item quantity="one">%1$d item precisa de você</item>
+        <item quantity="many">%1$d itens precisam de você</item>
+        <item quantity="other">%1$d itens precisam de você</item>
+    </plurals>
+    <string name="data_needs_you_open">Abra o Locus para ver o que está esperando.</string>
+    <plurals name="data_needs_you_more">
+        <item quantity="one">e mais %1$d</item>
+        <item quantity="many">e mais %1$d</item>
+        <item quantity="other">e mais %1$d</item>
+    </plurals>
 </resources>

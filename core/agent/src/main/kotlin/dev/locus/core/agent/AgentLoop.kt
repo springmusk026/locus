@@ -135,6 +135,11 @@ enum class ApprovalFlag(val label: String) {
     ESCALATED("a workflow or helper limit"),
 }
 
+/** How [AgentLoop.runApproved] went: [decision] (USER_APPROVED when it ran), and its result as the model would read it. */
+data class ApprovedCall(val decision: ApprovalDecision, val content: String, val isError: Boolean) {
+    val ran: Boolean get() = decision == ApprovalDecision.USER_APPROVED || decision == ApprovalDecision.AUTO_ALLOWED
+}
+
 /** Which helper an approval request came from. */
 data class ApprovalOrigin(val agentId: String, val label: String)
 
@@ -193,6 +198,13 @@ fun interface ApprovalGate {
      * one. Gates that only allow or deny keep the default.
      */
     suspend fun answer(request: ApprovalRequest): ApprovalAnswer = if (request(request)) ApprovalAnswer.ALLOW else ApprovalAnswer.DENY
+
+    /**
+     * [answer] with, for a denial, the reason the user typed on the in-app card ("Don't email them, use
+     * Slack"); the model reads it in the call's result ([DenyReason.result]). Gates without a reason
+     * (notifications, Telegram, voice) keep the default.
+     */
+    suspend fun reply(request: ApprovalRequest): ApprovalReply = ApprovalReply(answer(request))
 }
 
 sealed interface AgentEvent {
@@ -461,6 +473,12 @@ class AgentConfig(
      * after a fallback with the backup's. The store is never touched.
      */
     val coldClearing: Boolean = false,
+    /**
+     * Where a [readOnly], [unattended] run's calls to [Proposals.TOOLS] go instead of being refused: recorded as
+     * proposals the user approves later in Needs you, with a result telling the model so (docs/design/needs-you.md).
+     * Only the run's own agent proposes ([depth] 0); its helpers still refuse. Null: refused, as before.
+     */
+    val proposals: ProposalSink? = null,
 )
 
 /**
@@ -500,6 +518,9 @@ class AgentLoop(
         trustedHosts = config.trustedHosts,
     ) and config.inherited
 
+    /** Proposals this run has recorded ([AgentConfig.proposals]); at most [Proposals.MAX_PER_RUN]. */
+    private val proposed = java.util.concurrent.atomic.AtomicInteger()
+
     /**
      * Runs the model ↔ tools loop for [conversation] until the model stops calling tools.
      * [history] must already include the user's latest message.
@@ -514,27 +535,7 @@ class AgentLoop(
             RunReview(setup, setup.trustedMessages ?: trustedUserMessages(history))
         }
         val cacheKey = config.cacheKey ?: PromptCacheKey.forChat(conversation.id)
-        // Concurrent sets: calls that run together read them while finished ones add to them.
-        val taint = RunTaint(
-            sources = concurrentSetOf(limits.taint?.sources.orEmpty() + Taint.sourcesIn(history)),
-            outside = concurrentSetOf(limits.taint?.sources.orEmpty() + Taint.sourcesIn(history, skipLocal = true)),
-            userHosts = concurrentSetOf(
-                limits.taint?.trustedHosts
-                    ?: Taint.hostsIn(config.reviewer?.trustedMessages ?: trustedUserMessages(history, limit = Int.MAX_VALUE)),
-            ),
-            // What the user typed, for remembered approvals in a tainted run; a helper's task isn't the user's words.
-            userText = java.util.concurrent.CopyOnWriteArrayList(
-                if (limits.taint != null) emptyList() else config.reviewer?.trustedMessages ?: trustedUserMessages(history, limit = Int.MAX_VALUE),
-            ),
-            skills = RunSkills(
-                limits.skills?.manifests,
-                concurrentSetOf(limits.skills?.active.orEmpty() + SkillScope.activeIn(history)),
-            ),
-            privateReads = concurrentSetOf(limits.taint?.privateReads.orEmpty() + Taint.privateReadsIn(history)),
-            reached = concurrentSetOf(emptyList()),
-            allowedSites = concurrentSetOf(emptyList()),
-            vision = { serving.vision },
-        )
+        val taint = newTaint(history) { serving.vision }
         val budget = config.budget?.takeIf { it.active }
         // The model paces itself against the token budget where the provider supports it. Only the chat's
         // own agent is told: a helper gets a part of the task, not all of it. The value never changes
@@ -1119,6 +1120,46 @@ class AgentLoop(
         }
     }
 
+    /** The run's taint and loaded skills, from its scope and what [history] holds, plus [extra] sources. */
+    private fun newTaint(history: List<Message>, extra: Set<String> = emptySet(), vision: () -> dev.locus.core.llm.Support): RunTaint =
+        // Concurrent sets: calls that run together read them while finished ones add to them.
+        RunTaint(
+            sources = concurrentSetOf(limits.taint?.sources.orEmpty() + Taint.sourcesIn(history) + extra),
+            outside = concurrentSetOf(limits.taint?.sources.orEmpty() + Taint.sourcesIn(history, skipLocal = true) + extra),
+            userHosts = concurrentSetOf(
+                limits.taint?.trustedHosts
+                    ?: Taint.hostsIn(config.reviewer?.trustedMessages ?: trustedUserMessages(history, limit = Int.MAX_VALUE)),
+            ),
+            // What the user typed, for remembered approvals in a tainted run; a helper's task isn't the user's words.
+            userText = java.util.concurrent.CopyOnWriteArrayList(
+                if (limits.taint != null) emptyList() else config.reviewer?.trustedMessages ?: trustedUserMessages(history, limit = Int.MAX_VALUE),
+            ),
+            skills = RunSkills(
+                limits.skills?.manifests,
+                concurrentSetOf(limits.skills?.active.orEmpty() + SkillScope.activeIn(history)),
+            ),
+            privateReads = concurrentSetOf(limits.taint?.privateReads.orEmpty() + Taint.privateReadsIn(history)),
+            reached = concurrentSetOf(emptyList()),
+            allowedSites = concurrentSetOf(emptyList()),
+            vision = vision,
+        )
+
+    /**
+     * Runs one call the user approved outside any turn: a proposal from Needs you (docs/design/needs-you.md).
+     * It gets every check a call in a chat gets, against today's settings: Deny, the chat's and project's limits,
+     * taint from [history] (plus [taintSources], what the proposing run had read), a loaded skill's manifest, the
+     * tool's own confirmation and its precheck. [gate] stands in for the user, who already tapped Approve: it sees
+     * the request those checks build and may still refuse it (when it asks for more than the proposal showed).
+     * Audited like any call. The result is returned, not appended: the model's call was answered when it was proposed.
+     */
+    suspend fun runApproved(conversationId: String, call: Part.ToolCall, history: List<Message>, taintSources: Set<String> = emptySet()): ApprovedCall {
+        val taint = newTaint(history, taintSources) { config.vision }
+        val quiet = FlowCollector<AgentEvent> { }
+        val ran = quiet.runCall(conversationId, ResolvedCall(call, call), history, review = null, taint)
+        val part = quiet.finish(conversationId, ran, taint)
+        return ApprovedCall(ran.decision, part.content, part.isError)
+    }
+
     /**
      * A call that has run (or been refused), before its result is bounded, audited and reported. [call]
      * is what ran (the tool a call_tool named); [original] is what the model sent, which its result answers.
@@ -1225,7 +1266,12 @@ class AgentLoop(
         // With the chat's scope: where a project's commands run (Tool.sendsOffPhone) depends on it.
         withContext(ChatScope.element(limits.project)) { limits.restrict?.invoke(tool, args) }
             ?.let { reason -> return Authorized(ApprovalDecision.POLICY_DENIED, ToolResult.error(reason)) }
-        val userPolicy = if (limits.readOnly && !tool.isObservation(args)) ToolPolicy.DENY else policyFor(tool)
+        // An unattended run's call to a proposable tool goes to the user later instead of being refused (Proposals):
+        // it is checked as it would be in a chat, and where that would run it or ask, it's recorded as a proposal.
+        val proposable = config.proposals != null && limits.readOnly && config.unattended && config.depth == 0 &&
+            tool.spec.name in Proposals.TOOLS && !tool.isObservation(args) &&
+            !withContext(ChatScope.element(limits.project)) { tool.asksFirst(args) }
+        val userPolicy = if (limits.readOnly && !proposable && !tool.isObservation(args)) ToolPolicy.DENY else policyFor(tool)
         // A call that asks first (a write to a connected folder) is treated as if the user had chosen Ask, so a
         // remembered "Always for this folder" can still let it through (Tool.asksFirst).
         val basePolicy = if (userPolicy == ToolPolicy.ALLOW && withContext(ChatScope.element(limits.project)) { tool.asksFirst(args) }) ToolPolicy.ASK else userPolicy
@@ -1237,7 +1283,7 @@ class AgentLoop(
         val scope = callContext(conversationId, call.id, transcript, review, taint) + ChatScope.element(limits.project)
         val siteAllowed = basePolicy != ToolPolicy.DENY && withContext(scope) { taint.siteAllowed(tool, args) }
         val taintReason = if (basePolicy == ToolPolicy.DENY || siteAllowed) null else withContext(scope) { taint.reason(tool, args) }
-        if (taintReason != null && limits.readOnly) {
+        if (taintReason != null && limits.readOnly && !proposable) {
             return Authorized(
                 ApprovalDecision.POLICY_DENIED,
                 ToolResult.error(
@@ -1249,7 +1295,7 @@ class AgentLoop(
         // Once the run has read private data, an address it builds to a new host could carry that data out,
         // even in an untainted run and in read-only or Workspace mode (Taint.disclosureReason).
         val disclosure = if (basePolicy == ToolPolicy.DENY || siteAllowed) null else taint.disclosure(tool, args)
-        if (disclosure != null && limits.readOnly) {
+        if (disclosure != null && limits.readOnly && !proposable) {
             return Authorized(
                 ApprovalDecision.POLICY_DENIED,
                 ToolResult.error("Not allowed: $disclosure This background run can't ask, so continue without it."),
@@ -1260,7 +1306,7 @@ class AgentLoop(
         val typing = if (basePolicy == ToolPolicy.DENY) null else withContext(scope) { taint.typing(tool, args) }
         // A call outside the manifest of a skill the run has loaded asks first (SkillScope, docs/design/skill-manifests.md).
         val skillReason = if (basePolicy == ToolPolicy.DENY) null else taint.skills.reason(tool, args)
-        if (skillReason != null && limits.readOnly) {
+        if (skillReason != null && limits.readOnly && !proposable) {
             return Authorized(
                 ApprovalDecision.POLICY_DENIED,
                 ToolResult.error("Not allowed: $skillReason This background run can't ask, so continue without it."),
@@ -1268,7 +1314,7 @@ class AgentLoop(
         }
         // The run's own scope (a workflow's declared tools and approval points), a parent's for a helper.
         val escalated = if (basePolicy == ToolPolicy.DENY) null else limits.escalate?.invoke(tool, args)
-        if (escalated != null && limits.readOnly) {
+        if (escalated != null && limits.readOnly && !proposable) {
             return Authorized(
                 ApprovalDecision.POLICY_DENIED,
                 ToolResult.error("Not allowed: $escalated This background run can't ask, so continue without it."),
@@ -1342,6 +1388,8 @@ class AgentLoop(
         withContext(callContext() + ChatScope.element(limits.project)) { tool.precheck(args) }?.let { reason -> return Authorized(ApprovalDecision.INVALID_INPUT, ToolResult.error(reason)) }
         // A background run has no one to ask: a call that would need the user (set to Ask, or one that
         // must be confirmed, like a URL carrying a lot of data) is refused rather than left waiting.
+        // Allowed or asking alike: nobody is here, so the user decides later (Proposals). Deny returned above.
+        if (proposable) return propose(conversationId, call, tool, args, confirmReason, flags, taint, scope)
         if (limits.readOnly && policy == ToolPolicy.ASK) {
             return Authorized(
                 ApprovalDecision.POLICY_DENIED,
@@ -1398,13 +1446,11 @@ class AgentLoop(
                 val request = approvalRequest(conversationId, call, tool, args, confirmReason, checked?.note, flags)
                     .copy(remember = offer, rememberNote = rememberNote, siteForTask = siteOffer, reviewerFix = checked?.fix, preview = preview)
                 emit(AgentEvent.AwaitingApproval(request))
-                val answer = gate.answer(request)
+                val reply = gate.reply(request)
+                val answer = reply.answer
                 if (!answer.allowed) {
-                    return Authorized(
-                        ApprovalDecision.USER_DENIED,
-                        ToolResult.error("The user declined this action. Ask them how they would like to proceed."),
-                        checked?.audit,
-                    )
+                    // Without a reason, the same words as always (the request stays byte-identical); with one, the user's words.
+                    return Authorized(ApprovalDecision.USER_DENIED, ToolResult.error(DenyReason.result(reply.reason)), checked?.audit)
                 }
                 if (answer == ApprovalAnswer.ALLOW_SITE_FOR_TASK && siteOffer != null) taint.allowedSites += siteOffer
                 if (offer != null && memory != null) {
@@ -1498,6 +1544,42 @@ class AgentLoop(
         reviewerNote = note,
         flags = flags,
     )
+
+    /** Records [call] as a proposal for the user ([AgentConfig.proposals]); the model is told it hasn't run. */
+    private suspend fun propose(
+        conversationId: String,
+        call: Part.ToolCall,
+        tool: Tool,
+        args: JsonObject,
+        confirmReason: String?,
+        flags: Set<ApprovalFlag>,
+        taint: RunTaint,
+        scope: kotlin.coroutines.CoroutineContext,
+    ): Authorized {
+        val sink = config.proposals ?: error("propose without a sink")
+        if (proposed.get() >= Proposals.MAX_PER_RUN) {
+            return Authorized(ApprovalDecision.POLICY_DENIED, ToolResult.error(Proposals.refusedResult("it already proposed ${Proposals.MAX_PER_RUN} actions, the most one run may.")))
+        }
+        val summary = tool.describe(args)
+        val draft = ProposalDraft(
+            conversationId = conversationId,
+            callId = call.id,
+            toolName = tool.spec.name,
+            argumentsJson = call.argumentsJson,
+            summary = summary,
+            reason = confirmReason,
+            flags = flags,
+            taintSources = taint.sources.toSortedSet(),
+            preview = withContext(scope) { tool.preview(args) },
+        )
+        return when (val receipt = sink.propose(draft)) {
+            is ProposalReceipt.Recorded -> {
+                if (!receipt.duplicate) proposed.incrementAndGet()
+                Authorized(ApprovalDecision.PROPOSED, ToolResult(Proposals.proposedResult(summary, receipt.duplicate)))
+            }
+            is ProposalReceipt.Refused -> Authorized(ApprovalDecision.POLICY_DENIED, ToolResult.error(Proposals.refusedResult(receipt.reason)))
+        }
+    }
 
     private data class Authorized(val decision: ApprovalDecision, val result: ToolResult, val review: ReviewAudit? = null)
 

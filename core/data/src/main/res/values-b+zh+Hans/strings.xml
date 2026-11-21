@@ -162,4 +162,12 @@
     <string name="data_reachme_gotify_refused">%1$s 拒绝了令牌（HTTP %2$d）。请使用应用令牌（Apps），而不是客户端令牌，并完整复制。</string>
     <string name="data_reachme_webhook_refused">%1$s 拒绝了请求（HTTP %2$d）。如果它会校验签名，请确认它使用的是同一个密钥。</string>
     <string name="data_reachme_not_found">该地址下什么也没有（HTTP 404）。请检查地址，包括任何子路径。</string>
+    <string name="data_needs_you_channel">待你处理</string>
+    <plurals name="data_needs_you_title">
+        <item quantity="other">%1$d 项待你处理</item>
+    </plurals>
+    <string name="data_needs_you_open">打开 Locus 查看等待中的事项。</string>
+    <plurals name="data_needs_you_more">
+        <item quantity="other">还有 %1$d 项</item>
+    </plurals>
 </resources>
