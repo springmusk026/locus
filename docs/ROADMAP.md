@@ -363,14 +363,15 @@ Everyday integrations that remove friction ([design](design/integrations.md)).
 - [x] **Connect a folder** (M): Workspace → **Connected folders** grants a folder outside the workspace (an Obsidian or Logseq vault, a Syncthing folder, Documents/Notes) through the system folder picker with a persisted grant. The file tools reach it as `folders/<name>/…` (no new tools); reads are allowed, writes ask with "Always for this folder", deletes always ask, read-only folders and hidden folders (`.obsidian`, `.git`, `.trash`) refuse writes, and before-copies go to Locus's trash so undo works. Project chats see only linked folders. Linux can't see them. Settings only, no Room change. See [connected folders](design/connected-folders.md). *Not yet tried on the phone. Next: Obsidian URI open after a write; a small full-text index for large vaults; "clippings" subfolders marked untrusted.*
 - [ ] **A Client ID Metadata Document** on GitHub Pages (S): lets Locus use Home Assistant's own OAuth sign-in instead of a long-lived token.
 - [ ] **WebDAV/CalDAV template for Nextcloud** (S), if the community server doesn't run in Locus's Linux on phones.
-- [ ] **More templates** (S each): Gotify and webhooks as reach-me channels, Jellyfin, a Places search with a user-supplied Nominatim URL.
+- [x] **More templates** (S each): Gotify and webhooks as reach-me channels, Jellyfin. See [reach-me channels](design/reach-me-channels.md) and [integrations](design/integrations.md).
+- [ ] **Places search** with a user-supplied Nominatim URL (needs the decision above).
 
 ## From the feature-opportunities research (2026-11-21)
 
 Ranked by value over effort; sources, positioning and what not to copy are in [feature opportunities](research/feature-opportunities-2026-11.md).
 
-- [ ] **App lock and locked chats** (S): biometric or device-credential gate on opening Locus and on chosen chats (ChatGPT shipped it on 2026-10-20).
-- [ ] **Saved prompts with variables** (S): `/` in the composer, `{{clipboard}}`, `{{date}}` and form fields.
+- [x] **App lock and locked chats** (S): biometric or device-credential gate on opening Locus and on chosen chats (ChatGPT shipped it on 2026-10-20). Android's own prompt (framework BiometricPrompt, the keyguard intent on Android 8 to 9), Lock after, every way in gated, notifications private and their actions behind the unlock, locked chats hidden in lists, search, Activity, Analytics, notifications and shortcuts. See [app lock](design/app-lock.md). *Not yet tried on the phone.*
+- [x] **Saved prompts with variables** (S): `/` in the composer, `{{clipboard}}`, `{{date}}` and form fields. Built 2026-11-21: [saved prompts](design/saved-prompts.md).
 - [x] **Approve memory writes** (S): a setting that makes every `memory_save` ask, and a periodic consolidation proposed as a diff. Policy and UI only. *Built: Settings → Agent → "Ask before saving to memory" (After outside content / Always; sealed), the card shows the whole change (Allow / Deny only: approvals can't edit arguments), and Library → Memory → Tidy up proposes merges and deletions from one helper-model request, applied only as accepted, on a tap rather than periodically ([memory approval](design/memory-approval.md)). Not yet tried on the phone.*
 - [ ] **Rewind here, summarise from here** (S–M): rewind files and conversation to a message; summarise only the tail so the cached prefix stays. Covers "Compaction: editable summary".
 - [ ] **"Needs you" feed** (M): trigger and scheduled results plus drafts waiting for approval in one place; builds on "let a run propose a write as an approval card".

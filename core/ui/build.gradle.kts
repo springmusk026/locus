@@ -13,6 +13,9 @@ android {
 dependencies {
     implementation(projects.core.data)
     implementation(projects.core.designsystem)
+    // The credential prompt below Android 9 is an activity started for a result (DeviceAuth.kt).
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.lifecycle.runtimeCompose)
     // The email sheet's screenshots build real test results from Jakarta Mail's exceptions.
     testImplementation(libs.angus.mail)
 }

@@ -18,6 +18,7 @@ import dev.locus.core.data.mcp.McpTemplates
 import dev.locus.core.data.repository.ConnectorEntry
 import dev.locus.core.data.repository.LibraryRepository
 import dev.locus.core.data.repository.SkillClash
+import dev.locus.core.data.repository.PromptRepository
 import dev.locus.core.data.repository.WorkflowRepository
 import dev.locus.core.database.ProjectDao
 import dev.locus.core.database.ProjectEntity
@@ -25,6 +26,7 @@ import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.model.SavedPrompt
 import dev.locus.core.model.SavedWorkflow
 import dev.locus.core.model.Workflow
 import dev.locus.core.model.WorkflowCheck
@@ -270,15 +272,30 @@ class LibraryScreenshots : ScreenshotTest() {
         g.database.conversationDao, projects, g.keyOrigins,
     )
 
+    private fun prompts(saved: List<SavedPrompt> = emptyList()): LibraryPromptsViewModel {
+        val repository = PromptRepository(AgentHome(kotlin.io.path.createTempDirectory("prompts").toFile()), kotlinx.coroutines.Dispatchers.Unconfined)
+        runBlocking { saved.forEach { repository.save(it) } }
+        val vm = LibraryPromptsViewModel(repository)
+        runBlocking { withTimeout(10_000) { vm.all.first { it.size == saved.size } } }
+        return vm
+    }
+
+    private val savedPrompts = listOf(
+        SavedPrompt("", "Translate", "Translate into {{field:Language|Spanish}}, keeping the tone:\n\n{{selection}}"),
+        SavedPrompt("", "Daily standup", "Write my standup for {{date}} from these notes:\n{{clipboard}}"),
+        SavedPrompt("", "Explain like I'm new", "Explain this step by step, with no jargon."),
+    )
+
     private fun screen(
         vm: LibraryViewModel,
         workflows: LibraryWorkflowsViewModel,
         tab: Int,
         template: String? = null,
+        prompts: LibraryPromptsViewModel = prompts(),
         /** Library → Memory's Tidy up; needed where the memory tab shows notes. */
         tidy: MemoryTidyViewModel? = null,
     ): @androidx.compose.runtime.Composable () -> Unit = {
-        WithViewModels(*listOfNotNull(workflows, tidy).toTypedArray()) { LibraryRoute(onBack = {}, initialTab = tab, initialTemplate = template, viewModel = vm) }
+        WithViewModels(*listOfNotNull(workflows, prompts, tidy).toTypedArray()) { LibraryRoute(onBack = {}, initialTab = tab, initialTemplate = template, viewModel = vm) }
     }
 
     /** Tidy up with its availability already checked, so the row renders settled. */
@@ -369,7 +386,17 @@ class LibraryScreenshots : ScreenshotTest() {
         val g = populated()
         val vm = LibraryViewModel(g.library)
         vm.ready { it.library.skills.size == 3 }
-        snap("library-skills", heightDp = 2400, content = screen(vm, workflows(g, listOf(invoiceWorkflow to null, digestWorkflow to null)), 1))
+        snap("library-skills", heightDp = 2800, content = screen(vm, workflows(g, listOf(invoiceWorkflow to null, digestWorkflow to null)), 1, prompts = prompts(savedPrompts)))
+    }
+
+    /** Saved prompts with no skills or workflows yet: the tab lists them, the first opened, with Import a skill under Skills. */
+    @Test
+    fun skillsPromptsOnly() {
+        val g = TestGraph(scope)
+        val vm = LibraryViewModel(g.library)
+        vm.ready()
+        // The first prompt opened: its full text, what it asks for, and its actions.
+        snapAfter("library-skills-prompts", listOf(dev.locus.core.screenshot.Step.Tap("Translate")), heightDp = 1400, content = screen(vm, workflows(g), 1, prompts = prompts(savedPrompts)))
     }
 
     @Test
@@ -593,6 +620,16 @@ class LibraryScreenshots : ScreenshotTest() {
     @Test
     fun servicePicker() = snap("library-sheet-service-picker", heightDp = 1900) {
         ServicePicker(onPickService = {}, onPickMcp = {}, onDismiss = {})
+    }
+
+    /** Jellyfin: the quoted MediaBrowser header, the admin-key note and its read-only operations. */
+    @Test
+    fun serviceJellyfin() = snap("library-sheet-service-jellyfin", heightDp = 1600) {
+        ServiceTemplateSheet(
+            checkNotNull(dev.locus.core.data.connectors.ConnectorTemplates.byId("jellyfin")), ServiceSetup(), dev.locus.core.designsystem.rememberLocalNetworkGate(),
+            onTest = { _, _, _ -> }, onAdd = { _, _, _ -> }, onEdited = {}, onDismiss = {},
+            initialForm = filled("media.example.com"),
+        )
     }
 
     /** A LAN address over http: accepted, with the warning and (on Android 17) the Nearby devices note. */

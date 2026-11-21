@@ -179,7 +179,7 @@ internal fun AnalyticsScreen(
                     }
                     if (report.chats.isNotEmpty()) {
                         item(key = "chats-label") { SectionLabel(stringResource(R.string.analytics_section_chats)) }
-                        item(key = "chats") { BusiestChats(report, onOpenConversation, Modifier.entrance(5)) }
+                        item(key = "chats") { BusiestChats(report, onOpenConversation, Modifier.entrance(5), hidden = state.hiddenChats) }
                     }
                     if (report.tasks.isNotEmpty()) {
                         item(key = "tasks-label") { SectionLabel(stringResource(R.string.analytics_section_tasks)) }
@@ -503,12 +503,12 @@ private fun SlowestTools(tools: ToolStats, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun BusiestChats(report: AnalyticsReport, onOpen: (String) -> Unit, modifier: Modifier = Modifier) {
+private fun BusiestChats(report: AnalyticsReport, onOpen: (String) -> Unit, modifier: Modifier = Modifier, hidden: Set<String> = emptySet()) {
     CardGroup(modifier) {
         report.chats.forEachIndexed { i, c ->
             if (i > 0) GroupDivider()
             ListRow(
-                title = c.title,
+                title = if (c.conversationId in hidden) stringResource(R.string.analytics_locked_chat) else c.title,
                 onClick = { onOpen(c.conversationId) },
                 meta = {
                     SupportingText(

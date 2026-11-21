@@ -461,4 +461,14 @@
     <plurals name="library_tidy_skipped">
         <item quantity="other">跳过 %1$d 项：相关笔记在此期间已更改</item>
     </plurals>
+    <string name="library_prompts_label">提示词</string>
+    <string name="library_prompts_note">你常发送的文本。在空输入框中输入 /，或点按 + → 插入提示词，即可放入输入框，检查后再发送。</string>
+    <string name="library_prompts_new">新建提示词</string>
+    <string name="library_prompts_icon">保存的提示词</string>
+    <string name="library_prompts_move_up">上移</string>
+    <string name="library_prompts_move_down">下移</string>
+    <string name="library_prompts_remove_title">要移除“%1$s”吗？</string>
+    <string name="library_prompts_remove_body">它会从 / 列表和选择器中消失。已经用它发送的消息保持不变。</string>
+    <string name="library_prompts_save_failed">无法保存提示词。请重试。</string>
+    <string name="library_prompts_change_failed">无法更改“%1$s”。请重试。</string>
 </resources>

@@ -34,6 +34,8 @@ data class AnalyticsUiState(
     val listed: Map<String, ModelList> = emptyMap(),
     /** Where "Turn on prices" is: fetching the models.dev prices, or failed to. */
     val prices: PricesSetup = PricesSetup.Idle,
+    /** Locked chats this session hasn't unlocked: listed as "Locked chat" (docs/design/app-lock.md). */
+    val hiddenChats: Set<String> = emptySet(),
 )
 
 /** The spend card's "Turn on prices" action. */
@@ -53,6 +55,8 @@ class AnalyticsViewModel @Inject constructor(
     private val analytics: AnalyticsRepository,
     private val saved: SavedStateHandle,
     private val models: ModelDirectory,
+    /** Lock Locus and locked chats; null in tests that don't need it. */
+    appLock: dev.locus.core.data.lock.AppLock? = null,
 ) : ViewModel() {
 
     init {
@@ -69,7 +73,12 @@ class AnalyticsViewModel @Inject constructor(
     private val prices = MutableStateFlow(PricesSetup.Idle)
 
     /** The selection moves at once; the previous report stays on screen until the new one is ready. */
+    private val hidden = (appLock?.status ?: kotlinx.coroutines.flow.flowOf(null)).map { status ->
+        status?.let { s -> s.settings.lockedChats.filter(s::redactInApp).toSet() }.orEmpty()
+    }
+
     val uiState: StateFlow<AnalyticsUiState> = combine(period, reports, models.catalog, models.lists, prices) { p, r, c, l, pr -> AnalyticsUiState(p, r, c, l, pr) }
+        .combine(hidden) { state, h -> state.copy(hiddenChats = h) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AnalyticsUiState())
 
     fun setPeriod(period: AnalyticsPeriod) {

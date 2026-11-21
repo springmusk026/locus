@@ -183,6 +183,8 @@ data class AppSettings(
      * outside Locus breaks the seal and the user is told.
      */
     val memoryApproval: MemoryApproval = MemoryApproval.OUTSIDE_CONTENT,
+    /** Lock Locus and locked chats (docs/design/app-lock.md). Not sealed: see [AppLockSettings]. */
+    val appLock: AppLockSettings = AppLockSettings(),
 ) {
     /**
      * Whether to open onboarding at launch. People who set up a provider before onboarding existed

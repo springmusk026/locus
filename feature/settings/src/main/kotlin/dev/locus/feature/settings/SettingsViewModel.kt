@@ -129,6 +129,7 @@ class SettingsViewModel @Inject constructor(
     private val chatGpt: ChatGptSignIn,
     private val telegram: TelegramSetup,
     private val email: dev.locus.core.data.integrations.EmailSetup,
+    private val reachMe: dev.locus.core.data.integrations.ReachMeSetup,
     private val mcpPreference: McpPreference,
     @param:dev.locus.core.data.di.IoDispatcher private val io: kotlinx.coroutines.CoroutineDispatcher,
     /** The models.dev catalogue, when it's on: its hosts count as known providers in a draft's review. */
@@ -168,6 +169,9 @@ class SettingsViewModel @Inject constructor(
 
     /** The Email sheet's actions. A blank password means the one already saved. */
     val emailActions = dev.locus.core.ui.EmailActions.of(email, viewModelScope)
+
+    /** The Gotify and Webhook sheets' actions. A blank secret means the one already saved, for the same address. */
+    val reachMeActions = dev.locus.core.ui.ReachMeActions.of(reachMe, viewModelScope)
 
     fun signInChatGpt(providerId: String, onResult: (Result<Boolean>) -> Unit) = viewModelScope.launch {
         onResult(runCatching { chatGpt.signIn(providerId) })

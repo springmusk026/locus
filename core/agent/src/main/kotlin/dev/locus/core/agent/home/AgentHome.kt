@@ -1002,6 +1002,8 @@ data class Connector(
         val secret: String = "",
         /** For `header`: text sent before the secret, e.g. `Token ` for `Authorization: Token <key>`. */
         val prefix: String = "",
+        /** For `header`: text sent after the secret, e.g. the closing quote of `Authorization: MediaBrowser Token="<key>"`. */
+        val suffix: String = "",
     )
 
     @Serializable
@@ -1049,6 +1051,8 @@ data class Connector(
         if (auth.type == "header") require(auth.name.lowercase() !in FORBIDDEN_HEADERS) { "${auth.name} can't carry a key." }
         require(auth.prefix.isEmpty() || auth.type == "header") { "auth.prefix only applies to header auth." }
         require(auth.prefix.length <= 40 && auth.prefix.none { it.isISOControl() }) { "auth.prefix must be short, on one line." }
+        require(auth.suffix.isEmpty() || auth.type == "header") { "auth.suffix only applies to header auth." }
+        require(auth.suffix.length <= 8 && auth.suffix.none { it.isISOControl() }) { "auth.suffix must be short, on one line." }
         homeAssistant?.validate()
         // A sign-in belongs to one connector: its session is stored under this name, never another's.
         require(auth.type != "oauth" || auth.secret == oauthSecret(id)) { "An oauth connector's auth.secret must be \"${oauthSecret(id)}\"." }

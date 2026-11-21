@@ -86,6 +86,29 @@
     <string name="ui_telegram_remove_title">Remove Telegram?</string>
     <string name="ui_telegram_remove_message">The bot token and chat are deleted from this phone. Notifications and scheduled task results stop going to Telegram.</string>
     <string name="ui_telegram_remote_title">Remote</string>
+    <string name="ui_reachme_server_address">Server address</string>
+    <string name="ui_reachme_server_hint">Your Gotify server. https:// unless it\'s on this phone or your home network.</string>
+    <string name="ui_reachme_webhook_url">Webhook URL</string>
+    <string name="ui_reachme_server_placeholder" translatable="false">push.example.com</string>
+    <string name="ui_reachme_url_placeholder" translatable="false">https://hooks.example.com/locus</string>
+    <string name="ui_reachme_url_hint">Locus posts JSON here. https:// unless it\'s on this phone or your home network.</string>
+    <string name="ui_reachme_not_encrypted">Not encrypted</string>
+    <string name="ui_reachme_http_warning">Plain http:// is only acceptable on your own network: anyone on it could read what Locus sends. Use https:// if your server has it.</string>
+    <string name="ui_reachme_token_where">In Gotify\'s web UI: Apps → Create Application, then copy its token.</string>
+    <string name="ui_reachme_token_keep">Leave empty to keep the saved token.</string>
+    <string name="ui_reachme_sign_title">Sign each request</string>
+    <string name="ui_reachme_sign_subtitle">Adds an HMAC-SHA256 signature so your server can check a request came from Locus.</string>
+    <string name="ui_reachme_secret_label">Signing secret</string>
+    <string name="ui_reachme_secret_hint">At least 16 characters. Give your server the same secret; Locus never sends it.</string>
+    <string name="ui_reachme_secret_keep">A secret is saved. Leave empty to keep it.</string>
+    <string name="ui_reachme_generate">Generate a secret</string>
+    <string name="ui_reachme_copy">Copy secret</string>
+    <string name="ui_reachme_copied">Copied</string>
+    <string name="ui_reachme_send_test">Send a test</string>
+    <string name="ui_reachme_test_sent">Test sent. Check that it arrived.</string>
+    <string name="ui_reachme_stored">Kept in Locus\'s encrypted vault. The AI never sees the address or the secret.</string>
+    <string name="ui_reachme_remove_title">Remove %1$s?</string>
+    <string name="ui_reachme_remove_message">Notifications and scheduled task results stop going to %1$s. You can set it up again any time.</string>
     <string name="ui_telegram_remote_private_only">Approving and sending tasks from Telegram need a private chat with your bot, so only your account can press a button.</string>
     <string name="ui_telegram_approve_title">Approve from Telegram</string>
     <string name="ui_telegram_approve_subtitle">Allow and Deny buttons come to this chat when a task working in the background asks.</string>
@@ -235,6 +258,8 @@
     <string name="ui_catalog_label_long_lived_access_token">Long-lived access token</string>
     <string name="ui_catalog_label_api_password">API password</string>
     <string name="ui_catalog_label_topic_url">Topic URL</string>
+    <string name="ui_catalog_label_application_token">Application token</string>
+    <string name="ui_catalog_label_webhook_url">Webhook URL</string>
     <string name="ui_catalog_label_bot_token">Bot token</string>
     <string name="ui_catalog_label_mailbox">Mailbox</string>
     <string name="ui_catalog_label_personal_access_token_sbp">Personal access token (sbp_…)</string>
@@ -262,6 +287,8 @@
     <string name="ui_catalog_link_get_a_key">Get a key</string>
     <string name="ui_catalog_link_create_a_token">Create a token</string>
     <string name="ui_catalog_link_how_ntfy_works">How ntfy works</string>
+    <string name="ui_catalog_link_how_gotify_works">How Gotify works</string>
+    <string name="ui_catalog_link_webhook_format">Webhook format</string>
     <string name="ui_catalog_link_open_botfather">Open @BotFather</string>
     <string name="ui_catalog_link_create_a_gmail_app_password">Create a Gmail app password</string>
     <string name="ui_catalog_link_create_a_key">Create a key</string>
@@ -284,6 +311,10 @@
     <string name="ui_catalog_integration_ntfy_description">Push notifications to your other devices through a topic you subscribe to (ntfy.sh or your own server). Scheduled task results go there too (and to Telegram, if set up).</string>
     <string name="ui_catalog_integration_telegram_summary">Messages from your own bot</string>
     <string name="ui_catalog_integration_telegram_description">Messages from your own Telegram bot: notify_me and scheduled task results arrive in your chat with it. Make a bot with @BotFather, send it any message, then tap Find my chat.</string>
+    <string name="ui_catalog_integration_gotify_summary">Push notifications from your own server</string>
+    <string name="ui_catalog_integration_gotify_description">Push notifications through your own Gotify server: notify_me and scheduled task results arrive in the Gotify app. Create an application in Gotify\'s web UI (Apps → Create Application) and paste its token.</string>
+    <string name="ui_catalog_integration_webhook_summary">Send notifications to your own automation</string>
+    <string name="ui_catalog_integration_webhook_description">Locus posts notify_me messages and scheduled task results as JSON to a URL you choose, such as Home Assistant, n8n or Node-RED. With a signing secret, each request is signed (HMAC-SHA256) so your server can check it came from Locus.</string>
     <string name="ui_catalog_integration_email_summary">A mailbox for the agent</string>
     <string name="ui_catalog_integration_email_description">Give the agent its own mailbox, not your personal one. It reads that inbox, and sending always asks you first.</string>
     <string name="ui_catalog_integration_vercel_summary">Deploys, logs and variables</string>
@@ -406,6 +437,7 @@
     <string name="ui_catalog_service_sent_basic">HTTP Basic authentication</string>
     <string name="ui_catalog_service_sent_bearer">a bearer token (Authorization: Bearer …)</string>
     <string name="ui_catalog_service_sent_header_prefix">the %1$s header (%1$s: %2$s …)</string>
+    <string name="ui_catalog_service_sent_header_wrapped">the %1$s header (%1$s: %2$s…%3$s)</string>
     <string name="ui_catalog_service_sent_header">the %1$s header</string>
     <string name="ui_catalog_service_miniflux_description">Your RSS reader: unread articles, feeds and categories.</string>
     <string name="ui_catalog_service_miniflux_where">Settings → API Keys → Create a new API key</string>
@@ -424,6 +456,9 @@
     <string name="ui_catalog_service_mastodon_note">Posting always asks you first and can\'t be remembered. Leave out write:statuses for a read-only token.</string>
     <string name="ui_catalog_service_vikunja_description">Your to-do lists: find tasks and projects, add tasks.</string>
     <string name="ui_catalog_service_vikunja_where">Settings → API Tokens (give it the tasks and projects permissions)</string>
+    <string name="ui_catalog_service_jellyfin_description">Your media server: search your library, see what was added lately and what\'s playing now.</string>
+    <string name="ui_catalog_service_jellyfin_where">Dashboard → API Keys (under Advanced) → +</string>
+    <string name="ui_catalog_service_jellyfin_note">Read-only. A Jellyfin API key has administrator access, so keep it for Locus alone and remove it in Jellyfin if you stop using it.</string>
     <!-- Settings → Models → Add, and onboarding (core/model's ProviderPresets): what each preset is; the names are saved and stay -->
     <string name="ui_catalog_preset_on_device_note">Runs fully on the phone, no internet or key needed. Downloads a 2.6 GB model once.</string>
     <string name="ui_catalog_preset_anthropic_note">Claude models with your Anthropic API key.</string>
@@ -482,4 +517,62 @@
     <string name="ui_workflow_tool_commit">commit changes</string>
     <string name="ui_workflow_tool_look_at_changes">look at changes</string>
     <string name="ui_workflow_tool_ask_questions">ask you questions</string>
+    <!-- Lock screen and the system prompt (LockScreen.kt, DeviceAuth.kt, docs/design/app-lock.md). -->
+    <string name="ui_lock_app_title">Locus is locked</string>
+    <string name="ui_lock_app_body">Unlock with your fingerprint, face, PIN, pattern or password. Tasks you started keep running while it\'s locked.</string>
+    <string name="ui_lock_chat_title">This chat is locked</string>
+    <string name="ui_lock_chat_body">Unlock it with your fingerprint, face, PIN, pattern or password. Its name and messages stay hidden everywhere else.</string>
+    <string name="ui_lock_unlock">Unlock</string>
+    <string name="ui_lock_prompt_app">Unlock Locus</string>
+    <string name="ui_lock_prompt_chat">Open locked chat</string>
+    <string name="ui_lock_prompt_confirm">Confirm it\'s you</string>
+    <string name="ui_lock_lockout">Too many tries. Wait 30 seconds, or use your PIN, pattern or password.</string>
+    <string name="ui_lock_lockout_permanent">Fingerprint and face are off until you unlock with your PIN, pattern or password.</string>
+    <string name="ui_lock_no_credential">This phone no longer has a screen lock, so Locus can\'t check it\'s you.</string>
+    <string name="ui_lock_failed">Couldn\'t check that it\'s you. Try again.</string>
+    <!-- Saved prompts (docs/design/saved-prompts.md). Keep {{clipboard}}, {{date}}, {{time}}, {{selection}}, {{field:…}} and \{{ exactly as written: they are what the user types. -->
+    <string name="ui_prompt_new_title">New prompt</string>
+    <string name="ui_prompt_edit_title">Edit prompt</string>
+    <string name="ui_prompt_editor_subtitle">Insert it by typing / in an empty composer. It\'s never sent until you tap Send.</string>
+    <string name="ui_prompt_name">Name</string>
+    <string name="ui_prompt_name_too_long">At most %1$d characters</string>
+    <string name="ui_prompt_text">Prompt</string>
+    <string name="ui_prompt_text_too_long">At most %1$d characters</string>
+    <plurals name="ui_prompt_issues">
+        <item quantity="one">%1$d variable can\'t be filled in</item>
+        <item quantity="other">%1$d variables can\'t be filled in</item>
+    </plurals>
+    <string name="ui_prompt_issue_unknown">{{%1$s}} isn\'t a variable. Use clipboard, date, time, selection or field:Label, or write \\{{ to keep the braces.</string>
+    <string name="ui_prompt_issue_unclosed">A {{ has no }} after it on the same line. Close it, or write \\{{ to keep the braces.</string>
+    <string name="ui_prompt_issue_empty">{{}} is empty. Put a variable\'s name in it.</string>
+    <string name="ui_prompt_issue_bad_field">A field needs a label, as in {{field:Label}}, and the label can\'t contain braces.</string>
+    <string name="ui_prompt_issue_too_long">A field\'s label can be up to %1$d characters long and its default up to %2$d.</string>
+    <string name="ui_prompt_issue_defaults">The field “%1$s” has two different defaults. Give it one.</string>
+    <string name="ui_prompt_issue_too_many">A prompt can ask for at most %1$d fields.</string>
+    <string name="ui_prompt_insert_variable">Insert a variable</string>
+    <string name="ui_prompt_var_clipboard">Clipboard</string>
+    <string name="ui_prompt_var_date">Date</string>
+    <string name="ui_prompt_var_time">Time</string>
+    <string name="ui_prompt_var_selection">Shared text</string>
+    <string name="ui_prompt_var_field">Field</string>
+    <!-- The placeholder label in {{field:Label}}, selected so the user types over it. No braces, colons or bars. -->
+    <string name="ui_prompt_field_label">Label</string>
+    <string name="ui_prompt_uses_fields">Asks for %1$s</string>
+    <string name="ui_prompt_uses_clipboard">Reads the clipboard</string>
+    <string name="ui_prompt_uses_selection">Uses the shared text</string>
+    <string name="ui_prompt_uses_date">Adds the date or time</string>
+    <string name="ui_prompt_syntax_note">{{clipboard}}, {{date}} and {{time}} are filled in when you pick the prompt. {{selection}} is the text shared to Locus, or already in the box. {{field:Label}} asks you for a value, and {{field:Label|default}} offers one. Write \\{{ for braces that aren\'t a variable.</string>
+    <string name="ui_prompt_picker_title">Prompts</string>
+    <string name="ui_prompt_picker_subtitle">Picking one fills the box. Nothing is sent until you tap Send.</string>
+    <string name="ui_prompt_none_title">No saved prompts yet</string>
+    <string name="ui_prompt_none_body">Save text you send often, with blanks to fill in, then insert it from here or by typing / in an empty box.</string>
+    <string name="ui_prompt_new">New prompt</string>
+    <string name="ui_prompt_search">Search prompts</string>
+    <string name="ui_prompt_no_match">No prompts match “%1$s”.</string>
+    <string name="ui_prompt_form_subtitle">Fill in the blanks. The text goes into the box for you to check before you send it.</string>
+    <string name="ui_prompt_form_clipboard">Clipboard text</string>
+    <string name="ui_prompt_form_clipboard_empty">The clipboard was empty or held no text. Paste or type it here.</string>
+    <string name="ui_prompt_form_selection">Text to use</string>
+    <string name="ui_prompt_form_selection_empty">Nothing was shared or typed before you picked this prompt. Paste or type it here.</string>
+    <string name="ui_prompt_insert">Insert</string>
 </resources>

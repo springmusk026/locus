@@ -167,4 +167,17 @@
     <string name="data_service_home_assistant_missing">Home Assistant no está en el catálogo.</string>
     <string name="data_service_home_assistant_no_token">Pega un token de acceso de larga duración.</string>
     <string name="data_service_home_assistant_passed">Se accedió a Home Assistant en %1$s y aceptó el token.</string>
+    <!-- Lock Locus and locked chats in notifications (LockedNotifications, docs/design/app-lock.md) -->
+    <string name="data_lock_public_text">Desbloquea el teléfono para ver los detalles</string>
+    <string name="data_lock_chat_waiting">Un chat bloqueado te espera. Abre Locus para verlo.</string>
+    <string name="data_lock_reminder_text">Recordatorio de un chat bloqueado</string>
+    <string name="data_reachme_token_missing">Pega el token de aplicación de Gotify (Apps → Create Application).</string>
+    <string name="data_reachme_token_invalid">No parece un token de aplicación de Gotify: cópialo entero, sin espacios.</string>
+    <string name="data_reachme_token_again">La dirección cambió, así que pega el token de nuevo. Locus solo envía un token guardado al servidor para el que se guardó.</string>
+    <string name="data_reachme_secret_invalid">Un secreto de firma necesita al menos 16 caracteres y ningún espacio.</string>
+    <string name="data_reachme_secret_again">La dirección cambió, así que escribe el secreto de firma de nuevo o desactiva la firma. Locus solo usa un secreto guardado para la dirección para la que se guardó.</string>
+    <string name="data_reachme_redirect">%1$s redirige a otra dirección. Locus no sigue redirecciones: usa la dirección a la que redirige.</string>
+    <string name="data_reachme_gotify_refused">%1$s rechazó el token (HTTP %2$d). Usa un token de aplicación (Apps), no uno de cliente, y cópialo entero.</string>
+    <string name="data_reachme_webhook_refused">%1$s rechazó la solicitud (HTTP %2$d). Si comprueba firmas, asegúrate de que tenga el mismo secreto.</string>
+    <string name="data_reachme_not_found">No hay nada en esa dirección (HTTP 404). Revísala, incluida cualquier subruta.</string>
 </resources>

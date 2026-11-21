@@ -1248,4 +1248,22 @@
     <string name="settings_ondevice_kind_projector">Proyector de visión</string>
     <string name="settings_ondevice_kind_draft">Cabeza de borrador</string>
     <string name="settings_ondevice_kind_other">No es un modelo</string>
+    <!-- Lock Locus (AppLockSettings.kt, docs/design/app-lock.md). -->
+    <string name="settings_lock_section">Bloqueo</string>
+    <string name="settings_lock_title">Bloquear Locus</string>
+    <string name="settings_lock_subtitle">Pedir tu huella, tu cara o el bloqueo de pantalla antes de mostrar nada</string>
+    <string name="settings_lock_subtitle_no_screen_lock">Necesita un bloqueo de pantalla en este teléfono</string>
+    <string name="settings_lock_after_title">Bloquear tras</string>
+    <string name="settings_lock_after_subtitle">Cuánto tiempo puede estar Locus en segundo plano antes de volver a pedirlo</string>
+    <string name="settings_lock_after_now">Ya</string>
+    <string name="settings_lock_after_minutes">%1$d min</string>
+    <string name="settings_lock_needs_screen_lock">Configura un PIN, patrón o contraseña en este teléfono para bloquear Locus o un chat. Locus usa el bloqueo del propio teléfono y no guarda ningún PIN propio.</string>
+    <string name="settings_lock_suspended">Este teléfono ya no tiene bloqueo de pantalla, así que Locus y sus chats bloqueados se abren sin pedir nada. Configura un PIN, patrón o contraseña para volver a bloquearlos.</string>
+    <string name="settings_lock_open_security">Abrir ajustes de seguridad</string>
+    <string name="settings_lock_note">El bloqueo oculta lo que Locus muestra en este teléfono: chats, archivos, ajustes y los detalles de sus notificaciones en la pantalla de bloqueo. Las tareas, las ejecuciones programadas y la automatización que configuraste siguen funcionando mientras está bloqueado. Para ocultar un chat aunque Locus esté abierto, usa Bloquear este chat en su menú.</string>
+    <plurals name="settings_lock_locked_chats">
+        <item quantity="one">%1$d chat está bloqueado. Desbloquéalo desde su menú.</item>
+        <item quantity="many">%1$d chats están bloqueados. Desbloquea uno desde su menú.</item>
+        <item quantity="other">%1$d chats están bloqueados. Desbloquea uno desde su menú.</item>
+    </plurals>
 </resources>

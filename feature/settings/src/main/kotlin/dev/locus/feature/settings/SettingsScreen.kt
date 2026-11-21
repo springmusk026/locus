@@ -93,6 +93,7 @@ fun SettingsRoute(
         chatGpt = ChatGptActions(viewModel::signInChatGpt, viewModel::signOutChatGpt, { viewModel.discardChatGpt(it) }),
         telegram = viewModel.telegramActions,
         email = viewModel.emailActions,
+        reachMe = viewModel.reachMeActions,
         onOpenOnDeviceModels = onOpenOnDeviceModels,
         onModelAction = { id, action ->
             when (action) {
@@ -174,6 +175,7 @@ internal fun SettingsScreen(
     chatGpt: ChatGptActions = ChatGptActions.None,
     telegram: TelegramActions = TelegramActions.None,
     email: dev.locus.core.ui.EmailActions = dev.locus.core.ui.EmailActions.None,
+    reachMe: dev.locus.core.ui.ReachMeActions = dev.locus.core.ui.ReachMeActions.None,
     onOpenOnDeviceModels: () -> Unit = {},
     openDraft: String? = null,
     onDraftOpened: () -> Unit = {},
@@ -225,7 +227,7 @@ internal fun SettingsScreen(
                 onSetReviewerMode = onSetReviewerMode, onSetReviewerOutward = onSetReviewerOutward,
                 onRevoke = onRevokeRemembered,
             )
-            SettingsPage.Integrations -> IntegrationsSettings(state, onBack = back, onSetIntegrationKey = onSetIntegrationKey, onOpenConnectors = onOpenConnectors, onUseMcpTemplate = onUseMcpTemplate, onSetUseMcp = onSetUseMcp, onCheckMcp = onCheckMcp, telegram = telegram, email = email)
+            SettingsPage.Integrations -> IntegrationsSettings(state, onBack = back, onSetIntegrationKey = onSetIntegrationKey, onOpenConnectors = onOpenConnectors, onUseMcpTemplate = onUseMcpTemplate, onSetUseMcp = onSetUseMcp, onCheckMcp = onCheckMcp, telegram = telegram, email = email, reachMe = reachMe)
             SettingsPage.Ssh -> SshSettings(state, onBack = back, onProbe = onProbe, onSaveSsh = onSaveSsh, onDeleteSsh = onDeleteSsh)
             SettingsPage.Logins -> SavedLoginsRoute(onBack = back)
             SettingsPage.Network -> NetworkRoute(onBack = back)
@@ -234,7 +236,10 @@ internal fun SettingsScreen(
             SettingsPage.Automation -> AutomationRoute(onBack = back)
             SettingsPage.Phone -> PhoneRoute(onBack = back)
             SettingsPage.Backup -> BackupRoute(onBack = back)
-            SettingsPage.About -> AboutSettings(onBack = back, onRunSetup = onRunSetup, onOpenDiagnostics = { pageName = SettingsPage.Diagnostics.name }, onOpenActivity = onOpenActivity)
+            SettingsPage.About -> {
+                val (lock, lockActions) = rememberAppLockSection(hiltViewModel())
+                AboutSettings(onBack = back, onRunSetup = onRunSetup, onOpenDiagnostics = { pageName = SettingsPage.Diagnostics.name }, onOpenActivity = onOpenActivity, lock = lock, lockActions = lockActions)
+            }
             SettingsPage.Diagnostics -> DiagnosticsRoute(
                 onBack = back,
                 onOpenSelfTest = { pageName = SettingsPage.SelfTest.name },

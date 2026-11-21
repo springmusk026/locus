@@ -512,4 +512,15 @@
         <item quantity="one">%1$d skipped: its note changed meanwhile</item>
         <item quantity="other">%1$d skipped: their notes changed meanwhile</item>
     </plurals>
+    <!-- Library → Skills → Prompts (docs/design/saved-prompts.md). Keep / and + as they are. -->
+    <string name="library_prompts_label">Prompts</string>
+    <string name="library_prompts_note">Text you send often. Type / in an empty composer, or tap + → Insert a prompt, to put one in the box for you to check and send.</string>
+    <string name="library_prompts_new">New prompt</string>
+    <string name="library_prompts_icon">Saved prompt</string>
+    <string name="library_prompts_move_up">Move up</string>
+    <string name="library_prompts_move_down">Move down</string>
+    <string name="library_prompts_remove_title">Remove “%1$s”?</string>
+    <string name="library_prompts_remove_body">It goes from the / list and the picker. Messages you already sent with it stay as they are.</string>
+    <string name="library_prompts_save_failed">Couldn\'t save the prompt. Try again.</string>
+    <string name="library_prompts_change_failed">Couldn\'t change “%1$s”. Try again.</string>
 </resources>

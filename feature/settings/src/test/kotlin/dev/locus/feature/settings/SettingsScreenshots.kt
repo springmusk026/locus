@@ -433,8 +433,29 @@ class SettingsScreenshots : ScreenshotTest() {
     fun about() {
         val vm = UpdatesViewModel(graph.updates())
         runBlocking { withTimeout(10_000) { vm.uiState.first { it.info != null } } }
-        snap("settings-about", heightDp = 1200) { AboutSettings(onBack = {}, onRunSetup = {}, updatesViewModel = vm) }
+        snap("settings-about", heightDp = 1600) { AboutSettings(onBack = {}, onRunSetup = {}, updatesViewModel = vm, lock = AppLockSectionState()) }
     }
+
+    // ---- Lock Locus (docs/design/app-lock.md): off, on with Lock after, no screen lock, and suspended
+
+    private fun lockSection(state: AppLockSectionState) = @androidx.compose.runtime.Composable {
+        SettingsPageScaffold("About & privacy", onBack = {}) { appLockSection(state, AppLockSectionActions()) }
+    }
+
+    @Test fun lockOff() = snap("settings-lock-off", heightDp = 700, content = lockSection(AppLockSectionState()))
+
+    @Test fun lockOn() = snap("settings-lock-on", heightDp = 900, content = lockSection(AppLockSectionState(enabled = true, lockAfterMinutes = 5, lockedChats = 2)))
+
+    @Test fun lockNoScreenLock() = snap("settings-lock-no-screen-lock", heightDp = 900, content = lockSection(AppLockSectionState(available = false)))
+
+    @Test fun lockSuspended() = snap("settings-lock-suspended", heightDp = 900, content = lockSection(AppLockSectionState(available = false, enabled = true, lockedChats = 1)))
+
+    @Test
+    fun lockTurningOffLockedOut() = snap(
+        "settings-lock-locked-out",
+        heightDp = 900,
+        content = lockSection(AppLockSectionState(enabled = true, outcome = dev.locus.core.model.DeviceAuthOutcome.LOCKOUT_PERMANENT)),
+    )
 
     private val release = Release(
         tag = "v0.2.0",

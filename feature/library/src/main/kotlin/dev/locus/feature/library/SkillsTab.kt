@@ -80,21 +80,31 @@ internal fun SkillsTab(
     modifier: Modifier,
     workflows: LibraryWorkflowsViewModel = androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel(),
     onOpenChat: (String) -> Unit = {},
+    prompts: LibraryPromptsViewModel = androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel(),
 ) {
     var importing by rememberSaveable { mutableStateOf(false) }
     val status by viewModel.importStatus.collectAsStateWithLifecycle()
     val openFile by viewModel.openFile.collectAsStateWithLifecycle()
     val savedWorkflows by workflows.all.collectAsStateWithLifecycle()
+    val savedPrompts by prompts.all.collectAsStateWithLifecycle()
+    val promptSheet by prompts.sheet.collectAsStateWithLifecycle()
     val pickZip = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(viewModel::importSkillZip) }
 
-    if (library.skills.isEmpty() && status == null && savedWorkflows.isEmpty()) {
+    if (library.skills.isEmpty() && status == null && savedWorkflows.isEmpty() && savedPrompts.isEmpty()) {
         EmptyState(
             stringResource(R.string.library_skills_empty_title),
             stringResource(R.string.library_skills_empty_body),
             modifier,
             icon = LocusIcons.Library,
-            action = { Button(onClick = { importing = true }) { Text(stringResource(R.string.library_skills_import)) } },
+            action = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    Button(onClick = { importing = true }) { Text(stringResource(R.string.library_skills_import)) }
+                    OutlinedButton(onClick = { prompts.open(LibraryPromptSheet.Edit(null)) }) { Text(stringResource(R.string.library_prompts_new)) }
+                }
+            },
         )
+        // The card isn't on screen here, but its editor is how the first prompt is made.
+        if (promptSheet != null) PromptsCard(prompts, sheetsOnly = true)
     } else {
         LazyColumn(modifier.fillMaxSize(), contentPadding = listPadding) {
             status?.let { item { ImportBanner(it, viewModel) } }
@@ -105,6 +115,11 @@ internal fun SkillsTab(
                 }
                 item { WorkflowsCard(workflows, onOpenChat) }
             }
+            item {
+                SectionLabel(stringResource(R.string.library_prompts_label))
+                SectionNote(stringResource(R.string.library_prompts_note))
+            }
+            item { PromptsCard(prompts) }
             item {
                 SectionLabel(stringResource(R.string.library_skills_label))
                 SectionNote(stringResource(R.string.library_skills_note))
