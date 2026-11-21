@@ -242,8 +242,9 @@ class SheetScreenshots : ScreenshotTest() {
         WhatWasSentSheet(
             SentState.Ready(
                 sentView.copy(
-                    format = ApiFormat.OPENAI_RESPONSES, provider = "OpenAI", model = "gpt-5.5", host = "api.openai.com",
-                    params = listOf("model" to "gpt-5.5", "stream" to "true"),
+                    // Chat Completions: clearing never applies to Anthropic, OpenAI Responses or ChatGPT (ColdClearing.policyFor).
+                    format = ApiFormat.OPENAI_CHAT, provider = "OpenRouter", model = "deepseek/deepseek-chat", host = "openrouter.ai",
+                    params = listOf("model" to "deepseek/deepseek-chat", "stream" to "true"),
                     messages = listOf(
                         SentMessage("tool", listOf(SentBlock.ToolResult("call_01", "[Earlier result cleared: 48,210 characters. Run the tool again if you need it.]", isError = false))),
                     ) + sentView.messages,
