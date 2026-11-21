@@ -172,4 +172,13 @@
     <string name="data_lock_public_text">Unlock your phone to see details</string>
     <string name="data_lock_chat_waiting">A locked chat is waiting for you. Open Locus to see it.</string>
     <string name="data_lock_reminder_text">Reminder from a locked chat</string>
+    <string name="data_reachme_token_missing">Paste the application token from Gotify (Apps → Create Application).</string>
+    <string name="data_reachme_token_invalid">That doesn\'t look like a Gotify application token: copy it whole, without spaces.</string>
+    <string name="data_reachme_token_again">The address changed, so paste the token again. Locus only sends a saved token to the server it was saved for.</string>
+    <string name="data_reachme_secret_invalid">A signing secret needs at least 16 characters and no spaces.</string>
+    <string name="data_reachme_secret_again">The address changed, so enter the signing secret again, or turn signing off. Locus only uses a saved secret for the address it was saved for.</string>
+    <string name="data_reachme_redirect">%1$s redirects to another address. Locus doesn\'t follow redirects: use the address it redirects to.</string>
+    <string name="data_reachme_gotify_refused">%1$s refused the token (HTTP %2$d). Use an application token (Apps), not a client token, and copy it whole.</string>
+    <string name="data_reachme_webhook_refused">%1$s refused the request (HTTP %2$d). If it checks signatures, make sure it has the same secret.</string>
+    <string name="data_reachme_not_found">Nothing found at that address (HTTP 404). Check it, including any sub-path.</string>
 </resources>

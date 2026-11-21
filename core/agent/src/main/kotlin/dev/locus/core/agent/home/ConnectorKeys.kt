@@ -21,12 +21,13 @@ object ConnectorKeys {
 
     /**
      * The header [auth] sends [secret] in, or null for query and no auth: `Authorization: Bearer …`,
-     * the named header with its prefix (`Authorization: Token …`, `X-Auth-Token: …`), or
+     * the named header with its prefix and suffix (`Authorization: Token …`, `X-Auth-Token: …`,
+     * `Authorization: MediaBrowser Token="…"`), or
      * `Authorization: Basic base64(user:password)` for basic, whose vault value is `user:password`.
      */
     fun header(auth: Connector.Auth, secret: String): Pair<String, String>? = when (auth.type) {
         "bearer", "oauth" -> "Authorization" to "Bearer $secret"
-        "header" -> auth.name to auth.prefix + secret
+        "header" -> auth.name to auth.prefix + secret + auth.suffix
         "basic" -> "Authorization" to "Basic " + basic64(secret)
         else -> null
     }

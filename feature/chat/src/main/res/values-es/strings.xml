@@ -1273,4 +1273,9 @@
     <string name="chat_lock_locked">Chat bloqueado. Su nombre queda oculto y pedirá tu huella, tu cara o tu PIN al abrirlo.</string>
     <string name="chat_lock_unlocked">Chat desbloqueado</string>
     <string name="chat_lock_prompt_remove">Desbloquear este chat</string>
+    <string name="chat_composer_prompts">Insertar un prompt</string>
+    <string name="chat_composer_prompts_hint">Rellena el cuadro con un texto guardado. No se envía nada hasta que tocas Enviar.</string>
+    <string name="chat_composer_slash_none_title">Prompts guardados</string>
+    <string name="chat_composer_slash_none_body">Aún no hay ninguno. Crea uno aquí y luego escribe / para insertarlo.</string>
+    <string name="chat_prompt_save_failed">No se pudo guardar el prompt. Inténtalo de nuevo.</string>
 </resources>

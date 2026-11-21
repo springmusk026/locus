@@ -52,6 +52,9 @@ import dev.locus.core.ui.TelegramActions
 import dev.locus.core.ui.TelegramSheet
 import dev.locus.core.ui.EmailActions
 import dev.locus.core.ui.EmailSheet
+import dev.locus.core.ui.ReachMeActions
+import dev.locus.core.ui.ReachMeSheet
+import dev.locus.core.data.integrations.ReachMeChannel
 import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.RowChevron
 import dev.locus.core.ui.authSummaryText
@@ -77,6 +80,7 @@ internal fun IntegrationsSettings(
     onCheckMcp: () -> Unit = {},
     telegram: TelegramActions = TelegramActions.None,
     email: EmailActions = EmailActions.None,
+    reachMe: ReachMeActions = ReachMeActions.None,
 ) {
     var keyFor by remember { mutableStateOf<Integration?>(null) }
     LaunchedEffect(Unit) { onCheckMcp() }
@@ -153,7 +157,11 @@ internal fun IntegrationsSettings(
         EmailSheet(integration, state.integrations.any { it.first == integration && it.second }, email, onDismiss = { keyFor = null })
     }
 
-    keyFor?.takeIf { it.id != "telegram" && it.id != Integrations.email.id }?.let { integration ->
+    keyFor?.takeIf { ReachMeChannel.of(it.id) != null }?.let { integration ->
+        ReachMeSheet(integration, state.integrations.any { it.first == integration && it.second }, reachMe, onDismiss = { keyFor = null })
+    }
+
+    keyFor?.takeIf { it.id != "telegram" && it.id != Integrations.email.id && ReachMeChannel.of(it.id) == null }?.let { integration ->
         IntegrationKeySheet(
             integration,
             hasKey = state.integrations.any { it.first == integration && it.second },
@@ -251,7 +259,7 @@ private fun UseMcpCard(integration: Integration, template: McpTemplate, onUse: (
 private const val LARGE_FONT = 1.3f
 
 /** Integrations whose "key" is a whole setup (a bot, a topic, a mailbox) rather than one pasted key. */
-private val SET_UP = setOf("telegram", "ntfy", "email")
+private val SET_UP = setOf("telegram", "ntfy", "gotify", "webhook", "email")
 
 /** The web search fallback order, named from [Integrations.searchOrder]. */
 @Composable

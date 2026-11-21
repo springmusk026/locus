@@ -151,4 +151,13 @@
     <string name="data_lock_public_text">解锁手机以查看详情</string>
     <string name="data_lock_chat_waiting">有一个已锁定的对话在等你。打开 Locus 查看。</string>
     <string name="data_lock_reminder_text">来自已锁定对话的提醒</string>
+    <string name="data_reachme_token_missing">粘贴 Gotify 的应用令牌（Apps → Create Application）。</string>
+    <string name="data_reachme_token_invalid">这看起来不像 Gotify 应用令牌：请完整复制，不要带空格。</string>
+    <string name="data_reachme_token_again">地址已更改，请重新粘贴令牌。Locus 只会把已保存的令牌发送到保存它时对应的服务器。</string>
+    <string name="data_reachme_secret_invalid">签名密钥至少需要 16 个字符，且不能有空格。</string>
+    <string name="data_reachme_secret_again">地址已更改，请重新输入签名密钥，或关闭签名。Locus 只会在保存时对应的地址上使用已保存的密钥。</string>
+    <string name="data_reachme_redirect">%1$s 重定向到了另一个地址。Locus 不跟随重定向：请使用它重定向到的地址。</string>
+    <string name="data_reachme_gotify_refused">%1$s 拒绝了令牌（HTTP %2$d）。请使用应用令牌（Apps），而不是客户端令牌，并完整复制。</string>
+    <string name="data_reachme_webhook_refused">%1$s 拒绝了请求（HTTP %2$d）。如果它会校验签名，请确认它使用的是同一个密钥。</string>
+    <string name="data_reachme_not_found">该地址下什么也没有（HTTP 404）。请检查地址，包括任何子路径。</string>
 </resources>

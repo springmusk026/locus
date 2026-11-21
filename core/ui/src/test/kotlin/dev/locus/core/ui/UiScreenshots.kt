@@ -23,6 +23,8 @@ import jakarta.mail.MessagingException
 import javax.net.ssl.SSLHandshakeException
 import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.agent.prompt.PromptField
+import dev.locus.core.model.SavedPrompt
 import dev.locus.core.model.SavedWorkflow
 import dev.locus.core.model.SshAuth
 import dev.locus.core.model.TelegramRemoteSettings
@@ -70,6 +72,53 @@ class UiScreenshots : ScreenshotTest() {
             remote = flowOf(TelegramRemoteSettings()),
         )
         TelegramSheet(Integrations.telegram, hasKey = true, actions = actions, onDismiss = {})
+    }
+
+    // ---- Gotify and Webhook
+
+    @Test
+    fun gotifyNew() = snap("gotify-sheet", heightDp = 1000) {
+        ReachMeSheet(Integrations.gotify, hasKey = false, actions = ReachMeActions.None, onDismiss = {}, initial = ReachMeForm())
+    }
+
+    @Test
+    fun gotifySaved() = snap("gotify-sheet-saved", heightDp = 1100) {
+        ReachMeSheet(
+            Integrations.gotify, hasKey = true, actions = ReachMeActions.None, onDismiss = {},
+            initial = ReachMeForm(url = "https://push.example.com", note = dev.locus.core.designsystem.UiText.Res(R.string.ui_reachme_test_sent)),
+        )
+    }
+
+    @Test
+    fun gotifyLanError() = snap("gotify-sheet-lan-error", heightDp = 1200) {
+        // A LAN server over http (the caution banner) whose test was refused.
+        ReachMeSheet(
+            Integrations.gotify, hasKey = false, actions = ReachMeActions.None, onDismiss = {},
+            initial = ReachMeForm(
+                url = "http://192.168.1.20:8080", secret = "AbCdEf1234567.8",
+                error = dev.locus.core.designsystem.UiText.Res(dev.locus.core.data.R.string.data_reachme_gotify_refused, "192.168.1.20:8080", 401),
+            ),
+        )
+    }
+
+    @Test
+    fun gotifyBadAddress() = snap("gotify-sheet-bad-address", heightDp = 1000) {
+        ReachMeSheet(Integrations.gotify, hasKey = false, actions = ReachMeActions.None, onDismiss = {}, initial = ReachMeForm(url = "http://push.example.com"))
+    }
+
+    @Test
+    fun webhookNew() = snap("webhook-sheet", heightDp = 1200) {
+        ReachMeSheet(Integrations.webhook, hasKey = false, actions = ReachMeActions.None, onDismiss = {}, initial = ReachMeForm(url = "https://hooks.example.com/locus", secret = "Zk3vQ9-aP2mX7rT1bW8yL0nC5dE6fG4h"))
+    }
+
+    @Test
+    fun webhookSavedUnsigned() = snap("webhook-sheet-unsigned", heightDp = 1000) {
+        ReachMeSheet(Integrations.webhook, hasKey = true, actions = ReachMeActions.None, onDismiss = {}, initial = ReachMeForm(url = "https://n8n.example.com/webhook/locus?src=phone", sign = false))
+    }
+
+    @Test
+    fun webhookSavedSigned() = snap("webhook-sheet-saved", heightDp = 1200) {
+        ReachMeSheet(Integrations.webhook, hasKey = true, actions = ReachMeActions.None, onDismiss = {}, initial = ReachMeForm(url = "https://hooks.example.com/locus", savedSecret = true))
     }
 
     // ---- Email
@@ -264,5 +313,66 @@ class UiScreenshots : ScreenshotTest() {
                 }
             }
         } }
+    }
+
+    // ---- Saved prompts (docs/design/saved-prompts.md)
+
+    private val prompts = listOf(
+        SavedPrompt("a", "Translate", "Translate into {{field:Language|Spanish}}, keeping the tone:\n\n{{selection}}"),
+        SavedPrompt("b", "Daily standup", "Write my standup for {{date}} from these notes:\n{{clipboard}}"),
+        SavedPrompt("c", "Reply to an email", "Draft a reply to {{field:Who}} that says {{field:What to say}}. Keep it short."),
+        SavedPrompt("d", "Explain like I'm new", "Explain this step by step, with no jargon."),
+    )
+
+    @Test
+    fun promptEditor() = snap("prompt-editor", heightDp = 1500) {
+        PromptEditorSheet(prompts[0], error = null, onSave = {}, onDismiss = {})
+    }
+
+    /** Variables that can't be filled in: the box is red, each problem is named, and Save is off. */
+    @Test
+    fun promptEditorInvalid() = snap("prompt-editor-invalid", heightDp = 1600) {
+        PromptEditorSheet(
+            SavedPrompt("e", "Weekly report", "Summarise {{week}} for {{field:Team}}.\nSigned {{field:}} on {{date"),
+            error = null, onSave = {}, onDismiss = {},
+        )
+    }
+
+    @Test
+    fun promptEditorNew() = snap("prompt-editor-new", heightDp = 1200) {
+        PromptEditorSheet(null, error = "Couldn't save the prompt. Try again.", onSave = {}, onDismiss = {})
+    }
+
+    @Test
+    fun promptPicker() = snap("prompt-picker", heightDp = 1200) {
+        PromptPickerSheet(prompts, onPick = {}, onNew = {}, onDismiss = {})
+    }
+
+    @Test
+    fun promptPickerFiltered() = snap("prompt-picker-filtered", heightDp = 900) {
+        PromptPickerSheet(prompts, onPick = {}, onNew = {}, onDismiss = {}, initialQuery = "tra")
+    }
+
+    @Test
+    fun promptPickerNoMatch() = snap("prompt-picker-no-match", heightDp = 800) {
+        PromptPickerSheet(prompts, onPick = {}, onNew = {}, onDismiss = {}, initialQuery = "invoice")
+    }
+
+    @Test
+    fun promptPickerEmpty() = snap("prompt-picker-empty", heightDp = 800) {
+        PromptPickerSheet(emptyList(), onPick = {}, onNew = {}, onDismiss = {})
+    }
+
+    /** A prompt's blanks: two fields, one with a default, and the clipboard it needed was empty. */
+    @Test
+    fun promptForm() = snap("prompt-form", heightDp = 1300) {
+        PromptFormSheet(
+            name = "Reply to an email",
+            fields = listOf(PromptField("Who", null), PromptField("Tone", "friendly")),
+            askClipboard = true,
+            askSelection = false,
+            onInsert = {},
+            onDismiss = {},
+        )
     }
 }

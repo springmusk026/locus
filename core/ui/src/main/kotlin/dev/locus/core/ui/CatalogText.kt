@@ -123,6 +123,7 @@ fun ConnectorTemplate.AuthSpec.sentAsText(r: Resources): String = when {
     login != null -> r.getString(R.string.ui_catalog_service_sent_login)
     type == "basic" -> r.getString(R.string.ui_catalog_service_sent_basic)
     type == "bearer" -> r.getString(R.string.ui_catalog_service_sent_bearer)
+    suffix.isNotEmpty() -> r.getString(R.string.ui_catalog_service_sent_header_wrapped, header, prefix, suffix)
     prefix.isNotEmpty() -> r.getString(R.string.ui_catalog_service_sent_header_prefix, header, prefix.trim())
     else -> r.getString(R.string.ui_catalog_service_sent_header, header)
 }

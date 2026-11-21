@@ -231,6 +231,12 @@ object LocusIcons {
         moveTo(15.5f, 7f); lineTo(20.5f, 12f); lineTo(15.5f, 17f)
         moveTo(13.5f, 5f); lineTo(10.5f, 19f)
     }
+    /** A slash in a rounded box: a saved prompt, the `/` that inserts one. */
+    val Prompt = icon("prompt") {
+        moveTo(7f, 4f); lineTo(17f, 4f); arcTo(3f, 3f, 0f, false, true, 20f, 7f); lineTo(20f, 17f); arcTo(3f, 3f, 0f, false, true, 17f, 20f)
+        lineTo(7f, 20f); arcTo(3f, 3f, 0f, false, true, 4f, 17f); lineTo(4f, 7f); arcTo(3f, 3f, 0f, false, true, 7f, 4f); close()
+        moveTo(14f, 8f); lineTo(10f, 16f)
+    }
     /** Four corners pointing out: open full screen. */
     val Expand = icon("expand") {
         moveTo(4f, 9f); lineTo(4f, 4f); lineTo(9f, 4f)

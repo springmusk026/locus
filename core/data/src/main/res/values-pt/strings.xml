@@ -171,4 +171,13 @@
     <string name="data_lock_public_text">Desbloqueie o celular para ver os detalhes</string>
     <string name="data_lock_chat_waiting">Um chat bloqueado está esperando por você. Abra o Locus para ver.</string>
     <string name="data_lock_reminder_text">Lembrete de um chat bloqueado</string>
+    <string name="data_reachme_token_missing">Cole o token de aplicativo do Gotify (Apps → Create Application).</string>
+    <string name="data_reachme_token_invalid">Isso não parece um token de aplicativo do Gotify: copie-o inteiro, sem espaços.</string>
+    <string name="data_reachme_token_again">O endereço mudou, então cole o token de novo. O Locus só envia um token salvo ao servidor para o qual ele foi salvo.</string>
+    <string name="data_reachme_secret_invalid">Um segredo de assinatura precisa de pelo menos 16 caracteres e nenhum espaço.</string>
+    <string name="data_reachme_secret_again">O endereço mudou, então digite o segredo de assinatura de novo ou desative a assinatura. O Locus só usa um segredo salvo para o endereço para o qual ele foi salvo.</string>
+    <string name="data_reachme_redirect">%1$s redireciona para outro endereço. O Locus não segue redirecionamentos: use o endereço para o qual ele redireciona.</string>
+    <string name="data_reachme_gotify_refused">%1$s recusou o token (HTTP %2$d). Use um token de aplicativo (Apps), não um de cliente, e copie-o inteiro.</string>
+    <string name="data_reachme_webhook_refused">%1$s recusou a solicitação (HTTP %2$d). Se ele verifica assinaturas, confira se tem o mesmo segredo.</string>
+    <string name="data_reachme_not_found">Nada encontrado nesse endereço (HTTP 404). Confira-o, incluindo qualquer subcaminho.</string>
 </resources>

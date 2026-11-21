@@ -296,6 +296,9 @@ internal fun ColumnScope.ConnectorsStep(state: OnboardingUiState, viewModel: Onb
         } else if (integration.id == Integrations.email.id) {
             // The mailbox is a form with a connection test: the same sheet as in Settings.
             dev.locus.core.ui.EmailSheet(integration, hasKey, viewModel.email, onDismiss = { keyFor = null })
+        } else if (dev.locus.core.data.integrations.ReachMeChannel.of(integration.id) != null) {
+            // An address and a secret with a test: the same sheet as in Settings.
+            dev.locus.core.ui.ReachMeSheet(integration, hasKey, viewModel.reachMe, onDismiss = { keyFor = null }, localNetwork = localNetwork)
         } else {
             IntegrationKeySheet(integration, hasKey, onSave = { viewModel.setIntegrationKey(integration, it); keyFor = null }, onDismiss = { keyFor = null })
         }
