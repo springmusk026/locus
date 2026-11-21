@@ -452,4 +452,14 @@
     <string name="library_memory_taint_helper">el informe de un ayudante</string>
     <string name="library_memory_taint_outside">contenido externo</string>
     <string name="library_memory_taint_separator">", "</string>
+    <string name="library_prompts_label">Prompts</string>
+    <string name="library_prompts_note">Textos que envías a menudo. Escribe / en el cuadro vacío, o toca + → Insertar un prompt, para ponerlo en el cuadro y revisarlo antes de enviar.</string>
+    <string name="library_prompts_new">Nuevo prompt</string>
+    <string name="library_prompts_icon">Prompt guardado</string>
+    <string name="library_prompts_move_up">Subir</string>
+    <string name="library_prompts_move_down">Bajar</string>
+    <string name="library_prompts_remove_title">¿Quitar «%1$s»?</string>
+    <string name="library_prompts_remove_body">Desaparece de la lista de / y del selector. Los mensajes que ya enviaste con él no cambian.</string>
+    <string name="library_prompts_save_failed">No se pudo guardar el prompt. Inténtalo de nuevo.</string>
+    <string name="library_prompts_change_failed">No se pudo cambiar «%1$s». Inténtalo de nuevo.</string>
 </resources>

@@ -18,6 +18,7 @@ import dev.locus.core.data.mcp.McpTemplates
 import dev.locus.core.data.repository.ConnectorEntry
 import dev.locus.core.data.repository.LibraryRepository
 import dev.locus.core.data.repository.SkillClash
+import dev.locus.core.data.repository.PromptRepository
 import dev.locus.core.data.repository.WorkflowRepository
 import dev.locus.core.database.ProjectDao
 import dev.locus.core.database.ProjectEntity
@@ -25,6 +26,7 @@ import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.model.SavedPrompt
 import dev.locus.core.model.SavedWorkflow
 import dev.locus.core.model.Workflow
 import dev.locus.core.model.WorkflowCheck
@@ -270,8 +272,28 @@ class LibraryScreenshots : ScreenshotTest() {
         g.database.conversationDao, projects, g.keyOrigins,
     )
 
-    private fun screen(vm: LibraryViewModel, workflows: LibraryWorkflowsViewModel, tab: Int, template: String? = null): @androidx.compose.runtime.Composable () -> Unit = {
-        WithViewModels(workflows) { LibraryRoute(onBack = {}, initialTab = tab, initialTemplate = template, viewModel = vm) }
+    private fun prompts(saved: List<SavedPrompt> = emptyList()): LibraryPromptsViewModel {
+        val repository = PromptRepository(AgentHome(kotlin.io.path.createTempDirectory("prompts").toFile()), kotlinx.coroutines.Dispatchers.Unconfined)
+        runBlocking { saved.forEach { repository.save(it) } }
+        val vm = LibraryPromptsViewModel(repository)
+        runBlocking { withTimeout(10_000) { vm.all.first { it.size == saved.size } } }
+        return vm
+    }
+
+    private val savedPrompts = listOf(
+        SavedPrompt("", "Translate", "Translate into {{field:Language|Spanish}}, keeping the tone:\n\n{{selection}}"),
+        SavedPrompt("", "Daily standup", "Write my standup for {{date}} from these notes:\n{{clipboard}}"),
+        SavedPrompt("", "Explain like I'm new", "Explain this step by step, with no jargon."),
+    )
+
+    private fun screen(
+        vm: LibraryViewModel,
+        workflows: LibraryWorkflowsViewModel,
+        tab: Int,
+        template: String? = null,
+        prompts: LibraryPromptsViewModel = prompts(),
+    ): @androidx.compose.runtime.Composable () -> Unit = {
+        WithViewModels(workflows, prompts) { LibraryRoute(onBack = {}, initialTab = tab, initialTemplate = template, viewModel = vm) }
     }
 
     // ---- Each tab, populated
@@ -289,7 +311,17 @@ class LibraryScreenshots : ScreenshotTest() {
         val g = populated()
         val vm = LibraryViewModel(g.library)
         vm.ready { it.library.skills.size == 3 }
-        snap("library-skills", heightDp = 2400, content = screen(vm, workflows(g, listOf(invoiceWorkflow to null, digestWorkflow to null)), 1))
+        snap("library-skills", heightDp = 2800, content = screen(vm, workflows(g, listOf(invoiceWorkflow to null, digestWorkflow to null)), 1, prompts = prompts(savedPrompts)))
+    }
+
+    /** Saved prompts with no skills or workflows yet: the tab lists them, the first opened, with Import a skill under Skills. */
+    @Test
+    fun skillsPromptsOnly() {
+        val g = TestGraph(scope)
+        val vm = LibraryViewModel(g.library)
+        vm.ready()
+        // The first prompt opened: its full text, what it asks for, and its actions.
+        snapAfter("library-skills-prompts", listOf(dev.locus.core.screenshot.Step.Tap("Translate")), heightDp = 1400, content = screen(vm, workflows(g), 1, prompts = prompts(savedPrompts)))
     }
 
     @Test

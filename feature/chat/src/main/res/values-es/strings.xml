@@ -1265,4 +1265,9 @@
     <string name="chat_checks_check_timedout_n">Verificación · tiempo agotado en la ejecución %1$d de %1$d</string>
     <string name="chat_checks_check_stopped">Verificación detenida</string>
     <string name="chat_checks_check_stopped_n">Verificación · detenida en la ejecución %1$d de %1$d</string>
+    <string name="chat_composer_prompts">Insertar un prompt</string>
+    <string name="chat_composer_prompts_hint">Rellena el cuadro con un texto guardado. No se envía nada hasta que tocas Enviar.</string>
+    <string name="chat_composer_slash_none_title">Prompts guardados</string>
+    <string name="chat_composer_slash_none_body">Aún no hay ninguno. Crea uno aquí y luego escribe / para insertarlo.</string>
+    <string name="chat_prompt_save_failed">No se pudo guardar el prompt. Inténtalo de nuevo.</string>
 </resources>

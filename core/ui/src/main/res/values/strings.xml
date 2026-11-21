@@ -468,4 +468,49 @@
     <string name="ui_workflow_tool_commit">commit changes</string>
     <string name="ui_workflow_tool_look_at_changes">look at changes</string>
     <string name="ui_workflow_tool_ask_questions">ask you questions</string>
+    <!-- Saved prompts (docs/design/saved-prompts.md). Keep {{clipboard}}, {{date}}, {{time}}, {{selection}}, {{field:…}} and \{{ exactly as written: they are what the user types. -->
+    <string name="ui_prompt_new_title">New prompt</string>
+    <string name="ui_prompt_edit_title">Edit prompt</string>
+    <string name="ui_prompt_editor_subtitle">Insert it by typing / in an empty composer. It\'s never sent until you tap Send.</string>
+    <string name="ui_prompt_name">Name</string>
+    <string name="ui_prompt_name_too_long">At most %1$d characters</string>
+    <string name="ui_prompt_text">Prompt</string>
+    <string name="ui_prompt_text_too_long">At most %1$d characters</string>
+    <plurals name="ui_prompt_issues">
+        <item quantity="one">%1$d variable can\'t be filled in</item>
+        <item quantity="other">%1$d variables can\'t be filled in</item>
+    </plurals>
+    <string name="ui_prompt_issue_unknown">{{%1$s}} isn\'t a variable. Use clipboard, date, time, selection or field:Label, or write \\{{ to keep the braces.</string>
+    <string name="ui_prompt_issue_unclosed">A {{ has no }} after it on the same line. Close it, or write \\{{ to keep the braces.</string>
+    <string name="ui_prompt_issue_empty">{{}} is empty. Put a variable\'s name in it.</string>
+    <string name="ui_prompt_issue_bad_field">A field needs a label, as in {{field:Label}}, and the label can\'t contain braces.</string>
+    <string name="ui_prompt_issue_too_long">A field\'s label can be up to %1$d characters long and its default up to %2$d.</string>
+    <string name="ui_prompt_issue_defaults">The field “%1$s” has two different defaults. Give it one.</string>
+    <string name="ui_prompt_issue_too_many">A prompt can ask for at most %1$d fields.</string>
+    <string name="ui_prompt_insert_variable">Insert a variable</string>
+    <string name="ui_prompt_var_clipboard">Clipboard</string>
+    <string name="ui_prompt_var_date">Date</string>
+    <string name="ui_prompt_var_time">Time</string>
+    <string name="ui_prompt_var_selection">Shared text</string>
+    <string name="ui_prompt_var_field">Field</string>
+    <!-- The placeholder label in {{field:Label}}, selected so the user types over it. No braces, colons or bars. -->
+    <string name="ui_prompt_field_label">Label</string>
+    <string name="ui_prompt_uses_fields">Asks for %1$s</string>
+    <string name="ui_prompt_uses_clipboard">Reads the clipboard</string>
+    <string name="ui_prompt_uses_selection">Uses the shared text</string>
+    <string name="ui_prompt_uses_date">Adds the date or time</string>
+    <string name="ui_prompt_syntax_note">{{clipboard}}, {{date}} and {{time}} are filled in when you pick the prompt. {{selection}} is the text shared to Locus, or already in the box. {{field:Label}} asks you for a value, and {{field:Label|default}} offers one. Write \\{{ for braces that aren\'t a variable.</string>
+    <string name="ui_prompt_picker_title">Prompts</string>
+    <string name="ui_prompt_picker_subtitle">Picking one fills the box. Nothing is sent until you tap Send.</string>
+    <string name="ui_prompt_none_title">No saved prompts yet</string>
+    <string name="ui_prompt_none_body">Save text you send often, with blanks to fill in, then insert it from here or by typing / in an empty box.</string>
+    <string name="ui_prompt_new">New prompt</string>
+    <string name="ui_prompt_search">Search prompts</string>
+    <string name="ui_prompt_no_match">No prompts match “%1$s”.</string>
+    <string name="ui_prompt_form_subtitle">Fill in the blanks. The text goes into the box for you to check before you send it.</string>
+    <string name="ui_prompt_form_clipboard">Clipboard text</string>
+    <string name="ui_prompt_form_clipboard_empty">The clipboard was empty or held no text. Paste or type it here.</string>
+    <string name="ui_prompt_form_selection">Text to use</string>
+    <string name="ui_prompt_form_selection_empty">Nothing was shared or typed before you picked this prompt. Paste or type it here.</string>
+    <string name="ui_prompt_insert">Insert</string>
 </resources>

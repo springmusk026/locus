@@ -4,6 +4,9 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Added
+- **Saved prompts with blanks to fill in.** Keep text you send often in Library → Skills → Prompts, then type `/` in an empty box (in a chat or on home) or tap + → Insert a prompt to pick one. It goes into the box for you to check; nothing is sent until you tap Send. A prompt can use `{{clipboard}}`, `{{date}}`, `{{time}}`, `{{selection}}` (the text shared to Locus, "Ask Locus" selections, or what's already in the box) and `{{field:Label}}` or `{{field:Label|default}}`, which ask in a small form. The editor marks any variable it can't fill in and won't save until it's fixed. The clipboard is read only when you pick a prompt that uses it. `/btw` keeps working and is listed beside your prompts. Prompts are in encrypted backups. See [saved prompts](docs/design/saved-prompts.md). *Not yet tried on the phone.*
+
 ## [0.2.0] - 2026-11-21
 
 ### Added

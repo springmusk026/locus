@@ -1248,4 +1248,11 @@
     <string name="chat_checks_check_timedout_n">Check · timed out on run %1$d of %1$d</string>
     <string name="chat_checks_check_stopped">Check stopped</string>
     <string name="chat_checks_check_stopped_n">Check · stopped on run %1$d of %1$d</string>
+    <!-- Saved prompts in the composer (docs/design/saved-prompts.md) -->
+    <string name="chat_composer_prompts">Insert a prompt</string>
+    <string name="chat_composer_prompts_hint">Fill the box with text you saved. Nothing is sent until you tap Send.</string>
+    <string name="chat_composer_slash_btw_command" translatable="false">/btw</string>
+    <string name="chat_composer_slash_none_title">Saved prompts</string>
+    <string name="chat_composer_slash_none_body">None yet. Make one here, then type / to insert it.</string>
+    <string name="chat_prompt_save_failed">Couldn\'t save the prompt. Try again.</string>
 </resources>
