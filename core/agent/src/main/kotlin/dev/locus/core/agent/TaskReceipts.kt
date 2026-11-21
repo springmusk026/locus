@@ -59,10 +59,15 @@ object TaskReceipts {
         /** Requests that aren't messages (compaction, the safety reviewer…), from the usage log. */
         side: List<Usage> = emptyList(),
         price: (providerId: String?, model: String?) -> ModelPrice? = { _, _ -> null },
+        /**
+         * The chat's replies on other branches than [path] (Compare models answers one message on two), counted
+         * in the task they were written in: its tokens, cost and models, so a comparison's receipt shows both.
+         */
+        otherBranches: List<Usage> = emptyList(),
     ): List<TaskReceipt> {
         if (records.isEmpty() || path.isEmpty()) return emptyList()
         val results = path.filter { it.role == Role.TOOL }.flatMap { it.toolResults }.associateBy { it.callId }
-        return records.sortedBy { it.startedAt }.mapNotNull { receipt(it, path, results, audit, changes, helpers, side, price) }
+        return records.sortedBy { it.startedAt }.mapNotNull { receipt(it, path, results, audit, changes, helpers, side, price, otherBranches) }
     }
 
     private fun receipt(
@@ -74,6 +79,7 @@ object TaskReceipts {
         helpers: List<Helper>,
         side: List<Usage>,
         price: (String?, String?) -> ModelPrice?,
+        otherBranches: List<Usage> = emptyList(),
     ): TaskReceipt? {
         val end = record.endedAt ?: return null
         val outcome = record.outcome ?: return null
@@ -87,7 +93,8 @@ object TaskReceipts {
 
         val requests = replies.map { Usage(it.reply?.providerId, it.reply?.model, it.usage, it.createdAt, UsageSource.CHAT, it.reply?.fallbackFrom) } +
             started.flatMap { h -> h.requests.filter { inTask(it.at) }.map { it.copy(source = UsageSource.HELPER) } } +
-            side.filter { inTask(it.at) }
+            side.filter { inTask(it.at) } +
+            otherBranches.filter { inTask(it.at) }
 
         val counted = requests.mapNotNull { r -> r.usage?.let { r to it } }
         // A summary the provider wrote inside a request (server-side compaction) was billed as a request of its own.

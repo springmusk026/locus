@@ -80,6 +80,24 @@ class AnalyticsViewModelTest {
         assertEquals(PricesSetup.Failed, vm.turnOnAndWait(PricesSetup.Failed).prices)
     }
 
+    /** Your picks: Keep this one in a chat updates Insights' table, read from the phone's settings. */
+    @Test
+    fun `picks kept in chats show in Insights`() = runTest {
+        val g = graph()
+        val repository = AnalyticsRepository(
+            g.database.messageDao, g.database.auditDao, g.database.conversationDao, g.settingsRepository, g.tasks, g.database.usageEventDao, g.directory,
+        )
+        val vm = host.add(AnalyticsViewModel(repository, SavedStateHandle(), g.directory, settings = g.settingsRepository))
+        backgroundScope.launch { vm.uiState.collect {} }
+        val a = dev.locus.core.model.ModelRef("a", "claude-opus-5-5")
+        val b = dev.locus.core.model.ModelRef("r", "openai/gpt-5")
+        g.settingsRepository.recordCompare(dev.locus.core.model.CompareTurn("c1", "u1", a, b))
+        assertTrue(g.settingsRepository.keepCompare("c1", "u1", b))
+        val picks = vm.uiState.first { it.picks.isNotEmpty() }.picks.single()
+        assertEquals(1, picks.total)
+        assertEquals(1, if (picks.first == b) picks.firstKept else picks.secondKept)
+    }
+
     private companion object {
         /** One provider with one priced model, in models.dev's shape. */
         val CATALOG = """

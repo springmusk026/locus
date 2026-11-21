@@ -58,6 +58,10 @@ internal data class PickerRow(
     val fit: Fit = Fit.OK,
     /** Shown instead of the id when the id means nothing to a person (an on-device file's "gguf:…" key). */
     val detail: String? = null,
+    /** Compare models: whether the row can be picked as the second model (see [forCompare]). */
+    val pickable: Boolean = true,
+    /** Compare models: this is the chat's own model (it answers anyway, so it isn't offered as the second). */
+    val chatModel: Boolean = false,
 ) {
     val id: String get() = ref.model
     val key: String get() = "${ref.providerId}\u0000${ref.model}"

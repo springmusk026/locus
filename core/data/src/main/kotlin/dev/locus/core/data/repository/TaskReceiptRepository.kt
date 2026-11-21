@@ -45,10 +45,15 @@ data class ReceiptInputs(
     val helpers: List<TaskReceipts.Helper> = emptyList(),
     val side: List<TaskReceipts.Usage> = emptyList(),
     val price: PriceLookup = { _, _ -> null },
+    /** Every reply of the chat by message id, on any branch (Compare models writes two per message). */
+    val replies: List<Pair<String, TaskReceipts.Usage>> = emptyList(),
 ) {
     /** The receipts for the chat's shown branch [path], with [changes] from [ChangeRepository.observe]. */
-    fun receipts(path: List<Message>, changes: List<TrackedChange>): List<TaskReceipt> =
-        TaskReceipts.build(records, path, audit, standing(changes), helpers, side, price)
+    fun receipts(path: List<Message>, changes: List<TrackedChange>): List<TaskReceipt> {
+        val shown = path.mapTo(HashSet()) { it.id }
+        val others = replies.filter { (id, _) -> id !in shown }.map { it.second }
+        return TaskReceipts.build(records, path, audit, standing(changes), helpers, side, price, others)
+    }
 
     companion object {
         /** Paths each turn changed that weren't undone, by turn id. */
@@ -104,6 +109,8 @@ class TaskReceiptRepository @Inject constructor(
         prices(),
     ) { records, audit, helpers, side, price ->
         ReceiptInputs(records.map { it.toModel() }, audit.mapNotNull { it.toModel() }, helpers(helpers), side.map { it.toUsage() }, price)
+    }.combine(receiptDao.observeReplyUsage(conversationId)) { inputs, replies ->
+        inputs.copy(replies = replies.map { r -> r.id to TaskReceipts.Usage(r.providerId, r.model, usage(r.usageJson), r.createdAt, UsageSource.CHAT, r.fallbackFrom) })
         // Only the latest matters, and each holds the chat's whole audit log: never queue them behind a slow reader.
     }.flowOn(io).conflate()
 

@@ -124,6 +124,11 @@ data class RunState(
      * (docs/design/rewind.md). In memory only; a new turn drops it.
      */
     val summaryDraft: SummaryDraft? = null,
+    /**
+     * Compare models (docs/design/compare-models.md): while the second model answers, how it's named
+     * ("gpt-5.2 (OpenAI)"), so the chat can say whose answer is streaming and that it only reads. Null otherwise.
+     */
+    val comparing: String? = null,
 ) {
     /** The request to show now (the oldest). */
     val pendingApproval: ApprovalRequest? get() = approvals.firstOrNull()
@@ -521,6 +526,56 @@ class AgentRunner @Inject constructor(
         }
         // A turn started in between: this message waits for its next step boundary.
         if (!started) queueBehindRun(conversationId) { queue.add(conversationId, text.trim(), attachments) }
+    }
+
+    /**
+     * Compare models (docs/design/compare-models.md): sends [text] once and has it answered twice, as two
+     * sibling branches under the same user message, in one task (one budget, one receipt).
+     *
+     * 1. [other] answers first, read-only ([ChatPolicy.compareDenial]): it may look, never change, so it sees
+     *    the workspace as it was and nothing is done twice. No backup models, no steering, no side jobs.
+     * 2. The chat's own model then answers from the same user message, exactly as a normal send does (same
+     *    request, same cache), with the chat's permissions. Its branch is the one shown when both are done.
+     *
+     * The second model failing doesn't stop the first: it's a notice ([RunNote.CompareFailed]). Stop ends both.
+     * Not while the chat runs (false then): a comparison is a task of its own, never queued into another.
+     * [onSent] gets the user message's id once it's stored, for "Keep this one".
+     */
+    fun sendCompare(
+        conversationId: String,
+        text: String,
+        attachments: List<Part.Attachment> = emptyList(),
+        other: dev.locus.core.model.ModelRef,
+        onSent: suspend (userMessageId: String) -> Unit = {},
+    ): Boolean {
+        if (text.isBlank() && attachments.isEmpty()) return false
+        if (dev.locus.core.model.ImportedChats.isImported(conversationId)) return false
+        if (jobs.containsKey(conversationId)) return false
+        update(conversationId) { it.copy(reviewerBlocks = emptyList()) }
+        return start(conversationId) {
+            if (needsCompaction(conversationId)) compactBeforeTurn(conversationId)
+            appendQueued(conversationId)
+            val planMode = conversations.get(conversationId)?.planMode == true
+            val user = conversations.appendUserMessage(
+                conversationId, text.trim(), attachments,
+                modeNote = ModeNote.PLAN_MODE.takeIf { planMode },
+                extraNotes = listOfNotNull(takeUndoNote(conversationId)),
+            )
+            onSent(user.id)
+            try {
+                run(conversationId, compare = other)
+            } finally {
+                update(conversationId) { it.copy(comparing = null) }
+            }
+            // The second model's failure is a notice: the chat's own model still answers.
+            _states.value[conversationId]?.error?.let { reason ->
+                val label = settings.current().provider(other.providerId)?.let { FallbackChain.label(it, other.model) } ?: other.model
+                update(conversationId) { it.copy(error = null, failure = null).withNotice(RunNote.CompareFailed(label, reason)) }
+            }
+            // The chat's own answer starts from the same message, as a sibling of the comparison's.
+            conversations.setActiveLeaf(conversationId, user.id)
+            run(conversationId)
+        }
     }
 
     /**
@@ -1636,19 +1691,26 @@ class AgentRunner @Inject constructor(
         return record.result.await()
     }
 
-    private suspend fun run(conversationId: String, background: Boolean = false) {
+    /**
+     * One turn of [conversationId] from its active leaf. With [compare], the turn is a comparison's second
+     * answer ([sendCompare]): that model instead of the chat's, read-only, with no backups, steering or side jobs.
+     * Everything else (the frozen system prompt, the tool list, the path) is the chat's, as for any turn.
+     */
+    private suspend fun run(conversationId: String, background: Boolean = false, compare: dev.locus.core.model.ModelRef? = null) {
         val conversation = conversations.get(conversationId) ?: return
         val current = settings.current()
         // A scheduled run, or the Telegram chat under its default rules (docs/design/telegram-remote.md):
         // read-only, nothing that asks. The Telegram chat can still be steered, since someone is there.
         val readOnly = background || current.telegramRemote.lockedChat(conversationId)
-        val base = current.provider(conversation.providerId)
+        val base = current.provider(compare?.providerId ?: conversation.providerId)
         if (base == null) {
             taskEnds[conversationId] = TaskEnd(dev.locus.core.model.TaskOutcome.FAILED, RunNote.NoProvider.english)
             update(conversationId) { it.withError(RunNote.NoProvider) }
             return
         }
-        val provider = chatProvider(base, conversation)
+        // The comparison's model, with the chat's own effort mapped to its format.
+        val provider = chatProvider(base, if (compare != null) conversation.copy(modelOverride = compare.model) else conversation)
+        if (compare != null) update(conversationId) { it.copy(comparing = FallbackChain.label(provider, provider.model)) }
         access.missing(provider)?.let { problem ->
             taskEnds[conversationId] = TaskEnd(dev.locus.core.model.TaskOutcome.FAILED, problem)
             update(conversationId) { it.copy(error = problem) }
@@ -1685,7 +1747,8 @@ class AgentRunner @Inject constructor(
         // The fallback chain (Settings → Models → Backup models): the same request, on the next model.
         // Each backup carries what's known of it, so one that can't serve this chat (no vision with images
         // in it, a window smaller than the context so far) is skipped (docs/design/model-capabilities.md).
-        val fallbacks = FallbackChain.resolve(current, base, provider.model).map { (backup, backupModel) ->
+        // A comparison is that model or nothing: no backups.
+        val fallbacks = if (compare != null) emptyList() else FallbackChain.resolve(current, base, provider.model).map { (backup, backupModel) ->
             val config = chatProvider(backup, conversation.copy(modelOverride = backupModel))
             dev.locus.core.agent.FallbackModel(config.id, config.model, FallbackChain.label(config, config.model), directory.capabilities(backup, config.model)) {
                 access.missing(config)?.let { throw dev.locus.core.llm.LlmException(it) }
@@ -1708,15 +1771,17 @@ class AgentRunner @Inject constructor(
                 // A scheduled or triggered task: when it stops, it says so in words that fit (no tools menu to point at).
                 unattended = background,
                 // What the user queued while this step ran (steer and queue); background runs have no one typing.
-                atStepBoundary = if (background) null else ({ boundaryMessages(conversationId) }),
+                atStepBoundary = if (background || compare != null) null else ({ boundaryMessages(conversationId) }),
                 // Read fresh for every call, so flipping plan mode or a tool off mid-run applies to the next call.
                 restrict = { tool, args ->
                     val c = conversations.get(conversationId)
                     // A temporary chat refuses memory tools here; its helpers inherit this restriction.
                     ChatPolicy.denial(tool, args, planMode = c?.planMode == true, disabled = c?.disabledTools.orEmpty(), temporary = c?.temporary == true)
                         ?: ChatPolicy.projectDenial(tool, args, c?.projectId?.let { settings.current().projectPolicies[it] })
+                        // A comparison's second answer only reads (docs/design/compare-models.md).
+                        ?: if (compare != null) ChatPolicy.compareDenial(tool, args) else null
                 },
-                chatReadOnly = { ChatMode.of(conversations.get(conversationId)?.disabledTools.orEmpty()) == ChatMode.READ_ONLY },
+                chatReadOnly = { compare != null || ChatMode.of(conversations.get(conversationId)?.disabledTools.orEmpty()) == ChatMode.READ_ONLY },
                 escalate = workflowPlan?.let { plan -> { tool, args -> dev.locus.core.agent.workflow.WorkflowScope.escalation(plan, tool, args) } },
                 reviewer = reviewer,
                 // "What was sent": keeps a reference to the request (no copy, no serialising), in memory only.
@@ -1747,7 +1812,7 @@ class AgentRunner @Inject constructor(
                 // "Allow for this chat" and "Always allow …" (docs/design/remembered-approvals.md); a background run asks nobody.
                 approvals = if (readOnly) null else ChatApprovalMemory(settings, conversationId, chatScope?.projectId),
                 // Ending with open todos, a failed command or unchecked edits gets one nudge (never in scheduled runs).
-                completionCheck = !readOnly,
+                completionCheck = !readOnly && compare == null,
                 // The user pauses between turns (reading, approving, answering): keep the conversation cached
                 // for an hour (docs/design/cost.md). A scheduled or triggered run has nobody pausing it.
                 longCache = !background,
@@ -1903,14 +1968,14 @@ class AgentRunner @Inject constructor(
         }
 
         // Side jobs aren't urgent: while the phone is hot or in battery saver they wait (DeferredWork).
-        if (completed && !readOnly) scope.launch { deferred.runOrHold("${conversation.id}/after", conversation.id) { afterTurn(conversation.id, provider) } }
+        if (completed && !readOnly && compare == null) scope.launch { deferred.runOrHold("${conversation.id}/after", conversation.id) { afterTurn(conversation.id, provider) } }
 
         // Reflection: after a longer task, one short extra call over the same transcript (a prompt-cache
         // hit) may save lessons to memory. It runs after the chat is marked done, so it never holds the
         // chat busy, and its turn isn't kept in the chat, so the transcript stays exactly what the user saw.
         // Never in a temporary chat: it saves nothing to memory (docs/design/temporary-chats.md). Nor while every memory
         // write asks (docs/design/memory-approval.md): nobody is there to approve its saves, so the request would be wasted.
-        if (completed && !readOnly && !conversation.temporary && current.reflectAfterTasks && current.memoryApproval != dev.locus.core.model.MemoryApproval.ALWAYS &&
+        if (completed && !readOnly && compare == null && !conversation.temporary && current.reflectAfterTasks && current.memoryApproval != dev.locus.core.model.MemoryApproval.ALWAYS &&
             toolsUsed >= REFLECT_AFTER_TOOLS && provider.format != ApiFormat.ON_DEVICE
         ) {
             scope.launch { deferred.runOrHold("${conversation.id}/reflect", conversation.id) { reflect(conversation, provider, current) } }
