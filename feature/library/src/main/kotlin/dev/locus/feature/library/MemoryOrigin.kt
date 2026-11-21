@@ -28,6 +28,8 @@ internal data class MemoryOriginView(
     val chatGone: Boolean,
     /** Set when it was saved while reading outside content. */
     val warning: String?,
+    /** A tidy-up merge's sources, by name ("coffee, coffee prefs"); null for any other note. */
+    val mergedFrom: String? = null,
 )
 
 internal fun memoryOriginView(
@@ -43,6 +45,7 @@ internal fun memoryOriginView(
         when (origin.by) {
             MemoryAuthor.USER -> R.string.library_memory_saved_by_you
             MemoryAuthor.REFLECTION -> R.string.library_memory_saved_after_task
+            MemoryAuthor.TIDY -> R.string.library_memory_saved_by_tidy
             else -> if (savedInChat) R.string.library_memory_saved_in_chat else R.string.library_memory_saved_by_locus
         },
     )
@@ -57,6 +60,7 @@ internal fun memoryOriginView(
         chat = chat?.takeIf { savedInChat },
         chatGone = savedInChat && chat == null,
         warning = warning,
+        mergedFrom = origin.mergedFrom.takeIf { it.isNotEmpty() }?.joinToString(resources.getString(R.string.library_memory_taint_separator)) { it.replace('-', ' ') },
     )
 }
 

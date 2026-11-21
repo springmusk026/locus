@@ -124,6 +124,12 @@
     <string name="settings_agent_instructions_note">Se añaden a cada chat nuevo. Que sean breves; Locus también aprende de la memoria y las habilidades.</string>
     <string name="settings_agent_budget_section">Presupuesto de tareas</string>
     <string name="settings_agent_budget_note">El límite predeterminado de cada tarea y de los ayudantes que inicia. Al llegar a un límite, Locus se pausa entre pasos y pregunta si continuar. La entrada en caché cuenta una décima parte, y el tiempo que esperas no cuenta. Un chat puede definir el suyo en las opciones del campo de mensaje.</string>
+    <string name="settings_agent_memory_section">Memoria</string>
+    <string name="settings_agent_memory_ask_title">Preguntar antes de guardar en la memoria</string>
+    <string name="settings_agent_memory_ask_outside">Tras contenido externo</string>
+    <string name="settings_agent_memory_ask_always">Siempre</string>
+    <string name="settings_agent_memory_note_outside">Locus pregunta antes de guardar u olvidar una nota solo cuando el chat ya ha leído contenido externo (una página web, un correo, la salida de un comando), que podría haberla colado. Las demás notas se guardan solas; revísalas en Biblioteca → Memoria.</string>
+    <string name="settings_agent_memory_note_always">Cada vez que guarde u olvide algo en la memoria preguntará antes, con la nota completa en la tarjeta, también en los proyectos. Aprender tras las tareas no guardará nada entonces, porque no hay nadie para aprobarlo. Los chats mantienen las mismas herramientas y el mismo prompt.</string>
     <string name="settings_agent_long_chats_section">Chats largos</string>
     <string name="settings_agent_cold_clearing_title">Borrar resultados de herramientas antiguos tras una pausa larga</string>
     <string name="settings_agent_cold_clearing_subtitle">Cuando un chat continúa tras un día o más, los resultados largos de antes se envían como una nota breve. El chat los sigue mostrando completos</string>

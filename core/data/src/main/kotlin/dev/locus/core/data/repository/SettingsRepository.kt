@@ -222,6 +222,9 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setReflectAfterTasks(enabled: Boolean) = store.updateData { it.copy(reflectAfterTasks = enabled) }
 
+    /** Settings → Agent → "Ask before saving to memory" (docs/design/memory-approval.md). Sealed with the permissions. */
+    suspend fun setMemoryApproval(approval: dev.locus.core.model.MemoryApproval) = store.updateData { it.copy(memoryApproval = approval) }
+
     /** The helper model: [providerId] and [model], or with no provider, [automatic] (a cheaper model of each chat's provider) or each chat's own. */
     suspend fun setHelperModel(providerId: String?, model: String, automatic: Boolean = false) =
         store.updateData { it.copy(helperProviderId = providerId, helperModel = model.trim(), helperAutomatic = providerId != null || automatic) }

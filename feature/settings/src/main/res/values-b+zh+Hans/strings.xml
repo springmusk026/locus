@@ -118,6 +118,12 @@
     <string name="settings_agent_instructions_note">会添加到每个新对话中。请保持简短；Locus 也会从记忆和技能中学习。</string>
     <string name="settings_agent_budget_section">任务预算</string>
     <string name="settings_agent_budget_note">每个任务及其启动的助手的默认上限。达到上限时，Locus 会在步骤之间暂停，并询问是否继续。缓存的输入按十分之一计算，等待你操作的时间不计入。对话可在输入框的选项中单独设置。</string>
+    <string name="settings_agent_memory_section">记忆</string>
+    <string name="settings_agent_memory_ask_title">保存到记忆前询问</string>
+    <string name="settings_agent_memory_ask_outside">读取外部内容后</string>
+    <string name="settings_agent_memory_ask_always">始终</string>
+    <string name="settings_agent_memory_note_outside">只有当对话读取过外部内容（网页、邮件、命令输出）后，Locus 才会在保存或忘记笔记前询问，因为这些内容可能会植入笔记。其他笔记会自动保存；可在“资料库 → 记忆”中查看。</string>
+    <string name="settings_agent_memory_note_always">每次保存或忘记记忆前都会先询问，卡片上显示完整笔记，项目中也是如此。此时“任务后总结经验”不会保存任何内容，因为没有人可以批准。对话的工具和提示保持不变。</string>
     <string name="settings_agent_long_chats_section">长对话</string>
     <string name="settings_agent_cold_clearing_title">长时间暂停后清除旧的工具结果</string>
     <string name="settings_agent_cold_clearing_subtitle">对话在一天或更久之后继续时，之前较长的结果会以简短说明发送。对话中仍完整显示它们</string>

@@ -57,6 +57,7 @@
     <string name="analytics_source_reviewer">Revisor de segurança</string>
     <string name="analytics_source_reflection">Lições para a memória</string>
     <string name="analytics_source_side_question">Perguntas paralelas</string>
+    <string name="analytics_source_memory_tidy">Organização da memória</string>
     <string name="analytics_source_other">Outros</string>
     <string name="analytics_tools_calls">Chamadas</string>
     <string name="analytics_tools_succeeded">Bem-sucedidas</string>

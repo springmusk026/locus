@@ -184,7 +184,7 @@ class ToolCatalog @Inject constructor(
             imagePreparer: dev.locus.core.agent.tools.ImagePreparer = dev.locus.core.agent.tools.ImagePreparer.NONE,
             subagents: () -> dev.locus.core.agent.tools.SubagentEngine,
         ): List<Tool> =
-            workspaceTools(workspace, dev.locus.core.linux.LinuxSyntaxCheck(linux, workspace), reads, changes) + webTools(http, fetchNetwork(settings, home, http)) + browserTools(browser, workspace) + linuxTools(linux, workspace, remote) + dev.locus.core.linux.codingLinuxTools(linux, workspace, remote) + homeTools(home, http, secrets, scripts, origins = { mcp.origins.allowed(it) }) + integrationTools(http, secrets, workspace) + emailTools(secrets) + openDataTools(http) + mcpTools(mcp) + sshTools(ssh, settings, workspace) + deviceTools(context) + dev.locus.core.data.device.deviceIntegrationTools(phone) +
+            workspaceTools(workspace, dev.locus.core.linux.LinuxSyntaxCheck(linux, workspace), reads, changes) + webTools(http, fetchNetwork(settings, home, http)) + browserTools(browser, workspace) + linuxTools(linux, workspace, remote) + dev.locus.core.linux.codingLinuxTools(linux, workspace, remote) + homeTools(home, http, secrets, scripts, origins = { mcp.origins.allowed(it) }, memoryWrites = memoryWrites(settings, conversations)) + integrationTools(http, secrets, workspace) + emailTools(secrets) + openDataTools(http) + mcpTools(mcp) + sshTools(ssh, settings, workspace) + deviceTools(context) + dev.locus.core.data.device.deviceIntegrationTools(phone) +
                 dev.locus.core.data.device.calendarWriteTools(phone, calendar, dev.locus.core.data.device.SettingsCalendarChoice(settings)) +
                 dev.locus.core.data.device.reminderTools(reminders ?: dev.locus.core.data.device.Reminders(settings, dev.locus.core.data.device.NoReminderAlarms, dev.locus.core.data.device.NoReminderNotifier)) +
                 dev.locus.core.data.device.phoneHandoffTools(phone, workspace) { dev.locus.core.agent.SecretScrubber(knownSecrets()) } +
@@ -194,6 +194,15 @@ class ToolCatalog @Inject constructor(
                 dev.locus.core.agent.tools.ProviderDraftTool(dev.locus.core.data.providers.SettingsProviderDrafts(settings, conversations, knownSecrets)) +
                 // Its copies live outside the workspace, so a chat's history never changes (docs/design/view-image.md).
                 dev.locus.core.agent.tools.ViewImage(workspace, imagePreparer, dev.locus.core.agent.tools.ToolImageStore { java.io.File(context.filesDir, TOOL_IMAGES_DIR) })
+
+        /**
+         * When memory writes ask (Settings → Agent → "Ask before saving to memory"), read for each call, and project
+         * names for their approval cards (docs/design/memory-approval.md).
+         */
+        internal fun memoryWrites(settings: SettingsRepository, conversations: ConversationRepository) = object : dev.locus.core.agent.home.MemoryWrites {
+            override suspend fun alwaysAsk() = settings.current().memoryApproval == dev.locus.core.model.MemoryApproval.ALWAYS
+            override suspend fun projectName(projectId: String) = conversations.projectName(projectId)
+        }
 
         /** Where view_image keeps its prepared images, in the app's private files. */
         const val TOOL_IMAGES_DIR = "tool-images"

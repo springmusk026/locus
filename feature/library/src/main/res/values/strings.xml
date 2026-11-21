@@ -464,6 +464,54 @@
     <string name="library_memory_taint_helper">a helper\'s report</string>
     <string name="library_memory_taint_outside">outside content</string>
     <string name="library_memory_taint_separator">", "</string>
+    <!-- Library → Memory → Tidy up (MemoryTidyUi.kt, docs/design/memory-approval.md). -->
+    <string name="library_tidy_title">Tidy up</string>
+    <string name="library_tidy_subtitle">Suggests notes to merge or forget. Nothing changes until you accept.</string>
+    <string name="library_tidy_no_model">Needs a model: add a provider first.</string>
+    <string name="library_tidy_helper_unavailable">Needs a helper model that can answer now: on-device models are too slow for this, and a provider needs its key or sign-in.</string>
+    <string name="library_tidy_sheet_title">Tidy up memory</string>
+    <string name="library_tidy_sheet_subtitle">Suggestions from the helper model. Nothing changes until you apply the ones you tick.</string>
+    <string name="library_tidy_working">The helper model is reading your notes…</string>
+    <string name="library_tidy_failed_title">Couldn\'t tidy up</string>
+    <string name="library_tidy_failed_unavailable">The helper model can\'t be used right now. Nothing was changed.</string>
+    <string name="library_tidy_failed_no_answer">The helper model didn\'t answer. Nothing was changed.</string>
+    <string name="library_tidy_failed_malformed">The helper model\'s answer couldn\'t be read. Nothing was changed; try again, or choose another helper model.</string>
+    <string name="library_tidy_failed_nothing">There are no notes to tidy.</string>
+    <string name="library_tidy_none_title">Nothing to tidy</string>
+    <string name="library_tidy_review_note">Tick the changes to make. Replaced and forgotten notes are kept in history, and a merged note keeps where its notes came from.</string>
+    <string name="library_tidy_merge_title">Merge %1$s into “%2$s”</string>
+    <string name="library_tidy_delete_title">Forget %1$s</string>
+    <string name="library_tidy_in_general">In general memory</string>
+    <string name="library_tidy_in_project">In project %1$s</string>
+    <string name="library_tidy_project_unnamed">Untitled project</string>
+    <string name="library_tidy_apply_none">Apply</string>
+    <string name="library_tidy_applied_skipped">%1$s; %2$s</string>
+    <string name="library_memory_saved_by_tidy">Merged in a tidy-up you accepted</string>
+    <string name="library_memory_merged_from">Merged from %1$s</string>
+    <plurals name="library_tidy_apply">
+        <item quantity="one">Apply %1$d</item>
+        <item quantity="other">Apply %1$d</item>
+    </plurals>
+    <plurals name="library_tidy_none_body">
+        <item quantity="one">The helper model read %1$d note and found nothing to merge or forget.</item>
+        <item quantity="other">The helper model read %1$d notes and found nothing to merge or forget.</item>
+    </plurals>
+    <plurals name="library_tidy_left_out">
+        <item quantity="one">%1$d older note wasn\'t read: too much to send at once. Tidy up again after these changes.</item>
+        <item quantity="other">%1$d older notes weren\'t read: too much to send at once. Tidy up again after these changes.</item>
+    </plurals>
+    <plurals name="library_tidy_dropped">
+        <item quantity="one">%1$d suggestion was left out: it named notes that don\'t exist or mixed memories.</item>
+        <item quantity="other">%1$d suggestions were left out: they named notes that don\'t exist or mixed memories.</item>
+    </plurals>
+    <plurals name="library_tidy_applied">
+        <item quantity="one">Applied %1$d change</item>
+        <item quantity="other">Applied %1$d changes</item>
+    </plurals>
+    <plurals name="library_tidy_skipped">
+        <item quantity="one">%1$d skipped: its note changed meanwhile</item>
+        <item quantity="other">%1$d skipped: their notes changed meanwhile</item>
+    </plurals>
     <!-- Library → Skills → Prompts (docs/design/saved-prompts.md). Keep / and + as they are. -->
     <string name="library_prompts_label">Prompts</string>
     <string name="library_prompts_note">Text you send often. Type / in an empty composer, or tap + → Insert a prompt, to put one in the box for you to check and send.</string>

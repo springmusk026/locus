@@ -166,6 +166,8 @@ class TestGraph(
     val usage = UsageLog(database.usageEventDao)
     val helper = HelperModel(access, settingsRepository, usage, database.conversationDao, database.projectDao)
     val reviewer = ReviewerModel(access, helper, usage)
+    /** Library → Memory → Tidy up (docs/design/memory-approval.md). */
+    val memoryTidy = dev.locus.core.data.repository.MemoryTidyRepository(home, helper, settingsRepository, access, database.projectDao, library, io)
     /** WorkManager for tasks, in memory. */
     val taskWork = FakeTaskWork()
     val tasks = TaskRepository(database.scheduledTaskDao, database.triggerEventDao, taskWork, secrets)

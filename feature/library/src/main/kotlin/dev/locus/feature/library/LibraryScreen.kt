@@ -194,6 +194,8 @@ private fun MemoryTab(library: Library, viewModel: LibraryViewModel, modifier: M
     } else {
         LazyColumn(modifier.fillMaxSize(), contentPadding = listPadding) {
             item { SectionNote(stringResource(R.string.library_memory_intro)) }
+            // Never on its own: one helper-model request when tapped, then a review (docs/design/memory-approval.md).
+            item(key = "tidy") { MemoryTidyEntry() }
             if (library.projectMemory.isNotEmpty()) item { SectionLabel(stringResource(R.string.library_memory_general_label)) }
             item {
                 if (library.memory.isEmpty()) {
@@ -316,6 +318,7 @@ private fun MemoryOrigin(origin: MemoryOriginView, onOpenChat: (String) -> Unit)
         if (origin.chatGone) {
             SupportingText(stringResource(R.string.library_memory_chat_deleted))
         }
+        origin.mergedFrom?.let { SupportingText(stringResource(R.string.library_memory_merged_from, it)) }
         origin.warning?.let { Text(it, style = LocusType.supporting, color = Locus.colors.onCautionContainer) }
     }
 }
