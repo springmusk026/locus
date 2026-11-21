@@ -683,6 +683,10 @@ private fun ConversationRowItem(row: ConversationRow, actions: RowActions, showM
                     row.needsApproval -> StatusLine(stringResource(R.string.chat_home_needs_your_approval), Tone.Caution)
                     row.running -> StatusLine(stringResource(R.string.chat_home_working_status), Tone.Live)
                     row.interrupted -> StatusLine(stringResource(R.string.chat_home_stopped_early), Tone.Caution)
+                    row.imported != null -> SupportingText(
+                        stringResource(R.string.chat_imported_row_meta, row.imported!!.displayName, relativeTime(row.conversation.updatedAt)),
+                        maxLines = 1,
+                    )
                     else -> SupportingText(
                         listOf(relativeTime(row.conversation.updatedAt), if (row.isScheduledRun) stringResource(R.string.chat_home_scheduled_task) else row.providerName)
                             .filter { it.isNotBlank() }.joinToString(" · "),

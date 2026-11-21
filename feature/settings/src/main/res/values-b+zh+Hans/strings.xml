@@ -32,7 +32,7 @@
     <string name="settings_hub_logins_summary">Locus 可代你登录的网站</string>
     <string name="settings_hub_section_data">数据</string>
     <string name="settings_hub_backup_title">备份与恢复</string>
-    <string name="settings_hub_backup_summary">由你保管的加密文件</string>
+    <string name="settings_hub_backup_summary">加密备份；导入 ChatGPT 和 Claude 对话</string>
     <string name="settings_hub_language_title">语言</string>
     <string name="settings_hub_about_title">关于与隐私</string>
     <string name="settings_hub_about_summary">哪些数据会离开这部手机，以及初始设置</string>
@@ -1217,5 +1217,80 @@
     <string name="settings_lock_note">锁定会隐藏 Locus 在此手机上显示的内容：对话、文件、设置，以及锁屏上通知的详情。锁定期间，你设置的任务、定时运行和自动化会继续运行。若要在 Locus 打开时也隐藏某个对话，请在它的菜单中使用“锁定此对话”。</string>
     <plurals name="settings_lock_locked_chats">
         <item quantity="other">已锁定 %1$d 个对话。可在对话菜单中解锁。</item>
+    </plurals>
+    <!-- Import chats from ChatGPT or Claude (docs/design/import-chats.md) -->
+    <string name="settings_import_section">来自其他应用的对话</string>
+    <string name="settings_import_title">从 ChatGPT 或 Claude 导入</string>
+    <string name="settings_import_subtitle">将其数据导出文件（.zip）导入为只读对话</string>
+    <string name="settings_import_ok">好</string>
+    <string name="settings_import_note">文件在这部手机上读取，不会上传任何内容。只导入对话的文字；文件和图片仅列出名称。导入的对话不能继续，但新对话可以读取它们。</string>
+    <string name="settings_import_outcome_nothing">没有新内容可导入：这些对话已经在这里了。</string>
+    <string name="settings_import_untitled">导入的对话</string>
+    <string name="settings_import_attached">附件：%1$s</string>
+    <string name="settings_import_not_imported_line">（未导入：%1$s）</string>
+    <string name="settings_import_reading_title">正在读取导出文件</string>
+    <string name="settings_import_reading_subtitle">在你选择之前不会导入任何内容。</string>
+    <string name="settings_import_choose_another">选择其他文件</string>
+    <string name="settings_import_importing_title">正在导入对话</string>
+    <string name="settings_import_importing_subtitle">请停留在此页面直到完成。如果取消，已导入的对话会保留。</string>
+    <string name="settings_import_importing_amount">%1$s / %2$s 个对话</string>
+    <string name="settings_import_cancel">取消</string>
+    <string name="settings_import_preview_title">导入对话</string>
+    <string name="settings_import_truncated">文件提前结束或部分损坏。该位置之前的对话仍可导入。</string>
+    <string name="settings_import_none_found">此导出文件中没有含文字的对话</string>
+    <string name="settings_import_skipped_subtitle">不是 Locus 能读取的对话</string>
+    <string name="settings_import_already_subtitle">之前已导入且之后没有变化：将跳过</string>
+    <string name="settings_import_files_left_subtitle">只导入文字；它们的名称会保留在对话中</string>
+    <string name="settings_import_which">选择对话</string>
+    <string name="settings_import_which_all">全部</string>
+    <string name="settings_import_which_years">按年份</string>
+    <string name="settings_import_year_chip">%1$s · %2$s</string>
+    <string name="settings_import_action_nothing">没有新内容可导入</string>
+    <string name="settings_import_read_only_note">导入的对话是只读的。它们会以原始日期出现在对话列表中，也能被搜索到。</string>
+    <string name="settings_import_years">%1$s 至 %2$s</string>
+    <string name="settings_import_problem_not_export_title">这不是 ChatGPT 或 Claude 的导出文件</string>
+    <string name="settings_import_problem_not_export_text">请选择 ChatGPT 或 Claude 通过邮件发送的链接中的 .zip 文件，或其中的 conversations.json。</string>
+    <string name="settings_import_problem_no_chats_title">此文件中没有对话</string>
+    <string name="settings_import_problem_no_chats_text">这是导出的一部分，但不是包含对话的那部分。ChatGPT 分卷下载请选择第一部分；Claude 请选择 conversations 压缩包。</string>
+    <string name="settings_import_problem_unreadable_title">无法读取此文件</string>
+    <string name="settings_import_problem_unreadable_text">文件可能已损坏或仍在下载。请重新下载导出文件后再选择。</string>
+    <plurals name="settings_import_outcome_cancelled">
+        <item quantity="other">已停止。取消前已导入 %1$s 个对话。</item>
+    </plurals>
+    <plurals name="settings_import_outcome_imported">
+        <item quantity="other">已导入 %1$s 个对话。它们在对话列表中，只读。</item>
+    </plurals>
+    <plurals name="settings_import_outcome_updated">
+        <item quantity="other">已更新 %1$s 个</item>
+    </plurals>
+    <plurals name="settings_import_outcome_failed">
+        <item quantity="other">%1$s 个无法保存</item>
+    </plurals>
+    <plurals name="settings_import_images">
+        <item quantity="other">%1$d 张图片</item>
+    </plurals>
+    <plurals name="settings_import_reading_found">
+        <item quantity="other">目前已找到 %1$s 个对话</item>
+    </plurals>
+    <plurals name="settings_import_found">
+        <item quantity="other">%1$s 个 %2$s 对话</item>
+    </plurals>
+    <plurals name="settings_import_skipped">
+        <item quantity="other">跳过 %1$s 个：无法读取</item>
+    </plurals>
+    <plurals name="settings_import_empty">
+        <item quantity="other">已略过 %1$s 个空对话</item>
+    </plurals>
+    <plurals name="settings_import_already">
+        <item quantity="other">%1$s 个已在 Locus 中</item>
+    </plurals>
+    <plurals name="settings_import_files_left">
+        <item quantity="other">%1$s 个文件和图片未导入</item>
+    </plurals>
+    <plurals name="settings_import_updated_note">
+        <item quantity="other">有 %1$s 个对话在导入后发生了变化：将用较新的副本替换。</item>
+    </plurals>
+    <plurals name="settings_import_action">
+        <item quantity="other">导入 %1$s 个对话</item>
     </plurals>
 </resources>

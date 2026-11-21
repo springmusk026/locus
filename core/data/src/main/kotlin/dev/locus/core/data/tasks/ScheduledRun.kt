@@ -107,6 +107,9 @@ class ScheduledRun @Inject constructor(
     /** Runs between the first look at the marker and the claim; tests park two starts here to race them. */
     internal var beforeClaim: suspend () -> Unit = {}
 
+    /** Runs right after the claim, won or lost; tests hold the winner here until the other start has tried too. */
+    internal var afterClaim: suspend () -> Unit = {}
+
     enum class Result { DONE, FAILED, SKIPPED }
 
     /**
@@ -147,7 +150,9 @@ class ScheduledRun @Inject constructor(
         // The claim is what decides: of two workers that both saw the task free (the schedule and Run now
         // starting together), one gets it and the other leaves.
         beforeClaim()
-        val claim = tasks.claim(taskId, workId, clock()) ?: run {
+        val claimed = tasks.claim(taskId, workId, clock())
+        afterClaim()
+        val claim = claimed ?: run {
             eventId?.let { tasks.recordEventSkipped(it, TriggerDecision.BUSY, "Another run of this task was still going.") }
             return Result.SKIPPED
         }

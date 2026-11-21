@@ -494,6 +494,8 @@ class AgentRunner @Inject constructor(
      */
     fun send(conversationId: String, text: String, attachments: List<Part.Attachment> = emptyList()) {
         if (text.isBlank() && attachments.isEmpty()) return
+        // A read-only imported archive takes no messages, not even queued ones (see [startRun]).
+        if (dev.locus.core.model.ImportedChats.isImported(conversationId)) return
         if (jobs.containsKey(conversationId)) {
             queueBehindRun(conversationId) { queue.add(conversationId, text.trim(), attachments) }
             return
@@ -542,6 +544,17 @@ class AgentRunner @Inject constructor(
                 modeNote = ModeNote.PLAN_MODE.takeIf { planMode },
                 extraNotes = listOfNotNull(takeUndoNote(conversationId), rendered.note) + extraNotes,
             )
+            // A workflow that carries its own budget (the research workflow) runs with it instead of the chat's.
+            rendered.plan.budget?.let { own ->
+                val budget = newBudget(conversationId, own)
+                if (budget != null) {
+                    budgets[conversationId] = budget
+                } else {
+                    // The user chose no budget for this run: not even the chat's own applies.
+                    budgets.remove(conversationId)
+                    update(conversationId) { it.copy(budget = null) }
+                }
+            }
             run(conversationId)
         }
     }
@@ -978,6 +991,31 @@ class AgentRunner @Inject constructor(
     }
 
     /**
+     * Tells the user a research run ended while Locus wasn't on screen: a notification that opens the chat.
+     * Not after Stop (they were there to tap it); scheduled runs have their own notification (TaskWorker).
+     * Replaced in tests.
+     */
+    internal var onResearchFinished: (conversationId: String, title: String, text: String) -> Unit = { id, title, text ->
+        val visible = runCatching {
+            androidx.lifecycle.ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
+        }.getOrDefault(true)
+        if (!visible) AgentService.postRunFinished(context, id, title, text)
+    }
+
+    private suspend fun notifyIfResearch(conversationId: String, end: TaskEnd) {
+        if (end.outcome == dev.locus.core.model.TaskOutcome.STOPPED) return
+        val plan = dev.locus.core.agent.workflow.WorkflowRender.active(conversations.history(conversationId)) ?: return
+        if (plan.id != dev.locus.core.agent.workflow.ResearchWorkflow.ID) return
+        // Notification lines stay English, like the other agent notifications (docs/design/localization.md, "Still English").
+        val title = when (end.outcome) {
+            dev.locus.core.model.TaskOutcome.DONE -> "Research finished"
+            dev.locus.core.model.TaskOutcome.BUDGET -> "Research stopped at its budget"
+            else -> "Research didn't finish"
+        }
+        onResearchFinished(conversationId, title, plan.goal.lineSequence().first().take(160))
+    }
+
+    /**
      * False when the chat already has a turn going, or when Locus started it on its own ([auto]: a
      * helper's report, a queued message) and Android refused the foreground service (nothing started).
      */
@@ -987,6 +1025,9 @@ class AgentRunner @Inject constructor(
     /** As [start], returning the new run's id (for [awaitRun]) instead; null when nothing started. */
     private fun startRun(conversationId: String, auto: BackgroundStart? = null, task: Boolean = true, block: suspend () -> Unit): String? {
         if (jobs.containsKey(conversationId)) return null
+        // An imported chat is a read-only archive (docs/design/import-chats.md): nothing ever runs in it, so
+        // its messages never become a provider request. Its screen offers no way to send; this is the backstop.
+        if (dev.locus.core.model.ImportedChats.isImported(conversationId)) return null
         val record = RunRecord(UUID.randomUUID().toString())
         // Created lazily and started only once it holds the chat's slot, so a caller that loses the race
         // runs nothing and changes nothing.
@@ -1037,6 +1078,8 @@ class AgentRunner @Inject constructor(
                 // took the chat meanwhile: its state is its own. Emitted after the slot is free, so
                 // AgentService sees the run gone and can stop.
                 updateIfIdle(conversationId) { st -> st.copy(running = false, streamingText = "", progress = "", reasoning = "", thinkingSince = null, thoughtMs = null, activeTool = null, approvals = st.approvals.filter { it.origin != null }, budgetPause = null) }
+                // A research run that finished while Locus was in the background says so (docs/design/deep-research.md).
+                scope.launch { notifyIfResearch(conversationId, end) }
                 // A helper that finished just as this turn ended.
                 scope.launch { continueWithHelperReports(conversationId) }
                 // Sent just as the turn was ending (after its last check): start the next turn with it.
@@ -1159,14 +1202,14 @@ class AgentRunner @Inject constructor(
     }
 
     /**
-     * The budget for a new task in [conversationId]: the chat's own, else the default from Settings.
-     * Null when it's off. Prices come from the models.dev catalogue when the user turned it on; the
+     * The budget for a new task in [conversationId]: [own] (a workflow's, docs/design/deep-research.md),
+     * else the chat's own, else the default from Settings. Null when it's off. Prices come from the models.dev catalogue when the user turned it on; the
      * cost limit applies only when the chat model's prices are known.
      */
-    private suspend fun newBudget(conversationId: String): RunBudget? {
+    private suspend fun newBudget(conversationId: String, own: dev.locus.core.model.TaskBudget? = null): RunBudget? {
         val conversation = conversations.get(conversationId) ?: return null
         val current = settings.current()
-        val limits = dev.locus.core.model.TaskBudget.effective(current.taskBudget, conversation.disabledTools)
+        val limits = own ?: dev.locus.core.model.TaskBudget.effective(current.taskBudget, conversation.disabledTools)
         if (limits.isOff) return null
         val catalog = if (current.modelCatalog) directory.index() else null
         fun price(providerId: String?, model: String?): dev.locus.core.model.ModelPrice? {
@@ -1373,6 +1416,8 @@ class AgentRunner @Inject constructor(
         // allOnce() lists the user's chats only; hidden helper chats were handled above.
         for (conversation in conversations.allOnce()) {
             if (jobs.containsKey(conversation.id)) continue
+            // Imported archives never ran here, so there's nothing to recover (and thousands of them shouldn't slow startup).
+            if (dev.locus.core.model.ImportedChats.isImported(conversation.id)) continue
             val history = conversations.history(conversation.id)
             // A parent cut off mid agent_spawn or agent_send: say which helper it was, so the agent can pick up from there.
             val helperTools = setOf(dev.locus.core.model.SubagentTools.SPAWN, dev.locus.core.model.SubagentTools.SEND)
@@ -1421,8 +1466,9 @@ class AgentRunner @Inject constructor(
             var failure: Throwable? = null
             // A scheduled workflow's plan rides on the message as a note, as in a chat (docs/design/workflows.md).
             conversations.appendUserMessage(conversationId, text.trim(), extraNotes = notes)
-            // A scheduled run has the chat's budget too; with nobody to ask, reaching it stops the run.
-            newBudget(conversationId)?.let { budgets[conversationId] = it }
+            // A scheduled run has the chat's budget too (or its workflow's own); with nobody to ask, reaching it stops the run.
+            val planBudget = notes.firstNotNullOfOrNull { dev.locus.core.agent.workflow.WorkflowRender.planInNote(it) }?.budget
+            newBudget(conversationId, planBudget)?.let { budgets[conversationId] = it }
             try {
                 run(conversationId, background = true)
             } catch (e: Throwable) {
@@ -1541,6 +1587,8 @@ class AgentRunner @Inject constructor(
                 // view_image says so instead of showing images to a model that can't see them (docs/design/view-image.md).
                 vision = if (provider.format == ApiFormat.ON_DEVICE) dev.locus.core.llm.Support.NO else directory.capabilities(provider, provider.model).vision,
                 budget = budgets[conversationId],
+                // A workflow that asks for it (the research report) finishes from what it has when the budget stops it.
+                budgetWrapUp = workflowPlan?.wrapUp?.ifBlank { null },
                 // Hosts the user set up, and hosts they typed in this chat's browser address bar, count as named
                 // by them once the run is tainted (docs/design/taint.md).
                 trustedHosts = { tools.userHosts(settings.current()) + tools.addressBarHosts(conversationId) },

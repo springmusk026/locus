@@ -121,6 +121,23 @@ class HomeScreenshots : ScreenshotTest() {
         )
     }
 
+    /** Chats imported from ChatGPT and Claude among the user's own (docs/design/import-chats.md): the source's badge and label, original dates. */
+    @Test
+    fun homeImported() = snap("home-imported", heightDp = 1500) {
+        fun imported(source: dev.locus.core.model.ChatImportSource, id: String, title: String, ago: Long) = ConversationRow(
+            Conversation(dev.locus.core.model.ImportedChats.chatId(source, id), title, null, "", now - ago - hour, now - ago),
+            running = false, needsApproval = false, providerName = source.displayName, model = importedLogoHint(source),
+        )
+        Home(
+            ready.copy(
+                rows = rows.drop(2).take(3) + listOf(
+                    imported(dev.locus.core.model.ChatImportSource.CHATGPT, "6789abcd", "Trip to Kyoto", 40 * day),
+                    imported(dev.locus.core.model.ChatImportSource.CLAUDE, "c0ffee00", "Sourdough schedule", 260 * day),
+                ),
+            ),
+        )
+    }
+
     /** No chat featured, one locked chat waiting: counted, never named. */
     @Test
     fun homeWaitingLocked() = snap("home-waiting-locked") {

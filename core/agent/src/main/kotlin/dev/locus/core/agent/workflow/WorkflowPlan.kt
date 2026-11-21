@@ -37,6 +37,17 @@ data class WorkflowPlan(
     @SerialName("expected_output") val expectedOutput: String = "",
     /** The project a scheduled run of a project's workflow starts its chat in; null for a shared one or a run in a chat. */
     val project: String? = null,
+    /**
+     * The task budget this run starts with, instead of the chat's own or the default from Settings; null
+     * keeps those. Set by the built-in research workflow ([ResearchWorkflow]); left out of the JSON when
+     * null, so other plans read back byte for byte as before.
+     */
+    @SerialName("task_budget") val budget: dev.locus.core.model.TaskBudget? = null,
+    /**
+     * What to tell the agent when the task's budget stops it: it then gets a few more steps to finish from
+     * what it has ([dev.locus.core.agent.AgentConfig.budgetWrapUp]). Blank: the budget stops it outright.
+     */
+    @SerialName("on_budget_reached") val wrapUp: String = "",
 )
 
 /** What a run sends: [text] is the user's visible message, [note] the plan for the model. */

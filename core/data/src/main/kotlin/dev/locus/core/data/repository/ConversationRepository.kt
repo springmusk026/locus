@@ -157,7 +157,9 @@ class ConversationRepository @Inject constructor(
         val chosenModel = if (useProjectModel) project?.model else null
         // A few recent titles, so "our last chat" makes sense; frozen like the rest of the prompt.
         // A project-only chat sees only its project's chats.
-        val recentPool = allOnce().filter { it.title != "New chat" }
+        // Imported chats (ChatGPT, Claude) are left out: their titles were written outside Locus, and the
+        // prompt is trusted text. The agent still finds them with chat_history_search, marked as outside content.
+        val recentPool = allOnce().filter { it.title != "New chat" && !dev.locus.core.model.ImportedChats.isImported(it.id) }
             .filter { project == null || project.memoryScope != dev.locus.core.model.MemoryScope.PROJECT_ONLY || it.projectId == project.id }
         // A temporary chat doesn't see the user's other chats (docs/design/temporary-chats.md).
         val recent = if (temporary) "" else recentPool.take(8).joinToString("\n") { c ->
@@ -240,6 +242,9 @@ class ConversationRepository @Inject constructor(
      * Returns null when [upTo] isn't on the active branch.
      */
     suspend fun fork(conversationId: String, upTo: String, inclusive: Boolean): Conversation? {
+        // An imported archive can't be forked: the copy would be a Locus chat whose next turn sends another
+        // assistant's messages to a provider (docs/design/import-chats.md). "Continue in Locus" reads it instead.
+        if (dev.locus.core.model.ImportedChats.isImported(conversationId)) return null
         val source = conversations.get(conversationId) ?: return null
         val path = history(conversationId)
         if (path.none { it.id == upTo }) return null
@@ -362,6 +367,16 @@ class ConversationRepository @Inject constructor(
      */
     suspend fun search(query: String, limit: Int = ChatSearch.DEFAULT_LIMIT, snippetTokens: Int = ChatSearch.SNIPPET_TOKENS): List<ChatSearchHit> =
         chatSearch.search(query, limit, snippetTokens)
+
+    // ---- Imported chats (docs/design/import-chats.md) -------------------------------------------------
+
+    /** Imported chats already here: id to (last update, pinned). */
+    internal suspend fun importedStamps(): Map<String, dev.locus.core.database.ImportedStamp> = conversations.importedStamps().associateBy { it.id }
+
+    /** Writes one imported chat and its messages in one transaction (replacing an older copy when [replacing]). */
+    internal suspend fun saveImported(conversation: ConversationEntity, messages: List<MessageEntity>, replacing: Boolean) = writes.withLock {
+        this.messages.saveImportedChat(conversation, messages, replacing)
+    }
 
     /** Adds [message] at the end of the active branch and makes it the leaf. */
     override suspend fun append(message: Message) = writes.withLock {

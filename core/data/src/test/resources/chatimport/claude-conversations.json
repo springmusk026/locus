@@ -1,0 +1,68 @@
+[
+  {
+    "uuid": "c0ffee00-0000-4000-8000-00000000000a",
+    "name": "Sourdough schedule",
+    "summary": "",
+    "created_at": "2025-03-04T08:00:00.123456Z",
+    "updated_at": "2025-03-04T09:30:00.000000+00:00",
+    "account": { "uuid": "acct-1" },
+    "chat_messages": [
+      {
+        "uuid": "m1",
+        "parent_message_uuid": "00000000-0000-4000-8000-000000000000",
+        "sender": "human",
+        "text": "",
+        "content": [
+          { "type": "text", "text": "Plan a sourdough bake for Saturday. Ünïcode ✓", "start_timestamp": "2025-03-04T08:00:01Z" }
+        ],
+        "created_at": "2025-03-04T08:00:01.000000Z",
+        "attachments": [ { "file_name": "starter-notes.txt", "file_size": 120, "file_type": "txt", "extracted_content": "Starter fed at 9pm." } ],
+        "files": [ { "file_name": "kitchen.jpg", "file_uuid": "f-1" } ]
+      },
+      {
+        "uuid": "m2",
+        "parent_message_uuid": "m1",
+        "sender": "assistant",
+        "text": "ignored when content has text",
+        "content": [
+          { "type": "thinking", "thinking": "Let me count hours.", "summaries": [ { "summary": "Counting" } ] },
+          { "type": "tool_use", "id": "t1", "name": "web_search", "input": { "query": "bulk ferment" } },
+          { "type": "tool_result", "tool_use_id": "t1", "name": "web_search", "content": [ { "type": "text", "text": "4-6 hours" } ] },
+          { "type": "text", "text": "Mix Friday 8pm, shape Saturday 7am." },
+          { "type": "hologram", "data": 1 }
+        ],
+        "created_at": "2025-03-04T08:00:30.000000Z",
+        "attachments": [],
+        "files": []
+      },
+      {
+        "uuid": "m3",
+        "parent_message_uuid": "m1",
+        "sender": "assistant",
+        "text": "",
+        "content": [ { "type": "text", "text": "Retry: mix Friday 9pm instead." } ],
+        "created_at": "2025-03-04T09:00:00.000000Z",
+        "attachments": [],
+        "files": []
+      }
+    ]
+  },
+  {
+    "uuid": "c0ffee00-0000-4000-8000-00000000000b",
+    "name": "",
+    "created_at": "2024-01-10T10:00:00Z",
+    "updated_at": "2024-01-10T10:05:00Z",
+    "chat_messages": [
+      { "uuid": "b2", "sender": "assistant", "text": "Second, but listed first.", "created_at": "2024-01-10T10:01:00Z", "attachments": [], "files": [] },
+      { "uuid": "b1", "sender": "human", "text": "First question", "created_at": "2024-01-10T10:00:00Z", "attachments": [], "files": [] },
+      { "uuid": "b3", "sender": "system", "text": "odd sender", "created_at": "2024-01-10T10:02:00Z" }
+    ]
+  },
+  {
+    "uuid": "c0ffee00-0000-4000-8000-00000000000c",
+    "name": "Nothing here",
+    "created_at": "2024-02-01T00:00:00Z",
+    "updated_at": "2024-02-01T00:00:00Z",
+    "chat_messages": []
+  }
+]

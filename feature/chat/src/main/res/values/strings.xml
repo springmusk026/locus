@@ -1362,6 +1362,14 @@
     <string name="chat_composer_slash_none_title">Saved prompts</string>
     <string name="chat_composer_slash_none_body">None yet. Make one here, then type / to insert it.</string>
     <string name="chat_prompt_save_failed">Couldn\'t save the prompt. Try again.</string>
+
+    <!-- Imported chats (docs/design/import-chats.md) -->
+    <string name="chat_imported_row_meta">Imported from %1$s · %2$s</string>
+    <string name="chat_imported_marker">Imported from %1$s</string>
+    <string name="chat_imported_title">Read-only archive</string>
+    <string name="chat_imported_body">Imported from %1$s; it started on %2$s. It can\'t be continued here, but a new chat can read it.</string>
+    <string name="chat_imported_continue">Continue in Locus</string>
+    <string name="chat_imported_continue_draft">Continue from my chat “%1$s”, imported from %2$s (id %3$s): read it with chat_history_read first.</string>
     <!-- The "questions waiting" banner on home and in a chat: other chats waiting for the user. -->
     <plurals name="chat_waiting_title">
         <item quantity="one">%1$d chat is waiting for you</item>
