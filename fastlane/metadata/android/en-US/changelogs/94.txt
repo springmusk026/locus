@@ -1,0 +1,7 @@
+- Español, Português (Brasil) and 简体中文
+- Settings → Language: pick Locus's own language
+- Long chats no longer lag or run out of memory
+- Much faster SSH file transfers; whole folders
+- The agent can look at images in its workspace
+- Long chats resumed after a day send fewer tokens
+- Secret fields block screenshots

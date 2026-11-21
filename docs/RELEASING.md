@@ -18,6 +18,8 @@ Every build reads it from there: local builds, the GitHub release workflow and F
 | 0.1.4 | `v0.1.4` | 5 (APKs 53, 54) | 0.1.4 |
 | 0.1.5 | `v0.1.5` | 6 (APKs 63, 64) | 0.1.5 |
 | 0.1.6 | `v0.1.6` | 7 (APKs 73, 74) | 0.1.6 |
+| 0.1.7 | `v0.1.7` | 8 (APKs 83, 84) | 0.1.7 |
+| 0.2.0 | `v0.2.0` | 9 (APKs 93, 94) | 0.2.0 |
 
 (0.1.0 and 0.1.1 were stamped by CI from the tag; their tagged source still says `1` / `"0.1.0"`. 0.1.2 is the first release whose tag carries its own version, so it's the first one F-Droid can build.)
 
