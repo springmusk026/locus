@@ -672,4 +672,6 @@
     <string name="designsystem_check_check_failed">Check failed</string>
     <string name="designsystem_check_check_timed_out">Check timed out</string>
     <string name="designsystem_check_check_finished">Check finished</string>
+    <string name="designsystem_tool_project_rule_past">Ran project rule “%1$s”</string>
+    <string name="designsystem_tool_project_rule_present">Run project rule “%1$s”</string>
 </resources>

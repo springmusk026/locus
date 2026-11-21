@@ -104,6 +104,8 @@ fun toolLabelText(name: String, argumentsJson: String, done: Boolean = true): To
         "ask_user" -> say(ToolPhrase.ASK_USER, arg("question").take(80))
         // Not a tool: Locus's own Activity entry for a task's budget (see TASK_BUDGET_ENTRY).
         TASK_BUDGET_ENTRY -> say(if (opt("event") == "paused") ToolPhrase.TASK_BUDGET_PAUSED else ToolPhrase.TASK_BUDGET)
+        // Not a tool either: a project rule's run (docs/design/rules.md, ProjectRules.ENTRY).
+        ProjectRules.ENTRY -> say(ToolPhrase.PROJECT_RULE, arg("rule"))
         "run_command" -> say(ToolPhrase.RUN_COMMAND, firstLine(arg("command"), 60))
         "memory_save" -> say(ToolPhrase.REMEMBER, arg("topic"))
         "memory_read" -> say(ToolPhrase.RECALL, arg("topic"))
@@ -243,7 +245,7 @@ fun toolActivityOf(name: String): ToolActivity = when {
     name == "weather" -> ToolActivity.CHECKING_WEATHER
     name == "wikipedia" -> ToolActivity.WIKIPEDIA
     name.startsWith("browser_") -> ToolActivity.BROWSING
-    name == "run_command" || name.startsWith("linux_") -> ToolActivity.RUNNING_COMMAND
+    name == "run_command" || name.startsWith("linux_") || name == ProjectRules.ENTRY -> ToolActivity.RUNNING_COMMAND
     name == "git_inspect" -> ToolActivity.CHECKING_CHANGES
     name == "git_commit" -> ToolActivity.COMMITTING
     name == "search_files" || name == "find_files" -> ToolActivity.SEARCHING_FILES

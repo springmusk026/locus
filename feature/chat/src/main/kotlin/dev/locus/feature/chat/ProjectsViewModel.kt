@@ -109,6 +109,9 @@ data class ProjectEditorState(
     val remoteSheet: RemoteSheetStep? = null,
     /** A new project is being saved so a machine can be chosen for it (its folder must exist to be copied). */
     val savingForRemote: Boolean = false,
+    /** The project's rules (docs/design/rules.md): how many, and how many are suspended. */
+    val rulesCount: Int = 0,
+    val rulesSuspended: Int = 0,
 ) {
     val isNew: Boolean get() = project == null
 }
@@ -168,6 +171,8 @@ class ProjectEditorViewModel @AssistedInject constructor(
                     st.copy(
                         remoteAlias = linked?.let { r -> s.sshHosts.firstOrNull { it.id == r.hostId }?.alias?.let(UiText::Plain) ?: UiText.Res(R.string.chat_remote_removed_machine) },
                         remoteFolder = linked?.folder,
+                        rulesCount = current?.let { s.projectRules[it]?.size } ?: 0,
+                        rulesSuspended = current?.let { s.projectRules[it]?.count { r -> r.suspended } } ?: 0,
                         remoteHosts = s.sshHosts.filter { it.fingerprint.isNotBlank() }.map { RemoteHostRow(it.id, it.alias, "${it.user}@${it.host}:${it.port}") },
                     )
                 }

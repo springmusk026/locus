@@ -94,6 +94,7 @@ enum class ToolPhrase(val past: String, val present: String, val pastOne: String
     ASK_USER("Asked you: “%1\$s”", "Ask you: “%1\$s”"),
     TASK_BUDGET_PAUSED("Paused at the task budget", "Paused at the task budget"),
     TASK_BUDGET("Task budget", "Task budget"),
+    PROJECT_RULE("Ran project rule “%1\$s”", "Run project rule “%1\$s”"),
     RUN_COMMAND("Ran `%1\$s`", "Run `%1\$s`"),
     REMEMBER("Remembered “%1\$s”", "Remember “%1\$s”"),
     RECALL("Recalled “%1\$s”", "Recall “%1\$s”"),

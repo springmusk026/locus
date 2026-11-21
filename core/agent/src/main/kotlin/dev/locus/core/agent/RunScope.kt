@@ -37,6 +37,8 @@ class RunScope(
     val project: ChatScopeSpec? = null,
     /** Hosts the user set up in Locus, trusted like hosts they typed once the run is tainted. */
     val trustedHosts: (suspend () -> Set<String>)? = null,
+    /** The project's rules (docs/design/rules.md): commands they block, and commands they run after edits. */
+    val rules: ProjectRuleHooks? = null,
 ) {
     /**
      * This scope held to [other] as well: the stricter answer of the two for every check. Read-only if
@@ -65,12 +67,13 @@ class RunScope(
                 other.trustedHosts == null -> trustedHosts
                 else -> ({ trustedHosts.invoke() intersect other.trustedHosts.invoke() })
             },
+            rules = rules ?: other.rules,
         )
     }
 
     /** The same scope with the taint and skills the run has now. */
     fun with(taint: TaintSeed?, skills: SkillSeed?, readOnly: Boolean = this.readOnly) =
-        RunScope(readOnly, restrict, escalate, taint, skills, project, trustedHosts)
+        RunScope(readOnly, restrict, escalate, taint, skills, project, trustedHosts, rules)
 
     private companion object {
         /** Refusals: the first reason given. */

@@ -76,3 +76,6 @@ import kotlinx.serialization.Serializable
 
 /** Create a project ([projectId] null) or edit one. */
 @Serializable data class ProjectEditRoute(val projectId: String? = null) : NavKey
+
+/** A project's rules (docs/design/rules.md). */
+@Serializable data class ProjectRulesRoute(val projectId: String) : NavKey

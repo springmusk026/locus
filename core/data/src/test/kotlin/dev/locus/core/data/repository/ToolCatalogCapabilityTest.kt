@@ -54,4 +54,30 @@ class ToolCatalogCapabilityTest {
         // And the map names no tool that doesn't exist (a renamed tool would otherwise fall back to OUTWARD silently).
         assertEquals(emptyList(), ToolCapability.BY_TOOL.keys.filterNot { it in names }, "classified tools that aren't registered")
     }
+
+    /** Project rules are the user's alone (docs/design/rules.md): no tool lists, writes or even names them. */
+    @Test
+    fun `no tool can see, create, change or delete project rules`() {
+        val dir: File = Files.createTempDirectory("catalog").toFile()
+        val tools = ToolCatalog.allTools(
+            workspace = Workspace(File(dir, "workspace"), File(dir, "trash")),
+            http = HttpClient(OkHttp),
+            browser = blank(),
+            linux = blank(),
+            home = AgentHome(File(dir, "home")),
+            secrets = SecretResolver { null },
+            mcp = blank(),
+            ssh = blank(),
+            settings = blank(),
+            context = blank<ContextWrapper>(),
+            scripts = blank(),
+            conversations = blank(),
+            asker = dev.locus.core.agent.tools.QuestionDesk(),
+            subagents = { error("not started in this test") },
+        )
+        val specs = dev.locus.core.agent.ToolRegistry(tools).deferring(emptySet(), null).all.map { it.spec }
+        assertTrue(specs.size > 90)
+        assertEquals(emptyList(), specs.filter { "rule" in it.name.lowercase() }.map { it.name })
+        assertEquals(emptyList(), specs.filter { "project rule" in it.description.lowercase() || "projectrules" in it.description.lowercase() }.map { it.name })
+    }
 }

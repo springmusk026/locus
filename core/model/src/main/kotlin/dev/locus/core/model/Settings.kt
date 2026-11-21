@@ -157,6 +157,12 @@ data class AppSettings(
      */
     val connectedFolders: List<ConnectedFolder> = emptyList(),
     /**
+     * Each project's rules (by project id; docs/design/rules.md): commands to run after an edit or before
+     * finishing, and commands to block. Only the UI writes them; sealed with the permissions, so a change
+     * made outside Locus suspends them ([PolicySeal.restricted]).
+     */
+    val projectRules: Map<String, List<ProjectRule>> = emptyMap(),
+    /**
      * HMAC of [toolPolicies], [projectPolicies] and the reviewer settings under a Keystore key ([PolicySeal]). Only the
      * settings store writes it; settings changed outside Locus fail the check and fall back to
      * [PolicySeal.restricted].

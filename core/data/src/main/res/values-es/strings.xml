@@ -192,4 +192,5 @@
         <item quantity="many">y %1$d más</item>
         <item quantity="other">y %1$d más</item>
     </plurals>
+    <string name="data_integrity_rules">Las reglas de proyecto se cambiaron fuera de Locus. Todas las reglas quedan suspendidas hasta que las revises en Reglas de su proyecto y las reanudes.</string>
 </resources>

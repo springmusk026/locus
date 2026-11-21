@@ -613,4 +613,6 @@
     <string name="designsystem_check_check_failed">检查失败</string>
     <string name="designsystem_check_check_timed_out">检查超时</string>
     <string name="designsystem_check_check_finished">检查已结束</string>
+    <string name="designsystem_tool_project_rule_past">运行了项目规则“%1$s”</string>
+    <string name="designsystem_tool_project_rule_present">运行项目规则“%1$s”</string>
 </resources>

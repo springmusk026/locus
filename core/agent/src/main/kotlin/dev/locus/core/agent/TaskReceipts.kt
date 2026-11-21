@@ -126,7 +126,7 @@ object TaskReceipts {
         }
 
         val chats = started.mapTo(HashSet()) { it.conversationId } + record.conversationId
-        val decisions = audit.filter { it.conversationId in chats && inTask(it.startedAt) && it.toolName != TASK_BUDGET_ENTRY }.map { it.decision }
+        val decisions = audit.filter { it.conversationId in chats && inTask(it.startedAt) && it.toolName != TASK_BUDGET_ENTRY && it.toolName != dev.locus.core.model.ProjectRules.ENTRY }.map { it.decision }
         val approvals = ReceiptApprovals(
             approved = decisions.count { it in ReceiptApprovals.APPROVED },
             declined = decisions.count { it in ReceiptApprovals.DECLINED },

@@ -308,6 +308,15 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>, appLock: AppLock) 
                             // Back past the deleted project's page too.
                             backStack.removeAll { it is ProjectEditRoute || (it as? ProjectRoute)?.projectId == key.projectId }
                         },
+                        onOpenRules = { id -> backStack.add(ProjectRulesRoute(id)) },
+                    )
+                }
+                entry<ProjectRulesRoute> { key ->
+                    dev.locus.feature.chat.ProjectRulesRoute(
+                        projectId = key.projectId,
+                        onBack = pop,
+                        // Linux is installed from Files → Linux (LINUX_INSTALL_PATH).
+                        onOpenLinux = { backStack.add(WorkspaceRoute()) },
                     )
                 }
                 // A locked chat asks for authentication first, however it was opened (docs/design/app-lock.md).
