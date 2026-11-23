@@ -32,6 +32,18 @@ class MarkdownScreenshots : ScreenshotTest() {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { Column(Modifier.padding(Spacing.lg)) { ArtifactCard(big) } }
     }
 
+    /** Where the screen can publish (docs/design/publish.md), the card's row gains Publish as a web page. */
+    @Test
+    fun artifactPublish() = snap("artifact-card-publish", heightDp = 500) {
+        val rows = (1..70_000).joinToString("") { "<tr><td>Order $it</td><td>€${it % 97}.50</td></tr>" }
+        val big = Artifact(ArtifactKind.Html, "<table>$rows</table>", title = "Orders 2025 (full export)")
+        androidx.compose.runtime.CompositionLocalProvider(
+            dev.locus.core.markdown.artifact.LocalArtifactHost provides dev.locus.core.markdown.artifact.ArtifactHost(saveToWorkspace = { n, _ -> n }, publish = {}),
+        ) {
+            Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { Column(Modifier.padding(Spacing.lg)) { ArtifactCard(big) } }
+        }
+    }
+
     @Test
     fun math() = snap("math-blocks", heightDp = 600) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { Column(

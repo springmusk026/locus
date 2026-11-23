@@ -74,11 +74,14 @@ import kotlinx.coroutines.withContext
 
 /**
  * What the screen around an artifact card can do with it. Null actions hide their buttons.
- * [saveToWorkspace] writes the source and returns its workspace path; [shareImage] shares a PNG.
+ * [saveToWorkspace] writes the source and returns its workspace path; [shareImage] shares a PNG;
+ * [publish] starts publishing it as a web page.
  */
 class ArtifactHost(
     val saveToWorkspace: (suspend (fileName: String, content: String) -> String)? = null,
     val shareImage: (suspend (fileName: String, png: ByteArray) -> Unit)? = null,
+    /** Publish to your own host (docs/design/publish.md): opens the screen's publish sheet for this artifact. */
+    val publish: ((Artifact) -> Unit)? = null,
 )
 
 val LocalArtifactHost = staticCompositionLocalOf { ArtifactHost() }
@@ -262,6 +265,8 @@ fun ArtifactCard(artifact: Artifact, modifier: Modifier = Modifier, canSave: Boo
                         }
                     }
                 }
+                val publish = host.publish
+                if (publish != null) ActionIcon(LocusIcons.Globe, stringResource(R.string.markdown_artifact_publish)) { publish(artifact) }
                 ActionIcon(LocusIcons.Code, stringResource(if (showSource) R.string.markdown_artifact_show_preview else R.string.markdown_artifact_view_source), selected = showSource) { showSource = !showSource }
                 SupportingText(
                     stringResource(R.string.markdown_artifact_sandboxed),
@@ -297,6 +302,7 @@ fun ArtifactCard(artifact: Artifact, modifier: Modifier = Modifier, canSave: Boo
             artifact = artifact,
             ownerId = fullId,
             live = full,
+            onPublish = host.publish?.let { p -> { p(artifact) } },
             events = events(full),
             background = background,
             backgroundCss = backgroundCss,
@@ -336,6 +342,7 @@ private fun FullScreenArtifact(
     background: Int,
     backgroundCss: String,
     onDismiss: () -> Unit,
+    onPublish: (() -> Unit)? = null,
 ) {
     val slot = ArtifactPreviews.slot
     var claimed by remember { mutableStateOf(false) }
@@ -354,6 +361,10 @@ private fun FullScreenArtifact(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
+                if (onPublish != null) {
+                    // Full screen closes first, so the publish sheet's own preview can take the live slot.
+                    IconButton(onClick = { onDismiss(); onPublish() }) { Icon(LocusIcons.Globe, contentDescription = stringResource(R.string.markdown_artifact_publish)) }
+                }
             }
             Box(Modifier.fillMaxWidth().weight(1f)) {
                 if (slot.owner == ownerId) {

@@ -251,11 +251,15 @@ fun ChatRoute(
     val artifactContext = androidx.compose.ui.platform.LocalContext.current
     // The chat screen's message host, made here so what the route sets up reports through it too.
     val feedbackState = rememberLocusFeedbackState()
-    // What an artifact card can do here: save its source into the workspace, share a picture of it.
-    val artifactHost = remember(viewModel, feedbackState) {
+    // Publish to your own host (docs/design/publish.md): an artifact from its card, the chat from Share chat.
+    val publishing: PublishViewModel = hiltViewModel(key = "publish-$conversationId")
+    val pageLabels = rememberPageLabels()
+    // What an artifact card can do here: save its source into the workspace, share a picture of it, publish it.
+    val artifactHost = remember(viewModel, feedbackState, publishing, pageLabels) {
         dev.locus.core.markdown.artifact.ArtifactHost(
             saveToWorkspace = viewModel::saveArtifact,
             shareImage = { name, png -> shareArtifactImage(artifactContext, name, png, feedbackState) },
+            publish = { artifact -> publishing.open(PublishSource.Page(conversationId, artifact), pageLabels) },
         )
     }
     // Voice mode (docs/design/voice-mode.md): over the chat, talking to this chat's agent.
@@ -288,7 +292,15 @@ fun ChatRoute(
     val waitingChats: WaitingChatsViewModel = hiltViewModel()
     val waitingEntries by waitingChats.entries.collectAsStateWithLifecycle()
     val waiting = remember(waitingEntries, conversationId) { waitingBanner(waitingEntries, exclude = setOf(conversationId)) }
+    val publishChat = remember(publishing, pageLabels) {
+        {
+            val chat = state
+            val date = chat.createdAt.takeIf { it > 0 }?.let { java.text.DateFormat.getDateInstance(java.text.DateFormat.LONG).format(java.util.Date(it)) }
+            publishing.open(PublishSource.Chat(conversationId, chat.title, date, chat.items), pageLabels)
+        }
+    }
     androidx.compose.runtime.CompositionLocalProvider(
+        LocalChatPublish provides publishChat,
         dev.locus.core.markdown.artifact.LocalArtifactHost provides artifactHost,
         LocalMemoryReads provides memoryReads,
         LocalProviderDrafts provides providerDrafts,
@@ -426,7 +438,56 @@ fun ChatRoute(
             onExit = { voiceOpen = false },
         )
     }
+    PublishSheetHost(publishing, chatLock, lockStatus, conversationId)
     }
+    }
+}
+
+/**
+ * The publish sheet while one is open. Publishing from a locked chat asks for authentication right
+ * before the upload, every time ([PublishPolicy]).
+ */
+@Composable
+private fun PublishSheetHost(publishing: PublishViewModel, chatLock: ChatLockViewModel, lockStatus: dev.locus.core.model.AppLockStatus?, conversationId: String) {
+    val ui by publishing.ui.collectAsStateWithLifecycle()
+    if (!ui.open) return
+    val pages by publishing.pages.collectAsStateWithLifecycle()
+    val unlock = dev.locus.core.ui.rememberUnlock(chatLock.appLock, stringResource(R.string.chat_publish_unlock_prompt)) { publishing.publish() }
+    val actions = remember(publishing, unlock, lockStatus, conversationId) {
+        PublishActions(
+            selectHost = publishing::selectHost,
+            setIncludeToolResults = publishing::setIncludeToolResults,
+            setUpdate = publishing::setUpdate,
+            build = publishing::build,
+            toConfirm = publishing::toConfirm,
+            back = publishing::back,
+            publish = { if (PublishPolicy.needsUnlock(lockStatus, conversationId)) unlock.launcher.launch() else publishing.publish() },
+            close = publishing::close,
+            unpublish = publishing::unpublish,
+            forget = publishing::forget,
+        )
+    }
+    PublishSheet(ui, pages, actions)
+}
+
+/** The published page's words, in the app's language. */
+@Composable
+private fun rememberPageLabels(): PageLabels {
+    val resources = androidx.compose.ui.platform.LocalResources.current
+    return remember(resources) {
+        PageLabels(
+            you = resources.getString(R.string.chat_publish_page_you),
+            locus = resources.getString(R.string.chat_publish_page_locus),
+            subtitle = resources.getString(R.string.chat_publish_page_subtitle),
+            noDate = resources.getString(R.string.chat_publish_page_no_date),
+            summarised = resources.getString(R.string.chat_publish_page_summarised),
+            attached = resources.getString(R.string.chat_publish_page_attached),
+            sent = resources.getString(R.string.chat_publish_page_sent),
+            result = resources.getString(R.string.chat_publish_page_result),
+            memoryHidden = resources.getString(R.string.chat_publish_page_memory),
+            plan = resources.getString(R.string.chat_publish_page_plan),
+            changed = resources.getString(R.string.chat_publish_page_changed),
+        )
     }
 }
 
