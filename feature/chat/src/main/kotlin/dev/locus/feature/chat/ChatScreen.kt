@@ -305,6 +305,7 @@ fun ChatRoute(
         LocalMemoryReads provides memoryReads,
         LocalProviderDrafts provides providerDrafts,
         LocalOpenWorkspaceFile provides onOpenWorkspaceFile,
+        LocalBrowserPages provides viewModel::pageAt,
     ) { // (body not re-indented, to keep the diff small)
     androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
     // "Continue in Locus" on an imported archive: a new chat whose first message (a draft the user sends) names this one.
@@ -335,6 +336,7 @@ fun ChatRoute(
         onResume = viewModel::resume,
         onAttach = viewModel::attach,
         onRemoveAttachment = viewModel::removeAttachment,
+        onRemovePick = viewModel::removePick,
         onCompact = viewModel::compactNow,
         onSaveExport = viewModel::saveExport,
         projectHeader = projectHeader,
@@ -524,6 +526,8 @@ internal fun ChatScreen(
     onResume: () -> Unit,
     onAttach: (List<android.net.Uri>) -> Unit = {},
     onRemoveAttachment: (Part.Attachment) -> Unit = {},
+    /** The composer's ✕ on the element picked in the browser for the next message. */
+    onRemovePick: () -> Unit = {},
     onCompact: () -> Unit = {},
     browserView: (@Composable (Modifier) -> Unit)? = null,
     draft: String? = null,
@@ -863,6 +867,7 @@ internal fun ChatScreen(
                             is TranscriptRow.Single -> when (val item = row.item) {
                                 is ChatItem.User -> UserBubble(
                                     item.text, item.attachments,
+                                    picked = item.picked,
                                     onEdit = { editingQueued = null; editing = item.key; text = item.text },
                                     planMode = item.planMode,
                                     midTask = item.midTask,
@@ -1159,7 +1164,7 @@ internal fun ChatScreen(
                         state.provider, state.providers, state.controls, state.connectors, state.picker,
                         taskMeter = state.run.budget?.takeIf { state.run.running },
                     ),
-                    actions = remember(controls, onAttach, onRemoveAttachment, onCompact, workflows, onVoiceMode) {
+                    actions = remember(controls, onAttach, onRemoveAttachment, onRemovePick, onCompact, workflows, onVoiceMode) {
                         ComposerActions(
                             setModel = controls.setModel,
                             prepareModels = controls.prepareModels,
@@ -1172,6 +1177,7 @@ internal fun ChatScreen(
                             setMode = controls.setMode,
                             onAttach = onAttach,
                             onRemoveAttachment = onRemoveAttachment,
+                            onRemovePick = onRemovePick,
                             onCompact = onCompact,
                             onWorkflows = workflows.pick,
                             onVoiceMode = onVoiceMode,
@@ -1196,6 +1202,7 @@ internal fun ChatScreen(
                         ).takeIf { toggles.browser },
                     ),
                     attachments = state.pendingAttachments,
+                    picked = state.pendingPick?.let { p -> if (p.host.isBlank()) p.label else "${p.label} · ${p.host}" },
                     running = state.run.running,
                     // While the agent works the box stays open: a message queues for its next step, even with an
                     // approval waiting. A background helper waiting for approval must not lock the user out either.
@@ -1477,12 +1484,15 @@ private fun UserBubble(
     historyMenu: @Composable (close: () -> Unit) -> Unit = {},
     /** In an imported archive: copy only (no edit or fork); the ‹ i/n › switcher stays. */
     archive: Boolean = false,
+    /** The element the user picked in the browser and sent with it. */
+    picked: String? = null,
 ) {
     var menu by remember { mutableStateOf(false) }
     val clipboard = androidx.compose.ui.platform.LocalClipboard.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
         SentAttachments(attachments)
+        picked?.let { PickedElementChip(it) }
         if (planMode) Text(stringResource(R.string.chat_composer_plan_mode), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
         if (midTask) Text(stringResource(R.string.chat_screen_mid_task), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
         if (text.isNotBlank()) {
@@ -1536,6 +1546,7 @@ private fun QueuedBubble(
 ) {
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
         SentAttachments(queued.attachments)
+        queued.result?.let(dev.locus.core.browser.PickedElement::shownIn)?.let { PickedElementChip(it) }
         if (queued.text.isNotBlank()) {
             Surface(
                 // Not in the chat yet: dimmer than a sent message.
@@ -1773,6 +1784,10 @@ private fun ToolCallRow(item: ChatItem.ToolCall, running: Boolean) {
         // The images a tool showed the model (view_image), as it saw them.
         item.result?.images?.takeIf { it.isNotEmpty() }?.let { images ->
             ToolImages(images, Modifier.padding(start = IconSize.large + Spacing.sm, top = Spacing.xs))
+        }
+        // A browser step that ran: what the page looked like then (docs/design/browser.md, "The page as it was").
+        if (done && item.name in dev.locus.core.browser.BrowserPages.SHOWS_PAGE) {
+            item.result?.let { SeePageAction(it.callId, it, Modifier.padding(start = IconSize.large + Spacing.sm, top = Spacing.xs)) }
         }
         AnimatedVisibility(expanded) {
             Column(Modifier.padding(top = Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {

@@ -510,9 +510,12 @@ class AgentRunner @Inject constructor(
      * Sends a message. While the agent works on this chat, it's queued instead (steer and queue): added
      * at the next step boundary, or as the next turn if this one ends first. Messages still queued from
      * before (after Stop or a restart) go first, in order.
+     *
+     * [picked] is an element the user picked in the browser (core/browser `PickedElement.forModel`): it goes
+     * with the message as outside text for the model ([ModeNote.result]), never as the user's words.
      */
-    fun send(conversationId: String, text: String, attachments: List<Part.Attachment> = emptyList()) {
-        if (text.isBlank() && attachments.isEmpty()) return
+    fun send(conversationId: String, text: String, attachments: List<Part.Attachment> = emptyList(), picked: String? = null) {
+        if (text.isBlank() && attachments.isEmpty() && picked == null) return
         // A read-only imported archive takes no messages, not even queued ones (see [startRun]).
         if (dev.locus.core.model.ImportedChats.isImported(conversationId)) return
         if (jobs.containsKey(conversationId)) {
@@ -520,11 +523,11 @@ class AgentRunner @Inject constructor(
             if (takeover != null) {
                 // A scheduled or triggered run holds the chat: sending takes it over (docs/design/scheduled-runs.md). The
                 // message waits, marked, and runs as a normal turn once the run has stopped at its next step boundary.
-                queueBehindRun(conversationId) { queue.add(conversationId, text.trim(), attachments, note = ModeNote.TAKEN_OVER) }
+                queueBehindRun(conversationId) { queue.add(conversationId, text.trim(), attachments, note = ModeNote.TAKEN_OVER, result = picked) }
                 takeOver(conversationId, takeover)
                 return
             }
-            queueBehindRun(conversationId) { queue.add(conversationId, text.trim(), attachments) }
+            queueBehindRun(conversationId) { queue.add(conversationId, text.trim(), attachments, result = picked) }
             return
         }
         // A new message moves on: earlier blocked calls are no longer offered.
@@ -538,11 +541,12 @@ class AgentRunner @Inject constructor(
                 conversationId, text.trim(), attachments,
                 modeNote = ModeNote.PLAN_MODE.takeIf { planMode },
                 extraNotes = listOfNotNull(takeUndoNote(conversationId)),
+                results = listOfNotNull(picked),
             )
             run(conversationId)
         }
         // A turn started in between: this message waits for its next step boundary.
-        if (!started) queueBehindRun(conversationId) { queue.add(conversationId, text.trim(), attachments) }
+        if (!started) queueBehindRun(conversationId) { queue.add(conversationId, text.trim(), attachments, result = picked) }
     }
 
     /**
@@ -563,9 +567,10 @@ class AgentRunner @Inject constructor(
         text: String,
         attachments: List<Part.Attachment> = emptyList(),
         other: dev.locus.core.model.ModelRef,
+        picked: String? = null,
         onSent: suspend (userMessageId: String) -> Unit = {},
     ): Boolean {
-        if (text.isBlank() && attachments.isEmpty()) return false
+        if (text.isBlank() && attachments.isEmpty() && picked == null) return false
         if (dev.locus.core.model.ImportedChats.isImported(conversationId)) return false
         if (jobs.containsKey(conversationId)) return false
         update(conversationId) { it.copy(reviewerBlocks = emptyList()) }
@@ -577,6 +582,7 @@ class AgentRunner @Inject constructor(
                 conversationId, text.trim(), attachments,
                 modeNote = ModeNote.PLAN_MODE.takeIf { planMode },
                 extraNotes = listOfNotNull(takeUndoNote(conversationId)),
+                results = listOfNotNull(picked),
             )
             onSent(user.id)
             try {

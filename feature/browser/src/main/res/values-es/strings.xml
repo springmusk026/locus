@@ -69,4 +69,19 @@
     <string name="browser_dock_announce_question">Locus pregunta: %1$s</string>
     <string name="browser_dock_announce_end">.</string>
     <string name="browser_dock_announce_queue">%1$s %2$s en espera.</string>
+    <string name="browser_menu_pick">Elegir un elemento</string>
+    <string name="browser_pick_title">Elige un elemento</string>
+    <string name="browser_pick_hint">Toca la parte de la página que quieres señalar a Locus. Arrastra para desplazarte.</string>
+    <string name="browser_pick_checking">Comprobando qué hay ahí…</string>
+    <string name="browser_pick_selected">%1$s\n%2$s</string>
+    <string name="browser_pick_again">Toca otra cosa para elegirla en su lugar.</string>
+    <string name="browser_pick_nothing">Ahí no hay nada que señalar. Toca un botón, un enlace, una imagen o un texto.</string>
+    <string name="browser_pick_whole">Eso es la página entera. Toca algo más pequeño dentro de ella.</string>
+    <string name="browser_pick_no_answer">La página no respondió. Espera a que termine de cargar y vuelve a tocar.</string>
+    <string name="browser_pick_not_now">Ahora no puedes elegir en esta página.</string>
+    <string name="browser_pick_attach_failed">No se pudo adjuntar. Inténtalo de nuevo.</string>
+    <string name="browser_pick_cancel">Cancelar</string>
+    <string name="browser_pick_attach">Adjuntar al mensaje</string>
+    <string name="browser_pick_attached">Adjuntado a tu próximo mensaje</string>
+    <string name="browser_pick_overlay">Página. Toca un elemento para elegirlo.</string>
 </resources>

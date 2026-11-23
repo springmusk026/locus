@@ -168,6 +168,18 @@ object ModeNote {
 
     fun isResult(text: String) = text.trimStart().startsWith(RESULT_OPEN)
 
+    /**
+     * Opens and closes the element the user picked in the browser to point the agent at (core/browser
+     * `PickedElement.forModel`). It rides on their message as a [result]: the page's words in it are
+     * untrusted, so they never count as the user's own, and the run is tainted (core/agent `Taint.sourcesIn`).
+     */
+    const val PICKED_ELEMENT_OPEN = "<picked_element>"
+    const val PICKED_ELEMENT_CLOSE = "</picked_element>"
+
+    /** Whether [message] carries an element the user picked in the browser. */
+    fun hasPickedElement(message: Message): Boolean =
+        message.parts.any { it is Part.Text && isResult(it.text) && PICKED_ELEMENT_OPEN in it.text }
+
     private const val EXTERNAL_PREFIX = "Started by another app, “"
     /** Ends the app's name; what follows says how it reached Locus (the automation intents, or the Telegram bot). */
     private const val EXTERNAL_MID = "”, through "
@@ -348,12 +360,14 @@ object ModeNote {
     /**
      * A user-role message that holds only notes and results from Locus (an undo, or a call the user ran
      * anyway, joining at a step boundary), not something the user typed. It doesn't start a turn: the
-     * chat shows it as a line inside the turn.
+     * chat shows it as a line inside the turn. A message that carries an element the user picked in the
+     * browser is theirs even with no words typed ([hasPickedElement]).
      */
     fun isAgentNote(message: Message): Boolean =
         message.role == Role.USER && message.parts.isNotEmpty() &&
             message.parts.all { it is Part.Text && (isNote(it.text) || isResult(it.text)) } &&
-            message.parts.any { it is Part.Text && isNote(it.text) }
+            message.parts.any { it is Part.Text && isNote(it.text) } &&
+            !hasPickedElement(message)
 }
 
 /** Whether this message starts a turn: anything the user sent, or a compaction checkpoint; not a note from Locus ([ModeNote.isAgentNote]). */

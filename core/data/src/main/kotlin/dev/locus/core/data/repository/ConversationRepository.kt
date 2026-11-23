@@ -51,6 +51,8 @@ class ConversationRepository @Inject constructor(
     private val projects: ProjectRepository? = null,
     /** Whether a new chat on a model starts chat only (see [ChatOnlyRule]). */
     private val chatOnlyRule: ChatOnlyRule = ChatOnlyRule.Never,
+    /** What browser steps' pages looked like (docs/design/browser.md, "The page as it was"): deleted with the chat. Null in tests without it. */
+    private val browserPages: dev.locus.core.browser.BrowserPages? = null,
 ) : TranscriptStore {
 
     /** A project's name, for a memory write's approval card (docs/design/memory-approval.md); null when unknown. */
@@ -195,8 +197,12 @@ class ConversationRepository @Inject constructor(
         modeNote: String? = null,
         extraNotes: List<String> = emptyList(),
         replacing: String? = null,
+        /** Outside text for the model alone, already marked (an element picked in the browser): kept out of the user's words. */
+        results: List<String> = emptyList(),
     ): Message {
-        val parts = attachments + listOfNotNull(Part.Text(text).takeIf { text.isNotBlank() }, modeNote?.let { Part.Text(dev.locus.core.model.ModeNote.wrap(it)) }) +
+        val parts = attachments + listOfNotNull(Part.Text(text).takeIf { text.isNotBlank() }) +
+            results.map { Part.Text(dev.locus.core.model.ModeNote.result(it)) } +
+            listOfNotNull(modeNote?.let { Part.Text(dev.locus.core.model.ModeNote.wrap(it)) }) +
             extraNotes.map { Part.Text(dev.locus.core.model.ModeNote.wrap(it)) }
         val message = Message(UUID.randomUUID().toString(), conversationId, Role.USER, parts, System.currentTimeMillis())
         if (replacing == null) {
@@ -361,10 +367,20 @@ class ConversationRepository @Inject constructor(
 
     suspend fun setDisabledTools(id: String, keys: Set<String>) = conversations.setDisabledTools(id, keys.sorted().joinToString("\n"))
 
-    /** Deletes the chat, and the "Allow for this chat" approvals that went with it. */
+    /** Deletes the chat, the "Allow for this chat" approvals that went with it, and the browser pages it kept. */
     suspend fun delete(id: String) {
+        val helpers = runCatching { conversations.children(id).map { it.id } }.getOrDefault(emptyList())
         conversations.delete(id)
         settings.forgetRememberedApprovals(conversationId = id)
+        forgetBrowserPages(listOf(id) + helpers)
+    }
+
+    /**
+     * Deletes the pages browser steps of [ids] kept for "See the page" (a deleted chat and its helpers), in the
+     * background: the caller doesn't wait on the disk.
+     */
+    fun forgetBrowserPages(ids: Collection<String>) {
+        browserPages?.forgetSoon(ids)
     }
 
     suspend fun setPinned(id: String, pinned: Boolean) = conversations.setPinned(id, pinned)

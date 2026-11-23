@@ -1676,4 +1676,18 @@
         <item quantity="many">%1$d segredos removidos</item>
         <item quantity="other">%1$d segredos removidos</item>
     </plurals>
+    <string name="chat_composer_remove_pick">Remover o elemento escolhido %1$s</string>
+    <string name="chat_picked_element">Escolhido na página: %1$s</string>
+    <string name="chat_page_see">Ver a página</string>
+    <string name="chat_page_title">A página nesta etapa</string>
+    <string name="chat_page_loading">Carregando a página</string>
+    <string name="chat_page_failed">O Locus não conseguiu ler o que guardou desta página.</string>
+    <string name="chat_page_retry">Tentar de novo</string>
+    <string name="chat_page_no_picture">Sem imagem: o navegador não estava na tela nesta etapa.</string>
+    <string name="chat_page_text_label">O que o Locus leu na página</string>
+    <string name="chat_page_private">Guardado só para você neste telefone e apagado com a conversa. Nunca é enviado de novo ao modelo.</string>
+    <string name="chat_page_not_kept_title">Não foi guardada</string>
+    <string name="chat_page_not_kept_message">O Locus não tem uma cópia desta página. Ele guarda as páginas mais recentes de cada conversa, não as de antes deste recurso, de um backup restaurado ou de uma conversa copiada. Os detalhes da etapa ainda mostram o que ele leu.</string>
+    <string name="chat_page_when">Vista %1$s</string>
+    <string name="chat_page_picture">A página como estava</string>
 </resources>
