@@ -129,7 +129,7 @@ internal fun rememberAttachmentThumbnail(a: Part.Attachment): Thumbnail {
 
 /** A picture full screen, decoded at up to [FULL_EDGE] px on its long edge. */
 @Composable
-private fun FullImage(a: Part.Attachment) {
+internal fun FullImage(a: Part.Attachment) {
     val decoded by produceState<Thumbnail>(Thumbnail(null, missing = false), a.path) {
         val bitmap = withContext(Dispatchers.IO) { decodeFull(a.path) }
         value = Thumbnail(bitmap, missing = bitmap == null)

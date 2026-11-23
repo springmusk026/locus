@@ -79,6 +79,23 @@ class BrowserScreenshots : ScreenshotTest() {
 
     @Test fun page() = shot("browser-page", BrowserUi(page))
 
+    private val reserve = dev.locus.core.browser.PickedElement(
+        ref = "e57", role = "button", name = "Reserve", tag = "button", text = "Reserve now – free cancellation until 3 days before arrival",
+        url = page.url, title = page.title, left = 0.08f, top = 0.42f, width = 0.84f, height = 0.07f,
+    )
+
+    /** "Pick an element": what to do, Cancel, and Attach waiting for a pick. */
+    @Test fun pickStart() = shot("browser-pick-start", BrowserUi(page, pick = PickMode()))
+
+    /** A tap found the Reserve button: outlined over the page, named in the bar, Attach ready. */
+    @Test fun pickSelected() = shot("browser-pick-selected", BrowserUi(page, pick = PickMode(selection = reserve)))
+
+    /** A tap on the page's background: nothing smaller to point at. */
+    @Test fun pickWhole() = shot("browser-pick-whole", BrowserUi(page, pick = PickMode(failure = dev.locus.core.browser.PickFailure.WholePage)))
+
+    /** The page is being asked what's under the finger. */
+    @Test fun pickBusy() = shot("browser-pick-busy", BrowserUi(page, pick = PickMode(selection = reserve, busy = true)))
+
     @Test
     fun loading() = shot("browser-loading", BrowserUi(page.copy(loading = true, progress = 45, title = "", url = "https://www.cp.pt/passageiros/en/buy-tickets")))
 

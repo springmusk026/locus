@@ -127,6 +127,13 @@ internal class BrowserActions(
     val answerQuestion: (callId: String, answer: QuestionAnswer) -> Unit = { _, _ -> },
     /** Scrolls the page by pixels while Locus waits for an answer (taps still need Take over). */
     val scrollPage: (dy: Int) -> Unit = {},
+    /** "Pick an element" (docs/design/browser.md, "Element picker"): start, cancel, a tap and a drag while picking. */
+    val startPick: () -> Unit = {},
+    val cancelPick: () -> Unit = {},
+    val pickAt: (fx: Float, fy: Float) -> Unit = { _, _ -> },
+    val pickScroll: (dy: Int) -> Unit = {},
+    /** Attaches the selection to the chat's next message; the callback says whether it worked. */
+    val attachPick: (onDone: (Boolean) -> Unit) -> Unit = {},
 )
 
 /**
@@ -169,6 +176,11 @@ fun BrowserRoute(
                 denyWithReason = viewModel::denyWithReason,
                 answerQuestion = viewModel::answerQuestion,
                 scrollPage = viewModel::scrollPage,
+                startPick = viewModel::startPick,
+                cancelPick = viewModel::cancelPick,
+                pickAt = viewModel::pickAt,
+                pickScroll = viewModel::pickScroll,
+                attachPick = viewModel::attachPick,
             ),
             snackbarHost = { LocusFeedbackHost(feedbackState) },
             page = {
@@ -241,11 +253,21 @@ internal fun BrowserScreen(
     val noAppMessage = stringResource(R.string.browser_feedback_no_app)
     val clearedMessage = stringResource(R.string.browser_feedback_data_cleared)
     val clearFailedMessage = stringResource(R.string.browser_clear_failed)
+    val pickAttachedMessage = stringResource(R.string.browser_pick_attached)
+    val onAttachPick = {
+        actions.attachPick { attached ->
+            if (attached) {
+                feedback.show(pickAttachedMessage, Tone.Live)
+                actions.onBack()
+            }
+        }
+    }
 
     // System back: out of the address field, then back through the page's history, then out of the
     // browser, as in a mobile browser. While Locus drives, the page's history is its own, so back leaves.
     BackHandler(enabled = browserBack(ui, editing) != BrowserBack.Leave) {
         when (browserBack(ui, editing)) {
+            BrowserBack.EndPick -> actions.cancelPick()
             BrowserBack.EndEditing -> editing = false
             BrowserBack.PageBack -> actions.navigate(AgentBrowser.UserNavigation.BACK)
             BrowserBack.Leave -> actions.onBack()
@@ -283,6 +305,7 @@ internal fun BrowserScreen(
                             },
                             onClear = { menu = false; clearError = null; confirmClear = true },
                             onSavedLogins = actions.openSavedLogins?.let { open -> { menu = false; open() } },
+                            onPick = { menu = false; editing = false; actions.startPick() },
                         )
                     }
                 },
@@ -323,7 +346,12 @@ internal fun BrowserScreen(
             Column(Modifier.navigationBarsPadding()) {
                 // What Locus waits on, over the bottom of the page: the chat's own approval and question cards.
                 WaitingDock(ui, actions, onDetails = { detailsFor = it })
-                ControlBanner(ui, onTakeOver = actions.takeOver, onHandBack = { handingBack = true })
+                val picking = ui.pick
+                if (picking != null) {
+                    PickPanel(picking, onCancel = actions.cancelPick, onAttach = onAttachPick)
+                } else {
+                    ControlBanner(ui, onTakeOver = actions.takeOver, onHandBack = { handingBack = true })
+                }
             }
         },
     ) { padding ->
@@ -347,6 +375,8 @@ internal fun BrowserScreen(
                                 )
                             }
                         }
+                        // Pick mode: a tap points at what's under it, a drag scrolls; nothing reaches the page.
+                        ui.pick?.let { PickOverlay(it, onTap = actions.pickAt, onScroll = actions.pickScroll) }
                         // Watching only while Locus drives: a tap would race its clicks. Tapping says how to take over.
                         // While it waits for an answer the user may scroll to look, but a tap still needs Take over.
                         if (ui.agentDriving) {
@@ -621,9 +651,10 @@ private fun BrowserMenu(
     onOpenElsewhere: () -> Unit,
     onClear: () -> Unit,
     onSavedLogins: (() -> Unit)?,
+    onPick: () -> Unit,
 ) {
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss, modifier = Modifier.widthIn(max = Sizes.readable)) {
-        BrowserMenuItems(ui, onNavigate, onCopy, onOpenElsewhere, onClear, onSavedLogins)
+        BrowserMenuItems(ui, onNavigate, onCopy, onOpenElsewhere, onClear, onSavedLogins, onPick)
     }
 }
 
@@ -636,6 +667,7 @@ internal fun ColumnScope.BrowserMenuItems(
     onOpenElsewhere: () -> Unit = {},
     onClear: () -> Unit = {},
     onSavedLogins: (() -> Unit)? = null,
+    onPick: () -> Unit = {},
 ) {
     val state = ui.page
     val canDrive = ui.userDriving && state.hasPage
@@ -669,6 +701,15 @@ internal fun ColumnScope.BrowserMenuItems(
             enabled = state.hasPage && isWebAddress(state.url),
             onClick = onOpenElsewhere,
         )
+        // Point the chat's agent at something on the page; the user's own browsing has no chat to tell.
+        if (!ui.standalone) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.browser_menu_pick)) },
+                leadingIcon = { Icon(LocusIcons.Target, null) },
+                enabled = ui.canPick,
+                onClick = onPick,
+            )
+        }
         HorizontalDivider(color = Locus.colors.hairline, thickness = Stroke.hairline)
         // The browser's own data: the logins Locus can fill here, and clearing its cookies and history.
         if (onSavedLogins != null) {
@@ -679,9 +720,10 @@ internal fun ColumnScope.BrowserMenuItems(
 }
 
 /** What system back does on the browser screen, most local first. */
-internal enum class BrowserBack { EndEditing, PageBack, Leave }
+internal enum class BrowserBack { EndPick, EndEditing, PageBack, Leave }
 
 internal fun browserBack(ui: BrowserUi, editing: Boolean): BrowserBack = when {
+    ui.pick != null -> BrowserBack.EndPick
     editing -> BrowserBack.EndEditing
     ui.userDriving && ui.page.hasPage && ui.page.canGoBack -> BrowserBack.PageBack
     else -> BrowserBack.Leave

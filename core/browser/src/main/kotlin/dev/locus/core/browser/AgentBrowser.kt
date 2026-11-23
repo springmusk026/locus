@@ -26,6 +26,7 @@ import dev.locus.core.agent.ToolCallContext
 import dev.locus.core.agent.ToolException
 import dev.locus.core.agent.tools.SendFile.Companion.readableSize
 import dev.locus.core.agent.tools.Workspace
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -105,6 +106,8 @@ class AgentBrowser @Inject constructor(
     private val workspace: Workspace,
     /** The user's saved site logins (docs/design/browser.md, "Saved logins"). */
     val logins: SiteLogins,
+    /** What each browser call's page looked like, for "See the page" on a past step (docs/design/browser.md, "The page as it was"). */
+    val pages: BrowserPages = BrowserPages(java.io.File(appContext.filesDir, BrowserPages.DIR)),
 ) {
     /** Clock for login offers; a field so tests can fix it. */
     var clock: () -> Long = System::currentTimeMillis
@@ -497,7 +500,117 @@ class AgentBrowser @Inject constructor(
         }
         tab.lastBody = SnapshotFormat.body(snap)
         tab.lastUrl = snap.url
+        record(tab, snap, context)
         text
+    }
+
+    /**
+     * Keeps what the page looked like at this call for the user ([BrowserPages]): the whole snapshot (the
+     * result may be only its changes) and, when the browser is on screen, a small picture of the viewport.
+     * A side record only: what [describe] returns to the model is computed before and isn't touched.
+     * Saved-login secrets are taken out of the text as they are from every result; when the logins can't
+     * be read, nothing is kept.
+     */
+    private suspend fun Session.record(tab: Tab, snap: PageSnapshot, context: BrowserContext) {
+        val call = currentCoroutineContext()[ToolCallContext] ?: return
+        val view = tab.view
+        val text = SnapshotFormat.lines(snap, context).joinToString("\n")
+        val url = view.url ?: snap.url
+        val title = view.title ?: snap.title
+        val live = view.isAttachedToWindow && view.isShown && view.windowVisibility == android.view.View.VISIBLE && view.width > 0 && view.height > 0
+        val picture = if (live) runCatching { painted(view, RECORD_PAINT_MS); smallPicture(view) }.getOrNull() else null
+        val at = clock()
+        io.launch {
+            try {
+                val scrubber = runCatching { LoginScrubber.of(logins.all(), at / 1000) }.getOrNull() ?: return@launch
+                val jpeg = picture?.let { b ->
+                    java.io.ByteArrayOutputStream().also { b.compress(Bitmap.CompressFormat.JPEG, BrowserPages.PICTURE_QUALITY, it) }.toByteArray()
+                }
+                val record = PageRecord(
+                    url = scrubber.scrub(url), title = scrubber.scrub(title), at = at, text = scrubber.scrub(text),
+                    pictureWidth = picture?.width ?: 0, pictureHeight = picture?.height ?: 0,
+                )
+                pages.save(call.conversationId, call.callId, record, jpeg)
+            } catch (_: Exception) {
+                // A record is a convenience for the user; the call's result is already the model's.
+            } finally {
+                picture?.recycle()
+            }
+        }
+    }
+
+    /** The viewport drawn at most [BrowserPages.PICTURE_WIDTH] pixels wide. */
+    private fun smallPicture(view: WebView): Bitmap {
+        val scale = minOf(1f, BrowserPages.PICTURE_WIDTH.toFloat() / view.width)
+        val w = (view.width * scale).roundToInt().coerceAtLeast(1)
+        val h = (view.height * scale).roundToInt().coerceAtLeast(1)
+        val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(bitmap)
+        canvas.scale(scale, scale)
+        drawViewport(view, canvas)
+        return bitmap
+    }
+
+    // ---- Element picker (docs/design/browser.md, "Element picker") -----------------------------------
+
+    /** An element the user picked and attached to their next message in a chat, with the note the model gets. */
+    data class AttachedPick(val element: PickedElement, val note: String)
+
+    private val picks = MutableStateFlow<Map<String, AttachedPick>>(emptyMap())
+
+    /** Elements attached to each chat's next message, by chat id. In memory only, like the tabs. */
+    val attachedPicks: StateFlow<Map<String, AttachedPick>> = picks.asStateFlow()
+
+    /**
+     * What the user tapped at ([fx], [fy]), fractions of the page's viewport, in the full-screen browser's
+     * page (the focused chat's active tab). A read only: the page helper hit-tests, gives the element a ref
+     * in the snapshot's namespace and describes it; nothing is added to the page, no listener stays behind,
+     * and the tap itself never reaches the page. Waits for a tool call on that page to finish first.
+     */
+    suspend fun pickAt(fx: Float, fy: Float): PickOutcome {
+        val key = focused.value?.takeIf { it != STANDALONE } ?: return PickOutcome.Failed(PickFailure.NotNow)
+        val s = sessions[key] ?: return PickOutcome.Failed(PickFailure.NotNow)
+        val x = fx.coerceIn(0f, 1f)
+        val y = fy.coerceIn(0f, 1f)
+        return s.lock.withLock {
+            withContext(Dispatchers.Main) {
+                val tab = s.active?.takeIf { it.hasPage } ?: return@withContext PickOutcome.Failed(PickFailure.NotNow)
+                if (s.dialog != null) return@withContext PickOutcome.Failed(PickFailure.NoAnswer)
+                val reply = try {
+                    s.reply("__locus.pickAt($x, $y)", tab)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    return@withContext PickOutcome.Failed(PickFailure.NoAnswer)
+                }
+                // Only the helper Locus put in the page at its start may answer: a page's own __locus can't hand over a ref.
+                if (!reply.verified) return@withContext PickOutcome.Failed(PickFailure.NoAnswer)
+                val obj = reply.value as? JsonObject
+                PickedElement.failure(obj)?.let { return@withContext PickOutcome.Failed(it) }
+                val element = PickedElement.parse(obj ?: return@withContext PickOutcome.Failed(PickFailure.NoAnswer), tab.view.url.orEmpty(), tab.view.title.orEmpty())
+                    ?: return@withContext PickOutcome.Failed(PickFailure.NoAnswer)
+                PickOutcome.Picked(element)
+            }
+        }
+    }
+
+    /** The chat the full-screen browser shows, or null in the user's own browsing (no chat to attach to). */
+    fun pickChat(): String? = focused.value?.takeIf { it != STANDALONE && it != DEFAULT_KEY }
+
+    /**
+     * Attaches [element] to chat [conversationId]'s next message (replacing an earlier one). The note is made
+     * now, with saved-login secrets taken out of the page's words; false when the logins can't be read.
+     */
+    suspend fun attachPick(conversationId: String, element: PickedElement): Boolean {
+        val scrubber = runCatching { LoginScrubber.of(logins.all(), clock() / 1000) }.getOrNull() ?: return false
+        val note = element.forModel(scrubber::scrub)
+        picks.update { it + (conversationId to AttachedPick(element, note)) }
+        return true
+    }
+
+    /** Removes the element attached to [conversationId]'s next message (the composer's ✕, or after sending). */
+    fun clearPick(conversationId: String) {
+        picks.update { it - conversationId }
     }
 
     /** Elements and text passages matching [query] anywhere on the page. */
@@ -1612,6 +1725,9 @@ class AgentBrowser @Inject constructor(
         const val SAVE_TIMEOUT_MS = 20_000L
         const val PAINT_TIMEOUT_MS = 1_500L
         const val PAINT_TIMEOUT_OFFSCREEN_MS = 5_000L
+
+        /** How long a step waits for the on-screen page to draw before its picture is kept ([record]). */
+        const val RECORD_PAINT_MS = 300L
         const val SCROLL_SYNC_TIMEOUT_MS = 1_000L
 
         // After a scroll, a moment for lazy images and scroll-triggered content to appear.

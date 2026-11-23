@@ -98,6 +98,8 @@ object Taint {
                         if (p is Part.Checkpoint) addAll(p.untrustedSources)
                         if (rules.isEmpty() && p is Part.Text && ModeNote.isResult(p.text)) {
                             if ("<subagent_report" in p.text) add("a helper's report")
+                            // An element the user picked in the browser: the page's words came with it (docs/design/browser.md, "Element picker").
+                            else if (ModeNote.PICKED_ELEMENT_OPEN in p.text) add("a page element you picked")
                             else if (UntrustedContent.isMarked(p.text)) add("a call you ran")
                         }
                     }
