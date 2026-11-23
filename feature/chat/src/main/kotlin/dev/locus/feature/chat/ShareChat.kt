@@ -37,6 +37,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
+/** Starts publishing the chat on screen as a web page (docs/design/publish.md); null hides the option. */
+internal val LocalChatPublish = androidx.compose.runtime.staticCompositionLocalOf<(() -> Unit)?> { null }
+
 internal enum class ExportFormat(val label: String, val extension: String, val mimeType: String, @StringRes val note: Int) {
     Markdown("Markdown", "md", "text/markdown", R.string.chat_share_markdown_note),
     Pdf("PDF", "pdf", "application/pdf", R.string.chat_share_pdf_note),
@@ -102,6 +105,16 @@ private fun ShareChatSheet(
                 Row(Modifier.offset(x = -Spacing.md), horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                     TextButton(onClick = { run(format, save = false) }, enabled = !busy) { Text(stringResource(R.string.chat_share_share)) }
                     TextButton(onClick = { run(format, save = true) }, enabled = !busy) { Text(stringResource(R.string.chat_share_save)) }
+                }
+            }
+        }
+        // Publish to your own host (docs/design/publish.md): the chat screen provides it.
+        LocalChatPublish.current?.let { publish ->
+            Column {
+                Text(stringResource(R.string.chat_share_publish_title), style = LocusType.stateTitle)
+                SupportingText(stringResource(R.string.chat_share_publish_note))
+                Row(Modifier.offset(x = -Spacing.md)) {
+                    TextButton(onClick = { onDismiss(); publish() }, enabled = !busy) { Text(stringResource(R.string.chat_share_publish)) }
                 }
             }
         }

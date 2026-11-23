@@ -55,7 +55,7 @@ internal fun netlifyTools(http: HttpClient, secrets: SecretResolver, workspace: 
     )
 }
 
-private class NetlifyApi(private val http: HttpClient, private val secrets: SecretResolver) {
+internal class NetlifyApi(private val http: HttpClient, private val secrets: SecretResolver) {
     private val json = Json { ignoreUnknownKeys = true }
 
     suspend fun call(method: HttpMethod, path: String, params: Map<String, Any?> = emptyMap(), json: JsonElement? = null, bytes: ByteArray? = null): JsonElement {
@@ -205,43 +205,62 @@ private class NetlifyDeploy(private val api: NetlifyApi, private val workspace: 
     override suspend fun execute(args: JsonObject): ToolResult {
         val production = args.bool("production") == true
         val folder = collectSiteFiles(workspace, args.str("path").orEmpty())
-        folder.files.firstOrNull { '#' in it.path || '?' in it.path }?.let {
-            throw ToolException("Netlify can't take file names with # or ?: ${it.path}. Rename it first.")
-        }
-        val ref = args.str("site").orEmpty().trim()
-        val site = if (args.bool("create_site") == true && NetlifyApi.SITE_NAME.matches(ref)) {
-            api.findByName(ref) ?: api.call(HttpMethod.Post, "/sites", json = buildJsonObject { put("name", ref) }).asObj()
-                ?: throw ToolException("Unexpected response from Netlify.")
-        } else {
-            api.site(ref)
-        }
-        val siteId = site.field("id") ?: throw ToolException("Netlify returned a site without an ID.")
-        val body = buildJsonObject {
-            putJsonObject("files") { folder.files.forEach { put("/" + it.path, it.sha1) } }
-            put("draft", !production)
-        }
-        val deploy = api.call(HttpMethod.Post, "/sites/$siteId/deploys", mapOf("title" to args.str("title")?.take(200)), body).asObj()
-            ?: throw ToolException("Unexpected response from Netlify.")
-        val deployId = deploy.field("id") ?: throw ToolException("Netlify returned a deploy without an ID.")
-        val required = (deploy["required"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }.orEmpty().toSet()
-        // Netlify needs each missing SHA-1 once; any file with that content will do.
-        val uploads = folder.files.filter { it.sha1 in required }.distinctBy { it.sha1 }
-        for (file in uploads) {
-            val encoded = file.path.split('/').joinToString("/") { it.encodeURLPathPart() }
-            api.call(HttpMethod.Put, "/deploys/$deployId/files/$encoded", bytes = file.bytes())
-        }
-        val final = if (uploads.isEmpty()) deploy else api.call(HttpMethod.Get, "/deploys/$deployId").asObj() ?: deploy
-        val url = if (production) final.field("ssl_url") ?: site.field("ssl_url") else final.field("deploy_ssl_url")
+        val d = netlifyDeployFolder(api, folder, args.str("site").orEmpty(), production, args.bool("create_site") == true, args.str("title"))
         return ToolResult(
             buildString {
                 append(if (production) "Production deploy" else "Draft deploy")
-                append(" $deployId to ${site.field("name")}: ${final.field("state")}")
-                url?.let { append("\nURL: $it") }
-                append("\n${folder.files.size} files from ${folder.path} (${uploads.size} uploaded, the rest unchanged).")
-                if (final.field("state") != "ready") append("\nNetlify is still processing; check with netlify_deploys site=${site.field("name")} id=$deployId.")
+                append(" ${d.deployId} to ${d.siteName}: ${d.state}")
+                d.url?.let { append("\nURL: $it") }
+                append("\n${folder.files.size} files from ${folder.path} (${d.uploaded} uploaded, the rest unchanged).")
+                if (d.state != "ready") append("\nNetlify is still processing; check with netlify_deploys site=${d.siteName} id=${d.deployId}.")
             },
         )
     }
+}
+
+/** What one Netlify deploy made: the site it went to, the deploy, and its URL. */
+internal class NetlifyDeployed(val siteId: String, val siteName: String?, val deployId: String, val state: String?, val url: String?, val uploaded: Int)
+
+/**
+ * The file-digest deploy shared by `netlify_deploy` and Publish (docs/design/publish.md): finds (or, with
+ * [createSite], creates) the site [ref], posts the digests and uploads the files Netlify asks for.
+ */
+internal suspend fun netlifyDeployFolder(
+    api: NetlifyApi,
+    folder: SiteFolder,
+    ref: String,
+    production: Boolean,
+    createSite: Boolean,
+    title: String?,
+): NetlifyDeployed {
+    folder.files.firstOrNull { '#' in it.path || '?' in it.path }?.let {
+        throw ToolException("Netlify can't take file names with # or ?: ${it.path}. Rename it first.")
+    }
+    val name = ref.trim()
+    val site = if (createSite && NetlifyApi.SITE_NAME.matches(name)) {
+        api.findByName(name) ?: api.call(HttpMethod.Post, "/sites", json = buildJsonObject { put("name", name) }).asObj()
+            ?: throw ToolException("Unexpected response from Netlify.")
+    } else {
+        api.site(name)
+    }
+    val siteId = site.field("id") ?: throw ToolException("Netlify returned a site without an ID.")
+    val body = buildJsonObject {
+        putJsonObject("files") { folder.files.forEach { put("/" + it.path, it.sha1) } }
+        put("draft", !production)
+    }
+    val deploy = api.call(HttpMethod.Post, "/sites/$siteId/deploys", mapOf("title" to title?.take(200)), body).asObj()
+        ?: throw ToolException("Unexpected response from Netlify.")
+    val deployId = deploy.field("id") ?: throw ToolException("Netlify returned a deploy without an ID.")
+    val required = (deploy["required"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }.orEmpty().toSet()
+    // Netlify needs each missing SHA-1 once; any file with that content will do.
+    val uploads = folder.files.filter { it.sha1 in required }.distinctBy { it.sha1 }
+    for (file in uploads) {
+        val encoded = file.path.split('/').joinToString("/") { it.encodeURLPathPart() }
+        api.call(HttpMethod.Put, "/deploys/$deployId/files/$encoded", bytes = file.bytes())
+    }
+    val final = if (uploads.isEmpty()) deploy else api.call(HttpMethod.Get, "/deploys/$deployId").asObj() ?: deploy
+    val url = if (production) final.field("ssl_url") ?: site.field("ssl_url") else final.field("deploy_ssl_url")
+    return NetlifyDeployed(siteId, site.field("name"), deployId, final.field("state"), url, uploads.size)
 }
 
 private class NetlifyEnv(private val api: NetlifyApi) : Tool {

@@ -57,13 +57,13 @@ internal fun vercelTools(http: HttpClient, secrets: SecretResolver, workspace: W
 }
 
 /** A Vercel response whose status the caller inspects (used where an error is part of the flow). */
-private class VercelReply(val status: Int, val body: JsonElement?, val text: String) {
+internal class VercelReply(val status: Int, val body: JsonElement?, val text: String) {
     val error get() = body.asObj()?.get("error").asObj()
     val code get() = error?.field("code")
     val missing get() = (error?.get("missing") as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }.orEmpty()
 }
 
-private class VercelApi(private val http: HttpClient, private val secrets: SecretResolver) {
+internal class VercelApi(private val http: HttpClient, private val secrets: SecretResolver) {
     private val json = Json { ignoreUnknownKeys = true }
 
     private suspend fun credentials(): Pair<String, String?> {
@@ -263,31 +263,7 @@ private class VercelDeploy(private val api: VercelApi, private val workspace: Wo
             collectSiteFiles(workspace, args.str("path") ?: throw ToolException("Give path (a workspace folder) or redeploy_id."))
         } else null
 
-        fun body() = buildJsonObject {
-            put("name", project)
-            if (production) put("target", "production")
-            redeploy?.let { put("deploymentId", it) }
-            folder?.let { f ->
-                putJsonArray("files") {
-                    f.files.forEach { file -> addJsonObject { put("file", file.path); put("sha", file.sha1); put("size", file.size) } }
-                }
-            }
-            framework?.let { fw -> putJsonObject("projectSettings") { if (fw == "static") put("framework", JsonNull) else put("framework", fw) } }
-        }
-
-        val params = mapOf("skipAutoDetectionConfirmation" to 1)
-        var uploaded = 0
-        var reply = api.send(HttpMethod.Post, "/v13/deployments", params, body())
-        if (reply.code == "missing_files" && folder != null) {
-            val bySha = folder.files.associateBy { it.sha1 }
-            val missing = reply.missing.ifEmpty { bySha.keys.toList() }.mapNotNull { bySha[it] }
-            for (file in missing) {
-                api.call(HttpMethod.Post, "/v2/files", bytes = file.bytes(), headers = mapOf("x-vercel-digest" to file.sha1))
-                uploaded++
-            }
-            reply = api.send(HttpMethod.Post, "/v13/deployments", params, body())
-        }
-        val created = api.check(reply).asObj() ?: throw ToolException("Unexpected response from Vercel.")
+        val (created, uploaded) = vercelDeployFolder(api, project, production, redeploy, folder, framework)
 
         val url = created.field("url")?.let { "https://$it" }
         return ToolResult(
@@ -301,6 +277,47 @@ private class VercelDeploy(private val api: VercelApi, private val workspace: Wo
             },
         )
     }
+}
+
+/**
+ * The file deploy shared by `vercel_deploy` and Publish (docs/design/publish.md): creates the deployment
+ * with each file's SHA-1, uploads what Vercel says is missing and creates it again. Returns the created
+ * deployment and how many files were uploaded.
+ */
+internal suspend fun vercelDeployFolder(
+    api: VercelApi,
+    project: String,
+    production: Boolean,
+    redeploy: String?,
+    folder: SiteFolder?,
+    framework: String?,
+): Pair<JsonObject, Int> {
+    fun body() = buildJsonObject {
+        put("name", project)
+        if (production) put("target", "production")
+        redeploy?.let { put("deploymentId", it) }
+        folder?.let { f ->
+            putJsonArray("files") {
+                f.files.forEach { file -> addJsonObject { put("file", file.path); put("sha", file.sha1); put("size", file.size) } }
+            }
+        }
+        framework?.let { fw -> putJsonObject("projectSettings") { if (fw == "static") put("framework", JsonNull) else put("framework", fw) } }
+    }
+
+    val params = mapOf("skipAutoDetectionConfirmation" to 1)
+    var uploaded = 0
+    var reply = api.send(HttpMethod.Post, "/v13/deployments", params, body())
+    if (reply.code == "missing_files" && folder != null) {
+        val bySha = folder.files.associateBy { it.sha1 }
+        val missing = reply.missing.ifEmpty { bySha.keys.toList() }.mapNotNull { bySha[it] }
+        for (file in missing) {
+            api.call(HttpMethod.Post, "/v2/files", bytes = file.bytes(), headers = mapOf("x-vercel-digest" to file.sha1))
+            uploaded++
+        }
+        reply = api.send(HttpMethod.Post, "/v13/deployments", params, body())
+    }
+    val created = api.check(reply).asObj() ?: throw ToolException("Unexpected response from Vercel.")
+    return created to uploaded
 }
 
 private class VercelEnv(private val api: VercelApi) : Tool {
