@@ -633,4 +633,6 @@
     <string name="designsystem_check_check_failed">A verificação falhou</string>
     <string name="designsystem_check_check_timed_out">A verificação excedeu o tempo</string>
     <string name="designsystem_check_check_finished">A verificação terminou</string>
+    <string name="designsystem_tool_project_rule_past">Executou a regra de projeto “%1$s”</string>
+    <string name="designsystem_tool_project_rule_present">Executar a regra de projeto “%1$s”</string>
 </resources>

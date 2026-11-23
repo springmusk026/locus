@@ -36,7 +36,8 @@ class ToolCatalog @Inject constructor(
     workspace: Workspace,
     http: HttpClient,
     private val browser: AgentBrowser,
-    linux: LinuxEnvironment,
+    /** Linux on the phone; also where project rules run their commands (docs/design/rules.md). */
+    val linux: LinuxEnvironment,
     private val home: AgentHome,
     secrets: SecretResolver,
     mcp: McpClients,

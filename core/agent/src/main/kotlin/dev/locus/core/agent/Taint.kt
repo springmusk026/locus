@@ -85,10 +85,18 @@ object Taint {
                     ModeNote.externalApp(m)?.let { add("another app ($it)") }
                     // A run an event trigger started: the event's text came from outside (docs/design/event-triggers.md).
                     ModeNote.eventSource(m)?.let { add("an event ($it)") }
+                    // A project rule's output (docs/design/rules.md, "Taint"): a source like a run_command result, and,
+                    // like one, the workspace's own for remembered approvals when its command was a plain local one.
+                    val rules = dev.locus.core.model.RuleNote.runs(m)
+                    rules.forEach { (info, output) ->
+                        if (output != null && UntrustedContent.isMarked(output) && !(skipLocal && dev.locus.core.model.RuleNote.LOCAL_OUTPUT in output)) {
+                            add(RuleHooks.taintLabel(info.name))
+                        }
+                    }
                     m.parts.forEach { p ->
                         // A compaction summary of a run that had read outside text (docs/design/compaction.md).
                         if (p is Part.Checkpoint) addAll(p.untrustedSources)
-                        if (p is Part.Text && ModeNote.isResult(p.text)) {
+                        if (rules.isEmpty() && p is Part.Text && ModeNote.isResult(p.text)) {
                             if ("<subagent_report" in p.text) add("a helper's report")
                             else if (UntrustedContent.isMarked(p.text)) add("a call you ran")
                         }

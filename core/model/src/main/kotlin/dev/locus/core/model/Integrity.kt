@@ -121,10 +121,29 @@ object PolicySeal {
                 if (s.connectedFolders.isNotEmpty()) put("connectedFolders", JsonArray(s.connectedFolders.sortedBy { it.id }.map(::folderPayload)))
                 // "Ask before saving to memory" (docs/design/memory-approval.md): only when it isn't the default, so older seals still match.
                 if (s.memoryApproval != MemoryApproval.OUTSIDE_CONTENT) put("memoryApproval", JsonPrimitive(s.memoryApproval.name))
+                // Project rules (docs/design/rules.md): commands Locus runs and blocks for the user. Only when there are any.
+                val rules = s.projectRules.filterValues { it.isNotEmpty() }
+                if (rules.isNotEmpty()) put("projectRules", JsonObject(rules.toSortedMap().mapValues { (_, list) -> JsonArray(list.map(::projectRulePayload)) }))
             },
         )
         return obj.toString().encodeToByteArray()
     }
+
+    /** Everything about a rule, in list order (the order rules run in). */
+    private fun projectRulePayload(r: ProjectRule) = JsonObject(
+        linkedMapOf(
+            "id" to JsonPrimitive(r.id),
+            "name" to JsonPrimitive(r.name),
+            "trigger" to JsonPrimitive(r.trigger.name),
+            "pattern" to JsonPrimitive(r.pattern),
+            "command" to JsonPrimitive(r.command),
+            "timeoutSeconds" to JsonPrimitive(r.timeoutSeconds),
+            "message" to JsonPrimitive(r.message),
+            "enabled" to JsonPrimitive(r.enabled),
+            "suspended" to JsonPrimitive(r.suspended),
+            "createdAt" to JsonPrimitive(r.createdAt),
+        ),
+    )
 
     private fun rulePayload(r: RememberedApproval) = JsonObject(
         linkedMapOf(
@@ -181,7 +200,8 @@ object PolicySeal {
     fun isDefault(s: AppSettings): Boolean =
         s.toolPolicies.isEmpty() && s.reviewerMode == ReviewerMode.OFF && !s.reviewerApprovesOutward && s.projectPolicies.values.all { it.isEmpty } &&
             s.projectRemotes.isEmpty() && !s.automationEnabled && s.automationCallers.isEmpty() && s.telegramRemote.isDefault &&
-            s.rememberedApprovals.isEmpty() && s.mcpToolPins.isEmpty && s.connectedFolders.isEmpty() && s.memoryApproval == MemoryApproval.OUTSIDE_CONTENT
+            s.rememberedApprovals.isEmpty() && s.mcpToolPins.isEmpty && s.connectedFolders.isEmpty() && s.memoryApproval == MemoryApproval.OUTSIDE_CONTENT &&
+            s.projectRules.values.all { it.isEmpty() }
 
     fun seal(s: AppSettings, key: IntegrityKey): String = PREFIX + Hex.of(key.mac(payload(s)))
 
@@ -245,6 +265,9 @@ object PolicySeal {
         // Connected folders stay connected (the grant is Android's), but the agent may only read them, and
         // only chats outside projects see them, until the user switches that back on.
         connectedFolders = s.connectedFolders.map { it.copy(readOnly = true, hiddenWritable = false, projectIds = emptyList()) },
+        // A rule changed outside Locus could run a planted command or tell the agent anything: every rule is
+        // suspended until the user looks at it and resumes it (docs/design/rules.md, "Sealing").
+        projectRules = s.projectRules.mapValues { (_, list) -> list.map { it.copy(suspended = true) } },
         policySeal = "",
     )
 }

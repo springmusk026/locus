@@ -193,4 +193,5 @@
         <item quantity="one">and %1$d more</item>
         <item quantity="other">and %1$d more</item>
     </plurals>
+    <string name="data_integrity_rules">Project rules were changed outside Locus. Every rule is suspended until you check it in its project\'s Rules and resume it.</string>
 </resources>

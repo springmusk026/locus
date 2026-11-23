@@ -99,6 +99,11 @@ class ProjectRepository @Inject constructor(
 
     suspend fun setPolicy(id: String, policy: ProjectPolicy) = settings.setProjectPolicy(id, policy)
 
+    /** The project's rules, suspended ones included (docs/design/rules.md). */
+    fun rules(id: String): Flow<List<dev.locus.core.model.ProjectRule>> = settings.settings.map { it.projectRules[id].orEmpty() }
+
+    suspend fun setRules(id: String, rules: List<dev.locus.core.model.ProjectRule>) = settings.setProjectRules(id, rules)
+
     /**
      * Deletes the project: its chats move out of it (their prompts stay as they were), its instructions
      * and memory go to agent-home's history, its permissions are dropped. The folder's files stay.
@@ -108,6 +113,7 @@ class ProjectRepository @Inject constructor(
         projects.delete(id)
         settings.setProjectPolicy(id, null)
         settings.setProjectRemote(id, null)
+        settings.setProjectRules(id, emptyList())
         settings.setShellSnapshots(id, false)
         settings.forgetRememberedApprovals(projectId = id)
         withContext(io) { home.removeProject(id) }

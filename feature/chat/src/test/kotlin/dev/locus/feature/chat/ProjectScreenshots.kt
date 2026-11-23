@@ -148,6 +148,94 @@ class ProjectScreenshots : ScreenshotTest() {
         snapAfter("project-editor-new-named", listOf(Step.Type("Home automation")), heightDp = 1400, activity = HiltHostActivity::class.java) { Editor(owner, null) }
     }
 
+    // ---- Rules (docs/design/rules.md).
+
+    private val ruff = dev.locus.core.model.ProjectRule("l", "ruff after edit", dev.locus.core.model.RuleTrigger.AFTER_EDIT, "*.py, scripts/**", "ruff check \$LOCUS_RULE_FILES")
+    private val tests = dev.locus.core.model.ProjectRule("t", "Tests pass", dev.locus.core.model.RuleTrigger.BEFORE_FINISH, command = "npm test -- --runInBand", timeoutSeconds = 180)
+    private val noPush = dev.locus.core.model.ProjectRule("b", "No push to main", dev.locus.core.model.RuleTrigger.BEFORE_COMMAND, "git push*main", message = "Never push to main; open a pull request instead.")
+
+    /** The rules view model for [project] with [rules] saved, Linux ready unless [linux] is false. */
+    private fun rulesVm(project: Project, rules: List<dev.locus.core.model.ProjectRule>, linux: Boolean = true): ProjectRulesViewModel {
+        if (linux) graph.linux.runOnHost { command, _ -> ProcessBuilder("sh", "-c", command) }
+        runBlocking { graph.settingsRepository.setProjectRules(project.id, rules) }
+        val vm = ProjectRulesViewModel(project.id, graph.projects, graph.linux)
+        runBlocking { withTimeout(10_000) { vm.state.first { !it.loading && it.rules.size == rules.size } } }
+        return vm
+    }
+
+    @Test
+    fun rules() {
+        val (garden, _, _) = seed()
+        val vm = rulesVm(garden, listOf(ruff, tests.copy(enabled = false), noPush))
+        snap("project-rules", heightDp = 1200) { ProjectRulesRoute(garden.id, onBack = {}, onOpenLinux = {}, viewModel = vm) }
+    }
+
+    @Test
+    fun rulesEmpty() {
+        val (garden, _, _) = seed()
+        val vm = rulesVm(garden, emptyList())
+        snap("project-rules-empty") { ProjectRulesRoute(garden.id, onBack = {}, onOpenLinux = {}, viewModel = vm) }
+    }
+
+    /** Without Linux, command rules are inactive and the screen says so; block rules still apply. */
+    @Test
+    fun rulesNoLinux() {
+        val (garden, _, _) = seed()
+        val vm = rulesVm(garden, listOf(ruff, noPush), linux = false)
+        snap("project-rules-no-linux", heightDp = 1000) { ProjectRulesRoute(garden.id, onBack = {}, onOpenLinux = {}, viewModel = vm) }
+    }
+
+    /** After a seal failure: every rule suspended, with the banner. */
+    @Test
+    fun rulesSuspended() {
+        val (garden, _, _) = seed()
+        val vm = rulesVm(garden, listOf(ruff, tests, noPush).map { it.copy(suspended = true) })
+        snap("project-rules-suspended", heightDp = 1200) { ProjectRulesRoute(garden.id, onBack = {}, onOpenLinux = {}, viewModel = vm) }
+    }
+
+    @Test
+    fun ruleEditorAfterEdit() {
+        val (garden, _, _) = seed()
+        val vm = rulesVm(garden, listOf(ruff))
+        vm.edit(ruff)
+        snap("project-rule-editor-after-edit", heightDp = 1400) { ProjectRulesRoute(garden.id, onBack = {}, onOpenLinux = {}, viewModel = vm) }
+    }
+
+    @Test
+    fun ruleEditorBeforeFinish() {
+        val (garden, _, _) = seed()
+        val vm = rulesVm(garden, listOf(tests))
+        vm.edit(tests)
+        snap("project-rule-editor-before-finish", heightDp = 1400) { ProjectRulesRoute(garden.id, onBack = {}, onOpenLinux = {}, viewModel = vm) }
+    }
+
+    @Test
+    fun ruleEditorBeforeCommand() {
+        val (garden, _, _) = seed()
+        val vm = rulesVm(garden, listOf(noPush))
+        vm.edit(noPush)
+        snap("project-rule-editor-before-command", heightDp = 1400) { ProjectRulesRoute(garden.id, onBack = {}, onOpenLinux = {}, viewModel = vm) }
+    }
+
+    /** A new rule: nothing filled in yet, so Save waits and says what's missing. */
+    @Test
+    fun ruleEditorNew() {
+        val (garden, _, _) = seed()
+        val vm = rulesVm(garden, emptyList())
+        vm.add()
+        snap("project-rule-editor-new", heightDp = 1400) { ProjectRulesRoute(garden.id, onBack = {}, onOpenLinux = {}, viewModel = vm) }
+    }
+
+    /** A suspended rule's editor: read it, then Resume. */
+    @Test
+    fun ruleEditorSuspended() {
+        val (garden, _, _) = seed()
+        val suspended = ruff.copy(suspended = true)
+        val vm = rulesVm(garden, listOf(suspended))
+        vm.edit(suspended)
+        snap("project-rule-editor-suspended", heightDp = 1400) { ProjectRulesRoute(garden.id, onBack = {}, onOpenLinux = {}, viewModel = vm) }
+    }
+
     @Test
     fun editorExisting() {
         val (garden, _, _) = seed()

@@ -170,4 +170,5 @@
     <plurals name="data_needs_you_more">
         <item quantity="other">还有 %1$d 项</item>
     </plurals>
+    <string name="data_integrity_rules">项目规则在 Locus 之外被更改。所有规则都已暂停，请在对应项目的“规则”中检查后再恢复。</string>
 </resources>

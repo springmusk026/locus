@@ -637,6 +637,52 @@ class ChatScreenshots : ScreenshotTest() {
         )
     }
 
+    /** Project rules' notes in a turn (docs/design/rules.md): ruff failing after an edit, then the tests failing and passing before finishing. */
+    private fun ruleNoteState(): ChatUiState {
+        val ruff = dev.locus.core.model.ProjectRule("l", "ruff after edit", dev.locus.core.model.RuleTrigger.AFTER_EDIT, "*.py", "ruff check .")
+        val tests = dev.locus.core.model.ProjectRule("t", "Tests pass", dev.locus.core.model.RuleTrigger.BEFORE_FINISH, command = "pytest -q")
+        fun run(rule: dev.locus.core.model.ProjectRule, exit: Int, files: List<String>, output: String, round: Int = 0) =
+            dev.locus.core.agent.RuleRun(rule, files, dev.locus.core.agent.RuleOutcome(exit, output, 800), dev.locus.core.model.RuleNote.header(rule, exit, 800, files, round)).parts.toTypedArray()
+        val messages = listOf(
+            msg("u1", Role.USER, Part.Text("Add a --dry-run flag to the sync script")),
+            msg("a1", Role.ASSISTANT, Part.Text("I'll add the flag to the argument parser."), Fx.call("e1", "edit_file", "path" to "sync/cli.py")),
+            msg("r1", Role.TOOL, Fx.result("e1", "edit_file", "Edited sync/cli.py")),
+            msg("n1", Role.USER, *run(ruff, 1, listOf("sync/cli.py"), "sync/cli.py:42:5: F841 Local variable `dry` is assigned to but never used\nFound 1 error.")),
+            msg("a2", Role.ASSISTANT, Fx.call("e2", "edit_file", "path" to "sync/cli.py")),
+            msg("r2", Role.TOOL, Fx.result("e2", "edit_file", "Edited sync/cli.py")),
+            msg("n2", Role.USER, *run(ruff, 0, listOf("sync/cli.py"), "All checks passed!")),
+            msg("a3", Role.ASSISTANT, Part.Text("Added `--dry-run`: it prints what would be copied and copies nothing.")),
+            msg("n3", Role.USER, *run(tests, 1, emptyList(), "FAILED tests/test_cli.py::test_dry_run - AssertionError\n1 failed, 23 passed in 2.10s", round = 1)),
+            msg("a4", Role.ASSISTANT, Fx.call("e3", "edit_file", "path" to "tests/test_cli.py")),
+            msg("r3", Role.TOOL, Fx.result("e3", "edit_file", "Edited tests/test_cli.py")),
+            msg("a5", Role.ASSISTANT, Part.Text("The test expected the old output; it now checks the dry-run summary. All 24 tests pass.")),
+            msg("n4", Role.USER, Part.Text(dev.locus.core.model.ModeNote.wrap(dev.locus.core.model.RuleNote.nowPasses(tests, 2_100)))),
+        )
+        return Fx.state(transcriptItems(messages), title = "Add a dry-run flag")
+    }
+
+    @Test
+    fun ruleNotes() = snap("chat-rule-notes", heightDp = 1400) { Chat(ruleNoteState()) }
+
+    /** The failed rule's output, opened. */
+    @Test
+    fun ruleNoteOpen() = snapAfter("chat-rule-note-open", listOf(dev.locus.core.screenshot.Step.Tap("Rule “ruff after edit” failed after an edit (exit code 1)")), heightDp = 900) {
+        // The turn so far: one edit and its rule's note, last in the transcript, so opening it moves nothing below.
+        val ruff = dev.locus.core.model.ProjectRule("l", "ruff after edit", dev.locus.core.model.RuleTrigger.AFTER_EDIT, "*.py", "ruff check .")
+        val run = dev.locus.core.agent.RuleRun(
+            ruff, listOf("sync/cli.py"),
+            dev.locus.core.agent.RuleOutcome(1, "sync/cli.py:42:5: F841 Local variable `dry` is assigned to but never used\nFound 1 error.", 800),
+            dev.locus.core.model.RuleNote.header(ruff, 1, 800, listOf("sync/cli.py")),
+        )
+        val messages = listOf(
+            msg("u1", Role.USER, Part.Text("Add a --dry-run flag to the sync script")),
+            msg("a1", Role.ASSISTANT, Part.Text("I'll add the flag to the argument parser."), Fx.call("e1", "edit_file", "path" to "sync/cli.py")),
+            msg("r1", Role.TOOL, Fx.result("e1", "edit_file", "Edited sync/cli.py")),
+            msg("n1", Role.USER, *run.parts.toTypedArray()),
+        )
+        Chat(Fx.state(transcriptItems(messages), title = "Add a dry-run flag"))
+    }
+
     private companion object {
         val LONG_QUESTIONS = listOf(
             "I'm going to Lisbon for 3 days in April. Where should I stay?",

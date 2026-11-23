@@ -209,3 +209,7 @@ The database (with `projects` and the new columns), the sealed settings (with `p
 - Per-project skills and helper types.
 - Named personas as a separate idea. A project's instructions cover most of it.
 - Sharing projects. There's no server, by design.
+
+## Rules
+
+A project can also have rules: commands Locus runs after an edit or before the agent finishes, and commands it blocks. They are sealed with the project's permissions, and only the user can change them, in the project's settings. See [rules](rules.md).

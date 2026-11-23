@@ -633,4 +633,6 @@
     <string name="designsystem_check_check_failed">La comprobación falló</string>
     <string name="designsystem_check_check_timed_out">La comprobación agotó el tiempo</string>
     <string name="designsystem_check_check_finished">La comprobación terminó</string>
+    <string name="designsystem_tool_project_rule_past">Ejecutó la regla de proyecto «%1$s»</string>
+    <string name="designsystem_tool_project_rule_present">Ejecutar la regla de proyecto «%1$s»</string>
 </resources>

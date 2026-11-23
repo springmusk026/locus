@@ -102,11 +102,15 @@ sealed interface ChatItem {
         val ranAnyway: Boolean = false,
         /** A proposal of this chat's run the user approved in Needs you (docs/design/needs-you.md). */
         val approvedProposal: Boolean = false,
+        /** A project rule's run (docs/design/rules.md): [text] is its English line, [ruleOutput] what it printed. */
+        val rule: dev.locus.core.model.RuleNote.Info? = null,
+        val ruleOutput: String? = null,
     ) : ChatItem {
         /** What the screen shows for this note. */
         fun shown(resources: android.content.res.Resources): String = when {
             ranAnyway -> resources.getString(R.string.chat_note_ran_anyway, text)
             approvedProposal -> resources.getString(R.string.chat_note_proposal_approved, text)
+            rule != null -> ruleLine(resources, rule)
             else -> text
         }
     }
@@ -1087,7 +1091,7 @@ internal fun transcriptItems(
         // A note from Locus belongs to the turn it joined: an undo the agent was told about mid-task shows
         // nothing; a call the user ran anyway mid-task shows as a step of that turn.
         if (ModeNote.isAgentNote(message)) {
-            if (ModeNote.ranAnyway(message) != null || ModeNote.proposalApproved(message) != null) turn += message
+            if (ModeNote.ranAnyway(message) != null || ModeNote.proposalApproved(message) != null || dev.locus.core.model.RuleNote.runs(message).isNotEmpty()) turn += message
             endedHere += ends
             return@forEach
         }
@@ -1161,6 +1165,10 @@ internal fun turnItems(turn: List<Message>, results: Map<String, Part.ToolResult
             if (message.role == Role.USER) {
                 ModeNote.ranAnyway(message)?.let { add(ChatItem.Note("${message.id}:ran", it, ranAnyway = true)) }
                 ModeNote.proposalApproved(message)?.let { add(ChatItem.Note("${message.id}:proposal", it, approvedProposal = true)) }
+                // A project rule's run (docs/design/rules.md): one step per rule, with what it printed.
+                dev.locus.core.model.RuleNote.runs(message).forEachIndexed { i, (info, output) ->
+                    add(ChatItem.Note("${message.id}:rule$i", ruleEnglish(info), rule = info, ruleOutput = output?.let(dev.locus.core.model.RuleNote::displayOutput)))
+                }
                 return@forEach
             }
             message.reasoning?.let { r -> add(ChatItem.Thought("${message.id}:thought", r.content, r.durationMs, inSteps = message.toolCalls.isNotEmpty())) }
