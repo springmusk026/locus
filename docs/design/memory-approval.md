@@ -70,6 +70,10 @@ States: the row (ready, no model, helper unavailable, checking), the sheet (work
 
 "Suggest memories from imported chats" reuses this review with a third proposal kind, `MemoryTidy.Proposal.New` (a note to add, with the imported chat it came from), applied by the same `MemoryTidy.apply`: never over an existing note, saved as `import` and flagged as outside content. See [import chats](import-chats.md#suggest-memories-from-imported-chats).
 
+## Reading a flagged note
+
+Approving a save keeps the note out of memory until the user has seen it; it doesn't make the text the user's. A note saved after reading outside content (or suggested from an imported chat) stays flagged once saved, and later runs treat it as outside content: `memory_read` and `memory_search` return it marked with where it came from, reading it taints the run ("a memory note from an imported chat"), and new chats' memory index marks its line "(from outside content)". Existing chats keep the prompt they were created with. Editing the note in Library makes it the user's and clears the flag; a tidy-up merge keeps it. See [taint](taint.md#memory-notes-from-outside-content).
+
 ## Not done
 
 - **Editing a note on the approval card** (above).

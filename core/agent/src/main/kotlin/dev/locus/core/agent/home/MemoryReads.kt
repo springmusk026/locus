@@ -28,16 +28,27 @@ object MemoryReads {
     /** The format before ranked search: "- topic: line", general memory marked at the start of the line. */
     private val LEGACY_HIT = Regex("""^- ([^\s:]+): (\(general memory\) )?.*$""")
 
-    /** `memory_search`'s result for the model: topics best first, each with its index line and where it matched. */
-    fun format(hits: List<MemoryHit>): String =
-        if (hits.isEmpty()) "No matches." else hits.joinToString("\n") { h ->
-            buildString {
-                append("- ").append(h.topic)
-                if (h.general) append(GENERAL)
-                if (h.summary.isNotBlank()) append(SEPARATOR).append(h.summary.trim())
-                h.snippet?.takeIf { it.isNotBlank() && it.trim() != h.summary.trim() }?.let { append("\n  ").append(it.trim()) }
-            }
-        }
+    /**
+     * `memory_search`'s result for the model: topics best first, each with its index line and where it
+     * matched. Notes saved after reading outside content ([MemoryHit.outside]) follow the others, best
+     * first, inside the outside-content markers with a note naming where they came from ([MemoryTrust]),
+     * so finding one taints the run. With none of those, the result is as it always was.
+     */
+    fun format(hits: List<MemoryHit>): String {
+        if (hits.isEmpty()) return "No matches."
+        val (flagged, own) = hits.partition { it.outside != null }
+        val trusted = own.joinToString("\n", transform = ::line)
+        if (flagged.isEmpty()) return trusted
+        val marked = MemoryTrust.wrapHits(flagged.joinToString("\n", transform = ::line), flagged.mapNotNull { it.outside })
+        return if (own.isEmpty()) marked else "$trusted\n$marked"
+    }
+
+    private fun line(h: MemoryHit): String = buildString {
+        append("- ").append(h.topic)
+        if (h.general) append(GENERAL)
+        if (h.summary.isNotBlank()) append(SEPARATOR).append(h.summary.trim())
+        h.snippet?.takeIf { it.isNotBlank() && it.trim() != h.summary.trim() }?.let { append("\n  ").append(it.trim()) }
+    }
 
     /** The topics one tool call read; empty for other tools, failures and calls without a result yet. */
     fun of(toolName: String, argumentsJson: String, result: String?, isError: Boolean): List<MemoryRef> {

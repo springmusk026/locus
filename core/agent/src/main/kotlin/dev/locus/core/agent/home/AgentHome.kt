@@ -628,7 +628,8 @@ class AgentHome(
         // A project chat with general memory too splits the memory share between the two indexes.
         val share = if (view.fallback != null) budget.memory / 2 else budget.memory
         fun index(tag: String, store: MemoryStore) {
-            val memory = store.memoryIndex()
+            // Flagged notes (saved after reading outside content) are marked; see MemoryTrust.
+            val memory = store.promptIndex()
             appendLine("<$tag>")
             appendLine(
                 if (memory.isBlank()) "(empty)"
@@ -1158,6 +1159,31 @@ class MemoryStore internal constructor(
 
     fun memoryIndex(): String = if (index.exists()) index.readText().trim() else ""
 
+    /**
+     * The index as a new chat's system prompt gets it ([AgentHome.snapshot]): [memoryIndex] with each
+     * flagged note's summary marked ([MemoryTrust.INDEX_MARK]) and, when there is one, [MemoryTrust.INDEX_NOTE]
+     * first (first, so cutting the index to the prompt budget never drops it). With no flagged note it is
+     * [memoryIndex] exactly. Only new chats read it: a chat's prompt is frozen when the chat is created.
+     */
+    fun promptIndex(): String {
+        val text = memoryIndex()
+        val flagged = provenance().filterValues(MemoryTrust::flagged).keys
+        if (text.isEmpty() || flagged.isEmpty()) return text
+        var marked = false
+        val lines = text.lines().map { line ->
+            val trimmed = line.trim()
+            val m = INDEX_LINE.find(trimmed)
+            if (m != null && m.groupValues[1] in flagged) {
+                marked = true
+                val at = m.range.last + 1
+                trimmed.substring(0, at) + MemoryTrust.INDEX_MARK + trimmed.substring(at)
+            } else {
+                line
+            }
+        }
+        return if (!marked) text else MemoryTrust.INDEX_NOTE + "\n" + lines.joinToString("\n")
+    }
+
     fun memoryTopics(): List<AgentHome.MemoryTopic> {
         val origins = provenance()
         val summaries = indexEntries()
@@ -1249,9 +1275,10 @@ class MemoryStore internal constructor(
         val ranked = searchIndex?.takeIf { syncIndex() }?.search(parsed, limit)
             ?: MemoryIndexFallback.search(parsed, memoryTopics(), limit)
         val summaries = indexEntries()
+        val origins = provenance()
         return ranked.map { r ->
             val snippet = r.snippet?.let(::oneLine) ?: readMemory(r.topic)?.let { memorySnippet(it, parsed) }
-            MemoryHit(r.topic, summaries[r.topic].orEmpty(), snippet)
+            MemoryHit(r.topic, summaries[r.topic].orEmpty(), snippet, outside = origins[r.topic]?.takeIf(MemoryTrust::flagged)?.let(MemoryTrust::origin))
         }
     }
 
@@ -1281,6 +1308,11 @@ class MemoryStore internal constructor(
         .mapNotNull { Regex("""^- \[([^\]]+)]\([^)]*\)\s*[—-]\s*(.*)$""").find(it.trim()) }
         .associate { it.groupValues[1] to it.groupValues[2] }
 
+    private companion object {
+        /** An index line: the topic, and what comes before its summary ("- [coffee](coffee.md) — "). */
+        val INDEX_LINE = Regex("""^- \[([^\]]+)]\([^)]*\)(\s*[—-]\s*)""")
+    }
+
     private fun writeIndex(entries: Map<String, String>) {
         index.writeText(entries.toSortedMap().entries.joinToString("\n") { (k, v) -> "- [$k]($k.md) — $v" } + "\n")
     }
@@ -1292,6 +1324,9 @@ class MemoryStore internal constructor(
  */
 class MemoryView(val primary: MemoryStore, val fallback: MemoryStore?) {
     fun read(topic: String): String? = primary.readMemory(topic) ?: fallback?.readMemory(topic)
+
+    /** The note [read] would return, with its provenance: from [primary] first, then [fallback]. */
+    fun readTopic(topic: String): AgentHome.MemoryTopic? = primary.memoryTopic(topic) ?: fallback?.memoryTopic(topic)
 
     /** Matches in [primary] first; matches from [fallback] are marked [MemoryHit.general]. */
     fun search(query: String, limit: Int = 8): List<MemoryHit> {

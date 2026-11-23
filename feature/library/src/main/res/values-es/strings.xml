@@ -551,6 +551,7 @@
     <string name="library_suggest_new_title">Nota nueva «%1$s»</string>
     <string name="library_memory_saved_from_import">Sugerida a partir de un chat importado; la aceptaste</string>
     <string name="library_memory_taint_imported_chat">un chat importado</string>
+    <string name="library_memory_taint_memory_note">una nota de memoria de contenido externo</string>
     <plurals name="library_suggest_subtitle">
         <item quantity="one">El modelo auxiliar lee tu %1$s chat importado y sugiere notas. No se guarda nada hasta que aceptes.</item>
         <item quantity="many">El modelo auxiliar lee tus %1$s chats importados y sugiere notas. No se guarda nada hasta que aceptes.</item>

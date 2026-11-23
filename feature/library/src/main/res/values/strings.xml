@@ -559,6 +559,7 @@
     <string name="library_suggest_new_title">New note “%1$s”</string>
     <string name="library_memory_saved_from_import">Suggested from an imported chat; you accepted it</string>
     <string name="library_memory_taint_imported_chat">an imported chat</string>
+    <string name="library_memory_taint_memory_note">a memory note from outside content</string>
     <plurals name="library_suggest_subtitle">
         <item quantity="one">The helper model reads your %1$s imported chat and suggests notes. Nothing is saved until you accept.</item>
         <item quantity="other">The helper model reads your %1$s imported chats and suggests notes. Nothing is saved until you accept.</item>
