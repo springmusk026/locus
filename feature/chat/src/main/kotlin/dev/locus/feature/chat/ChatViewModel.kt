@@ -86,9 +86,16 @@ sealed interface ChatItem {
          * to sites the user didn't name ask before opening. UI only.
          */
         val outsideContent: Boolean = false,
+        /**
+         * The model that wrote this reply, set where the turn has alternatives (the ‹ i/n › switcher), so each
+         * answer says whose it is (docs/design/compare-models.md). Null for a turn without alternatives.
+         */
+        val model: dev.locus.core.model.ModelRef? = null,
+        /** Set when the turn answered a Compare send: "Keep this one", or that this one was kept. UI only. */
+        val compare: ComparePick? = null,
     ) : ChatItem
 
-    /** The end of a turn that has no reply text (it stopped, failed or ended on a step): its branch controls. */
+    /** The end of a turn that has no reply text) (it stopped, failed or ended on a step): its branch controls. */
     data class TurnEnd(override val key: String, val turn: TurnBranch) : ChatItem
 
     /**
@@ -239,6 +246,11 @@ data class ChatControls(
      * created; on home, the switch for the chat the ask bar starts next.
      */
     val temporary: Boolean = false,
+    /**
+     * Compare models (docs/design/compare-models.md): the second model the next message is also sent to, or
+     * null for a normal send. Picked in the composer's options; one send uses it up.
+     */
+    val compare: CompareChoice? = null,
 ) {
     /** Tool groups and connectors switched off, for the tools chip's count (the mode and budget entries share the set). */
     val disabledCount: Int get() = disabledTools.count { !TaskBudget.isBudgetKey(it) && !dev.locus.core.model.ChatMode.isModeKey(it) }
@@ -496,6 +508,84 @@ class ChatViewModel @AssistedInject constructor(
 
     private val pending = MutableStateFlow<List<Part.Attachment>>(emptyList())
 
+    /** Compare models: the second model the next message also goes to; null for a normal send. In memory only. */
+    private val compareWith = MutableStateFlow<ModelRef?>(null)
+
+    /** Picks the second model for the next send (Compare models), or none with null. */
+    fun setCompare(ref: ModelRef?) {
+        compareWith.value = ref
+    }
+
+    private val _compareConfirm = MutableStateFlow<CompareConfirm?>(null)
+
+    /** A Compare send waiting for the user's OK on its estimate; null when none. */
+    internal val compareConfirm: StateFlow<CompareConfirm?> = _compareConfirm
+
+    private val compareConfirmed = settings.settings.map { it.compareConfirmed }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    /**
+     * Sends [text] to the chat's model and to [other] as two sibling answers (docs/design/compare-models.md),
+     * asking first the first time, or when the estimate is over [dev.locus.core.model.ModelCompare.CONFIRM_ABOVE_USD].
+     */
+    private fun compareOrConfirm(text: String, other: ModelRef) {
+        val state = uiState.value
+        val provider = state.provider
+        if (provider == null) {
+            runner.send(conversationId, text, pending.value)
+            pending.value = emptyList()
+            return
+        }
+        val chat = ModelRef(provider.id, provider.model)
+        val lists = state.picker.lists
+        val estimate = compareEstimate(state.providers, state.picker.catalog, state.tokens.context, text, pending.value, chat, other)
+        val confirm = CompareConfirm(
+            text, pending.value, CompareChoice(chat, compareTitle(chat, lists)), CompareChoice(other, compareTitle(other, lists)), estimate,
+            first = !compareConfirmed.value,
+        )
+        if (dev.locus.core.model.ModelCompare.needsConfirm(compareConfirmed.value, estimate)) {
+            _compareConfirm.value = confirm
+            return
+        }
+        startCompare(confirm)
+    }
+
+    /** The user said yes to the comparison's estimate: it's sent, and later ones ask only when they cost more. */
+    fun confirmCompare() {
+        val c = _compareConfirm.value ?: return
+        _compareConfirm.value = null
+        viewModelScope.launch { settings.setCompareConfirmed() }
+        startCompare(c)
+    }
+
+    /** Not now: nothing is sent; the screen puts the text back in the composer, and the second model stays picked. */
+    fun dismissCompareConfirm() {
+        _compareConfirm.value = null
+    }
+
+    private fun startCompare(c: CompareConfirm) {
+        val started = runner.sendCompare(conversationId, c.text, c.attachments, c.other.ref) { userId ->
+            settings.recordCompare(dev.locus.core.model.CompareTurn(conversationId, userId, c.chat.ref, c.other.ref))
+        }
+        if (started) {
+            pending.value = emptyList()
+            // One send uses the comparison up: the next message goes to the chat's model alone.
+            compareWith.value = null
+        } else {
+            // A turn started in between: the message joins it like any other, and Compare stays picked.
+            runner.send(conversationId, c.text, c.attachments)
+            pending.value = emptyList()
+        }
+    }
+
+    /**
+     * "Keep this one" under an answer of a Compare turn: it's the chat's continuation (the shown branch already
+     * is), and Insights → Your picks counts it for [kept]. Kept on the phone only.
+     */
+    fun keepAnswer(userMessageId: String, kept: ModelRef) {
+        viewModelScope.launch { settings.keepCompare(conversationId, userMessageId, kept) }
+    }
+
     init {
         // The saved catalogue, when it's on, so the budget sheet knows whether this model's prices are known.
         viewModelScope.launch { directory.index() }
@@ -591,9 +681,9 @@ class ChatViewModel @AssistedInject constructor(
         // Without the streamed text, so this only emits when something other than the text changes.
         runState.map { it.copy(streamingText = "", reasoning = "") }.distinctUntilChanged(),
         settings.settings,
-        combine(browser.stateOf(conversationId), pending, directory.lists, directory.catalog, library.library) { b, p, m, cat, lib ->
+        combine(browser.stateOf(conversationId), combine(pending, compareWith, ::Pair), directory.lists, directory.catalog, library.library) { b, (p, cmp), m, cat, lib ->
             Extras(
-                b, p, m, cat, lib.connectors.filterNot { it.draft }.map { ChatConnector(it.connector.id, it.connector.name, it.connector.kind == "mcp") },
+                b, p, m, cmp, cat, lib.connectors.filterNot { it.draft }.map { ChatConnector(it.connector.id, it.connector.name, it.connector.kind == "mcp") },
                 connectorAddresses = lib.connectors.filterNot { it.draft }.map { it.connector.baseUrl },
             )
         },
@@ -624,6 +714,7 @@ class ChatViewModel @AssistedInject constructor(
                 chatOnly = conversation?.chatOnly == true,
                 empty = items.isEmpty(),
                 temporary = conversation?.temporary == true,
+                compare = extras.compare?.let { CompareChoice(it, compareTitle(it, extras.models)) },
             ),
             connectors = extras.connectors,
             todos = todos,
@@ -633,8 +724,8 @@ class ChatViewModel @AssistedInject constructor(
                 needs = savedNeeds.withComposer(attachments, conversation?.effort).let { if (conversation?.chatOnly == true) it.copy(tools = false) else it },
                 backups = s.fallbackModels,
             ),
-            items = items.markWaitingPlan(waiting = !run.running),
-            rows = rows.markWaitingPlanRows(waiting = !run.running),
+            items = items.markWaitingPlan(waiting = !run.running).markCompare(conversationId, s.compareTurns),
+            rows = rows.markWaitingPlanRows(waiting = !run.running).markCompareRows(conversationId, s.compareTurns),
             run = run,
             loading = false,
             browserHandoff = browserState.handoffReason.takeIf { run.running },
@@ -728,6 +819,10 @@ class ChatViewModel @AssistedInject constructor(
     fun runDeferredNow() = runner.runDeferredNow(conversationId)
 
     private fun sendNow(text: String) {
+        // Compare models: two answers to this message, when the chat is free (a running task takes it as usual).
+        compareWith.value?.let { other ->
+            if (runner.states.value[conversationId]?.running != true) return compareOrConfirm(text, other)
+        }
         // While the agent works, this queues for its next step boundary (steer and queue); see AgentRunner.send.
         runner.send(conversationId, text, pending.value)
         pending.value = emptyList()
@@ -1027,6 +1122,8 @@ private data class Extras(
     val browser: dev.locus.core.browser.BrowserState,
     val pending: List<Part.Attachment>,
     val models: Map<String, ModelList>,
+    /** The second model for the next send (Compare models); null for none. */
+    val compare: ModelRef?,
     val catalog: ModelCatalogIndex?,
     val connectors: List<ChatConnector>,
     /** The active connectors' addresses: hosts the user set up, so links to them open in one tap. */
@@ -1081,7 +1178,7 @@ internal fun transcriptItems(
         out += when {
             info == null -> items
             reply >= 0 && items.drop(reply + 1).all { it is ChatItem.SentFile || it is ChatItem.ProviderDraft || it is ChatItem.Changes } ->
-                items.mapIndexed { i, item -> if (i == reply) (item as ChatItem.Assistant).copy(turn = info) else item }
+                items.mapIndexed { i, item -> if (i == reply) (item as ChatItem.Assistant).copy(turn = info, model = if (info.branch != null) replyModel(turn, item.key) else null) else item }
             info.branch != null || info.last -> items + ChatItem.TurnEnd("${start}:end", info)
             else -> items
         }

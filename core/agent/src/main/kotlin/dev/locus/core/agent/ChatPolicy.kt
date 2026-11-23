@@ -74,6 +74,19 @@ object ChatPolicy {
     }
 
     /**
+     * Compare models (docs/design/compare-models.md): the second model's branch is for answers only. It
+     * runs with the chat's tools, but like Read-only mode only calls that look run; anything that would
+     * change something (a file, a command, a message, a helper) is refused, so one message never has its
+     * side effects done twice. Refused at run time, so the request declares the chat's tools as always.
+     */
+    suspend fun compareDenial(tool: Tool, args: JsonObject): String? {
+        if (tool.isObservation(args)) return null
+        return "Not allowed: this answer is a comparison from a second model, which may only read and look. " +
+            "${tool.spec.name} would change something, so it doesn't run here. Don't retry or work around it: answer from what " +
+            "you can read, and say what you would do. The chat's own model answers the same message with its usual permissions."
+    }
+
+    /**
      * Why [mode] refuses this call, or null when it allows it. Only ever refuses: what it allows still
      * goes through the user's Allow / Ask / Deny and [Tool.mustConfirm].
      *

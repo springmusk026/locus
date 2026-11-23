@@ -112,4 +112,7 @@
     </plurals>
     <string name="analytics_cost_note_priced">Según los precios de lista de models.dev; la factura de tu proveedor puede ser distinta.</string>
     <string name="analytics_locked_chat">Chat bloqueado</string>
+    <string name="analytics_section_picks">Tus elecciones</string>
+    <string name="analytics_picks_note">De Comparar modelos en los chats: cuántas veces te quedaste con la respuesta de cada modelo. Se guarda solo en este teléfono y nunca se envía.</string>
+    <string name="analytics_picks_row_description">%1$s elegida %2$d, %3$s elegida %4$d</string>
 </resources>

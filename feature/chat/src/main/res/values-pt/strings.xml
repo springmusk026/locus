@@ -1560,4 +1560,34 @@
         <item quantity="many">%1$d regras</item>
         <item quantity="other">%1$d regras</item>
     </plurals>
+    <string name="chat_compare_sheet_title">Comparar com</string>
+    <string name="chat_compare_sheet_subtitle">Sua próxima mensagem também vai para um segundo modelo, como outra resposta ao lado da deste chat.</string>
+    <string name="chat_compare_rule">Comparar não deixa o segundo modelo mudar nada: ele pode ler e olhar, mas gravar arquivos, executar comandos, enviar e iniciar ajudantes é negado. O modelo deste chat responde como sempre.</string>
+    <string name="chat_compare_cache_note">O provedor do segundo modelo não viu este chat, então a primeira solicitação grava todo o prompt no cache dele, ao preço de gravação em cache. O modelo deste chat e o cache dele não são afetados.</string>
+    <string name="chat_compare_second_chip">Segundo modelo</string>
+    <string name="chat_compare_chat_chip">Modelo deste chat</string>
+    <string name="chat_compare_stop">Parar de comparar</string>
+    <string name="chat_compare_stop_hint">A próxima mensagem vai só para o modelo deste chat.</string>
+    <string name="chat_compare_pill">vs %1$s</string>
+    <string name="chat_compare_pill_description">Comparar com %1$s</string>
+    <string name="chat_compare_pill_change">mudar ou parar de comparar</string>
+    <string name="chat_compare_row">Comparar modelos</string>
+    <string name="chat_compare_row_hint">Envie a próxima mensagem também para um segundo modelo e fique com a melhor resposta.</string>
+    <string name="chat_compare_row_on">A próxima mensagem também vai para %1$s.</string>
+    <string name="chat_compare_label_read_only">%1$s · somente leitura</string>
+    <string name="chat_compare_keep">Ficar com esta</string>
+    <string name="chat_compare_kept">Escolhida</string>
+    <string name="chat_compare_streaming">Segunda resposta: %1$s · somente leitura</string>
+    <string name="chat_compare_price_unknown">desconhecido</string>
+    <string name="chat_compare_price_tiny">&lt; US$ 0,001</string>
+    <string name="chat_compare_price">US$ %1$s</string>
+    <string name="chat_compare_confirm_title">Enviar para os dois modelos?</string>
+    <string name="chat_compare_confirm_send">Enviar para os dois</string>
+    <string name="chat_compare_confirm_first">Sua mensagem vai para o modelo deste chat e para um segundo. As duas respostas aparecem como ‹ 1/2 ›, cada uma com o seu modelo; fique com a que preferir.</string>
+    <string name="chat_compare_confirm_over">Estima-se que esta comparação custe mais do que o normal.</string>
+    <string name="chat_compare_confirm_chat_role">Modelo deste chat · menos com o cache ativo</string>
+    <string name="chat_compare_confirm_other_role">Segundo modelo · somente leitura</string>
+    <string name="chat_compare_confirm_covers">Entrada estimada da primeira solicitação de cada modelo (cerca de %1$s tokens), pelos preços do models.dev. Respostas e etapas com ferramentas custam mais.</string>
+    <string name="chat_compare_confirm_cache">%1$s não viu este chat, então o provedor dele grava todo o prompt no cache: é cobrado como gravação em cache.</string>
+    <string name="chat_run_compare_failed">%1$s não conseguiu responder à comparação: %2$s</string>
 </resources>

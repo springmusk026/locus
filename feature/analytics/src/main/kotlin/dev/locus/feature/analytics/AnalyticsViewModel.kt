@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
@@ -36,6 +37,11 @@ data class AnalyticsUiState(
     val prices: PricesSetup = PricesSetup.Idle,
     /** Locked chats this session hasn't unlocked: listed as "Locked chat" (docs/design/app-lock.md). */
     val hiddenChats: Set<String> = emptySet(),
+    /**
+     * Your picks (docs/design/compare-models.md): for each pair of models compared in chats, how often each answer
+     * was kept, most compared first. From Settings, on the phone only; not limited to [period].
+     */
+    val picks: List<dev.locus.core.model.ModelPickTally> = emptyList(),
 )
 
 /** The spend card's "Turn on prices" action. */
@@ -57,6 +63,8 @@ class AnalyticsViewModel @Inject constructor(
     private val models: ModelDirectory,
     /** Lock Locus and locked chats; null in tests that don't need it. */
     appLock: dev.locus.core.data.lock.AppLock? = null,
+    /** Your picks from Compare models; null in tests that don't need them. */
+    settings: dev.locus.core.data.repository.SettingsRepository? = null,
 ) : ViewModel() {
 
     init {
@@ -72,6 +80,9 @@ class AnalyticsViewModel @Inject constructor(
 
     private val prices = MutableStateFlow(PricesSetup.Idle)
 
+    private val picks = (settings?.settings ?: kotlinx.coroutines.flow.flowOf(null)).map { s -> dev.locus.core.model.ModelCompare.table(s?.modelPicks.orEmpty()) }
+        .distinctUntilChanged()
+
     /** The selection moves at once; the previous report stays on screen until the new one is ready. */
     private val hidden = (appLock?.status ?: kotlinx.coroutines.flow.flowOf(null)).map { status ->
         status?.let { s -> s.settings.lockedChats.filter(s::redactInApp).toSet() }.orEmpty()
@@ -79,6 +90,7 @@ class AnalyticsViewModel @Inject constructor(
 
     val uiState: StateFlow<AnalyticsUiState> = combine(period, reports, models.catalog, models.lists, prices) { p, r, c, l, pr -> AnalyticsUiState(p, r, c, l, pr) }
         .combine(hidden) { state, h -> state.copy(hiddenChats = h) }
+        .combine(picks) { state, p -> state.copy(picks = p) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AnalyticsUiState())
 
     fun setPeriod(period: AnalyticsPeriod) {
