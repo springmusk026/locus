@@ -1535,4 +1535,18 @@
     <plurals name="chat_publish_removed">
         <item quantity="other">已移除 %1$d 个机密</item>
     </plurals>
+    <string name="chat_composer_remove_pick">移除选取的元素 %1$s</string>
+    <string name="chat_picked_element">在页面上选取：%1$s</string>
+    <string name="chat_page_see">查看页面</string>
+    <string name="chat_page_title">此步骤时的页面</string>
+    <string name="chat_page_loading">正在加载页面</string>
+    <string name="chat_page_failed">Locus 无法读取它为此页面保存的内容。</string>
+    <string name="chat_page_retry">重试</string>
+    <string name="chat_page_no_picture">没有截图：此步骤时浏览器不在屏幕上。</string>
+    <string name="chat_page_text_label">Locus 在页面上读到的内容</string>
+    <string name="chat_page_private">仅为你保存在这台手机上，并随对话一起删除。不会再次发送给模型。</string>
+    <string name="chat_page_not_kept_title">未保存</string>
+    <string name="chat_page_not_kept_message">Locus 没有这个页面的副本。它会保存每个对话最近的页面，但不包括此功能推出之前的、从备份恢复的或复制的对话中的页面。此步骤的详情中仍可看到它读取的内容。</string>
+    <string name="chat_page_when">查看于%1$s</string>
+    <string name="chat_page_picture">当时的页面</string>
 </resources>

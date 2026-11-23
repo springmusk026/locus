@@ -67,4 +67,19 @@
     <string name="browser_dock_announce_question">Locus 问：%1$s</string>
     <string name="browser_dock_announce_end">。</string>
     <string name="browser_dock_announce_queue">%1$s 等待中：%2$s。</string>
+    <string name="browser_menu_pick">选取页面元素</string>
+    <string name="browser_pick_title">选取页面元素</string>
+    <string name="browser_pick_hint">轻触页面上你想让 Locus 关注的部分。拖动可滚动页面。</string>
+    <string name="browser_pick_checking">正在查看该位置的内容…</string>
+    <string name="browser_pick_selected">%1$s\n%2$s</string>
+    <string name="browser_pick_again">轻触其他内容可改选。</string>
+    <string name="browser_pick_nothing">那里没有可选取的内容。请轻触按钮、链接、图片或文字。</string>
+    <string name="browser_pick_whole">那是整个页面。请轻触页面上更小的部分。</string>
+    <string name="browser_pick_no_answer">页面没有响应。请等它加载完成后再轻触一次。</string>
+    <string name="browser_pick_not_now">现在无法在此页面上选取。</string>
+    <string name="browser_pick_attach_failed">无法附加。请重试。</string>
+    <string name="browser_pick_cancel">取消</string>
+    <string name="browser_pick_attach">附加到消息</string>
+    <string name="browser_pick_attached">已附加到你的下一条消息</string>
+    <string name="browser_pick_overlay">页面。轻触某个元素即可选取。</string>
 </resources>

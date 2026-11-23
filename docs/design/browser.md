@@ -405,6 +405,53 @@ The tool and prompt texts say so.
 - Subdomain scopes, import from other password managers, and a biometric prompt per fill (the per-site approval card and 30-day expiry stand in for it).
 - MHTML archives aren't scrubbed. They hold the DOM, not typed values, and quoted-printable encoding can split a value, so a byte search would be false comfort. PNG screenshots aren't scrubbed either: the model never receives images from the browser, and a password field draws as dots, though a filled one-time-code field shows its (short-lived) code.
 
+## Element picker
+
+Status: built 2026-11-23 (`PickedElement`, `AgentBrowser.pickAt`, `__locus.pickAt` in locus-agent.js, `PickUi.kt`; tests `PickedElementTest`, `BrowserPickTest`, `BrowserPagesChatTest`, `BrowserScreenshots`, `BrowserPageScreenshots`). Not yet tried on the phone, and `__locus.pickAt` hasn't run against a real page yet (only a syntax check).
+
+The user can point the agent at something on the page instead of describing it ("the second Reserve button, not the first").
+
+**What the user does.** In a chat's full-screen browser, ⋮ → **Pick an element**. A bar at the bottom says to tap the part of the page to point Locus at; a drag still scrolls. A tap outlines what it found and names it in the bar (`button “Reserve”`, with its text). Tapping something else picks that instead. **Attach to message** puts it in the chat's composer as a chip (crosshair, label, site, ✕) and goes back to the chat. **Cancel** or system back ends picking. The message can be sent with or without words. The sent message shows the chip under the user's bubble (TalkBack: "Picked on the page: button “Reserve” · booking.com"), and so does a queued one.
+
+States: a tap on empty space ("Nothing to point at there") or on the page's background ("That's the page itself"); a page that doesn't answer or can't be checked ("Wait until it finishes loading"); checking; attaching failed. The menu item is disabled while Locus browses (unless the user took over or was handed the page), with no page, and behind a page dialog. It isn't offered in "Your browsing", which has no chat to attach to. Picking ends by itself when Locus starts browsing again or the page closes. Another page or tab clears the selection, and scrolling hides the outline until the next tap.
+
+**How it addresses the element.** The way the tools do: a ref. `__locus.pickAt(fx, fy)` hit-tests that point of the viewport (through open shadow roots and same-origin frames), climbs to the nearest element a snapshot would list as interactive, or keeps the element itself when there is none (refusing the page as a whole), and gives it a ref with the same `assign` the snapshot uses. Refs live in the helper's WeakMap and stay the same while the element exists, so the next snapshot lists the picked element under the same ref, and `browser_click e57` acts on it. The note tells the model so: "If a tool says the refs are out of date, take a snapshot: the element keeps the same ref there". After a Take over the session's refs are void until the next snapshot (`BrowserSessions.userTookOver`). Picking doesn't change that: the model takes the snapshot it needs anyway and finds the element there under the ref it was given. Picking records no snapshot scope, since that would make refs the model held from before the user changed the page valid again.
+
+**Isolation.** Nothing is injected for picking. The tap is caught in Compose over the WebView and never reaches the page, so the page can't see or fake it. Kotlin then calls one read-only function of the locked page helper with the tap's position. The page's DOM isn't touched (refs are in the WeakMap), no listener or overlay is added to it, and so there is nothing to remove afterwards: the outline is drawn by Compose from the rectangle the helper reported. The answer must carry the tab's secret (`PageReply.verified`), so a page that defined its own `__locus` can't hand over a ref; an unverified answer counts as "the page didn't answer". `pickAt` takes the session's lock, so it never interleaves with a tool call on that page. No AccessibilityService, no new dependency.
+
+**What the model gets, and taint.** The pick rides on the user's message as a `ModeNote.result` part (`<locus_result>`), as the result of a call the user ran does. Locus's own sentence and the ref are outside; everything the page said (title, address, role, accessible name, link, the element's text up to 300 characters, its value) is inside `<untrusted_web_content>` (`Untrusted.wrap`, so a closing tag in page text is defused and hidden characters are stripped). Saved-login secrets are scrubbed out of it (`LoginScrubber`). Password, card and one-time-code fields, fields filled from a saved login and fields the user typed into never carry a value (`value=<hidden>`). Because it is a result part:
+- it isn't `Message.userText`, so nothing in it counts as the user's words. No host in it, not even the page's own, becomes "named" (taint.md), and the safety reviewer never reads it as the user's request.
+- `Taint.sourcesIn` counts it ("a page element you picked"), so the run is tainted, as by any browser result.
+- a message that is only a pick (no words, with plan mode on, or joining mid-task) is still the user's turn: `ModeNote.isAgentNote` leaves out messages with a picked element.
+
+It is appended with the new message, never inserted into history. The system prompt, the tool list and every earlier message are unchanged, so the prompt cache holds; no tool, schema or description changed. An attached pick is kept in memory until it's sent or removed, like the tabs. A queued message keeps it on disk with the rest of the queue (`QueuedMessage.result`).
+
+**Not done.** A cropped picture of the element for vision models: it would be an image in the user's message, which needs the vision checks and costs tokens on every later request, while the ref, role, name and text already let the model act on it. Picking from the chat's small live panel (it has no menu). Picking several elements at once.
+
+## The page as it was
+
+Status: built 2026-11-23 (`BrowserPages`, `AgentBrowser.record`, `BrowserPageUi.kt`, `ChatViewModel.pageAt`; tests `BrowserPagesTest`, `BrowserPagesChatTest`, `BrowserPageScreenshots`). Not yet tried on the phone.
+
+A browser step in the chat has **See the page** under its label, once it ran, for the tools whose result describes the page: open, snapshot, click, type, select, fill_form, press_key, scroll, back, wait, tabs, dialog, upload, login and ask_user. It opens a sheet with the page's title and address, when it was seen, a picture of the screen when one was kept (tap it for full screen and zoom), and "What Locus read on the page": the whole snapshot.
+
+**What was stored before, and why a record was added.** A browser step stores only its result text. After the first snapshot of a page that is usually a diff ("Changes since the last snapshot"), so the transcript can't show the page as a whole, and no picture was stored at all. So each browser call that describes a page now keeps a small side record (`BrowserPages`):
+- the full snapshot text, as the model would have seen it without a diff;
+- the address and title, by the WebView's own record, and the time;
+- only when the browser was on screen at that moment (the chat's live panel or the full-screen browser), a JPEG of the viewport at most 720 px wide, quality 70, usually 50 to 150 KB. Off screen there is no picture: drawing an off-screen WebView needs a hidden window and up to 5 s on every step (see "Screenshots"). On screen the step waits at most 300 ms for a frame.
+
+**Storage, caps and clean-up.**
+- Files under the app's private `files/browser-pages/<chat>/<call>.json|jpg`. No database change.
+- At most 60,000 characters of text per call, the newest 60 calls per chat, and 48 MB in all, oldest first.
+- Deleting a chat deletes its records and its helpers' (`ConversationRepository.delete`, and temporary chats when they go).
+- Not in backups, like `tool-images` and caches. A restored chat, a forked chat, and anything from before this change show **Not kept**, with the page's title and address from the step's own result; the step's details still show what it read.
+- Saved-login secrets are scrubbed from the text, as from results. If the logins can't be read, nothing is kept.
+- Clear browsing data doesn't touch them: they belong to the chats, not the browser profile.
+- Ids that aren't plain names (`..`, slashes) are never used as paths.
+
+**Never sent to a model.** The record is written beside the call, after `describe` has produced the result, from values it already computed. The result, the transcript, the request and the tool list are byte for byte what they were. Viewing a page reads only those files and appends nothing to the chat. The sheet says so ("It is never sent to the model again").
+
+**Not done.** Steps inside a helper's own transcript have no See the page (their records exist under the helper's chat, but its sheet doesn't offer it). `browser_read`, `browser_logs` and `browser_save` keep no record: they describe no page, or save it themselves.
+
 ## Device test checklist
 1. Open a news site: the snapshot lists headings and links with refs, and `browser_read` returns Markdown.
 2. Click through a cookie banner. A covered-element error should name the banner.
@@ -445,6 +492,10 @@ The tool and prompt texts say so.
 33. Two waiting (a helper and the chat's agent): "1 of 2"; answer one, the next shows. An `ask_user` question ("which room?") shows the question card; an open question has its own answer field.
 34. Saved-login fill asked from the browser: the same card with This chat / Always. With TalkBack on, a new request is read out once without moving focus. At 200% font the card scrolls and the top of the page stays visible.
 27. Autofill: during a hand-over, does the phone's own autofill service (Google Password Manager, Bitwarden) offer to fill or save inside Locus's browser? Record the result in this doc (unverified so far).
+
+35. Element picker: in a chat's full-screen browser on a booking page, ⋮ → Pick an element. Tap a Reserve button: it's outlined and named in the bar. Tap a paragraph, then empty space, then the page's background: each says what it found. Drag: the page scrolls and the outline goes. Attach: back in the chat the chip is in the composer; send "book this one". The agent clicks that ref (after a snapshot if you had taken over). "What was sent" shows the note inside `<untrusted_web_content>`. On a test page that logs clicks, the pick's tap isn't logged.
+36. Picker while Locus browses: the menu item is disabled; take over, and it works. A password field picked: the note says `value=<hidden>`.
+37. See the page: with the live panel open, let the agent click through two pages; each step's See the page shows a picture and the whole snapshot. With the panel closed, the sheet says there's no picture. Delete the chat: `files/browser-pages/<chat>` is gone.
 
 Dropdowns ("Forms and dropdowns"). Try each twice: once with the browser panel open (real taps) and once with it closed (scripted taps). Each should take one `browser_select` call, and the result should say what was selected.
 

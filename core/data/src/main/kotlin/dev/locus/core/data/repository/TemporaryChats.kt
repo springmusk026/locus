@@ -143,6 +143,7 @@ class TemporaryChats @Inject constructor(
             }
         }
         spilled.forEach(::deleteSpill)
+        conversations.forgetBrowserPages(all)
         return true
     }
 
