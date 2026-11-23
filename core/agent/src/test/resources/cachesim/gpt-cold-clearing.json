@@ -1,0 +1,298 @@
+{
+  "label": "GPT-5.5 on Chat Completions, a 25-hour pause (synthetic)",
+  "model": "gpt-5.5",
+  "format": "OPENAI_CHAT",
+  "price": {
+    "input": 1.25,
+    "output": 10.0,
+    "cacheRead": 0.125
+  },
+  "contextWindow": 400000,
+  "prefixTokens": 6000,
+  "steps": [
+    {
+      "sentAtMs": 0,
+      "replyAtMs": 10000,
+      "newTokens": 1000,
+      "userTokens": 1000,
+      "outputTokens": 100,
+      "startsTurn": true,
+      "results": [],
+      "recorded": {
+        "input": 7000,
+        "output": 100,
+        "cacheRead": 0
+      }
+    },
+    {
+      "sentAtMs": 20000,
+      "replyAtMs": 30000,
+      "newTokens": 3100,
+      "userTokens": 0,
+      "outputTokens": 100,
+      "startsTurn": false,
+      "results": [
+        {
+          "chars": 12000
+        }
+      ],
+      "recorded": {
+        "input": 10100,
+        "output": 100,
+        "cacheRead": 7000
+      }
+    },
+    {
+      "sentAtMs": 40000,
+      "replyAtMs": 50000,
+      "newTokens": 3100,
+      "userTokens": 0,
+      "outputTokens": 100,
+      "startsTurn": false,
+      "results": [
+        {
+          "chars": 12000
+        }
+      ],
+      "recorded": {
+        "input": 13200,
+        "output": 100,
+        "cacheRead": 10100
+      }
+    },
+    {
+      "sentAtMs": 60000,
+      "replyAtMs": 70000,
+      "newTokens": 3100,
+      "userTokens": 0,
+      "outputTokens": 100,
+      "startsTurn": false,
+      "results": [
+        {
+          "chars": 12000
+        }
+      ],
+      "recorded": {
+        "input": 16300,
+        "output": 100,
+        "cacheRead": 13200
+      }
+    },
+    {
+      "sentAtMs": 80000,
+      "replyAtMs": 90000,
+      "newTokens": 3100,
+      "userTokens": 0,
+      "outputTokens": 100,
+      "startsTurn": false,
+      "results": [
+        {
+          "chars": 12000
+        }
+      ],
+      "recorded": {
+        "input": 19400,
+        "output": 100,
+        "cacheRead": 16300
+      }
+    },
+    {
+      "sentAtMs": 100000,
+      "replyAtMs": 110000,
+      "newTokens": 3100,
+      "userTokens": 0,
+      "outputTokens": 100,
+      "startsTurn": false,
+      "results": [
+        {
+          "chars": 12000
+        }
+      ],
+      "recorded": {
+        "input": 22500,
+        "output": 100,
+        "cacheRead": 19400
+      }
+    },
+    {
+      "sentAtMs": 120000,
+      "replyAtMs": 130000,
+      "newTokens": 3100,
+      "userTokens": 0,
+      "outputTokens": 100,
+      "startsTurn": false,
+      "results": [
+        {
+          "chars": 12000
+        }
+      ],
+      "recorded": {
+        "input": 25600,
+        "output": 100,
+        "cacheRead": 22500
+      }
+    },
+    {
+      "sentAtMs": 140000,
+      "replyAtMs": 150000,
+      "newTokens": 3100,
+      "userTokens": 0,
+      "outputTokens": 100,
+      "startsTurn": false,
+      "results": [
+        {
+          "chars": 12000
+        }
+      ],
+      "recorded": {
+        "input": 28700,
+        "output": 100,
+        "cacheRead": 25600
+      }
+    },
+    {
+      "sentAtMs": 160000,
+      "replyAtMs": 170000,
+      "newTokens": 3100,
+      "userTokens": 0,
+      "outputTokens": 100,
+      "startsTurn": false,
+      "results": [
+        {
+          "chars": 12000
+        }
+      ],
+      "recorded": {
+        "input": 31800,
+        "output": 100,
+        "cacheRead": 28700
+      }
+    },
+    {
+      "sentAtMs": 180000,
+      "replyAtMs": 190000,
+      "newTokens": 3100,
+      "userTokens": 0,
+      "outputTokens": 100,
+      "startsTurn": false,
+      "results": [
+        {
+          "chars": 12000
+        }
+      ],
+      "recorded": {
+        "input": 34900,
+        "output": 100,
+        "cacheRead": 31800
+      }
+    },
+    {
+      "sentAtMs": 200000,
+      "replyAtMs": 210000,
+      "newTokens": 3100,
+      "userTokens": 0,
+      "outputTokens": 100,
+      "startsTurn": false,
+      "results": [
+        {
+          "chars": 12000
+        }
+      ],
+      "recorded": {
+        "input": 38000,
+        "output": 100,
+        "cacheRead": 34900
+      }
+    },
+    {
+      "sentAtMs": 220000,
+      "replyAtMs": 230000,
+      "newTokens": 3100,
+      "userTokens": 0,
+      "outputTokens": 100,
+      "startsTurn": false,
+      "results": [
+        {
+          "chars": 12000
+        }
+      ],
+      "recorded": {
+        "input": 41100,
+        "output": 100,
+        "cacheRead": 38000
+      }
+    },
+    {
+      "sentAtMs": 240000,
+      "replyAtMs": 250000,
+      "newTokens": 3100,
+      "userTokens": 0,
+      "outputTokens": 100,
+      "startsTurn": false,
+      "results": [
+        {
+          "chars": 12000
+        }
+      ],
+      "recorded": {
+        "input": 44200,
+        "output": 100,
+        "cacheRead": 41100
+      }
+    },
+    {
+      "sentAtMs": 90240000,
+      "replyAtMs": 90250000,
+      "newTokens": 600,
+      "userTokens": 500,
+      "outputTokens": 100,
+      "startsTurn": true,
+      "results": [],
+      "recorded": {
+        "input": 23940,
+        "output": 100,
+        "cacheRead": 0
+      }
+    },
+    {
+      "sentAtMs": 90260000,
+      "replyAtMs": 90270000,
+      "newTokens": 1100,
+      "userTokens": 0,
+      "outputTokens": 100,
+      "startsTurn": false,
+      "results": [
+        {
+          "chars": 4000
+        }
+      ],
+      "recorded": {
+        "input": 25040,
+        "output": 100,
+        "cacheRead": 23940
+      }
+    },
+    {
+      "sentAtMs": 90280000,
+      "replyAtMs": 90290000,
+      "newTokens": 1100,
+      "userTokens": 0,
+      "outputTokens": 100,
+      "startsTurn": false,
+      "results": [
+        {
+          "chars": 4000
+        }
+      ],
+      "recorded": {
+        "input": 26140,
+        "output": 100,
+        "cacheRead": 25040
+      }
+    }
+  ],
+  "recordedPolicy": {
+    "label": "Locus today",
+    "compaction": "NONE"
+  }
+}

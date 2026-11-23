@@ -1,0 +1,312 @@
+{
+  "label": "Claude Haiku 5.5, a long task past the 100K step (synthetic)",
+  "model": "claude-haiku-5-5",
+  "format": "ANTHROPIC_MESSAGES",
+  "price": {
+    "input": 0.1,
+    "output": 0.5,
+    "cacheRead": 0.01,
+    "cacheWrite": 0.125,
+    "tiers": [
+      {
+        "above": 100000,
+        "price": {
+          "input": 0.5,
+          "output": 2.5,
+          "cacheRead": 0.05,
+          "cacheWrite": 0.625
+        }
+      }
+    ]
+  },
+  "contextWindow": 1000000,
+  "prefixTokens": 12000,
+  "observedSummaryTokens": 4000,
+  "steps": [
+    {
+      "sentAtMs": 0,
+      "replyAtMs": 10000,
+      "newTokens": 10000,
+      "userTokens": 2000,
+      "outputTokens": 1000,
+      "startsTurn": true,
+      "results": [],
+      "recorded": {
+        "input": 22000,
+        "output": 1000,
+        "cacheRead": 0,
+        "cacheWrite": 22000,
+        "cacheWrite1h": 22000
+      }
+    },
+    {
+      "sentAtMs": 30000,
+      "replyAtMs": 40000,
+      "newTokens": 10000,
+      "userTokens": 0,
+      "outputTokens": 1000,
+      "startsTurn": false,
+      "results": [
+        {
+          "chars": 32000
+        }
+      ],
+      "recorded": {
+        "input": 32000,
+        "output": 1000,
+        "cacheRead": 22000,
+        "cacheWrite": 10000,
+        "cacheWrite1h": 10000
+      }
+    },
+    {
+      "sentAtMs": 60000,
+      "replyAtMs": 70000,
+      "newTokens": 10000,
+      "userTokens": 0,
+      "outputTokens": 1000,
+      "startsTurn": false,
+      "results": [
+        {
+          "chars": 32000
+        }
+      ],
+      "recorded": {
+        "input": 42000,
+        "output": 1000,
+        "cacheRead": 32000,
+        "cacheWrite": 10000,
+        "cacheWrite1h": 10000
+      }
+    },
+    {
+      "sentAtMs": 90000,
+      "replyAtMs": 100000,
+      "newTokens": 10000,
+      "userTokens": 0,
+      "outputTokens": 1000,
+      "startsTurn": false,
+      "results": [
+        {
+          "chars": 32000
+        }
+      ],
+      "recorded": {
+        "input": 52000,
+        "output": 1000,
+        "cacheRead": 42000,
+        "cacheWrite": 10000,
+        "cacheWrite1h": 10000
+      }
+    },
+    {
+      "sentAtMs": 120000,
+      "replyAtMs": 130000,
+      "newTokens": 10000,
+      "userTokens": 0,
+      "outputTokens": 1000,
+      "startsTurn": false,
+      "results": [
+        {
+          "chars": 32000
+        }
+      ],
+      "recorded": {
+        "input": 62000,
+        "output": 1000,
+        "cacheRead": 52000,
+        "cacheWrite": 10000,
+        "cacheWrite1h": 10000
+      }
+    },
+    {
+      "sentAtMs": 150000,
+      "replyAtMs": 160000,
+      "newTokens": 10000,
+      "userTokens": 0,
+      "outputTokens": 1000,
+      "startsTurn": false,
+      "results": [
+        {
+          "chars": 32000
+        }
+      ],
+      "recorded": {
+        "input": 72000,
+        "output": 1000,
+        "cacheRead": 62000,
+        "cacheWrite": 10000,
+        "cacheWrite1h": 10000
+      }
+    },
+    {
+      "sentAtMs": 180000,
+      "replyAtMs": 190000,
+      "newTokens": 10000,
+      "userTokens": 0,
+      "outputTokens": 1000,
+      "startsTurn": false,
+      "results": [
+        {
+          "chars": 32000
+        }
+      ],
+      "recorded": {
+        "input": 82000,
+        "output": 1000,
+        "cacheRead": 72000,
+        "cacheWrite": 10000,
+        "cacheWrite1h": 10000
+      }
+    },
+    {
+      "sentAtMs": 210000,
+      "replyAtMs": 220000,
+      "newTokens": 10000,
+      "userTokens": 0,
+      "outputTokens": 1000,
+      "startsTurn": false,
+      "results": [
+        {
+          "chars": 32000
+        }
+      ],
+      "recorded": {
+        "input": 16000,
+        "output": 1000,
+        "cacheRead": 12000,
+        "cacheWrite": 4000,
+        "cacheWrite1h": 4000,
+        "serverCompaction": {
+          "input": 92000,
+          "output": 4000
+        }
+      }
+    },
+    {
+      "sentAtMs": 240000,
+      "replyAtMs": 250000,
+      "newTokens": 10000,
+      "userTokens": 0,
+      "outputTokens": 1000,
+      "startsTurn": false,
+      "results": [
+        {
+          "chars": 32000
+        }
+      ],
+      "recorded": {
+        "input": 26000,
+        "output": 1000,
+        "cacheRead": 16000,
+        "cacheWrite": 10000,
+        "cacheWrite1h": 10000
+      }
+    },
+    {
+      "sentAtMs": 270000,
+      "replyAtMs": 280000,
+      "newTokens": 10000,
+      "userTokens": 0,
+      "outputTokens": 1000,
+      "startsTurn": false,
+      "results": [
+        {
+          "chars": 32000
+        }
+      ],
+      "recorded": {
+        "input": 36000,
+        "output": 1000,
+        "cacheRead": 26000,
+        "cacheWrite": 10000,
+        "cacheWrite1h": 10000
+      }
+    },
+    {
+      "sentAtMs": 300000,
+      "replyAtMs": 310000,
+      "newTokens": 10000,
+      "userTokens": 0,
+      "outputTokens": 1000,
+      "startsTurn": false,
+      "results": [
+        {
+          "chars": 32000
+        }
+      ],
+      "recorded": {
+        "input": 46000,
+        "output": 1000,
+        "cacheRead": 36000,
+        "cacheWrite": 10000,
+        "cacheWrite1h": 10000
+      }
+    },
+    {
+      "sentAtMs": 330000,
+      "replyAtMs": 340000,
+      "newTokens": 10000,
+      "userTokens": 0,
+      "outputTokens": 1000,
+      "startsTurn": false,
+      "results": [
+        {
+          "chars": 32000
+        }
+      ],
+      "recorded": {
+        "input": 56000,
+        "output": 1000,
+        "cacheRead": 46000,
+        "cacheWrite": 10000,
+        "cacheWrite1h": 10000
+      }
+    },
+    {
+      "sentAtMs": 360000,
+      "replyAtMs": 370000,
+      "newTokens": 10000,
+      "userTokens": 0,
+      "outputTokens": 1000,
+      "startsTurn": false,
+      "results": [
+        {
+          "chars": 32000
+        }
+      ],
+      "recorded": {
+        "input": 66000,
+        "output": 1000,
+        "cacheRead": 56000,
+        "cacheWrite": 10000,
+        "cacheWrite1h": 10000
+      }
+    },
+    {
+      "sentAtMs": 390000,
+      "replyAtMs": 400000,
+      "newTokens": 10000,
+      "userTokens": 0,
+      "outputTokens": 1000,
+      "startsTurn": false,
+      "results": [
+        {
+          "chars": 32000
+        }
+      ],
+      "recorded": {
+        "input": 76000,
+        "output": 1000,
+        "cacheRead": 66000,
+        "cacheWrite": 10000,
+        "cacheWrite1h": 10000
+      }
+    }
+  ],
+  "recordedPolicy": {
+    "label": "Locus today",
+    "compaction": "SERVER",
+    "summaryTokens": 4000
+  }
+}

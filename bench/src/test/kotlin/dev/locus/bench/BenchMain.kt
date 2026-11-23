@@ -99,7 +99,8 @@ class Bench(private val config: BenchConfig, private val log: (String) -> Unit =
         require(tasks.isNotEmpty()) { "No ${config.tier}-tier tasks match '${config.suites}' in ${config.tasksDir}" }
         val setup = modelSetup()
         val started = Instant.now()
-        val runner = TrialRunner(setup)
+        // Every chat's request sequence goes to <out>/traces for the offline cache simulator (docs/design/cost.md).
+        val runner = TrialRunner(setup, traceDir = File(config.outDir, "traces"))
         val trials = mutableListOf<TrialResult>()
         var spent = 0.0
         runBlocking {

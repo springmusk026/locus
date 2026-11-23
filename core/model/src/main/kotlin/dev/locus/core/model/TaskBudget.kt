@@ -129,17 +129,27 @@ data class ModelPrice(
      */
     fun cost(usage: TokenUsage): Double = usage.billedParts.sumOf(::costOfOne)
 
-    private fun costOfOne(usage: TokenUsage): Double {
+    private fun costOfOne(usage: TokenUsage): Double = breakdown(usage).usd
+
+    /**
+     * What one request's own counts cost, part by part ([TokenUsage.serverCompaction] is not included: price
+     * it with its own call, as [cost] does). [cost] is built on this, so the parts always add up to it.
+     */
+    fun breakdown(usage: TokenUsage): CostBreakdown {
         val p = forPrompt(usage.input)
         val read = usage.cacheRead.coerceAtLeast(0).toDouble()
         val write = usage.cacheWrite.coerceAtLeast(0).toDouble()
         val write1h = usage.cacheWrite1h.coerceAtLeast(0).toDouble().coerceAtMost(write)
         val write12h = usage.cacheWrite12h.coerceAtLeast(0).toDouble().coerceAtMost(write - write1h)
         val fresh = (usage.input - read - write).coerceAtLeast(0.0)
-        return (
-            fresh * p.input + read * (p.cacheRead ?: p.input) + (write - write1h - write12h) * (p.cacheWrite ?: p.input) +
-                write1h * p.input * ONE_HOUR_WRITE + write12h * p.input * TWELVE_HOUR_WRITE + usage.output.coerceAtLeast(0) * p.output
-            ) / 1_000_000.0
+        return CostBreakdown(
+            fresh = fresh * p.input,
+            cacheRead = read * (p.cacheRead ?: p.input),
+            writeShort = (write - write1h - write12h) * (p.cacheWrite ?: p.input),
+            write1h = write1h * p.input * ONE_HOUR_WRITE,
+            write12h = write12h * p.input * TWELVE_HOUR_WRITE,
+            output = usage.output.coerceAtLeast(0) * p.output,
+        )
     }
 
     private companion object {
@@ -151,6 +161,28 @@ data class ModelPrice(
         /** A 12-hour cache write's price, as a multiple of base input (OpenAI prompt caching, GPT-5.6 and later). */
         const val TWELVE_HOUR_WRITE = 2.5
     }
+}
+
+/**
+ * One request's cost by part, in dollars per million tokens times tokens (divide by a million for dollars;
+ * [usd] does). Kept unscaled so [usd] adds the parts in the order [ModelPrice.cost] always did.
+ */
+data class CostBreakdown(
+    val fresh: Double,
+    val cacheRead: Double,
+    /** A write at the provider's short lifetime (Anthropic 5 minutes, OpenAI 30), priced at `cost.cache_write`. */
+    val writeShort: Double,
+    val write1h: Double,
+    val write12h: Double,
+    val output: Double,
+) {
+    val usd: Double get() = (fresh + cacheRead + writeShort + write1h + write12h + output) / 1_000_000.0
+
+    /** Every cache write, whatever its lifetime, in dollars. */
+    val cacheWriteUsd: Double get() = (writeShort + write1h + write12h) / 1_000_000.0
+    val freshUsd: Double get() = fresh / 1_000_000.0
+    val cacheReadUsd: Double get() = cacheRead / 1_000_000.0
+    val outputUsd: Double get() = output / 1_000_000.0
 }
 
 /** The prices for a prompt of more than [above] tokens. */

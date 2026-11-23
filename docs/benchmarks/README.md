@@ -220,6 +220,8 @@ export LOCUS_BENCH_API_KEY=...        # the provider's API key
 | `bench.out` | `bench/build/results` | where `results.json` and `results.md` go |
 | `bench.label` | the model id | recorded in the results |
 
+When the model's price is known, each trial also writes the request sequence of every chat it ran to `traces/<task>-trial<N>-chat<M>.json` in `bench.out`. The [offline cache simulator](../design/cost.md#offline-cache-simulator) prices those under other caching and compaction policies without another run: put a file's path in `LOCUS_CACHESIM_FILE` and run `CacheSimReportTest`.
+
 The hard tier on its own, once a key is set:
 
 ```sh

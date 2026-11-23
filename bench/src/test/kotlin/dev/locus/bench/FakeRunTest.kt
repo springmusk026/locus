@@ -54,6 +54,25 @@ class FakeRunTest {
     }
 
     @Test
+    fun `a trial's trace prices to the same cost under the policy it ran with`() {
+        val traces = java.nio.file.Files.createTempDirectory("locus-bench-traces-").toFile()
+        try {
+            // The fake model with a price, so the run has a cost the accounting (RunBudget) computed.
+            val priced = ModelSetup(null, null, dev.locus.core.model.ModelPrice(1.0, 5.0))
+            val result = run(task("coding/py-fix-failing-test"), TrialRunner(priced, traceDir = traces))
+            assertTrue(result.passed, result.failure)
+            val file = traces.listFiles()!!.single()
+            val sequence = dev.locus.core.agent.cachesim.SimJson.decode(file.readText())
+            assertEquals(result.steps, sequence.steps.size)
+            val simulated = dev.locus.core.agent.cachesim.CacheSimulator.run(sequence, sequence.recordedPolicy)
+            assertEquals(result.costUsd!!, simulated.totals.costUsd, 1e-9)
+            assertEquals(result.costUsd!!, sequence.recordedCostUsd!!, 1e-9)
+        } finally {
+            traces.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `a model that gives up fails the checks, with the reason`() {
         val result = run(task("coding/py-fix-failing-test"), TrialRunner(ModelSetup.FAKE, oracles = false))
         assertFalse(result.passed)
