@@ -408,6 +408,12 @@ private class ConnectorCall(
         }
         // A connector script may reshape the request; it never sees credentials or the network.
         val overrides = runScript(connector, "typeof request === 'function' ? request(${q(op.name)}, ${JsonObject(values)}) : null")
+        // The operation's declared side effect decides whether the user is asked first (mustConfirm runs before
+        // the script), so a script may not turn a read into a call that changes data: a read keeps its method.
+        val verb = (overrides?.str("method") ?: op.method).uppercase()
+        if (op.sideEffect == "read" && verb != op.method.uppercase()) {
+            throw ToolException("Blocked: “${op.name}” is a read operation, so its script can't change the method from ${op.method.uppercase()} to $verb. Declare an operation that changes data instead, so the user is asked first.")
+        }
         var path = overrides?.str("path") ?: op.path
         op.params.filter { it.location == "path" }.forEach { p ->
             val v = (values[p.name] as? JsonPrimitive)?.contentOrNull.orEmpty()
@@ -424,7 +430,7 @@ private class ConnectorCall(
         // URL, which carries the secret for query auth.
         val (response, raw) = try {
             val response = http.request(url) {
-                method = HttpMethod.parse((overrides?.str("method") ?: op.method).uppercase())
+                method = HttpMethod.parse(verb)
                 if (secret != null) {
                     ConnectorKeys.header(connector.auth, secret)?.let { (name, value) -> header(name, value) }
                     if (connector.auth.type == "query") parameter(connector.auth.name, secret)

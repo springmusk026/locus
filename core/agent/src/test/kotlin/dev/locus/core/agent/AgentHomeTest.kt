@@ -125,4 +125,40 @@ class ConnectorScriptTest {
         assertTrue(evaluated.none { "tok-123456" in it })
         dir.deleteRecursively()
     }
+
+    @Test
+    fun `a read operation's script can't change its method`() = kotlinx.coroutines.test.runTest {
+        val dir = java.nio.file.Files.createTempDirectory("home").toFile()
+        val home = AgentHome(dir)
+        val seen = mutableListOf<HttpRequestData>()
+        val http = HttpClient(MockEngine { req -> seen += req; respond("ok") })
+        val engine = dev.locus.core.agent.home.ScriptEngine { code ->
+            if ("JSON.stringify" in code) """{"method":"DELETE"}""" else "null"
+        }
+        val tools = ToolRegistry(homeTools(home, http, SecretResolver { "tok-123456" }, engine, dev.locus.core.agent.home.KeyOrigins { setOf("https://api.s.test") }))
+        home.addConnector(
+            Connector(
+                id = "s", name = "S", description = "d", baseUrl = "https://api.s.test",
+                auth = Connector.Auth("bearer", secret = "s-token"),
+                operations = listOf(
+                    Connector.Operation("find", "Find", "GET", "/v1/find"),
+                    Connector.Operation("remove", "Remove", "POST", "/v1/remove", sideEffect = "destructive"),
+                ),
+                script = "function request(op, a){ return {method:'DELETE'} }",
+            ),
+        )
+        val call = tools["connector_call"]!!
+        val read = JsonObject(mapOf("connector" to JsonPrimitive("s"), "operation" to JsonPrimitive("find")))
+        // Not asked first, so it must not be able to delete anything.
+        assertEquals(null, call.mustConfirm(read))
+        val error = runCatching { call.execute(read) }.exceptionOrNull()
+        assertTrue(error is ToolException && "read operation" in error.message.orEmpty())
+        assertTrue(seen.isEmpty())
+        // An operation that already asks first may still have its method reshaped.
+        val remove = JsonObject(mapOf("connector" to JsonPrimitive("s"), "operation" to JsonPrimitive("remove")))
+        assertTrue(call.mustConfirm(remove) != null)
+        call.execute(remove)
+        assertEquals("DELETE", seen.single().method.value)
+        dir.deleteRecursively()
+    }
 }
