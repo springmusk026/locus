@@ -1673,4 +1673,18 @@
     <string name="chat_run_plan_run_unavailable">Couldn\'t run the plan on %1$s: %2$s. Pick another model, or run it on this chat\'s.</string>
     <string name="chat_receipt_plan">Plan</string>
     <string name="chat_receipt_plan_total">Plan and run</string>
+    <string name="chat_composer_remove_pick">Remove picked element %1$s</string>
+    <string name="chat_picked_element">Picked on the page: %1$s</string>
+    <string name="chat_page_see">See the page</string>
+    <string name="chat_page_title">The page at this step</string>
+    <string name="chat_page_loading">Loading the page</string>
+    <string name="chat_page_failed">Locus couldn\'t read what it kept of this page.</string>
+    <string name="chat_page_retry">Try again</string>
+    <string name="chat_page_no_picture">No picture: the browser wasn\'t on screen at this step.</string>
+    <string name="chat_page_text_label">What Locus read on the page</string>
+    <string name="chat_page_private">Kept on this phone for you only, and deleted with the chat. It is never sent to the model again.</string>
+    <string name="chat_page_not_kept_title">Not kept</string>
+    <string name="chat_page_not_kept_message">Locus has no copy of this page. It keeps the latest pages of each chat, not those from before this was added, from a restored backup or a copied chat. The step\'s details still show what it read.</string>
+    <string name="chat_page_when">Seen %1$s</string>
+    <string name="chat_page_picture">The page as it looked</string>
 </resources>

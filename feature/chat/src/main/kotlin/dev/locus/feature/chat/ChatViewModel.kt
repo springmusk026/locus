@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
@@ -62,6 +63,8 @@ sealed interface ChatItem {
         val branch: Branch? = null,
         /** Sent while the agent worked and read at a step boundary, within the task (see [ModeNote.MID_TASK]). */
         val midTask: Boolean = false,
+        /** The element the user picked in the browser and sent with this message: `button “Reserve” · booking.com`. */
+        val picked: String? = null,
     ) : ChatItem
 
     /**
@@ -344,6 +347,8 @@ data class ChatUiState(
     val browserHandoff: String? = null,
     /** Files picked in the composer, already copied into the workspace, waiting to be sent. */
     val pendingAttachments: List<Part.Attachment> = emptyList(),
+    /** The element picked in the browser for the next message (docs/design/browser.md, "Element picker"); null for none. */
+    val pendingPick: dev.locus.core.browser.PickedElement? = null,
     val tokens: ChatTokens = ChatTokens(),
     /** Whether the agent's browser has a page to show in the live panel. */
     val browserHasPage: Boolean = false,
@@ -552,7 +557,7 @@ class ChatViewModel @AssistedInject constructor(
         val state = uiState.value
         val provider = state.provider
         if (provider == null) {
-            runner.send(conversationId, text, pending.value)
+            runner.send(conversationId, text, pending.value, takePick())
             pending.value = emptyList()
             return
         }
@@ -584,16 +589,17 @@ class ChatViewModel @AssistedInject constructor(
     }
 
     private fun startCompare(c: CompareConfirm) {
-        val started = runner.sendCompare(conversationId, c.text, c.attachments, c.other.ref) { userId ->
+        val picked = takePick()
+        val started = runner.sendCompare(conversationId, c.text, c.attachments, c.other.ref, picked = picked, onSent = { userId ->
             settings.recordCompare(dev.locus.core.model.CompareTurn(conversationId, userId, c.chat.ref, c.other.ref))
-        }
+        })
         if (started) {
             pending.value = emptyList()
             // One send uses the comparison up: the next message goes to the chat's model alone.
             compareWith.value = null
         } else {
             // A turn started in between: the message joins it like any other, and Compare stays picked.
-            runner.send(conversationId, c.text, c.attachments)
+            runner.send(conversationId, c.text, c.attachments, picked)
             pending.value = emptyList()
         }
     }
@@ -701,11 +707,16 @@ class ChatViewModel @AssistedInject constructor(
         // Without the streamed text, so this only emits when something other than the text changes.
         runState.map { it.copy(streamingText = "", reasoning = "") }.distinctUntilChanged(),
         settings.settings,
-        combine(browser.stateOf(conversationId), combine(pending, compareWith, planRunWith, ::Triple), directory.lists, directory.catalog, library.library) { b, (p, cmp, run), m, cat, lib ->
+        combine(
+            browser.stateOf(conversationId),
+            combine(pending, compareWith, planRunWith, browser.attachedPicks) { p, cmp, run, picks -> ExtrasInputs(p, cmp, run, picks[conversationId]?.element) },
+            directory.lists, directory.catalog, library.library,
+        ) { b, i, m, cat, lib ->
             Extras(
-                b, p, m, cmp, cat, lib.connectors.filterNot { it.draft }.map { ChatConnector(it.connector.id, it.connector.name, it.connector.kind == "mcp") },
+                b, i.pending, m, i.compareWith, cat, lib.connectors.filterNot { it.draft }.map { ChatConnector(it.connector.id, it.connector.name, it.connector.kind == "mcp") },
                 connectorAddresses = lib.connectors.filterNot { it.draft }.map { it.connector.baseUrl },
-                planRun = run,
+                planRun = i.planRun,
+                picked = i.picked,
             )
         },
     ) { conversation, transcript, run, s, extras ->
@@ -752,6 +763,7 @@ class ChatViewModel @AssistedInject constructor(
             loading = false,
             browserHandoff = browserState.handoffReason.takeIf { run.running },
             pendingAttachments = attachments,
+            pendingPick = extras.picked,
             browserHasPage = browserState.hasPage,
             browserTitle = browserState.title,
             browserUrl = browserState.url,
@@ -846,9 +858,15 @@ class ChatViewModel @AssistedInject constructor(
             if (runner.states.value[conversationId]?.running != true) return compareOrConfirm(text, other)
         }
         // While the agent works, this queues for its next step boundary (steer and queue); see AgentRunner.send.
-        runner.send(conversationId, text, pending.value)
+        runner.send(conversationId, text, pending.value, takePick())
         pending.value = emptyList()
     }
+
+    /** The note for the element attached to this message, taken off the composer (it goes with this send only). */
+    private fun takePick(): String? = browser.attachedPicks.value[conversationId]?.note?.also { browser.clearPick(conversationId) }
+
+    /** The composer's ✕ on the picked element: the next message goes without it. */
+    fun removePick() = browser.clearPick(conversationId)
 
     private val _sendWarning = MutableStateFlow<SendWarning?>(null)
 
@@ -933,6 +951,29 @@ class ChatViewModel @AssistedInject constructor(
         // wrote back a stale list, bringing back attachments just sent or removed.
         val added = uris.mapNotNull { runCatching { workspace.importAttachment(it) }.getOrNull() }
         pending.update { it + added }
+    }
+
+    /**
+     * What the page looked like at browser call [callId] of this chat ("See the page" on a past step;
+     * docs/design/browser.md, "The page as it was"), read from Locus's own record of it. A view for the user
+     * only: nothing here goes into the transcript or any request. Without a record, the page's title and
+     * address as the step's [result] gave them.
+     */
+    suspend fun pageAt(callId: String, result: String?): PageView = withContext(Dispatchers.IO) {
+        try {
+            val pages = browser.pages
+            val record = pages.load(conversationId, callId)
+            if (record != null) {
+                PageView.Kept(record, pages.pictureOf(conversationId, callId)?.takeIf { record.picture })
+            } else {
+                val header = result?.let(dev.locus.core.browser.BrowserPages::headerOf)
+                PageView.NotKept(header?.first?.takeIf { it.isNotBlank() }, header?.second)
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            PageView.Failed
+        }
     }
 
     fun removeAttachment(a: Part.Attachment) {
@@ -1218,6 +1259,7 @@ private data class Extras(
     val connectorAddresses: List<String> = emptyList(),
     /** The model the waiting plan runs on (plan mode's "Run with"); null for the chat's own. */
     val planRun: ModelRef? = null,
+    val picked: dev.locus.core.browser.PickedElement? = null,
 )
 
 /** Replies in [ids] marked as written after the chat read outside content. */
@@ -1299,6 +1341,7 @@ internal fun transcriptItems(
                         planMode = ModeNote.isPlanMode(message),
                         branch = branches[message.id],
                         midTask = ModeNote.isMidTask(message),
+                        picked = message.parts.firstNotNullOfOrNull { p -> (p as? Part.Text)?.takeIf { ModeNote.isResult(it.text) }?.let { dev.locus.core.browser.PickedElement.shownIn(it.text) } },
                     )
             }
             Role.TOOL -> if (turnStart == null) turnStart = message.id
@@ -1469,3 +1512,11 @@ private const val RECENT_STEPS = 8
 
 /** One request's prompt and how much of it the provider read from or wrote to its cache. */
 data class StepCache(val number: Int, val input: Int, val read: Int, val written: Int, val written1h: Int)
+
+/** The chat screen's small inputs that change together rarely: attachments, Compare's and Run with's picks, the picked element. */
+private data class ExtrasInputs(
+    val pending: List<Part.Attachment>,
+    val compareWith: ModelRef?,
+    val planRun: ModelRef?,
+    val picked: dev.locus.core.browser.PickedElement?,
+)

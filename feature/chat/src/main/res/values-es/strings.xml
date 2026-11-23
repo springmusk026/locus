@@ -1698,4 +1698,18 @@
     <string name="chat_run_plan_run_unavailable">No se pudo ejecutar el plan en %1$s: %2$s. Elige otro modelo o ejecútalo en el de este chat.</string>
     <string name="chat_receipt_plan">Plan</string>
     <string name="chat_receipt_plan_total">Plan y ejecución</string>
+    <string name="chat_composer_remove_pick">Quitar el elemento elegido %1$s</string>
+    <string name="chat_picked_element">Elegido en la página: %1$s</string>
+    <string name="chat_page_see">Ver la página</string>
+    <string name="chat_page_title">La página en este paso</string>
+    <string name="chat_page_loading">Cargando la página</string>
+    <string name="chat_page_failed">Locus no pudo leer lo que guardó de esta página.</string>
+    <string name="chat_page_retry">Reintentar</string>
+    <string name="chat_page_no_picture">Sin imagen: el navegador no estaba en pantalla en este paso.</string>
+    <string name="chat_page_text_label">Lo que Locus leyó en la página</string>
+    <string name="chat_page_private">Se guarda solo para ti en este teléfono y se borra con el chat. Nunca se vuelve a enviar al modelo.</string>
+    <string name="chat_page_not_kept_title">No se guardó</string>
+    <string name="chat_page_not_kept_message">Locus no tiene una copia de esta página. Guarda las páginas más recientes de cada chat, no las de antes de esta función, de una copia de seguridad restaurada o de un chat copiado. Los detalles del paso siguen mostrando lo que leyó.</string>
+    <string name="chat_page_when">Visto %1$s</string>
+    <string name="chat_page_picture">La página tal como se veía</string>
 </resources>

@@ -90,4 +90,19 @@
     <string name="browser_dock_announce_question">Locus asks: %1$s</string>
     <string name="browser_dock_announce_end">.</string>
     <string name="browser_dock_announce_queue">%1$s %2$s waiting.</string>
+    <string name="browser_menu_pick">Pick an element</string>
+    <string name="browser_pick_title">Pick an element</string>
+    <string name="browser_pick_hint">Tap the part of the page you want to point Locus at. Drag to scroll.</string>
+    <string name="browser_pick_checking">Checking what\'s there…</string>
+    <string name="browser_pick_selected">%1$s\n%2$s</string>
+    <string name="browser_pick_again">Tap something else to pick it instead.</string>
+    <string name="browser_pick_nothing">Nothing to point at there. Tap a button, a link, a picture or some text.</string>
+    <string name="browser_pick_whole">That\'s the page itself. Tap something smaller on it.</string>
+    <string name="browser_pick_no_answer">The page didn\'t answer. Wait until it finishes loading, then tap again.</string>
+    <string name="browser_pick_not_now">You can\'t pick on this page right now.</string>
+    <string name="browser_pick_attach_failed">Couldn\'t attach it. Try again.</string>
+    <string name="browser_pick_cancel">Cancel</string>
+    <string name="browser_pick_attach">Attach to message</string>
+    <string name="browser_pick_attached">Attached to your next message</string>
+    <string name="browser_pick_overlay">Page. Tap an element to pick it.</string>
 </resources>

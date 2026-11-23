@@ -1240,6 +1240,59 @@
   // evaluateJavascript can't await, so async work is started here and its result polled as a job.
 
   // Reads a blob: URL (only the page that made it can) as base64, fetched in chunks by readChunk.
+  // ---- Element picker (docs/design/browser.md, "Element picker") ----------------------------------
+  // The user tapped at (fx, fy), fractions of the viewport, in the full-screen browser. Kotlin caught the tap,
+  // so the page never got it; this only reads: hit-test, the nearest element worth pointing at, a ref for it in
+  // the snapshot's namespace (so the tools act on it), and what a snapshot would say about it. Nothing is added
+  // to the page and no listener stays behind.
+  function pickable(el, doc) {
+    var top = doc.documentElement, body = doc.body;
+    for (var x = el, depth = 0; x && x.nodeType === 1 && depth < 12; x = parentOf(x), depth++) {
+      if (x === top || x === body) break;
+      if (x.matches(INTERACTIVE) || x.matches(OPTION_LIKE) || x.__locusClickable || looksClickable(x)) return x;
+    }
+    // Nothing to act on above it: the element itself, unless it is the page as a whole.
+    for (x = el; x && x.nodeType === 1; x = parentOf(x)) {
+      if (x === top || x === body) return null;
+      var r = x.getBoundingClientRect();
+      var whole = r.width >= window.innerWidth * 0.98 && r.height >= window.innerHeight * 0.98;
+      if (!whole && (r.width >= 1 && r.height >= 1)) return x;
+      if (whole) return null;
+    }
+    return null;
+  }
+
+  L.pickAt = function (fx, fy) {
+    var x = fx * window.innerWidth, y = fy * window.innerHeight, doc = document, ox = 0, oy = 0;
+    var el = deepAt(doc, x, y);
+    // Into same-origin frames; a cross-origin frame is picked as the frame.
+    while (el && el.tagName === 'IFRAME') {
+      var inner = null;
+      try { inner = el.contentDocument; } catch (e) { inner = null; }
+      if (!inner || !inner.documentElement) break;
+      var fr = el.getBoundingClientRect();
+      ox += fr.left + el.clientLeft; oy += fr.top + el.clientTop;
+      var deeper = deepAt(inner, x - ox, y - oy);
+      if (!deeper) break;
+      doc = inner; el = deeper;
+    }
+    if (!el) return { error: 'nothing' };
+    var t = pickable(el, doc);
+    if (!t) return { error: el === doc.documentElement || el === doc.body ? 'nothing' : 'whole' };
+    var a = assign(t), o = describe(t, a.ref, false);
+    remember(a.ref, o);
+    var tag = t.tagName.toLowerCase();
+    o.tag = tag;
+    if (doc !== document) o.frame = true;
+    // The element's words, never a field's: values go through describe, which hides what must stay hidden.
+    if (tag !== 'input' && tag !== 'textarea' && tag !== 'select' && !t.isContentEditable) {
+      o.text = clean(t.innerText || t.textContent || t.getAttribute('alt') || '', 300);
+    }
+    var r = rectOf(t), w = window.innerWidth || 1, h = window.innerHeight || 1;
+    o.rect = { l: r.left / w, t: r.top / h, w: r.width / w, h: r.height / h };
+    return o;
+  };
+
   L.readBlob = function (url, id) {
     L.jobs[id] = { state: 'running' };
     fetch(url).then(function (r) { return r.blob(); }).then(function (b) {
