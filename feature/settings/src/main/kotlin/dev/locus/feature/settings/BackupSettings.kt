@@ -63,7 +63,12 @@ import dev.locus.core.designsystem.asString
 
 /** Settings → Backup & restore: an encrypted file the user saves wherever they like, and restoring from one. */
 @Composable
-internal fun BackupRoute(onBack: () -> Unit, viewModel: BackupViewModel = hiltViewModel(), imports: ImportChatsViewModel = hiltViewModel()) {
+internal fun BackupRoute(
+    onBack: () -> Unit,
+    onSuggestMemories: () -> Unit = {},
+    viewModel: BackupViewModel = hiltViewModel(),
+    imports: ImportChatsViewModel = hiltViewModel(),
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val importState by imports.state.collectAsStateWithLifecycle()
     // Exports are zips, or the conversations JSON on its own; several at once for Claude's split download.
@@ -85,6 +90,7 @@ internal fun BackupRoute(onBack: () -> Unit, viewModel: BackupViewModel = hiltVi
         importState = importState,
         onImportChats = { pickExport.launch(arrayOf("*/*")) },
         onDismissImport = imports::dismissOutcome,
+        onSuggestMemories = onSuggestMemories,
     )
     ImportChatsSheet(
         step = importState.step,
@@ -130,6 +136,8 @@ internal fun BackupSettings(
     importState: ImportChatsUiState = ImportChatsUiState(),
     onImportChats: () -> Unit = {},
     onDismissImport: () -> Unit = {},
+    /** After an import: Library → Memory's "Suggest memories from imported chats". */
+    onSuggestMemories: () -> Unit = {},
 ) {
     val estimate = state.estimate
     val busy = state.backupProgress != null
@@ -232,7 +240,7 @@ internal fun BackupSettings(
         }
         item { SectionNote(stringResource(R.string.settings_backup_restore_note), NotePadding) }
 
-        importChatsSection(importState, enabled = !busy, onImport = onImportChats, onDismissOutcome = onDismissImport)
+        importChatsSection(importState, enabled = !busy, onImport = onImportChats, onDismissOutcome = onDismissImport, onSuggestMemories = onSuggestMemories)
     }
 }
 

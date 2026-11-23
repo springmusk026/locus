@@ -56,6 +56,7 @@
     <string name="analytics_source_reflection">存入记忆的经验</string>
     <string name="analytics_source_side_question">附带提问</string>
     <string name="analytics_source_memory_tidy">整理记忆</string>
+    <string name="analytics_source_memory_suggest">记忆建议</string>
     <string name="analytics_source_other">其他</string>
     <string name="analytics_tools_calls">调用</string>
     <string name="analytics_tools_succeeded">成功</string>

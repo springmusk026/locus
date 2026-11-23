@@ -46,6 +46,7 @@ internal fun memoryOriginView(
             MemoryAuthor.USER -> R.string.library_memory_saved_by_you
             MemoryAuthor.REFLECTION -> R.string.library_memory_saved_after_task
             MemoryAuthor.TIDY -> R.string.library_memory_saved_by_tidy
+            MemoryAuthor.IMPORT -> R.string.library_memory_saved_from_import
             else -> if (savedInChat) R.string.library_memory_saved_in_chat else R.string.library_memory_saved_by_locus
         },
     )
@@ -68,6 +69,8 @@ internal fun memoryOriginView(
 internal fun taintSources(resources: Resources, tools: List<String>): String = tools.map { tool ->
     when {
         tool == "web_search" -> resources.getString(R.string.library_memory_taint_search)
+        // Only an imported chat makes these outside content (docs/design/import-chats.md).
+        tool == "chat_history_read" || tool == "chat_history_search" -> resources.getString(R.string.library_memory_taint_imported_chat)
         tool == "fetch_url" || tool == "web_read" || tool == "wikipedia" || tool.startsWith("browser_") -> resources.getString(R.string.library_memory_taint_web_page)
         tool.startsWith("email_") -> resources.getString(R.string.library_memory_taint_email)
         tool.startsWith("github_") -> "GitHub"

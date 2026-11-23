@@ -529,4 +529,82 @@
     <string name="library_workflows_icon_built_in">Built-in workflow</string>
     <string name="library_workflows_duplicate">Duplicate</string>
     <string name="library_workflows_copy_name">%1$s (copy)</string>
+    <!-- Library → Memory → Suggest memories from imported chats (docs/design/import-chats.md). -->
+    <string name="library_suggest_title">Suggest memories from imported chats</string>
+    <string name="library_suggest_sheet_title">Suggest memories</string>
+    <string name="library_suggest_sheet_subtitle">From your imported chats. Nothing is saved until you tick a suggestion and save it.</string>
+    <string name="library_suggest_action">Suggest</string>
+    <string name="library_suggest_save_none">Save</string>
+    <string name="library_suggest_working">The helper model is reading your chats…</string>
+    <string name="library_suggest_working_of">The helper model is reading your chats: request %1$d of %2$d…</string>
+    <string name="library_suggest_failed_title">Couldn\'t suggest memories</string>
+    <string name="library_suggest_failed_no_answer">The helper model didn\'t answer. Nothing was saved.</string>
+    <string name="library_suggest_failed_malformed">The helper model\'s answer couldn\'t be read. Nothing was saved; try again, or choose another helper model.</string>
+    <string name="library_suggest_failed_nothing">None of these chats has any text to read.</string>
+    <string name="library_suggest_none_title">Nothing to suggest</string>
+    <string name="library_suggest_review_note">Tick the notes to save. Each goes to general memory, marked as from its imported chat and as outside content, so check it first. You can edit or forget it later.</string>
+    <string name="library_suggest_from_label">Chats from</string>
+    <string name="library_suggest_source_chip">%1$s · %2$s</string>
+    <string name="library_suggest_source_all">All</string>
+    <string name="library_suggest_period_label">Last active</string>
+    <string name="library_suggest_period_any">Any time</string>
+    <string name="library_suggest_period_year">Past year</string>
+    <string name="library_suggest_period_months">Past 3 months</string>
+    <string name="library_suggest_estimate_label">What it reads</string>
+    <string name="library_suggest_estimating">Working out what to read…</string>
+    <string name="library_suggest_estimate_none">No chats to read here.</string>
+    <string name="library_suggest_outside_note">Imported chats were written outside Locus. They\'re sent to the helper model as text to read, never as instructions, and every note it suggests is marked as outside content.</string>
+    <string name="library_suggest_from_chat">From “%1$s” · %2$s · %3$s</string>
+    <string name="library_suggest_outside_chip">Outside content</string>
+    <string name="library_suggest_new_title">New note “%1$s”</string>
+    <string name="library_memory_saved_from_import">Suggested from an imported chat; you accepted it</string>
+    <string name="library_memory_taint_imported_chat">an imported chat</string>
+    <plurals name="library_suggest_subtitle">
+        <item quantity="one">The helper model reads your %1$s imported chat and suggests notes. Nothing is saved until you accept.</item>
+        <item quantity="other">The helper model reads your %1$s imported chats and suggests notes. Nothing is saved until you accept.</item>
+    </plurals>
+    <plurals name="library_suggest_save">
+        <item quantity="one">Save %1$d</item>
+        <item quantity="other">Save %1$d</item>
+    </plurals>
+    <plurals name="library_suggest_none_body">
+        <item quantity="one">The helper model read %1$s chat and found nothing worth keeping.</item>
+        <item quantity="other">The helper model read %1$s chats and found nothing worth keeping.</item>
+    </plurals>
+    <plurals name="library_suggest_failed_requests">
+        <item quantity="one">%1$d request got no usable answer, so its chats gave no suggestions.</item>
+        <item quantity="other">%1$d requests got no usable answer, so their chats gave no suggestions.</item>
+    </plurals>
+    <plurals name="library_suggest_dropped">
+        <item quantity="one">%1$d suggestion was left out: it named no chat that was read, or had no note.</item>
+        <item quantity="other">%1$d suggestions were left out: they named no chat that was read, or had no note.</item>
+    </plurals>
+    <plurals name="library_suggest_estimate_chats">
+        <item quantity="one">Reads %1$s of %2$s chats, newest first</item>
+        <item quantity="other">Reads %1$s of %2$s chats, newest first</item>
+    </plurals>
+    <plurals name="library_suggest_estimate_requests">
+        <item quantity="one">In %1$d request to the helper model, about %2$s tokens in all.</item>
+        <item quantity="other">In %1$d requests to the helper model, about %2$s tokens in all.</item>
+    </plurals>
+    <plurals name="library_suggest_too_long">
+        <item quantity="one">%1$s very long chat is skipped.</item>
+        <item quantity="other">%1$s very long chats are skipped.</item>
+    </plurals>
+    <plurals name="library_suggest_over_limit">
+        <item quantity="one">%1$s older chat is left out: too much for one go. Choose fewer chats to read it.</item>
+        <item quantity="other">%1$s older chats are left out: too much for one go. Choose fewer chats to read them.</item>
+    </plurals>
+    <plurals name="library_suggest_empty">
+        <item quantity="one">%1$s chat has no text to read.</item>
+        <item quantity="other">%1$s chats have no text to read.</item>
+    </plurals>
+    <plurals name="library_suggest_saved">
+        <item quantity="one">Saved %1$d note</item>
+        <item quantity="other">Saved %1$d notes</item>
+    </plurals>
+    <plurals name="library_suggest_skipped">
+        <item quantity="one">%1$d skipped: a note with that name was saved meanwhile</item>
+        <item quantity="other">%1$d skipped: notes with those names were saved meanwhile</item>
+    </plurals>
 </resources>

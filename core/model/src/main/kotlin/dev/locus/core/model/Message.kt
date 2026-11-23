@@ -477,6 +477,9 @@ enum class UsageSource(val wire: String) {
 
     /** Library → Memory → Tidy up: one helper-model request proposing merges and deletions (docs/design/memory-approval.md). */
     MEMORY_TIDY("memory_tidy"),
+
+    /** "Suggest memories from imported chats": a few helper-model requests proposing new notes (docs/design/import-chats.md). */
+    MEMORY_SUGGEST("memory_suggest"),
     OTHER("other"),
     ;
 

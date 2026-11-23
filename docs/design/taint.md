@@ -92,7 +92,7 @@ Taint is a policy decision inside `AgentLoop`. The system prompt, the tool list 
 
 Each memory topic's current version records a `MemoryProvenance` in `memory/.provenance.json`, beside the notes. The file is never shown to the model. It records:
 
-- who saved it: `user` (Library), `agent` or `reflection`;
+- who saved it: `user` (Library), `agent`, `reflection`, `tidy` (a merge the user accepted) or `import` (a note suggested from an imported ChatGPT or Claude chat that the user accepted; always with `taintedBy` `chat_history_read`, so it shows as from outside content, see [import chats](import-chats.md#suggest-memories-from-imported-chats));
 - when;
 - the chat it was saved in;
 - `taintedBy`: the outside content the run had read when it saved, as tool names.

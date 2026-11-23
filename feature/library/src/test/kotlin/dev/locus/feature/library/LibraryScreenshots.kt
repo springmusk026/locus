@@ -295,8 +295,19 @@ class LibraryScreenshots : ScreenshotTest() {
         prompts: LibraryPromptsViewModel = prompts(),
         /** Library → Memory's Tidy up; needed where the memory tab shows notes. */
         tidy: MemoryTidyViewModel? = null,
+        /** Library → Memory's Suggest memories from imported chats; needed wherever the memory tab shows (it hides itself without imported chats). */
+        suggest: MemorySuggestViewModel? = null,
+        suggestNow: Boolean = false,
     ): @androidx.compose.runtime.Composable () -> Unit = {
-        WithViewModels(*listOfNotNull(workflows, prompts, tidy).toTypedArray()) { LibraryRoute(onBack = {}, initialTab = tab, initialTemplate = template, viewModel = vm) }
+        WithViewModels(*listOfNotNull(workflows, prompts, tidy, suggest).toTypedArray()) {
+            LibraryRoute(onBack = {}, initialTab = tab, initialTemplate = template, viewModel = vm, suggestMemories = suggestNow)
+        }
+    }
+
+    /** Suggest memories with its availability and imported chats already checked, so the row renders settled. */
+    private fun suggest(g: TestGraph): MemorySuggestViewModel = MemorySuggestViewModel(g.memorySuggest).also { vm ->
+        vm.refresh()
+        runBlocking { withTimeout(10_000) { vm.counts.first { it != null } } }
     }
 
     /** Tidy up with its availability already checked, so the row renders settled. */
@@ -316,7 +327,7 @@ class LibraryScreenshots : ScreenshotTest() {
         val g = populated(withModel)
         val vm = LibraryViewModel(g.library)
         vm.ready { it.library.memory.size == 4 && it.library.projectMemory.isNotEmpty() }
-        snap("library-memory", heightDp = 1100, content = screen(vm, workflows(g), 0, tidy = tidy(g)))
+        snap("library-memory", heightDp = 1100, content = screen(vm, workflows(g), 0, tidy = tidy(g), suggest = suggest(g)))
     }
 
     /** No model set up: Tidy up says why it can't run and links to the page that fixes it. */
@@ -325,7 +336,7 @@ class LibraryScreenshots : ScreenshotTest() {
         val g = populated()
         val vm = LibraryViewModel(g.library)
         vm.ready { it.library.memory.size == 4 && it.library.projectMemory.isNotEmpty() }
-        snap("library-memory-tidy-no-model", heightDp = 700, content = screen(vm, workflows(g), 0, tidy = tidy(g)))
+        snap("library-memory-tidy-no-model", heightDp = 700, content = screen(vm, workflows(g), 0, tidy = tidy(g), suggest = suggest(g)))
     }
 
     @Test
@@ -377,6 +388,104 @@ class LibraryScreenshots : ScreenshotTest() {
         MemoryTidySheet(TidyUiState.Working, onToggle = {}, onApply = {}, onRetry = {}, onDismiss = {})
     }
 
+    // ---- Suggest memories from imported chats (docs/design/import-chats.md)
+
+    private suspend fun TestGraph.importSome() {
+        importChat(dev.locus.core.model.ChatImportSource.CHATGPT, "kyoto", "Trip to Kyoto", listOf("We're going to Kyoto in April with the kids.", "Great choice!"), updatedAt = System.currentTimeMillis() - 2 * hour)
+        importChat(dev.locus.core.model.ChatImportSource.CHATGPT, "bike", "Commuting by bike", listOf("I cycle to work every day, 12 km each way.", "Nice!"), updatedAt = System.currentTimeMillis() - 30 * hour)
+        importChat(dev.locus.core.model.ChatImportSource.CLAUDE, "rust", "Learning Rust", listOf("I'm learning Rust for my job at a robotics startup.", "Let's start with ownership."), updatedAt = System.currentTimeMillis() - 50 * hour)
+    }
+
+    /** Library → Memory with imported chats: Suggest memories under Tidy up, and a note suggested from one. */
+    @Test
+    fun memorySuggest() {
+        val g = populated(withModel)
+        runBlocking {
+            g.importSome()
+            g.home.saveMemory(
+                "cycling", "Cycles to work daily, 12 km each way", "The user cycles to work every day, 12 km each way.",
+                by = MemoryAuthor.IMPORT, chatId = dev.locus.core.model.ImportedChats.chatId(dev.locus.core.model.ChatImportSource.CHATGPT, "bike"),
+                taintedBy = listOf(dev.locus.core.agent.home.MemorySuggest.TAINT_SOURCE),
+            )
+        }
+        val vm = LibraryViewModel(g.library)
+        vm.ready { it.library.memory.size == 5 }
+        snap("library-memory-suggest", heightDp = 1300, content = screen(vm, workflows(g), 0, tidy = tidy(g), suggest = suggest(g)))
+    }
+
+    /** No notes yet, imported chats, no model: the entry says why it can't run, above the empty state. */
+    @Test
+    fun memoryEmptySuggestNoModel() {
+        val g = TestGraph(scope)
+        runBlocking { g.importSome() }
+        val vm = LibraryViewModel(g.library)
+        vm.ready()
+        snap("library-memory-empty-suggest-no-model", content = screen(vm, workflows(g), 0, suggest = suggest(g)))
+    }
+
+    private fun suggestChat(n: Int, title: String, source: String = "ChatGPT") =
+        dev.locus.core.agent.home.MemorySuggest.SourceChat("imported-$n", source, title, 1_712_000_000_000L + n * 86_400_000L)
+
+    private val suggestPlan = dev.locus.core.agent.home.MemorySuggest.Plan(
+        batches = listOf(
+            (1..18).map { dev.locus.core.agent.home.MemorySuggest.Excerpt("c$it", suggestChat(it, "Chat $it"), "x".repeat(1_500), cut = false) },
+            (19..30).map { dev.locus.core.agent.home.MemorySuggest.Excerpt("c$it", suggestChat(it, "Chat $it"), "x".repeat(2_000), cut = false) },
+        ),
+        inScope = 1_284, tooLong = 9, overLimit = 1_241, empty = 4,
+    )
+
+    private val suggestCounts = mapOf(dev.locus.core.model.ChatImportSource.CHATGPT to 1_000, dev.locus.core.model.ChatImportSource.CLAUDE to 284)
+
+    @Test
+    fun suggestEstimate() = snap("library-sheet-suggest-estimate", heightDp = 1200) {
+        MemorySuggestSheet(SuggestUiState.Choosing(suggestCounts, dev.locus.core.data.repository.SuggestScope(), suggestPlan), onScope = {}, onSuggest = {}, onToggle = {}, onApply = {}, onRetry = {}, onDismiss = {})
+    }
+
+    @Test
+    fun suggestEstimating() = snap("library-sheet-suggest-estimating", heightDp = 900) {
+        MemorySuggestSheet(
+            SuggestUiState.Choosing(mapOf(dev.locus.core.model.ChatImportSource.CHATGPT to 1_000), dev.locus.core.data.repository.SuggestScope(period = dev.locus.core.data.repository.SuggestPeriod.YEAR)),
+            onScope = {}, onSuggest = {}, onToggle = {}, onApply = {}, onRetry = {}, onDismiss = {},
+        )
+    }
+
+    @Test
+    fun suggestWorking() = snap("library-sheet-suggest-working", heightDp = 600) {
+        MemorySuggestSheet(SuggestUiState.Working(2, 3), onScope = {}, onSuggest = {}, onToggle = {}, onApply = {}, onRetry = {}, onDismiss = {})
+    }
+
+    private val suggestions = listOf(
+        dev.locus.core.agent.home.MemoryTidy.Proposal.New(
+            "s1", suggestChat(1, "Trip to Kyoto"), "family-trip-kyoto", "Kyoto with the kids in April 2024",
+            "The user went to Kyoto in April 2024 with their two children (8 and 11).", "A family trip they may plan again.",
+        ),
+        dev.locus.core.agent.home.MemoryTidy.Proposal.New(
+            "s2", suggestChat(2, "Learning Rust", "Claude"), "learning-rust", "Learning Rust for a robotics job",
+            "The user is learning Rust for their job at a robotics startup; they know Python well.", "Shapes how to explain code.",
+        ),
+    )
+
+    @Test
+    fun suggestProposals() = snap("library-sheet-suggest-proposals", heightDp = 1500) {
+        MemorySuggestSheet(
+            SuggestUiState.Review(TidyUiState.Review(suggestions, accepted = setOf("s2"), read = 30), suggestPlan, failedRequests = 1, dropped = 2),
+            onScope = {}, onSuggest = {}, onToggle = {}, onApply = {}, onRetry = {}, onDismiss = {},
+        )
+    }
+
+    @Test
+    fun suggestNothing() = snap("library-sheet-suggest-empty", heightDp = 800) {
+        MemorySuggestSheet(
+            SuggestUiState.Review(TidyUiState.Review(emptyList(), read = 30), suggestPlan.copy(tooLong = 0, overLimit = 0, empty = 0)),
+            onScope = {}, onSuggest = {}, onToggle = {}, onApply = {}, onRetry = {}, onDismiss = {},
+        )
+    }
+
+    @Test
+    fun suggestFailed() = snap("library-sheet-suggest-error", heightDp = 700) {
+        MemorySuggestSheet(SuggestUiState.Failed(dev.locus.core.data.repository.TidyFailure.NO_ANSWER), onScope = {}, onSuggest = {}, onToggle = {}, onApply = {}, onRetry = {}, onDismiss = {})
+    }
+
     @Test
     fun tidyFailed() = snap("library-sheet-tidy-error", heightDp = 700) {
         MemoryTidySheet(TidyUiState.Failed(dev.locus.core.data.repository.TidyFailure.MALFORMED), onToggle = {}, onApply = {}, onRetry = {}, onDismiss = {})
@@ -423,7 +532,7 @@ class LibraryScreenshots : ScreenshotTest() {
         val g = TestGraph(scope)
         val vm = LibraryViewModel(g.library)
         vm.ready()
-        snap("library-memory-empty", content = screen(vm, workflows(g), 0))
+        snap("library-memory-empty", content = screen(vm, workflows(g), 0, suggest = suggest(g)))
     }
 
     @Test
