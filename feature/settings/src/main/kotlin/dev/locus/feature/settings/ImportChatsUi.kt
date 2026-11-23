@@ -44,7 +44,14 @@ import java.text.NumberFormat
  * Settings → Backup & restore → Import chats (docs/design/import-chats.md): the row that opens the
  * system's file picker, the outcome of the last import, and the sheet that reads, previews and imports.
  */
-internal fun LazyListScope.importChatsSection(state: ImportChatsUiState, enabled: Boolean, onImport: () -> Unit, onDismissOutcome: () -> Unit) {
+internal fun LazyListScope.importChatsSection(
+    state: ImportChatsUiState,
+    enabled: Boolean,
+    onImport: () -> Unit,
+    onDismissOutcome: () -> Unit,
+    /** Opens Library → Memory's "Suggest memories from imported chats"; offered once chats were written. Never runs by itself. */
+    onSuggestMemories: () -> Unit = {},
+) {
     item { SectionLabel(stringResource(R.string.settings_import_section), SectionPadding) }
     item {
         CardGroup {
@@ -66,7 +73,14 @@ internal fun LazyListScope.importChatsSection(state: ImportChatsUiState, enabled
                 text = outcomeText(LocalResources.current, outcome),
                 tone = if (outcome.cancelled || outcome.result.failed > 0) Tone.Caution else Tone.Live,
                 modifier = NotePadding,
-                actions = { TextButton(onClick = onDismissOutcome) { Text(stringResource(R.string.settings_import_ok)) } },
+                // Two actions after an import: below the text, so it keeps the width.
+                actionsBelow = outcome.result.imported + outcome.result.updated > 0,
+                actions = {
+                    if (outcome.result.imported + outcome.result.updated > 0) {
+                        TextButton(onClick = onSuggestMemories) { Text(stringResource(R.string.settings_import_suggest_memories)) }
+                    }
+                    TextButton(onClick = onDismissOutcome) { Text(stringResource(R.string.settings_import_ok)) }
+                },
             )
         }
     }

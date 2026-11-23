@@ -1358,4 +1358,5 @@
         <item quantity="one">Import %1$s chat</item>
         <item quantity="other">Import %1$s chats</item>
     </plurals>
+    <string name="settings_import_suggest_memories">Suggest memories</string>
 </resources>

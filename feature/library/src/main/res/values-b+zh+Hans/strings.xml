@@ -477,4 +477,70 @@
     <string name="library_workflows_icon_built_in">内置工作流</string>
     <string name="library_workflows_duplicate">复制</string>
     <string name="library_workflows_copy_name">%1$s（副本）</string>
+    <!-- Library → Memory → Suggest memories from imported chats (docs/design/import-chats.md). -->
+    <string name="library_suggest_title">从导入的聊天中建议记忆</string>
+    <string name="library_suggest_sheet_title">建议记忆</string>
+    <string name="library_suggest_sheet_subtitle">来自你导入的聊天。在你勾选并保存建议之前，不会保存任何内容。</string>
+    <string name="library_suggest_action">建议</string>
+    <string name="library_suggest_save_none">保存</string>
+    <string name="library_suggest_working">辅助模型正在阅读你的聊天…</string>
+    <string name="library_suggest_working_of">辅助模型正在阅读你的聊天：第 %1$d 个请求，共 %2$d 个…</string>
+    <string name="library_suggest_failed_title">无法建议记忆</string>
+    <string name="library_suggest_failed_no_answer">辅助模型没有回答。未保存任何内容。</string>
+    <string name="library_suggest_failed_malformed">无法读取辅助模型的回答。未保存任何内容；请重试，或选择其他辅助模型。</string>
+    <string name="library_suggest_failed_nothing">这些聊天都没有可读的文字。</string>
+    <string name="library_suggest_none_title">没有建议</string>
+    <string name="library_suggest_review_note">勾选要保存的笔记。每条都会存入通用记忆，并标明来自哪个导入的聊天、属于外部内容，请先检查。之后可以编辑或忘记它。</string>
+    <string name="library_suggest_from_label">聊天来源</string>
+    <string name="library_suggest_source_chip">%1$s · %2$s</string>
+    <string name="library_suggest_source_all">全部</string>
+    <string name="library_suggest_period_label">最后活跃</string>
+    <string name="library_suggest_period_any">任何时间</string>
+    <string name="library_suggest_period_year">过去一年</string>
+    <string name="library_suggest_period_months">过去 3 个月</string>
+    <string name="library_suggest_estimate_label">将读取的内容</string>
+    <string name="library_suggest_estimating">正在计算要读取的内容…</string>
+    <string name="library_suggest_estimate_none">这里没有可读的聊天。</string>
+    <string name="library_suggest_outside_note">导入的聊天是在 Locus 之外写的。它们作为要阅读的文字发送给辅助模型，绝不作为指令；它建议的每条笔记都会标记为外部内容。</string>
+    <string name="library_suggest_from_chat">来自“%1$s” · %2$s · %3$s</string>
+    <string name="library_suggest_outside_chip">外部内容</string>
+    <string name="library_suggest_new_title">新笔记“%1$s”</string>
+    <string name="library_memory_saved_from_import">根据导入的聊天建议；你已接受</string>
+    <string name="library_memory_taint_imported_chat">导入的聊天</string>
+    <plurals name="library_suggest_subtitle">
+        <item quantity="other">辅助模型会阅读你导入的 %1$s 个聊天并建议笔记。在你接受之前不会保存任何内容。</item>
+    </plurals>
+    <plurals name="library_suggest_save">
+        <item quantity="other">保存 %1$d 条</item>
+    </plurals>
+    <plurals name="library_suggest_none_body">
+        <item quantity="other">辅助模型读了 %1$s 个聊天，没有发现值得保存的内容。</item>
+    </plurals>
+    <plurals name="library_suggest_failed_requests">
+        <item quantity="other">%1$d 个请求没有得到可用的回答，因此其中的聊天没有给出建议。</item>
+    </plurals>
+    <plurals name="library_suggest_dropped">
+        <item quantity="other">省略了 %1$d 条建议：它们没有指向已读的聊天，或没有笔记内容。</item>
+    </plurals>
+    <plurals name="library_suggest_estimate_chats">
+        <item quantity="other">读取 %2$s 个聊天中的 %1$s 个，最新的优先</item>
+    </plurals>
+    <plurals name="library_suggest_estimate_requests">
+        <item quantity="other">向辅助模型发送 %1$d 个请求，总计约 %2$s 个 token。</item>
+    </plurals>
+    <plurals name="library_suggest_too_long">
+        <item quantity="other">跳过 %1$s 个很长的聊天。</item>
+    </plurals>
+    <plurals name="library_suggest_over_limit">
+        <item quantity="other">省略了 %1$s 个较早的聊天：一次读取太多。选择更少的聊天即可读取它们。</item>
+    </plurals>
+    <plurals name="library_suggest_empty">
+        <item quantity="other">%1$s 个聊天没有可读的文字。</item>
+    </plurals>
+    <plurals name="library_suggest_saved">
+        <item quantity="other">已保存 %1$d 条笔记</item>
+    </plurals>
+    <plurals name="library_suggest_skipped">
+        <item quantity="other">跳过 %1$d 条：其间已保存了同名笔记</item>
+    </plurals>
 </resources>

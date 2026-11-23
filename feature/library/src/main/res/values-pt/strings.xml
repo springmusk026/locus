@@ -521,4 +521,94 @@
     <string name="library_workflows_icon_built_in">Fluxo de trabalho incluído</string>
     <string name="library_workflows_duplicate">Duplicar</string>
     <string name="library_workflows_copy_name">%1$s (cópia)</string>
+    <!-- Library → Memory → Suggest memories from imported chats (docs/design/import-chats.md). -->
+    <string name="library_suggest_title">Sugerir memórias dos chats importados</string>
+    <string name="library_suggest_sheet_title">Sugerir memórias</string>
+    <string name="library_suggest_sheet_subtitle">Dos seus chats importados. Nada é salvo até você marcar uma sugestão e salvá-la.</string>
+    <string name="library_suggest_action">Sugerir</string>
+    <string name="library_suggest_save_none">Salvar</string>
+    <string name="library_suggest_working">O modelo auxiliar está lendo seus chats…</string>
+    <string name="library_suggest_working_of">O modelo auxiliar está lendo seus chats: solicitação %1$d de %2$d…</string>
+    <string name="library_suggest_failed_title">Não foi possível sugerir memórias</string>
+    <string name="library_suggest_failed_no_answer">O modelo auxiliar não respondeu. Nada foi salvo.</string>
+    <string name="library_suggest_failed_malformed">Não foi possível ler a resposta do modelo auxiliar. Nada foi salvo; tente de novo ou escolha outro modelo auxiliar.</string>
+    <string name="library_suggest_failed_nothing">Nenhum destes chats tem texto para ler.</string>
+    <string name="library_suggest_none_title">Nada a sugerir</string>
+    <string name="library_suggest_review_note">Marque as notas para salvar. Cada uma vai para a memória geral, marcada como do chat importado e como conteúdo externo, então confira antes. Você pode editá-la ou esquecê-la depois.</string>
+    <string name="library_suggest_from_label">Chats de</string>
+    <string name="library_suggest_source_chip">%1$s · %2$s</string>
+    <string name="library_suggest_source_all">Todos</string>
+    <string name="library_suggest_period_label">Última atividade</string>
+    <string name="library_suggest_period_any">Qualquer data</string>
+    <string name="library_suggest_period_year">Último ano</string>
+    <string name="library_suggest_period_months">Últimos 3 meses</string>
+    <string name="library_suggest_estimate_label">O que é lido</string>
+    <string name="library_suggest_estimating">Calculando o que ler…</string>
+    <string name="library_suggest_estimate_none">Não há chats para ler aqui.</string>
+    <string name="library_suggest_outside_note">Os chats importados foram escritos fora do Locus. Eles vão para o modelo auxiliar como texto para ler, nunca como instruções, e cada nota sugerida é marcada como conteúdo externo.</string>
+    <string name="library_suggest_from_chat">De “%1$s” · %2$s · %3$s</string>
+    <string name="library_suggest_outside_chip">Conteúdo externo</string>
+    <string name="library_suggest_new_title">Nova nota “%1$s”</string>
+    <string name="library_memory_saved_from_import">Sugerida a partir de um chat importado; você aceitou</string>
+    <string name="library_memory_taint_imported_chat">um chat importado</string>
+    <plurals name="library_suggest_subtitle">
+        <item quantity="one">O modelo auxiliar lê seu %1$s chat importado e sugere notas. Nada é salvo até você aceitar.</item>
+        <item quantity="many">O modelo auxiliar lê seus %1$s chats importados e sugere notas. Nada é salvo até você aceitar.</item>
+        <item quantity="other">O modelo auxiliar lê seus %1$s chats importados e sugere notas. Nada é salvo até você aceitar.</item>
+    </plurals>
+    <plurals name="library_suggest_save">
+        <item quantity="one">Salvar %1$d</item>
+        <item quantity="many">Salvar %1$d</item>
+        <item quantity="other">Salvar %1$d</item>
+    </plurals>
+    <plurals name="library_suggest_none_body">
+        <item quantity="one">O modelo auxiliar leu %1$s chat e não encontrou nada que valha guardar.</item>
+        <item quantity="many">O modelo auxiliar leu %1$s chats e não encontrou nada que valha guardar.</item>
+        <item quantity="other">O modelo auxiliar leu %1$s chats e não encontrou nada que valha guardar.</item>
+    </plurals>
+    <plurals name="library_suggest_failed_requests">
+        <item quantity="one">%1$d solicitação não teve resposta utilizável, então seus chats não deram sugestões.</item>
+        <item quantity="many">%1$d solicitações não tiveram resposta utilizável, então seus chats não deram sugestões.</item>
+        <item quantity="other">%1$d solicitações não tiveram resposta utilizável, então seus chats não deram sugestões.</item>
+    </plurals>
+    <plurals name="library_suggest_dropped">
+        <item quantity="one">%1$d sugestão ficou de fora: não indicava um chat lido ou não tinha nota.</item>
+        <item quantity="many">%1$d sugestões ficaram de fora: não indicavam um chat lido ou não tinham nota.</item>
+        <item quantity="other">%1$d sugestões ficaram de fora: não indicavam um chat lido ou não tinham nota.</item>
+    </plurals>
+    <plurals name="library_suggest_estimate_chats">
+        <item quantity="one">Lê %1$s de %2$s chats, os mais recentes primeiro</item>
+        <item quantity="many">Lê %1$s de %2$s chats, os mais recentes primeiro</item>
+        <item quantity="other">Lê %1$s de %2$s chats, os mais recentes primeiro</item>
+    </plurals>
+    <plurals name="library_suggest_estimate_requests">
+        <item quantity="one">Em %1$d solicitação ao modelo auxiliar, cerca de %2$s tokens no total.</item>
+        <item quantity="many">Em %1$d solicitações ao modelo auxiliar, cerca de %2$s tokens no total.</item>
+        <item quantity="other">Em %1$d solicitações ao modelo auxiliar, cerca de %2$s tokens no total.</item>
+    </plurals>
+    <plurals name="library_suggest_too_long">
+        <item quantity="one">%1$s chat muito longo fica de fora.</item>
+        <item quantity="many">%1$s chats muito longos ficam de fora.</item>
+        <item quantity="other">%1$s chats muito longos ficam de fora.</item>
+    </plurals>
+    <plurals name="library_suggest_over_limit">
+        <item quantity="one">%1$s chat mais antigo fica de fora: é demais de uma vez. Escolha menos chats para lê-lo.</item>
+        <item quantity="many">%1$s chats mais antigos ficam de fora: é demais de uma vez. Escolha menos chats para lê-los.</item>
+        <item quantity="other">%1$s chats mais antigos ficam de fora: é demais de uma vez. Escolha menos chats para lê-los.</item>
+    </plurals>
+    <plurals name="library_suggest_empty">
+        <item quantity="one">%1$s chat não tem texto para ler.</item>
+        <item quantity="many">%1$s chats não têm texto para ler.</item>
+        <item quantity="other">%1$s chats não têm texto para ler.</item>
+    </plurals>
+    <plurals name="library_suggest_saved">
+        <item quantity="one">%1$d nota salva</item>
+        <item quantity="many">%1$d notas salvas</item>
+        <item quantity="other">%1$d notas salvas</item>
+    </plurals>
+    <plurals name="library_suggest_skipped">
+        <item quantity="one">%1$d ignorada: uma nota com esse nome foi salva nesse meio-tempo</item>
+        <item quantity="many">%1$d ignoradas: notas com esses nomes foram salvas nesse meio-tempo</item>
+        <item quantity="other">%1$d ignoradas: notas com esses nomes foram salvas nesse meio-tempo</item>
+    </plurals>
 </resources>

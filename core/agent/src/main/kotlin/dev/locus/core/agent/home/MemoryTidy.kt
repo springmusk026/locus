@@ -68,6 +68,21 @@ object MemoryTidy {
         data class Delete(override val id: String, val entry: Entry, override val reason: String) : Proposal {
             override val sources: List<Entry> get() = listOf(entry)
         }
+
+        /**
+         * Save a new note [topic] in general memory, suggested from the imported chat [chat]
+         * ([MemorySuggest], docs/design/import-chats.md). It touches no saved note, so [sources] is empty.
+         */
+        data class New(
+            override val id: String,
+            val chat: MemorySuggest.SourceChat,
+            val topic: String,
+            val summary: String,
+            val content: String,
+            override val reason: String,
+        ) : Proposal {
+            override val sources: List<Entry> get() = emptyList()
+        }
     }
 
     /** What the helper model's answer came to. */
@@ -145,7 +160,7 @@ object MemoryTidy {
      * model wrote is cleaned of hidden characters before anyone sees it. Anything else is dropped and counted.
      */
     fun parse(raw: String, snapshot: Snapshot): Parsed {
-        val items = changes(raw) ?: return Parsed.Malformed
+        val items = jsonList(raw, "changes") ?: return Parsed.Malformed
         val byId = snapshot.entries.associateBy { it.id }
         val used = mutableSetOf<String>()
         var dropped = 0
@@ -189,8 +204,11 @@ object MemoryTidy {
         }
     }
 
-    /** The answer's list of changes: `{"changes":[…]}` or a bare `[…]`, inside any prose or code fence; null when there's none. */
-    private fun changes(raw: String): JsonArray? {
+    /**
+     * The answer's list: `{"<key>":[…]}` (any of [keys]) or a bare `[…]`, inside any prose or code fence; null when
+     * there's none. Shared with [MemorySuggest], whose answers have the same shape.
+     */
+    internal fun jsonList(raw: String, vararg keys: String): JsonArray? {
         val text = raw.trim()
         val candidates = listOfNotNull(
             text.indexOf('{').takeIf { it >= 0 }?.let { start -> text.lastIndexOf('}').takeIf { it > start }?.let { text.substring(start, it + 1) } },
@@ -200,7 +218,7 @@ object MemoryTidy {
             val element = runCatching { json.parseToJsonElement(candidate) }.getOrNull() ?: continue
             when (element) {
                 is JsonArray -> return element
-                is JsonObject -> (element["changes"] as? JsonArray)?.let { return it }
+                is JsonObject -> keys.firstNotNullOfOrNull { element[it] as? JsonArray }?.let { return it }
                 else -> Unit
             }
         }
@@ -221,6 +239,24 @@ object MemoryTidy {
         var applied = 0
         val skipped = mutableListOf<String>()
         accepted.forEach { p ->
+            if (p is Proposal.New) {
+                // A new note never replaces one: if a note of that name was saved meanwhile, it is skipped.
+                val store = storeFor(null)
+                if (store.hasMemory(p.topic)) {
+                    skipped += p.topic
+                } else {
+                    store.saveMemory(
+                        p.topic, p.summary, p.content,
+                        by = MemoryAuthor.IMPORT,
+                        chatId = p.chat.id,
+                        // Imported text is outside content (docs/design/taint.md): the note stays flagged, as one
+                        // saved by a run that read the chat with chat_history_read would be.
+                        taintedBy = listOf(MemorySuggest.TAINT_SOURCE),
+                    )
+                    applied++
+                }
+                return@forEach
+            }
             val store = storeFor(p.sources.first().projectId)
             val current = p.sources.all { e -> store.memoryTopic(e.topic.name)?.let { fingerprint(it.content, it.summary) } == e.fingerprint }
             if (!current) {
@@ -241,19 +277,20 @@ object MemoryTidy {
                     p.sources.map { it.topic.name }.filter { it != p.topic }.forEach { store.forgetMemory(it) }
                 }
                 is Proposal.Delete -> store.forgetMemory(p.entry.topic.name)
+                is Proposal.New -> Unit
             }
             applied++
         }
         return Applied(applied, skipped)
     }
 
-    private fun JsonObject.text(key: String): String = (this[key] as? JsonPrimitive)?.contentOrNull.orEmpty()
+    internal fun JsonObject.text(key: String): String = (this[key] as? JsonPrimitive)?.contentOrNull.orEmpty()
 
-    private fun clean(s: String): String = HiddenText.clean(s).text
+    internal fun clean(s: String): String = HiddenText.clean(s).text
 
-    private fun attr(s: String) = s.replace("\"", "'").replace("<", "‹").replace(">", "›")
+    internal fun attr(s: String) = s.replace("\"", "'").replace("<", "‹").replace(">", "›")
 
-    private fun day(millis: Long): String = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate().toString()
+    internal fun day(millis: Long): String = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate().toString()
 
     private fun fingerprint(content: String, summary: String): String =
         MessageDigest.getInstance("SHA-256").digest("$summary\n$content".toByteArray()).joinToString("") { "%02x".format(it) }

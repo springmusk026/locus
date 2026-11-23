@@ -281,6 +281,12 @@ sealed interface Outcome {
      */
     data class ToolLoopStopped(val loop: ToolLoop) : Outcome
 
+    /**
+     * Stopped at a step boundary because [AgentConfig.stopAtBoundary] said so (the user took over a
+     * scheduled run's chat, docs/design/scheduled-runs.md): every call made so far has its result.
+     */
+    data object Interrupted : Outcome
+
     /** The task reached [limit] of its budget and the user (or, for a helper, the rule) said stop. */
     data class BudgetStopped(val limit: BudgetLimit, val message: String, val reached: BudgetReached? = null) : Outcome
     /**
@@ -385,6 +391,13 @@ class AgentConfig(
      * scope, so a call it runs for the user ([ToolCallContext.forCall]) counts as part of this turn.
      */
     val atStepBoundary: (suspend () -> List<Message>)? = null,
+    /**
+     * Asked at each step boundary, before the next request, and after a reply before its tool calls run:
+     * true ends the run there with [Outcome.Interrupted], with every call answered (calls not yet run get
+     * a "not run" result), so nothing is cut off mid-call. A scheduled run passes "the user took over"
+     * (docs/design/scheduled-runs.md). Null: never.
+     */
+    val stopAtBoundary: (() -> Boolean)? = null,
     /**
      * The task's budget: every request of this run is recorded in it, and between steps a reached limit
      * goes to [budgetGate]. Shared with the helpers this run starts. Null: no budget.
@@ -562,6 +575,11 @@ class AgentLoop(
         var wrapUp: Pair<BudgetLimit, Int>? = null
         while (true) {
             step++
+            // A step boundary: everything before it is answered, so stopping here leaves a valid transcript.
+            if (config.stopAtBoundary?.invoke() == true) {
+                emit(AgentEvent.Finished(Outcome.Interrupted))
+                return@flow
+            }
             config.maxSteps?.let { max ->
                 if (step > max) {
                     emit(AgentEvent.Finished(Outcome.StepLimitReached(max)))
@@ -684,14 +702,23 @@ class AgentLoop(
                 return@flow
             }
 
-            val results = when (turn.stopReason) {
+            // Asked to stop while the reply streamed: none of its calls runs, but each is answered.
+            val interrupted = config.stopAtBoundary?.invoke() == true
+            val results = when {
+                interrupted -> turn.toolCalls.map { skipped(it, "Not run: the user took over this chat, so the run stopped here.") }
+                else -> when (turn.stopReason) {
                 // A refusal or truncation can cut a tool call off mid-input: never run that turn's tools,
                 // but still answer every call so the transcript stays valid for the next request.
                 StopReason.REFUSAL -> turn.toolCalls.map { skipped(it, "Not run: the response was declined.") }
                 StopReason.MAX_TOKENS -> turn.toolCalls.map { skipped(it, "Not run: your output hit the token limit mid-call. Retry with smaller arguments, e.g. write the file in parts.") }
                 else -> executeAll(conversation.id, turn.toolCalls, transcript, review, taint)
+                }
             }
             appendAndEmit(Message(ids(), conversation.id, Role.TOOL, results, clock()), transcript)
+            if (interrupted) {
+                emit(AgentEvent.Finished(Outcome.Interrupted))
+                return@flow
+            }
             // The project's after-edit rules (docs/design/rules.md): their notes follow this step's results.
             if (turn.stopReason != StopReason.REFUSAL) runAfterEdits(conversation.id, turn.toolCalls, results, transcript, taint)
 

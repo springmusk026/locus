@@ -241,6 +241,29 @@ class ChatScreenshots : ScreenshotTest() {
         )
     }
 
+    // ---- Taking over a scheduled run (docs/design/scheduled-runs.md)
+
+    /** The user sent a message while a scheduled run worked: it stops at its next step. */
+    @Test
+    fun scheduledTakingOver() = snap("chat-scheduled-taking-over") {
+        val note = dev.locus.core.data.agent.RunNote.TakingOver
+        Chat(Fx.state(runningItems, run = RunState(running = true, scheduled = true, step = 3, progress = note.english, progressNote = note)))
+    }
+
+    /** It stopped, and the user's message runs as a normal turn. */
+    @Test
+    fun scheduledTookOverMessage() = snap("chat-scheduled-took-over-message") {
+        val note = dev.locus.core.data.agent.RunNote.TookOver(message = true)
+        Chat(Fx.state(runningItems, run = RunState(running = true, step = 1, notice = note.english, noticeNote = note)))
+    }
+
+    /** Stop alone: the run stopped here; sending carries on as a normal chat. */
+    @Test
+    fun scheduledTookOver() = snap("chat-scheduled-took-over") {
+        val note = dev.locus.core.data.agent.RunNote.TookOver(message = false)
+        Chat(Fx.state(Fx.finished, run = RunState(notice = note.english, noticeNote = note)))
+    }
+
     /** The one chat waiting is locked: counted, never named. */
     @Test
     fun waitingBannerLocked() = snap("chat-waiting-banner-locked") {

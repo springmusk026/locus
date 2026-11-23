@@ -711,6 +711,7 @@ class SubagentEngine(
                 is Outcome.Failed -> Triple(SubagentStatus.FAILED, "error: ${o.message}", null)
                 is Outcome.Refused -> Triple(SubagentStatus.FAILED, "the model declined${o.detail?.let { " ($it)" }.orEmpty()}", null)
                 is Outcome.ToolLoopStopped -> Triple(SubagentStatus.PARTIAL, "it kept calling tools it couldn't use (${o.loop.count} times in a row)", null)
+                Outcome.Interrupted -> Triple(SubagentStatus.CANCELLED, "it was stopped", HelperStop.CANCELLED)
                 null -> Triple(SubagentStatus.CANCELLED, run.stopReason ?: "it was stopped", HelperStop.CANCELLED)
             }
         }

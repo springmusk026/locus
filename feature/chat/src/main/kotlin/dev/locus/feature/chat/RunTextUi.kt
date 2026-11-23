@@ -186,6 +186,8 @@ internal fun runNoteInWords(resources: Resources, note: RunNote): String = when 
     is RunNote.SummariseFailed -> resources.getString(R.string.chat_run_summarise_failed, note.shownReason ?: resources.getString(R.string.chat_run_unknown_error))
     RunNote.SummaryStale -> resources.getString(R.string.chat_run_summary_stale)
     RunNote.SummarySaved -> resources.getString(R.string.chat_run_summary_saved)
+    RunNote.TakingOver -> resources.getString(R.string.chat_run_taking_over)
+    is RunNote.TookOver -> resources.getString(if (note.message) R.string.chat_run_took_over_message else R.string.chat_run_took_over)
     is RunNote.Rewound -> listOfNotNull(
         resources.getString(R.string.chat_run_rewound),
         note.restored.takeIf { it > 0 }?.let { resources.getQuantityString(R.plurals.chat_run_rewound_restored, it, it) },

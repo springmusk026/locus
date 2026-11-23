@@ -1302,4 +1302,5 @@
     <plurals name="settings_import_action">
         <item quantity="other">导入 %1$s 个对话</item>
     </plurals>
+    <string name="settings_import_suggest_memories">建议记忆</string>
 </resources>
