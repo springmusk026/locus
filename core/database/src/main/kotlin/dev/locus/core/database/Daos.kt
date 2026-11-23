@@ -281,6 +281,10 @@ interface ScheduledTaskDao {
     @Query("UPDATE scheduled_tasks SET lastSeenRunAt = lastRunAt WHERE id = :id")
     suspend fun markSeen(id: String): Int
 
+    /** The user opened chat [conversationId]: the latest result of a task whose last run wrote it counts as seen. */
+    @Query("UPDATE scheduled_tasks SET lastSeenRunAt = lastRunAt WHERE lastConversationId = :conversationId AND lastRunAt IS NOT NULL")
+    suspend fun markSeenForChat(conversationId: String): Int
+
     /** Every task's latest result counts as seen ("Mark all read"). */
     @Query("UPDATE scheduled_tasks SET lastSeenRunAt = lastRunAt WHERE lastRunAt IS NOT NULL")
     suspend fun markAllSeen(): Int

@@ -6,6 +6,7 @@ import dev.locus.core.agent.ProposalSink
 import dev.locus.core.agent.Proposals
 import dev.locus.core.database.ProposalDao
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.util.UUID
 import javax.inject.Inject
@@ -39,6 +40,12 @@ class ProposalRepository(
         val id = ids()
         dao.insert(Proposal.entity(id, draft, origin, now, now + Proposals.EXPIRY_MS))
         return ProposalReceipt.Recorded(id)
+    }
+
+    /** Whether anything still waiting was proposed at or after [since]: a run that just proposed (TaskWorker folds its result notification into Needs you's). */
+    suspend fun proposedSince(since: Long): Boolean {
+        val now = clock()
+        return open.first().any { it.approvable(now) && it.createdAt >= since }
     }
 
     /** The time proposals are stamped and expired by. */

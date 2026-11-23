@@ -40,6 +40,7 @@ class TaskWorker @AssistedInject constructor(
     private val appLock: AppLock,
     /** The one "N things need you" notification, for what this run proposed (docs/design/needs-you.md). */
     private val needsYou: dev.locus.core.data.needsyou.NeedsYouNotifier,
+    private val proposals: dev.locus.core.data.needsyou.ProposalRepository,
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
@@ -51,15 +52,27 @@ class TaskWorker @AssistedInject constructor(
         // Read once, before the run: the result's notification hides a locked chat's text (docs/design/app-lock.md).
         val lock = appLock.loaded().settings
         val startedAt = System.currentTimeMillis()
-        val result = scheduled.run(
-            taskId = taskId,
-            workId = id.toString(),
-            runNow = runNow,
-            stopReason = { if (Build.VERSION.SDK_INT >= 31) stopReason else WorkInfo.STOP_REASON_UNKNOWN },
-            notify = { title, text, conversationId -> notify(taskId, title, text, conversationId, lock) },
-            fromApp = inputData.getString(KEY_FROM_APP),
-            eventId = inputData.getString(KEY_EVENT_ID),
-        )
+        // The run's notifications wait until it ends: a run that proposed something is announced by Needs you's one
+        // summary instead (its result is listed there too), so it doesn't post two (docs/design/needs-you.md).
+        val held = mutableListOf<Triple<String, String, String>>()
+        val postHeld = { held.forEach { (title, text, conversationId) -> notify(taskId, title, text, conversationId, lock) }; held.clear() }
+        val result = try {
+            scheduled.run(
+                taskId = taskId,
+                workId = id.toString(),
+                runNow = runNow,
+                stopReason = { if (Build.VERSION.SDK_INT >= 31) stopReason else WorkInfo.STOP_REASON_UNKNOWN },
+                notify = { title, text, conversationId -> held += Triple(title, text, conversationId) },
+                fromApp = inputData.getString(KEY_FROM_APP),
+                eventId = inputData.getString(KEY_EVENT_ID),
+            )
+        } catch (e: Throwable) {
+            // Stopped or failed part-way: whatever it had to say goes out now, as before.
+            postHeld()
+            throw e
+        }
+        val proposed = runCatching { proposals.proposedSince(startedAt) }.getOrDefault(false)
+        if (proposed) held.clear() else postHeld()
         // What it proposed waits in Needs you: one summary notification for all of it, never one per proposal.
         runCatching { needsYou.refresh(newSince = startedAt) }
         // The result name tells Tasks' "Run now" whether it ran or was skipped (another run was going).

@@ -33,6 +33,26 @@ class TaskRepositoryTest {
     }
 
     @Test
+    fun `opening a run's chat marks that task's result read, and only that task's`() = runTest {
+        val g = TestGraph(backgroundScope)
+        g.tasks.create("Weather", "Will it rain?", 60)
+        g.tasks.create("Inbox", "Anything urgent?", 60)
+        val (weather, inbox) = g.tasks.tasks.first().sortedBy { it.title }.let { it[1].id to it[0].id }
+        g.tasks.recordRun(weather, "chat-weather", "No rain.")
+        g.tasks.recordRun(inbox, "chat-inbox", "Two new mails.")
+        assertTrue(g.tasks.tasks.first().all { it.resultUnread })
+
+        g.tasks.markSeenForChat("chat-weather")
+        val byId = g.tasks.tasks.first().associateBy { it.id }
+        assertFalse(byId.getValue(weather).resultUnread)
+        assertTrue(byId.getValue(inbox).resultUnread, "another task's result stays unread")
+
+        // A chat that isn't any task's latest run changes nothing.
+        g.tasks.markSeenForChat("chat-other")
+        assertTrue(g.tasks.tasks.first().single { it.id == inbox }.resultUnread)
+    }
+
+    @Test
     fun `editing changes name, prompt, period and conditions, and reschedules`() = runTest {
         val g = TestGraph(backgroundScope)
         g.tasks.create("Weather", "Will it rain?", 60)

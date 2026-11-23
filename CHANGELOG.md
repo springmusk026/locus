@@ -44,6 +44,7 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - **Jellyfin in Library → Add a service.** Search your library, see what was added lately, look up an item and see what's playing now. Read-only, with the API key sent in the `Authorization: MediaBrowser Token="…"` header that Jellyfin 12 requires. *Not yet tried against a live server.*
 
 ### Fixed
+- **Needs you: one notification per run, and results read wherever you open them.** A scheduled run that proposed something now posts only the "N things need you" summary instead of that plus its own result notification. Opening a run's chat from Tasks, its notification or the chat list marks its result read, not only opening it from Needs you.
 - **Insights' "today", "7 days" and "30 days" spend counts requests made while Insights is open.** The windows ended when the screen opened, so a reply that landed meanwhile went into the chart but not into those totals until Insights was opened again.
 
 ## [0.2.0] - 2026-11-21
