@@ -382,3 +382,112 @@ That's about 76% less than before, and the receipt now matches the bill. The fig
 measurement. Anthropic's cost guide calls its own numbers "directional", and the real effect depends on
 the chat. The summary's own cache use isn't documented, so it's priced as uncached input, which is the
 upper bound.
+
+## Offline cache simulator
+
+Built 2026-11-23. *Not yet tried on the device or against a live key.* Answers "what would this chat or bench run
+have cost under a different caching or compaction policy?" without calling a model. Developer-facing: there is no
+screen for it, because Locus doesn't export a chat's sequence anywhere a user could pick it up, and a screen with
+nothing to feed it would be half a feature. Code: `dev.locus.core.agent.cachesim` (core/agent): `CacheSimulator`,
+`CachePolicy`, `SimSequence`, `RecordedChats`, `PolicyReport`. Tests: `CacheSimulatorTest`, `RecordedChatsTest`,
+`CacheSimReportTest` (core/agent), `CostBreakdownTest` (core/model), and a bench test that runs the real loop.
+
+### What goes in
+
+A `SimSequence` is one chat's requests in order, a model, its `ModelPrice` (models.dev, as the app prices it) and the
+policy the chat ran under. Each `SimStep` has when it was sent and when the reply ended, how much the prompt grew
+since the request before (`newTokens`: the previous reply sent back, plus tool results and the user's message), the
+user's own tokens, the sizes of its tool results, the output tokens, and, when recorded, the `TokenUsage` the
+provider reported. The prompt is the frozen prefix (system prompt and tool list, `prefixTokens`) plus the history the
+policy keeps plus the step's new tokens. JSON, so a fixture is a small file (`core/agent/src/test/resources/cachesim`).
+
+Where sequences come from, using only what Locus already stores:
+
+- **A stored chat.** `RecordedChats.sequenceOf(messages, …)` reads the shown branch: each assistant message's
+  `usage` and stored time (less `ReplyInfo.totalMs`), the tool results and user messages before it, and checkpoints.
+  Summary requests that Locus itself made aren't messages; pass them from the usage log (`UsageSource.COMPACTION`).
+- **A bench run.** `TrialRunner` writes one JSON per chat to `<bench.out>/traces/` when the model's price is known
+  (`BenchMain` always does). Re-price a real run under other policies without paying for it again.
+
+What the store doesn't keep is estimated, and each estimate is listed under the table it affects:
+
+| Estimated | How | Where it shows |
+|---|---|---|
+| System prompt and tool list size | The first request's prompt less its user message (4 characters a token). Pass `prefixTokens` when known. | `approximations` |
+| What a step added after a summary or a cleared-results gap | The prompt shrank, so growth can't be read from it: estimated from the stored text. | `approximations` |
+| When a request was sent | Stored reply time less its duration; the stored time if no duration was kept. | `approximations` |
+| How long a summary is | The mean of the chat's own checkpoints, else 4,000 tokens (the sample above). | `observedSummaryTokens` |
+| A tool result's tokens | Its characters over 4, as compaction and cold clearing estimate, scaled down if the recorded growth was smaller. | none |
+
+### The rules, and where each comes from
+
+Nothing is priced twice: the simulator builds a `TokenUsage` per request and prices it with `ModelPrice.cost`, so price
+steps, 1-hour writes and server-side summaries are the app's own rules ([What a request costs](#what-a-request-costs),
+[Price steps](#price-steps)). `ModelPrice.breakdown` (new, and now what `cost` is built on) splits that into fresh
+input, reads, writes and output for the table. Compaction uses `Compaction.due`, `CompactionSetup.limit`,
+`PriceSteps.ceiling` and `AnthropicChatModel.compactionTrigger`; clearing uses `ColdClearing.view` over stand-in
+messages of the recorded sizes.
+
+| Rule | Source |
+|---|---|
+| Two entries: the frozen prefix and the conversation so far. A request reads the longest one still alive, writes the rest, and refreshes both. | [Cache lifetimes](#cache-lifetimes) ("restarts its 5-minute lifetime") |
+| The prefix is kept an hour, the conversation an hour in a main chat and 5 minutes elsewhere; a gateway or OpenRouter only gets 5 minutes. | [Cache lifetimes](#cache-lifetimes), [OpenRouter](#openrouter-and-chat-completions-caching) |
+| A write is priced by its own lifetime: 2x input for an hour (`cacheWrite1h`), `cost.cache_write` for the short one. | [What a request costs](#what-a-request-costs) |
+| Automatic providers (OpenAI, Gemini, DeepSeek…) use one idle lifetime for both entries and bill no writes unless the policy says they do (GPT-5.6 on). The default is 30 minutes, "at least 30 minutes on 5.6 and later". | [cold-cache clearing](cold-cache-clearing.md#cold-boundaries), [Cache writes on OpenAI](#cache-writes-on-openai) |
+| Locus compacts when the last request's context plus the results about to be added pass the lower of 80% of the window and the price-step ceiling; never at the step right after another compaction. | [compaction](compaction.md#at-a-step-boundary), [Compacting below a price step](#compacting-below-a-price-step) |
+| A summary request is the next turn's prompt plus the compaction prompt: it reads the cache, keeps the 5-minute lifetime, and its own write is never read. | [compaction](compaction.md#the-summary-request), [prompt caching](compaction.md#prompt-caching) |
+| After a summary the transcript is one message: the summary, the user's messages kept word for word (up to `Compaction.keptTokens`), and the pointer. The next request reads only the frozen prefix. | [compaction](compaction.md#what-replaces-the-transcript) |
+| Anthropic's server-side summary runs inside the request that crosses the trigger (90,000 on Haiku 5.5, else 150,000), reads the whole prompt at the input price, and the request's own prompt is then the summary. | [Server-side compaction](#server-side-compaction), [compaction](compaction.md#server-side-compaction-anthropic) |
+| A request is priced at the highest price step its whole prompt is over. | [Price steps](#price-steps) |
+| Cold-cache clearing: boundaries, the five newest results kept, 2,000 characters, 20,000 tokens, errors and the running task stay, never on Anthropic or Responses. A clearing that changes the prompt breaks the cache from the first cleared result on. | [cold-cache clearing](cold-cache-clearing.md) |
+
+### Running it
+
+`PolicyReport.table(sequence)` prices a sequence under the recorded policy and one change at a time (conversation
+cache 5 minutes or 1 hour, no compaction, a different compaction point, a different server trigger, cold clearing
+off or on, a different automatic lifetime), skipping what the provider can't do. Pass your own `CachePolicy` list to
+compare others.
+
+```
+locus-gradle-lock.sh -q :core:agent:test --tests '*CacheSimReportTest*' -i
+LOCUS_CACHESIM_FILE=/path/to/trace.json locus-gradle-lock.sh -q :core:agent:test --tests '*CacheSimReportTest*' --rerun -i
+```
+
+The first prints a table per fixture and writes `core/agent/build/reports/cache-sim/<name>.md`; the second prices a
+bench trace or any `SimSequence` JSON. Output for the checked-in Claude Opus 5.5 fixture (a chat with pauses; synthetic):
+
+| Policy | Total | vs first | Uncached input | Cache read | Cache write | Output | Compaction | Requests | Summaries |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Locus today (recorded) | $0.3054 | +0.0% | $0.0000 | $0.0054 | $0.2720 | $0.0280 | $0.0000 | 4 | 0 |
+| Conversation cache 5 min | $0.2874 | -5.9% | $0.0000 | $0.0044 | $0.2550 | $0.0280 | $0.0000 | 4 | 0 |
+
+The 5-minute row is cheaper here. It pays 1.25x instead of 2x on every conversation write, and loses only at the
+11-minute pause, where it rewrites 6,000 tokens that the 1-hour setting reads. A chat with more pauses between 5
+and 60 minutes would flip it; the break-even is the one in [Cache lifetimes](#cache-lifetimes).
+
+### Validation
+
+- `CacheSimulatorTest` runs each fixture under its recorded policy and requires every simulated request to equal the
+  reported `TokenUsage`, and the total to equal what `RunBudget` (the receipts' and budgets' accounting) and
+  `ModelPrice.cost` give for the recorded usage.
+- The fixtures' usage was worked out by hand from the rules above (and checked with an independent script), **not
+  captured from a provider**. So the tests show the simulator and the app's pricing agree, not that Anthropic or
+  OpenAI bill this way; the rules' sources are the pages cited above.
+- `FakeRunTest` runs a bench trial through the real `AgentLoop` with a priced fake model, writes its trace, and
+  requires the simulated total under the recorded policy to equal the trial's cost from `RunBudget`.
+- `RecordedChatsTest` builds stored messages, turns them into a sequence and does the same.
+
+### Not modelled, and not done
+
+- The provider's minimum cacheable length, Anthropic's 20-block lookback, and misses a provider adds on its own. A live
+  bill can differ.
+- The model's output is taken as recorded under every policy. A summary changes what a model writes next, and the
+  simulator can't know how.
+- A server-side summary is priced as uncached input (the upper bound, as in the sample above), and its effect on the
+  next prompt is "the summary, then the user's new message".
+- The bench's own compaction ceiling uses the documented price step only, while the simulator takes the catalogue's
+  when the price has tiers. They agree for Haiku 5.5 and GPT-5.x.
+- OpenAI's actual lifetimes depend on retention and load, which a request can't choose; the 30-minute default is a
+  parameter (`automaticIdleMs`), not a measurement.
+- No export of a real chat from the app: a chat's sequence can be built in a test from its stored messages, but no
+  screen or file produces one. That is the missing piece for a user-facing surface.

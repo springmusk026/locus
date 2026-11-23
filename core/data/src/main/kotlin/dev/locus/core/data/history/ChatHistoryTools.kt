@@ -132,7 +132,8 @@ internal class ChatHistoryRead(
         val offset = args.int("offset")
         val withResults = args.bool("include_tool_results") == true
         val history = conversations.history(id)
-        val entries = history.mapIndexedNotNull { i, m -> entry(i, m, withResults)?.let { i to it } }
+        val numbers = history.withIndex().associate { (i, m) -> m.id to i }
+        val entries = history.mapIndexedNotNull { i, m -> entry(i, m, withResults, numbers)?.let { i to it } }
         val body = when {
             entries.isEmpty() -> "(empty)"
             offset == null -> {
@@ -172,7 +173,8 @@ internal class ChatHistoryRead(
         return shown + (next?.let { "\n…(more: continue with offset $it)" } ?: "\n(end of chat)")
     }
 
-    private fun entry(i: Int, m: Message, withResults: Boolean): String? = buildString {
+    /** Entry [i] of a chat, [m]; [numbers] gives each message's entry number. */
+    private fun entry(i: Int, m: Message, withResults: Boolean, numbers: Map<String, Int>): String? = buildString {
         when (m.role) {
             Role.USER -> {
                 val checkpoint = m.parts.filterIsInstance<Part.Checkpoint>().lastOrNull()
@@ -181,6 +183,10 @@ internal class ChatHistoryRead(
                         when {
                             checkpoint.supersedes != null -> "#$i [The user edited the summary above; for the model this version replaced it]"
                             checkpoint.from != null -> "#$i [A summary was written here; for the model it replaced the entries from where it starts, and kept the ones before]"
+                            // Written in the background while the task went on: what came after the part it covers stays.
+                            checkpoint.coversUpTo != null -> numbers[checkpoint.coversUpTo]?.let { end ->
+                                "#$i [A summary was written here; for the model it replaced the entries up to #$end, and kept the ones after]"
+                            } ?: "#$i [A summary was written here; for the model it replaced the entries above]"
                             else -> "#$i [A summary was written here; for the model it replaced the entries above]"
                         },
                     )

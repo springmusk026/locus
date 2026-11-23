@@ -30,10 +30,20 @@ class CompactionSetup(
      * of a request costs more. Null when the price doesn't step.
      */
     val ceiling: Int? = null,
+    /**
+     * Start the summary in the background at [earlyLimit] while the run goes on, so it's usually ready by the time
+     * the run reaches [limit] (docs/design/compaction.md, "Starting the summary early"). Only where the serving
+     * model's format allows keeping the turns written meanwhile after it ([Compaction.keepsTurnsAfterSummary]).
+     */
+    val background: Boolean = false,
 ) {
     /** Where compaction starts, in tokens: the lower of the window's [threshold] and the [ceiling]; null for never. */
     val limit: Int?
         get() = listOfNotNull(contextWindow?.takeIf { it > 0 }?.let { (it * threshold).toInt() }, ceiling?.takeIf { it > 0 }).minOrNull()
+
+    /** Where a [background] summary starts, in tokens: [Compaction.EARLY_SHARE] of [limit] (70% of the window at the 80% threshold). */
+    val earlyLimit: Int?
+        get() = limit?.let { (it * Compaction.EARLY_SHARE).toInt() }
 }
 
 /**
@@ -54,6 +64,29 @@ object Compaction {
     /** The user's own messages kept verbatim after a summary, in (estimated) tokens. */
     const val KEEP_USER_TOKENS = 20_000
 
+    /**
+     * Where a background summary starts, as a share of where compaction is due ([CompactionSetup.limit]): 70% of
+     * the window at the 80% threshold, as Codex starts its mid-turn compaction early (`async_compaction`).
+     */
+    const val EARLY_SHARE = 0.875
+
+    /**
+     * A background summary is used only while what the run added after it started, plus the summary's own view,
+     * stays under this share of [CompactionSetup.limit]; past that it's dropped for an ordinary summary, which
+     * leaves a smaller context.
+     */
+    const val KEPT_AFTER_SHARE = 0.5
+
+    /**
+     * Whether a summary may keep the turns written after the point it covers, word for word after it, on a
+     * model of [format]. Only Chat Completions: there Locus replays no reasoning, so a kept turn doesn't depend on
+     * the exact transcript before it. Anthropic's preserved thinking is checked against everything before the
+     * thinking block, and Responses (and the ChatGPT plan) replay encrypted reasoning items, which Locus never sends
+     * after a changed prefix (docs/design/rewind.md, "Prefix byte-identity per provider"). On-device models don't
+     * compact at a threshold.
+     */
+    fun keepsTurnsAfterSummary(format: dev.locus.core.model.ApiFormat?): Boolean = format == dev.locus.core.model.ApiFormat.OPENAI_CHAT
+
     /** A reply shorter than this isn't a summary. */
     const val MIN_SUMMARY_CHARS = 40
 
@@ -63,8 +96,8 @@ object Compaction {
      * Whether a request that used [usage] filled enough of the window to compact before the next one;
      * [pendingTokens] is what the next request adds on top (the tool results just appended).
      */
-    fun due(usage: TokenUsage?, setup: CompactionSetup, pendingTokens: Int = 0): Boolean {
-        val limit = setup.limit ?: return false
+    fun due(usage: TokenUsage?, setup: CompactionSetup, pendingTokens: Int = 0, early: Boolean = false): Boolean {
+        val limit = (if (early) setup.earlyLimit else setup.limit) ?: return false
         val used = usage?.context ?: return false
         return used + pendingTokens > limit
     }
@@ -98,26 +131,41 @@ object Compaction {
      * with its [view]. A checkpoint replaces everything before it; one written by Summarise from here
      * ([Part.Checkpoint.from]) replaces only the context from that message on, and an edited summary
      * ([Part.Checkpoint.supersedes]) replaces the view it corrects. So the messages before a partial summary
-     * are sent exactly as they were before it (docs/design/rewind.md). Earlier messages stay in the chat for
-     * the user. Kept reasoning never goes back.
+     * are sent exactly as they were before it (docs/design/rewind.md). A summary written in the background
+     * ([Part.Checkpoint.coversUpTo]) replaces only the messages up to the one it names; the ones the run added
+     * meanwhile follow its view. Earlier messages stay in the chat for the user. Kept reasoning never goes back.
      */
     fun modelContext(all: List<Message>): List<Message> {
         val history = all.map { it.forModel() }
         if (history.none { m -> m.parts.any { it is Part.Checkpoint } }) return history
         val context = ArrayList<Message>(history.size)
         for (m in history) {
-            val checkpoint = m.parts.filterIsInstance<Part.Checkpoint>().lastOrNull()
-            if (checkpoint == null) {
-                context += m
-                continue
-            }
-            // Where this checkpoint starts replacing; a start that isn't in the context (never on a consistent
-            // path) replaces everything, which is always a valid request.
-            val start = (checkpoint.supersedes ?: checkpoint.from)?.let { id -> context.indexOfFirst { it.id == id } }?.takeIf { it >= 0 } ?: 0
-            context.subList(start, context.size).clear()
-            context += view(m)
+            if (m.parts.none { it is Part.Checkpoint }) context += m else place(context, m)
         }
         return context
+    }
+
+    /**
+     * Puts the view of checkpoint [message] into [context] (the model's context so far) in place of what it stands
+     * in for: from the start, or from [Part.Checkpoint.from], or the view it corrects ([Part.Checkpoint.supersedes]);
+     * to the end, or to [Part.Checkpoint.coversUpTo]. A running task applies a background summary with this too, so
+     * its transcript is exactly what [modelContext] rebuilds from storage.
+     */
+    fun place(context: MutableList<Message>, message: Message) {
+        val checkpoint = message.parts.filterIsInstance<Part.Checkpoint>().last()
+        // Where this checkpoint starts replacing; a start that isn't in the context (never on a consistent
+        // path) replaces everything, which is always a valid request.
+        val found = (checkpoint.supersedes ?: checkpoint.from)?.let { id -> context.indexOfFirst { it.id == id } }?.takeIf { it >= 0 }
+        val start = found ?: 0
+        val covers = checkpoint.coversUpTo
+        val end = when {
+            covers == null -> context.size
+            // An edited background summary replaces only the view it corrects; the messages kept after it stay.
+            checkpoint.supersedes != null -> found?.plus(1) ?: context.size
+            else -> context.indexOfFirst { it.id == covers }.takeIf { it >= start }?.plus(1) ?: context.size
+        }
+        context.subList(start, end).clear()
+        context.add(start, view(message))
     }
 
     /**
@@ -140,7 +188,11 @@ object Compaction {
         checkpoint.todos?.takeIf { it.isNotBlank() }?.let { append("\n\n<todo_list>\nYour checklist at this point:\n").append(it).append("\n</todo_list>") }
         append("\n\nThe full earlier transcript is still on the phone: chat_history_read with id \"").append(chatId)
         append("\" reads it (offset to page through it, include_tool_results to see what tools returned). ")
-        append("If you were in the middle of a task, carry on from where this leaves off.")
+        if (checkpoint.coversUpTo != null) {
+            append("The messages after this summary came later and are kept word for word: carry on from the latest of them.")
+        } else {
+            append("If you were in the middle of a task, carry on from where this leaves off.")
+        }
     }
 
     /** The checkpoint for [summary] of [transcript] (what the model saw, a previous checkpoint's view first). */

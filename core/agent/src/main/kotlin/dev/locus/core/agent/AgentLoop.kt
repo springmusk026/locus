@@ -30,8 +30,13 @@ import dev.locus.core.model.startsTurn
 import dev.locus.core.model.ToolPolicy
 import dev.locus.core.model.ToolRisk
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
@@ -267,6 +272,18 @@ sealed interface AgentEvent {
 
     /** Summarising failed; the run carries on (or, after an overflow, fails). */
     data class CompactionFailed(val reason: String) : AgentEvent
+
+    /**
+     * A summary started in the background ([CompactionSetup.background]) came back but wasn't used: the run ended
+     * before it was due, or too much came after it. It was billed all the same: [usage] is for usage records and
+     * receipts, as [Compacted]'s is. Nothing is stored.
+     */
+    data class SummaryUnused(
+        val usage: dev.locus.core.model.TokenUsage?,
+        val providerId: String?,
+        val model: String?,
+        val durationMs: Long,
+    ) : AgentEvent
     data class Finished(val outcome: Outcome) : AgentEvent
 }
 
@@ -548,6 +565,22 @@ class AgentLoop(
      * [history] must already include the user's latest message.
      */
     fun run(conversation: Conversation, history: List<Message>): Flow<AgentEvent> = flow {
+        // A summary started in the background runs beside the steps, as a child of this run: it ends with it.
+        val context = currentCoroutineContext()
+        val scope = CoroutineScope(context + SupervisorJob(context[Job]))
+        val early = EarlySummary(scope)
+        try {
+            steps(conversation, history, early).collect { event ->
+                // One that came back unused was billed: it's counted before the run ends ([AgentEvent.SummaryUnused]).
+                if (event is AgentEvent.Finished) unused(early.leftover())
+                emit(event)
+            }
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    private fun steps(conversation: Conversation, history: List<Message>, early: EarlySummary): Flow<AgentEvent> = flow {
         val transcript = history.toMutableList()
         val serving = Serving(
             model,
@@ -643,6 +676,9 @@ class AgentLoop(
                     // Too long for the window: summarise, then send the step once more.
                     if (overflow && !compactedForOverflow && config.compaction != null) {
                         compactedForOverflow = true
+                        // A background summary keeps the turns after it, and the request didn't fit: summarise all of it.
+                        unused(early.leftover())
+                        early.tried = false
                         if (compact(conversation, transcript, serving, cacheKey, serverBudget, budget, config.compaction, taint.sources, overflow = true)) {
                             summarised = true
                             continue
@@ -749,9 +785,27 @@ class AgentLoop(
                 // from its result; the user's messages then follow the summary, mid-task notes and all.
                 config.compaction?.let { setup ->
                     val pending = results.sumOf { Compaction.estimateTokens(it.content) }
+                    val context = (turn.usage?.context ?: 0) + pending
                     // Not again right after one: if the summary alone is that big, another won't help.
                     if (step > compactedAtStep + 1 && Compaction.due(turn.usage, setup, pending)) {
-                        if (compact(conversation, transcript, serving, cacheKey, serverBudget, budget, setup, taint.sources, overflow = false)) compactedAtStep = step
+                        // The summary started in the background when there is one (waiting for it if it's still out),
+                        // else the ordinary one.
+                        val compacted = useEarly(conversation, transcript, serving, budget, setup, taint.sources, context, early) ||
+                            compact(conversation, transcript, serving, cacheKey, serverBudget, budget, setup, taint.sources, overflow = false)
+                        if (compacted) compactedAtStep = step
+                        early.tried = false
+                    } else if (setup.background && !early.tried && step > compactedAtStep + 1 && transcript.size >= MIN_COMPACT_MESSAGES &&
+                        Compaction.keepsTurnsAfterSummary(serving.model.format) && Compaction.due(turn.usage, setup, pending, early = true)
+                    ) {
+                        // About 70% of the window: start the summary now, beside the run, so it's ready by the threshold.
+                        // It's exactly the summary request the threshold would send here (the next turn's prefix plus
+                        // the question), so it reads the same cache; the run's own requests don't change.
+                        early.tried = true
+                        val covered = transcript.toList()
+                        val ask = Message(ids(), conversation.id, Role.USER, emptyList(), clock())
+                        val request = Compaction.request(conversation.systemPrompt, covered, tools.specs, cacheKey, serverBudget, setup.prompt, ask, clearingFor(serving))
+                            .copy(deferredTools = tools.requestDeferred())
+                        early.start(request, serving.model, serving.servedBy, covered, context)
                     }
                 }
                 // It runs with this step's tool-call context, so a call the user runs here (Run anyway)
@@ -1008,7 +1062,7 @@ class AgentLoop(
             val ask = Message(ids(), conversation.id, Role.USER, emptyList(), clock())
             try {
                 val summaryRequest = Compaction.request(conversation.systemPrompt, source, tools.specs, cacheKey, taskBudget, setup.prompt, ask, clearingFor(serving))
-                summary = complete(summaryRequest.copy(deferredTools = tools.requestDeferred()), serving)
+                summary = complete(summaryRequest.copy(deferredTools = tools.requestDeferred()), serving.model)
                 break
             } catch (e: CancellationException) {
                 throw e
@@ -1040,16 +1094,144 @@ class AgentLoop(
         return true
     }
 
+    /**
+     * A summary started in the background at [CompactionSetup.earlyLimit] (docs/design/compaction.md, "Starting the
+     * summary early"). The request goes out from [scope], a child of the run; only the run's own coroutine reads the
+     * result, stores the checkpoint and records the cost, so the transcript, budget and events stay single-threaded.
+     */
+    private inner class EarlySummary(private val scope: CoroutineScope) {
+        /** One per stretch between compactions, so one that failed isn't sent again at every step. */
+        var tried = false
+        private var pending: Started? = null
+
+        /** Whether one is out, or came back and hasn't been taken. */
+        val started: Boolean get() = pending != null
+
+        /** Whether it came back (or failed) already. */
+        val done: Boolean get() = pending?.job?.isCompleted == true
+
+        fun start(request: ChatRequest, model: ChatModel, servedBy: Pair<String?, String?>, covered: List<Message>, context: Int) {
+            val startedAt = clock()
+            val job = scope.async {
+                try {
+                    Result.success(complete(request, model) to clock() - startedAt)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Result.failure(e)
+                }
+            }
+            pending = Started(job, servedBy, covered, context)
+        }
+
+        /** Its result, waiting for it if it's still out; null when none was started. */
+        suspend fun take(): Taken? {
+            val started = pending ?: return null
+            pending = null
+            return Taken(started, started.job.await())
+        }
+
+        /** Its result if it already came back; one still out is cancelled (nothing came back to count). */
+        suspend fun leftover(): Taken? {
+            val started = pending ?: return null
+            if (!started.job.isCompleted) {
+                started.job.cancel()
+                pending = null
+                return null
+            }
+            return take()
+        }
+    }
+
+    private class Started(
+        val job: Deferred<Result<Pair<AssistantTurn, Long>>>,
+        val servedBy: Pair<String?, String?>,
+        /** The transcript it summarises: a prefix of the run's. */
+        val covered: List<Message>,
+        /** How full the context was when it started, in tokens. */
+        val context: Int,
+    )
+
+    private class Taken(val started: Started, val result: Result<Pair<AssistantTurn, Long>>)
+
+    /**
+     * Counts a background summary that came back but isn't used: in the run's budget, and as
+     * [AgentEvent.SummaryUnused] for usage records and receipts. Nothing is stored.
+     */
+    private suspend fun FlowCollector<AgentEvent>.unused(taken: Taken?) {
+        val (turn, durationMs) = taken?.result?.getOrNull() ?: return
+        val servedBy = taken.started.servedBy
+        val budget = config.budget?.takeIf { it.active }
+        budget?.record(turn.usage, servedBy.first, turn.servedModel ?: servedBy.second)
+        turn.declinedAttempts.forEach { budget?.record(it.usage, servedBy.first, it.model) }
+        emit(AgentEvent.SummaryUnused(turn.usage, servedBy.first, turn.servedModel ?: servedBy.second, durationMs))
+    }
+
+    /**
+     * Compaction is due: uses the summary started in the background, waiting for it if it's still out. It's stored
+     * as a checkpoint that names the last message it covers ([Part.Checkpoint.coversUpTo]), and the transcript
+     * becomes its view followed by everything the run added meanwhile ([Compaction.place], as
+     * [Compaction.modelContext] rebuilds it). False when there's none, it failed, or it can't be used (then it's
+     * counted as unused); the caller then summarises as before.
+     */
+    private suspend fun FlowCollector<AgentEvent>.useEarly(
+        conversation: Conversation,
+        transcript: MutableList<Message>,
+        serving: Serving,
+        budget: RunBudget?,
+        setup: CompactionSetup,
+        tainted: Set<String>,
+        /** How full the context is now, in tokens. */
+        context: Int,
+        early: EarlySummary,
+    ): Boolean {
+        if (!early.started) return false
+        // Still out: the threshold waits for it, as it would for the ordinary summary, which would start later.
+        if (!early.done) emit(AgentEvent.Compacting(overflow = false))
+        val taken = early.take() ?: return false
+        val (turn, durationMs) = taken.result.getOrNull() ?: return false
+        val covered = taken.started.covered
+        val servedBy = taken.started.servedBy
+        val text = turn.text.trim()
+        val last = covered.lastOrNull()
+        val kept = transcript.drop(covered.size)
+        val limit = setup.limit
+        val usable = last != null && text.length >= Compaction.MIN_SUMMARY_CHARS && limit != null &&
+            // The run's transcript still starts with what it summarised.
+            transcript.size >= covered.size && transcript[covered.size - 1].id == last.id &&
+            // The turns kept after it must not depend on the exact transcript before them (preserved thinking,
+            // encrypted reasoning): neither the model serving now nor any kept reply.
+            Compaction.keepsTurnsAfterSummary(serving.model.format) &&
+            kept.all { it.role != Role.ASSISTANT || it.format == null || Compaction.keepsTurnsAfterSummary(it.format) } &&
+            // What came after it, plus its view, leaves a context well under the threshold.
+            context - taken.started.context + Compaction.estimateTokens(Compaction.render(conversation.id, Compaction.checkpoint(text, covered, setup.contextWindow))) <=
+            limit * Compaction.KEPT_AFTER_SHARE
+        if (!usable || last == null) {
+            unused(taken)
+            return false
+        }
+        budget?.record(turn.usage, servedBy.first, turn.servedModel ?: servedBy.second)
+        turn.declinedAttempts.forEach { budget?.record(it.usage, servedBy.first, it.model) }
+        // It covers what it read: the run's taint so far, and whatever the summarised part read.
+        val part = Compaction.checkpoint(text, covered, setup.contextWindow, tainted).copy(coversUpTo = last.id)
+        val checkpoint = Message(ids(), conversation.id, Role.USER, listOf(part), clock())
+        store.append(checkpoint)
+        emit(AgentEvent.MessageAppended(checkpoint))
+        Compaction.place(transcript, checkpoint)
+        emit(AgentEvent.Compacted(checkpoint, covered.size, turn.usage, servedBy.first, turn.servedModel ?: servedBy.second, durationMs))
+        return true
+    }
+
     /** How the request about to go to [serving]'s model clears old tool results ([ColdClearing]); null: it doesn't. */
     private fun clearingFor(serving: Serving): ColdClearing.Policy? = ColdClearing.policyFor(serving.model.format, config.coldClearing)
 
     /** One whole turn, not streamed to the UI (the summary), retrying transient failures as a step does. */
-    private suspend fun complete(request: ChatRequest, serving: Serving): AssistantTurn {
+    private suspend fun complete(request: ChatRequest, model: ChatModel): AssistantTurn {
         var attempt = 0
         while (true) {
             try {
                 var done: AssistantTurn? = null
-                serving.model.stream(request).collect { event -> if (event is ChatEvent.Completed) done = event.turn }
+                model.stream(request).collect { event -> if (event is ChatEvent.Completed) done = event.turn }
                 return done ?: throw LlmException("The stream ended without a response.", retryable = true)
             } catch (e: LlmException) {
                 if (!e.retryable || attempt >= config.maxRetries) throw e

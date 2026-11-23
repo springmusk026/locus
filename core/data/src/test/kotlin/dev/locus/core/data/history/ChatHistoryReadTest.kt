@@ -54,4 +54,21 @@ class ChatHistoryReadTest {
         assertFalse("sk-abcdefghijklmnopqrstuvwxyz" in withResults)
         assertTrue(SecretScrubber.SECRET in withResults)
     }
+
+    @Test
+    fun `a summary written in the background says which entries it replaced and which it kept`() = runTest {
+        val g = TestGraph(backgroundScope)
+        val repo = g.conversations
+        val chat = repo.create(null).id
+        repo.appendUserMessage(chat, "rename the photos")
+        repo.append(Message("a1", chat, Role.ASSISTANT, listOf(Part.ToolCall("k1", "run_command", """{"command":"ls"}""")), clock++))
+        repo.append(Message("r1", chat, Role.TOOL, listOf(Part.ToolResult("k1", "run_command", "a.jpg")), clock++))
+        repo.append(Message("a2", chat, Role.ASSISTANT, listOf(Part.ToolCall("k2", "run_command", """{"command":"mv a.jpg b.jpg"}""")), clock++))
+        repo.append(Message("r2", chat, Role.TOOL, listOf(Part.ToolResult("k2", "run_command", "")), clock++))
+        repo.append(Message("cp", chat, Role.USER, listOf(Part.Checkpoint("summary", 3, coversUpTo = "r1")), clock++))
+        val tool = ChatHistoryRead(repo) { SecretScrubber(emptyList()) }
+
+        val all = tool.execute(buildJsonObject { put("id", chat); put("offset", 0) }).content
+        assertTrue("#5 [A summary was written here; for the model it replaced the entries up to #2, and kept the ones after]" in all, all)
+    }
 }

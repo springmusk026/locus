@@ -7,6 +7,12 @@ import dev.locus.core.agent.ApprovalGate
 import dev.locus.core.agent.CompactionSetup
 import dev.locus.core.agent.Outcome
 import dev.locus.core.agent.RunBudget
+import dev.locus.core.agent.cachesim.CacheMode
+import dev.locus.core.agent.cachesim.CachePolicy
+import dev.locus.core.agent.cachesim.CompactionKind
+import dev.locus.core.agent.cachesim.RecordedChats
+import dev.locus.core.agent.cachesim.SimJson
+import dev.locus.core.agent.cachesim.SimRecordedSummary
 import dev.locus.core.agent.home.MemoryAuthor
 import dev.locus.core.agent.tools.QuestionAnswer
 import dev.locus.core.llm.AnthropicChatModel
@@ -64,6 +70,11 @@ class TrialRunner(
     private val oracleOverride: ((TaskSpec) -> Oracle?)? = null,
     /** Changes the scripted user (tests). */
     private val userOverride: ((ScriptedUserSpec) -> ScriptedUserSpec)? = null,
+    /**
+     * Where to write each chat's request sequence as JSON ([SimSequence]) for the offline cache simulator
+     * (docs/design/cost.md, "Offline cache simulator"). Null: none. Only written when the model's price is known.
+     */
+    private val traceDir: File? = null,
 ) {
 
     suspend fun run(task: TaskSpec, trial: Int): TrialResult {
@@ -148,6 +159,7 @@ class TrialRunner(
                 costKnown = model.price != null,
             )
             val serverCompacts = provider.format == ApiFormat.ANTHROPIC_MESSAGES && AnthropicChatModel.compactsOnServer(provider.model)
+            var chats = 0
             // Each chat is new, created exactly as the app creates one (so it sees memory saved by the chats before it).
             suspend fun chat(text: String): Outcome? {
                 val conversation = graph.conversations.create(provider.id)
@@ -177,14 +189,36 @@ class TrialRunner(
 
                 val stepsBefore = record.steps
                 var finished: Outcome? = null
+                val summaries = mutableListOf<SimRecordedSummary>()
                 loop.run(conversation, graph.conversations.history(conversation.id)).collect { event ->
                     when (event) {
                         is AgentEvent.StepStarted -> record.steps = stepsBefore + event.step
                         is AgentEvent.MessageAppended -> record.onMessage(event.message)
                         is AgentEvent.ToolFinished -> record.onTool(event.name, event.decision, event.result.isError)
+                        is AgentEvent.Compacted -> event.usage?.let { summaries += SimRecordedSummary(System.currentTimeMillis(), it) }
                         is AgentEvent.Finished -> finished = event.outcome
                         else -> Unit
                     }
+                }
+                chats++
+                val price = model.price
+                if (traceDir != null && price != null) {
+                    // The chat as stored, priced under the policy this run had (as the app's own chats run): a cache the
+                    // fake model doesn't report is [CacheMode.NONE].
+                    val recorded = CachePolicy.today(provider.format, provider.model, firstParty = provider.baseUrl.trimEnd('/').equals(AnthropicChatModel.DEFAULT_BASE_URL, ignoreCase = true))
+                        .copy(
+                            mode = CacheMode.NONE.takeIf { model.fake },
+                            compaction = if (serverCompacts) CompactionKind.SERVER else CompactionKind.LOCUS,
+                            coldClearing = dev.locus.core.agent.cachesim.ClearingSetting(enabled = true),
+                        )
+                    val sequence = RecordedChats.sequenceOf(
+                        label = "${task.id}, trial $trial, chat $chats (${provider.model})",
+                        messages = graph.conversations.history(conversation.id),
+                        model = provider.model, format = provider.format, price = price, contextWindow = provider.contextWindow,
+                        recordedPolicy = recorded, summaries = summaries,
+                    )
+                    traceDir.mkdirs()
+                    File(traceDir, "${task.id.replace('/', '_')}-trial$trial-chat$chats.json").writeText(SimJson.encode(sequence))
                 }
                 return finished
             }

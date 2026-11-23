@@ -243,6 +243,9 @@ interface SubagentBackend {
 
     /** Helper [state] summarised its transcript; [event] has the summary request's usage, for the usage log. */
     fun compacted(state: SubagentState, event: AgentEvent.Compacted) {}
+
+    /** Helper [state] had a summary written in the background that it didn't use; it was billed, for the usage log. */
+    fun summaryUnused(state: SubagentState, event: AgentEvent.SummaryUnused) {}
 }
 
 /**
@@ -677,6 +680,17 @@ class SubagentEngine(
                                     run.update { it.copy(tokens = run.baseTokens + total, spend = run.baseSpend + run.spend) }
                                 }
                                 backend.compacted(run.state, event)
+                            }
+                            is AgentEvent.SummaryUnused -> {
+                                // Billed though not used: it counts toward the helper's tokens all the same.
+                                event.usage?.let { u ->
+                                    val used = (u.input + u.output).toLong()
+                                    val total = run.tokens.addAndGet(used)
+                                    turn.tokens.addAndGet(used)
+                                    run.spent(u, model = null)
+                                    run.update { it.copy(tokens = run.baseTokens + total, spend = run.baseSpend + run.spend) }
+                                }
+                                backend.summaryUnused(run.state, event)
                             }
                             is AgentEvent.Finished -> outcome = event.outcome
                             else -> Unit

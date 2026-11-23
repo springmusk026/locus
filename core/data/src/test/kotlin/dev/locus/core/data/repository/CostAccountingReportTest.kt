@@ -15,6 +15,7 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /** Server-side summaries in Insights, the compaction ceiling per provider, and side jobs' effort (docs/design/cost.md). */
 class CostAccountingReportTest {
@@ -61,6 +62,9 @@ class CostAccountingReportTest {
         // Haiku 5.5 through a gateway that can't compact on the server: the documented step still applies.
         val gateway = haiku.copy(model = "claude-haiku-5-5", format = ApiFormat.OPENAI_CHAT, baseUrl = "https://openrouter.ai/api/v1")
         assertEquals(90_000, compactionSetup(gateway, settings, null)!!.limit)
+        // The summary starts early, below the step too: at 70% of the window's share (docs/design/compaction.md).
+        assertEquals(78_750, compactionSetup(gateway, settings, null)!!.earlyLimit)
+        assertTrue(compactionSetup(gateway, settings, null)!!.background)
     }
 
     @Test

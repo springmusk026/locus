@@ -85,6 +85,13 @@ sealed interface Part {
          * (core/agent `ColdClearing`), so the kept prefix is sent exactly as before. Empty for every other checkpoint.
          */
         val clearedResults: List<String> = emptyList(),
+        /**
+         * A summary written in the background while the run went on (docs/design/compaction.md, "Starting the
+         * summary early"): the id of the last message of the model's context it covers. The messages after that one
+         * and before this checkpoint stay in the model's context word for word, after the summary. Null when the
+         * summary covers everything before it, as every checkpoint did before.
+         */
+        val coversUpTo: String? = null,
     ) : Part
 
     /**
