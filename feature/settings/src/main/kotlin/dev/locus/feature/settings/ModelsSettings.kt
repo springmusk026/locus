@@ -111,6 +111,9 @@ internal fun ModelsSettings(
     /** A draft to open at once (the chat card's Review); [onDraftOpened] clears the request. */
     openDraft: String? = null,
     onDraftOpened: () -> Unit = {},
+    /** The effort offer (docs/design/cost.md#effort): move provider id to the model's own effort, or keep High. */
+    onUseModelEffort: (String) -> Unit = {},
+    onKeepEffort: (String) -> Unit = {},
 ) {
     var editing by remember { mutableStateOf<Editing?>(null) }
     LaunchedEffect(openDraft, state.providerDrafts) {
@@ -123,6 +126,18 @@ internal fun ModelsSettings(
     }
 
     SettingsPageScaffold(stringResource(R.string.settings_models_title), onBack) {
+        // Providers still on the old "high" default, where the model's own effort is lower: one offer each.
+        state.providers.filter { it.offersModelDefault && it.modelEffort != null }.forEach { row ->
+            item(key = "effort-offer-${row.config.id}") {
+                EffortOfferBanner(
+                    title = stringResource(R.string.settings_models_effort_offer_title_named, row.config.name),
+                    modelEffort = row.modelEffort!!,
+                    onUse = { onUseModelEffort(row.config.id) },
+                    onKeep = { onKeepEffort(row.config.id) },
+                    modifier = Modifier.padding(top = Spacing.sm),
+                )
+            }
+        }
         item { SectionLabel(stringResource(R.string.settings_models_providers_section), SectionPadding) }
         item {
             CardGroup {
@@ -255,6 +270,10 @@ internal fun ModelsSettings(
         }
         is Editing.Provider -> ProviderEditor(
             editing = e,
+            // Read live, so Keep High or the move (here or on the page) hides the offer at once.
+            effortOffer = state.providers.firstOrNull { it.config.id == e.config.id }?.takeIf { it.offersModelDefault }?.modelEffort,
+            onUseModelEffort = { onUseModelEffort(e.config.id) },
+            onKeepEffort = { onKeepEffort(e.config.id) },
             chatGptSignedIn = e.config.id in state.chatGptAccounts,
             chatGptEmail = state.chatGptAccounts[e.config.id],
             chatGpt = chatGpt,
@@ -393,6 +412,10 @@ private fun PresetPicker(onPick: (ProviderPreset) -> Unit, onDismiss: () -> Unit
 @Composable
 private fun ProviderEditor(
     editing: Editing.Provider,
+    /** The model's own effort when the provider is offered the move from the old "high"; null otherwise. */
+    effortOffer: dev.locus.core.model.Effort?,
+    onUseModelEffort: () -> Unit,
+    onKeepEffort: () -> Unit,
     chatGptSignedIn: Boolean,
     chatGptEmail: String?,
     chatGpt: ChatGptActions,
@@ -532,6 +555,18 @@ private fun ProviderEditor(
             ProviderNetworkRow(network, networkDefaults, onOpen = { editingNetwork = true })
         }
         if (dev.locus.core.model.Effort.supports(initial.format, baseUrl)) {
+            // Only while the control still shows the stored "high": a level picked here is the user's own.
+            if (effortOffer != null && effort == dev.locus.core.model.EffortDefaults.LEGACY_DEFAULT) {
+                EffortOfferBanner(
+                    title = stringResource(R.string.settings_models_effort_offer_title),
+                    modelEffort = effortOffer,
+                    onUse = {
+                        effort = ""
+                        onUseModelEffort()
+                    },
+                    onKeep = onKeepEffort,
+                )
+            }
             Text(stringResource(R.string.settings_models_effort), style = LocusType.label)
             // Blank is "Default": no level is sent and the model uses its own.
             val levels = listOf("", "low", "medium", "high", "xhigh")
@@ -581,6 +616,32 @@ private fun ProviderEditor(
             onConfirm = onDelete,
             onDismiss = { confirmDelete = false },
         )
+    }
+}
+
+/**
+ * The offer to move a provider saved with the old "high" default to the model's own effort
+ * (docs/design/cost.md#effort): why, what it costs and what happens to existing chats, then one tap either
+ * way. Never applied without the tap; Keep High stores the answer so the offer doesn't come back. A second
+ * tap before the settings update changes nothing more (both answers are idempotent).
+ */
+@Composable
+private fun EffortOfferBanner(
+    title: String,
+    modelEffort: dev.locus.core.model.Effort,
+    onUse: () -> Unit,
+    onKeep: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    dev.locus.core.designsystem.Banner(
+        text = stringResource(R.string.settings_models_effort_offer_text, stringResource(modelEffort.labelRes).lowercase()),
+        tone = Tone.Info,
+        modifier = modifier,
+        title = title,
+        actionsBelow = true,
+    ) {
+        TextButton(onClick = onKeep) { Text(stringResource(R.string.settings_models_effort_offer_keep)) }
+        TextButton(onClick = onUse) { Text(stringResource(R.string.settings_models_effort_offer_use)) }
     }
 }
 

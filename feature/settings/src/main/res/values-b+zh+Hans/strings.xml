@@ -790,6 +790,11 @@
     <string name="settings_models_effort_xhigh">极高</string>
     <string name="settings_models_effort_note_model">“默认”表示让模型使用自己的强度（此模型为 %1$s）。强度越高，思考越久，费用也越高。</string>
     <string name="settings_models_effort_note">“默认”表示让模型使用自己的强度。强度越高，思考越久，费用也越高。</string>
+    <string name="settings_models_effort_offer_title">仍保存为“高”，即以前的默认值</string>
+    <string name="settings_models_effort_offer_title_named">%1$s 仍为“高”</string>
+    <string name="settings_models_effort_offer_text">在 Locus 0.1.7 之前，所有提供方的默认强度都是“高”。此模型自己的强度是%1$s：回复开始得更快，思考用的 token 更少，因此费用更低，但难题的回答可能不够周全。已有的对话继续使用“高”，这样它们缓存的提示仍然有效；新对话使用模型的默认值。你可以随时在此提供方的“强度”中更改。</string>
+    <string name="settings_models_effort_offer_keep">保持“高”</string>
+    <string name="settings_models_effort_offer_use">使用模型默认值</string>
     <string name="settings_models_make_default">设为默认</string>
     <string name="settings_models_remove_provider">移除提供商</string>
     <string name="settings_models_remove_title">移除 %1$s？</string>

@@ -190,6 +190,12 @@ data class AppSettings(
     /** Which [EffortDefaults] migration these settings have had; 0 before the first. */
     val effortDefaults: Int = 0,
     /**
+     * Providers whose effort the user has decided since the one-tap move to the model's default existed:
+     * set or changed in the editor, kept with the offer's dismiss, or moved with its tap
+     * ([EffortDefaults.offersModelDefault]). Ids only; removed with the provider.
+     */
+    val effortChosen: Set<String> = emptySet(),
+    /**
      * Settings → Agent → "Ask before saving to memory" (docs/design/memory-approval.md): when `memory_save`
      * and `memory_forget` ask. Sealed with the permissions ([PolicySeal]), so switching Always off from
      * outside Locus breaks the seal and the user is told.

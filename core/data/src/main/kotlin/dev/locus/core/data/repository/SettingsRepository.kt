@@ -68,7 +68,11 @@ class SettingsRepository @Inject constructor(
                 s.providers + cleaned
             }
             // Saved from the editor, which shows the effort: whatever it holds now is the user's (EffortDefaults).
-            dev.locus.core.model.EffortDefaults.current(s.copy(providers = providers, defaultProviderId = s.defaultProviderId ?: provider.id))
+            dev.locus.core.model.EffortDefaults.saved(
+                s.copy(providers = providers, defaultProviderId = s.defaultProviderId ?: provider.id),
+                previous = s.providers.firstOrNull { it.id == provider.id },
+                saved = cleaned,
+            )
         }
         // Null leaves an existing key untouched; an empty string removes it.
         if (apiKey != null) secrets.put(SecretStore.providerKey(provider.id), apiKey.trim())
@@ -85,6 +89,7 @@ class SettingsRepository @Inject constructor(
                 providers = remaining,
                 defaultProviderId = s.defaultProviderId.takeUnless { it == id } ?: remaining.firstOrNull()?.id,
                 fallbackModels = s.fallbackModels.filterNot { it.providerId == id },
+                effortChosen = s.effortChosen - id,
             )
         }
         secrets.put(SecretStore.providerKey(id), null)
@@ -92,6 +97,15 @@ class SettingsRepository @Inject constructor(
         NetworkSecretEdits.forget(secrets, id)
         chatGpt.forget(id)
     }
+
+    /**
+     * The one-tap move to the model's own effort (docs/design/cost.md#effort): [id] sends no effort from now
+     * on. Callers keep existing chats on their level first ([ConversationRepository.moveToModelDefaultEffort]).
+     */
+    suspend fun useModelDefaultEffort(id: String) = store.updateData { dev.locus.core.model.EffortDefaults.useModelDefault(it, id) }
+
+    /** The offer dismissed: [id] keeps its effort, and the offer isn't shown again. */
+    suspend fun keepProviderEffort(id: String) = store.updateData { dev.locus.core.model.EffortDefaults.keep(it, id) }
 
     suspend fun setDefaultProvider(id: String) = store.updateData { it.copy(defaultProviderId = id) }
 
@@ -130,8 +144,10 @@ class SettingsRepository @Inject constructor(
             found = s.providerDrafts.any { it.id == draftId }
             if (!found) return@updateData s
             val providers = s.providers.filterNot { it.id == cleaned.id } + cleaned
-            dev.locus.core.model.EffortDefaults.current(
+            dev.locus.core.model.EffortDefaults.saved(
                 s.copy(providers = providers, providerDrafts = s.providerDrafts.filterNot { it.id == draftId }, defaultProviderId = s.defaultProviderId ?: cleaned.id),
+                previous = null,
+                saved = cleaned,
             )
         }
         if (!found) return false

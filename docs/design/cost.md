@@ -137,6 +137,27 @@ and they don't. It's also Claude API only, and it keeps a fingerprint at Anthrop
   change. Chat Completions providers never showed it, so their "high" was never a choice and was never
   sent. A one-time DataStore migration (`EffortDefaults`, `EffortDefaultsMigration`) clears it. Saving a
   provider marks the settings as migrated, so a "high" chosen later is never undone.
+- **One-tap move to the model's default** (2026-11-23). An Anthropic, Responses or ChatGPT provider whose
+  stored effort is still "high", on a model whose own default is known and lower (Opus 5.5, Haiku 5.5,
+  OpenAI's current models: medium), gets an Info banner on Settings → Models and above Effort in its sheet:
+  why (High was every provider's default before 0.1.7), what changes (replies start sooner and use fewer
+  thinking tokens, so they cost less; hard tasks may get less thorough answers), and what happens to chats.
+  **Use the model's default** clears the provider's effort; **Keep High** changes nothing. Either answer is
+  stored (`AppSettings.effortChosen`, ids only) so the banner doesn't come back; nothing changes without the
+  tap. A provider where the move changes nothing (other Claude models default to high anyway) isn't
+  offered. Saving a provider with a changed or new effort also records it as chosen; saving with the same
+  "high" (a new key, say) keeps the offer. `EffortDefaults.offersModelDefault`, `useModelDefault`, `keep`,
+  `saved`.
+  - *Which "high" is old.* Nothing recorded which providers were saved between 0.1.7 and this offer, so a
+    "high" picked in the editor in that window can't be told apart from the old default and is offered once.
+  - *Prompt cache.* Effort is rendered into the cached prefix (`Effort` in `ChatControls.kt`): changing it
+    under a chat invalidates the cached conversation once. So the move first gives every chat that already
+    has messages and follows the provider's setting (`effort` null, top-level, on this provider, or falling
+    back to it as the default) its current level as its own (`ConversationDao.keepEffort`,
+    `ConversationRepository.moveToModelDefaultEffort`). Their next request is byte for byte what it would
+    have been; the composer's effort sheet shows High chosen for them, and the user can change it there
+    (one cache miss, as any mid-chat change). New chats, and chats with nothing sent yet, use the model's
+    default. Helper chats keep their profile's effort. No Room schema change: the column existed (v5).
 - **Side jobs.** Titles and follow-up suggestions run at `low` (`HelperModel.QUICK_EFFORT`), as the
   reviewer already did. Anthropic recommends low for "simpler tasks that need the best speed and lowest
   costs, such as subagents". `low` rather than `minimal`, because GPT-6.1 Sol takes neither `none` nor

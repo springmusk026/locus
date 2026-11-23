@@ -71,6 +71,8 @@ fun SettingsRoute(
         onSaveProvider = viewModel::saveProvider,
         onSetFallbacks = { viewModel.setFallbackModels(it) },
         onDeleteProvider = viewModel::deleteProvider,
+        onUseModelEffort = { viewModel.useModelDefaultEffort(it) },
+        onKeepEffort = { viewModel.keepProviderEffort(it) },
         onSetDefault = viewModel::setDefault,
         onSetPolicy = viewModel::setPolicy,
         onSaveInstructions = viewModel::saveInstructions,
@@ -150,6 +152,9 @@ internal fun SettingsScreen(
     onDeleteProvider: (String) -> Unit,
     onSetDefault: (String) -> Unit,
     onSetPolicy: (ToolRow, ToolPolicy) -> Unit,
+    /** The effort offer (docs/design/cost.md#effort): move a provider to the model's default, or keep High. */
+    onUseModelEffort: (String) -> Unit = {},
+    onKeepEffort: (String) -> Unit = {},
     onSaveInstructions: (String) -> Unit,
     onSetTaskBudget: (dev.locus.core.model.TaskBudget) -> Unit = {},
     onSetReflect: (Boolean) -> Unit = {},
@@ -207,6 +212,7 @@ internal fun SettingsScreen(
             SettingsPage.Models -> ModelsSettings(
                 state, onBack = back,
                 onSaveProvider = onSaveProvider, onDeleteProvider = onDeleteProvider, onSetDefault = onSetDefault,
+                onUseModelEffort = onUseModelEffort, onKeepEffort = onKeepEffort,
                 onModelAction = onModelAction, onListModels = onListModels, chatGpt = chatGpt,
                 onSetModelCatalog = onSetModelCatalog,
                 onSetFallbacks = onSetFallbacks,
