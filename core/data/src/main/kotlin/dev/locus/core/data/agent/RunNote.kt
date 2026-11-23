@@ -126,6 +126,18 @@ sealed interface RunNote {
         }
     }
 
+    /** The user sent a message (or tapped Stop) in a scheduled run's chat: it stops at its next step (docs/design/scheduled-runs.md). */
+    data object TakingOver : RunNote {
+        override val english get() = "Stopping the scheduled run…"
+    }
+
+    /** The scheduled run stopped because the user took over; [message] when their message runs next as a normal turn. */
+    data class TookOver(val message: Boolean) : RunNote {
+        override val english get() =
+            if (message) "You took over: the scheduled run stopped, and your message runs as a normal chat turn."
+            else "You took over: the scheduled run stopped here. Send a message to carry on as a normal chat."
+    }
+
     /**
      * Compare models: the second model couldn't answer ([model], its short name and provider; [reason] as the
      * error said it). The chat's own model answers anyway (docs/design/compare-models.md).

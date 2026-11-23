@@ -1371,4 +1371,5 @@
         <item quantity="many">Importar %1$s chats</item>
         <item quantity="other">Importar %1$s chats</item>
     </plurals>
+    <string name="settings_import_suggest_memories">Sugerir recuerdos</string>
 </resources>

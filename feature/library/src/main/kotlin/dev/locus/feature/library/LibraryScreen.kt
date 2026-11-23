@@ -78,6 +78,8 @@ fun LibraryRoute(
     initialTemplate: String? = null,
     /** Opens a chat (a workflow run from Library starts one). */
     onOpenChat: (String) -> Unit = {},
+    /** Opens Memory's "Suggest memories from imported chats" right away (from an import's outcome). */
+    suggestMemories: Boolean = false,
     viewModel: LibraryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -134,7 +136,7 @@ fun LibraryRoute(
                 Box(Modifier.weight(1f)) {
                     val library = s.library
                     when (tab) {
-                        0 -> MemoryTab(library, viewModel, Modifier, onOpenChat = onOpenChat)
+                        0 -> MemoryTab(library, viewModel, Modifier, onOpenChat = onOpenChat, suggestNow = suggestMemories)
                         1 -> SkillsTab(library, viewModel, Modifier, onOpenChat = onOpenChat)
                         2 -> ConnectorsTab(library, viewModel, Modifier, addingMcp, onAddingMcp = { addingMcp = it })
                         else -> AgentsTab(library, viewModel, Modifier)
@@ -180,22 +182,28 @@ internal val listPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, t
 private data class MemoryTarget(val topic: AgentHome.MemoryTopic, val project: ProjectMemory? = null)
 
 @Composable
-private fun MemoryTab(library: Library, viewModel: LibraryViewModel, modifier: Modifier, onOpenChat: (String) -> Unit) {
+private fun MemoryTab(library: Library, viewModel: LibraryViewModel, modifier: Modifier, onOpenChat: (String) -> Unit, suggestNow: Boolean = false) {
     var editing by remember { mutableStateOf<MemoryTarget?>(null) }
     var forgetting by remember { mutableStateOf<MemoryTarget?>(null) }
     var moving by remember { mutableStateOf<MemoryTarget?>(null) }
     if (library.memory.isEmpty() && library.projectMemory.isEmpty()) {
-        EmptyState(
-            stringResource(R.string.library_memory_empty_title),
-            stringResource(R.string.library_memory_empty_body),
-            modifier,
-            icon = LocusIcons.Note,
-        )
+        Column(modifier.fillMaxSize()) {
+            // Shown only with imported chats: a new memory may start from them (docs/design/import-chats.md).
+            MemorySuggestEntry(openNow = suggestNow, modifier = Modifier.padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm))
+            EmptyState(
+                stringResource(R.string.library_memory_empty_title),
+                stringResource(R.string.library_memory_empty_body),
+                Modifier.weight(1f),
+                icon = LocusIcons.Note,
+            )
+        }
     } else {
         LazyColumn(modifier.fillMaxSize(), contentPadding = listPadding) {
             item { SectionNote(stringResource(R.string.library_memory_intro)) }
             // Never on its own: one helper-model request when tapped, then a review (docs/design/memory-approval.md).
             item(key = "tidy") { MemoryTidyEntry() }
+            // Only with imported chats; on tap, a few helper-model requests and the same review (docs/design/import-chats.md).
+            item(key = "suggest") { MemorySuggestEntry(openNow = suggestNow) }
             if (library.projectMemory.isNotEmpty()) item { SectionLabel(stringResource(R.string.library_memory_general_label)) }
             item {
                 if (library.memory.isEmpty()) {

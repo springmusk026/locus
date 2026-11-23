@@ -1109,6 +1109,13 @@ object MemoryAuthor {
 
     /** A change from Library → Memory → Tidy up that the user accepted (docs/design/memory-approval.md). */
     const val TIDY = "tidy"
+
+    /**
+     * A note suggested from an imported ChatGPT or Claude chat that the user accepted in the review
+     * (docs/design/import-chats.md). [MemoryProvenance.chatId] is the imported chat; the note is always
+     * flagged as outside content ([MemoryProvenance.taintedBy]).
+     */
+    const val IMPORT = "import"
 }
 
 /** Where a memory topic's current version came from (see docs/design/taint.md). */

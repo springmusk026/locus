@@ -66,6 +66,10 @@ Library → Memory → **Tidy up**. One helper-model request reads the notes and
 
 States: the row (ready, no model, helper unavailable, checking), the sheet (working, error with Try again, nothing to tidy, proposals, applying), and the message after applying.
 
+## New notes from imported chats
+
+"Suggest memories from imported chats" reuses this review with a third proposal kind, `MemoryTidy.Proposal.New` (a note to add, with the imported chat it came from), applied by the same `MemoryTidy.apply`: never over an existing note, saved as `import` and flagged as outside content. See [import chats](import-chats.md#suggest-memories-from-imported-chats).
+
 ## Not done
 
 - **Editing a note on the approval card** (above).
