@@ -15,7 +15,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlin.coroutines.cancellation.CancellationException
 
 /**
- * The user's own "reach me" channels: ntfy, Telegram, Gotify and a webhook. A message goes to every channel the user
+ * The user's own "reach me" channels: ntfy, Telegram, Gotify, a Matrix room and a webhook. A message goes to every channel the user
  * has set up, so `notify_me` stays one tool whatever they connect (the tool list is fixed per chat).
  * Each channel only ever reaches the user, so background tasks may use it.
  */
@@ -45,6 +45,11 @@ object ReachMe {
         }
         secrets.resolve(Integrations.gotify.secret)?.let(Gotify::parse)?.let { target ->
             outcomes += attempt("Gotify", listOf(target.url, target.token)) { Gotify.publish(http, target, title, message, priority, click) }
+        }
+        secrets.resolve(Integrations.matrix.secret)?.let(Matrix::parse)?.let { target ->
+            outcomes += attempt("Matrix", listOf(target.url, target.token, target.roomId)) {
+                Matrix.send(http, target, title, message, silent = priority != null && priority <= 2, click = click, pause = pause)
+            }
         }
         secrets.resolve(Integrations.webhook.secret)?.let(Webhook::parse)?.let { target ->
             outcomes += attempt("Webhook", listOfNotNull(target.url, target.secret)) { Webhook.send(http, target, title, message, priority, click, now) }
@@ -87,7 +92,7 @@ internal class NotifyMe(private val http: HttpClient, private val secrets: Secre
     override suspend fun execute(args: JsonObject): ToolResult {
         val outcomes = ReachMe.send(http, secrets, args.str("title"), args.str("message").orEmpty(), args.int("priority"), args.str("click"))
         if (outcomes.isEmpty()) {
-            throw ToolException("Notifications need a channel. Ask the user to set up ntfy, Telegram, Gotify or a webhook in Settings → Integrations.")
+            throw ToolException("Notifications need a channel. Ask the user to set up ntfy, Telegram, Gotify, Matrix or a webhook in Settings → Integrations.")
         }
         val sent = outcomes.filter { it.error == null }.map { it.channel }
         val failed = outcomes.filter { it.error != null }.joinToString(" ") { "${it.channel} failed: ${it.error}" }

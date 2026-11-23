@@ -131,6 +131,43 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun `the Matrix sheet tests, refuses an encrypted room, saves, lists and reads back the channel`() = runTest {
+        val f = fixture()
+        val token = "syt_Ym90_AbCdEfGhIjKlMnOpQrSt_0a1b2c"
+        val room = "!AbCdEf:example.org"
+        var encrypted = true
+        f.graph.http = { req ->
+            val path = req.url.encodedPath
+            when {
+                path.endsWith("/account/whoami") -> respond("""{"user_id":"@locus:example.org"}""")
+                path.endsWith("/joined_rooms") -> respond("""{"joined_rooms":["$room"]}""")
+                path.endsWith("/state/m.room.encryption/") ->
+                    if (encrypted) respond("""{"algorithm":"m.megolm.v1.aes-sha2"}""") else respond("""{"errcode":"M_NOT_FOUND","error":"none"}""", io.ktor.http.HttpStatusCode.NotFound)
+                "/send/m.room.message/" in path -> respond("""{"event_id":"${'$'}e"}""")
+                else -> respond("", io.ktor.http.HttpStatusCode.NotFound)
+            }
+        }
+        val actions = f.vm.reachMeActions
+        val matrix = dev.locus.core.data.integrations.ReachMeChannel.MATRIX
+        suspend fun test(): Result<String> = kotlinx.coroutines.CompletableDeferred<Result<String>>().also { d -> actions.matrixTest("matrix.example.org", token, room) { d.complete(it) } }.await()
+        suspend fun save(): Result<Unit> = kotlinx.coroutines.CompletableDeferred<Result<Unit>>().also { d -> actions.matrixSave("matrix.example.org", token, room) { d.complete(it) } }.await()
+
+        // An encrypted room: the sheet's failure is the encrypted refusal, and nothing is saved.
+        val refused = save().exceptionOrNull()
+        assertNotNull(refused)
+        assertEquals(dev.locus.core.data.R.string.data_reachme_matrix_encrypted, ((refused as dev.locus.core.data.connectors.ServiceSetupException).text as dev.locus.core.linux.EngineText.Res).id)
+        assertNull(f.graph.secrets.get(SecretStore.connectorSecret(Integrations.matrix.secret)))
+
+        encrypted = false
+        assertEquals("@locus:example.org", test().getOrThrow())
+        save().getOrThrow()
+        // Settings → Integrations lists it as connected, and the sheet reopens with the address and room.
+        assertTrue(f.vm.state { s -> s.integrations.any { it.first == Integrations.matrix && it.second } }.integrations.isNotEmpty())
+        val saved = kotlinx.coroutines.CompletableDeferred<dev.locus.core.ui.ReachMeActions.Saved?>().also { d -> actions.saved(matrix) { d.complete(it) } }.await()
+        assertEquals(dev.locus.core.ui.ReachMeActions.Saved("https://matrix.example.org", hasSecret = true, room = room), saved)
+    }
+
+    @Test
     fun `reviewer and assistant options are saved`() = runTest {
         val f = fixture()
         f.vm.setReviewerMode(ReviewerMode.REVIEW_ALL_BUT_READS)

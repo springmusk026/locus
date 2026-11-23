@@ -183,6 +183,17 @@
     <string name="data_reachme_gotify_refused">%1$s refused the token (HTTP %2$d). Use an application token (Apps), not a client token, and copy it whole.</string>
     <string name="data_reachme_webhook_refused">%1$s refused the request (HTTP %2$d). If it checks signatures, make sure it has the same secret.</string>
     <string name="data_reachme_not_found">Nothing found at that address (HTTP 404). Check it, including any sub-path.</string>
+    <string name="data_reachme_matrix_token_missing">Paste the bot account\'s access token.</string>
+    <string name="data_reachme_matrix_token_invalid">That doesn\'t look like an access token: copy it whole, without spaces.</string>
+    <string name="data_reachme_matrix_room_invalid">Enter the room\'s address, like #alerts:example.org, or its ID, which starts with !.</string>
+    <string name="data_reachme_matrix_token_refused">%1$s didn\'t accept the access token. Copy it again from the bot account; signing that session out ends the token.</string>
+    <string name="data_reachme_matrix_alias_unknown">The homeserver doesn\'t know the room %1$s. Check the address, or use the room\'s ID.</string>
+    <string name="data_reachme_matrix_not_joined">%1$s isn\'t in that room yet. Invite it, then accept the invite from the bot\'s account.</string>
+    <string name="data_reachme_matrix_not_member">The bot isn\'t in that room. Invite it, then accept the invite from the bot\'s account.</string>
+    <string name="data_reachme_matrix_encrypted">That room is end-to-end encrypted. Locus can\'t encrypt messages, so it won\'t post there. Use a room with encryption turned off.</string>
+    <string name="data_reachme_matrix_forbidden">The room doesn\'t let the bot post messages. Allow it to send messages in the room\'s permissions.</string>
+    <string name="data_reachme_matrix_rate_limited">%1$s is limiting how fast the bot can send. Wait a minute and try again.</string>
+    <string name="data_reachme_matrix_not_matrix">%1$s didn\'t answer as a Matrix homeserver. Use the address your Matrix app connects to, such as https://matrix-client.matrix.org.</string>
     <string name="data_needs_you_channel">Needs you</string>
     <plurals name="data_needs_you_title">
         <item quantity="one">%1$d thing needs you</item>

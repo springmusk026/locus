@@ -162,6 +162,17 @@
     <string name="data_reachme_gotify_refused">%1$s 拒绝了令牌（HTTP %2$d）。请使用应用令牌（Apps），而不是客户端令牌，并完整复制。</string>
     <string name="data_reachme_webhook_refused">%1$s 拒绝了请求（HTTP %2$d）。如果它会校验签名，请确认它使用的是同一个密钥。</string>
     <string name="data_reachme_not_found">该地址下什么也没有（HTTP 404）。请检查地址，包括任何子路径。</string>
+    <string name="data_reachme_matrix_token_missing">请粘贴机器人账号的访问令牌。</string>
+    <string name="data_reachme_matrix_token_invalid">这看起来不像访问令牌：请完整复制，不要包含空格。</string>
+    <string name="data_reachme_matrix_room_invalid">请输入房间地址（如 #alerts:example.org）或以 ! 开头的房间 ID。</string>
+    <string name="data_reachme_matrix_token_refused">%1$s 不接受该访问令牌。请从机器人账号重新复制；退出那个会话会使令牌失效。</string>
+    <string name="data_reachme_matrix_alias_unknown">主服务器找不到房间 %1$s。请检查地址，或改用房间 ID。</string>
+    <string name="data_reachme_matrix_not_joined">%1$s 还不在该房间中。请邀请它，然后用机器人账号接受邀请。</string>
+    <string name="data_reachme_matrix_not_member">机器人不在该房间中。请邀请它，然后用机器人账号接受邀请。</string>
+    <string name="data_reachme_matrix_encrypted">该房间启用了端到端加密。Locus 无法加密消息，因此不会在其中发送。请使用未开启加密的房间。</string>
+    <string name="data_reachme_matrix_forbidden">该房间不允许机器人发送消息。请在房间权限中允许它发送消息。</string>
+    <string name="data_reachme_matrix_rate_limited">%1$s 正在限制机器人的发送频率。请等一分钟后再试。</string>
+    <string name="data_reachme_matrix_not_matrix">%1$s 没有以 Matrix 主服务器的方式响应。请使用你的 Matrix 应用连接的地址，例如 https://matrix-client.matrix.org。</string>
     <string name="data_needs_you_channel">待你处理</string>
     <plurals name="data_needs_you_title">
         <item quantity="other">%1$d 项待你处理</item>

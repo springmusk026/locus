@@ -132,6 +132,17 @@ object Integrations {
         linkLabel = "How Gotify works",
     )
 
+    val matrix = Integration(
+        id = "matrix",
+        name = "Matrix",
+        summary = "Messages from a bot in your own room",
+        description = "A Matrix bot account posts notify_me messages and scheduled task results into a room you choose. Make an account for the bot, invite it to the room and accept the invite, then paste its access token. End-to-end encrypted rooms aren't supported: Locus checks and won't send into one.",
+        signupUrl = "https://github.com/springmusk026/locus/blob/main/docs/design/reach-me-channels.md#matrix",
+        secret = "integration-matrix",
+        keyLabel = "Access token",
+        linkLabel = "How the Matrix bot works",
+    )
+
     val webhook = Integration(
         id = "webhook",
         name = "Webhook",
@@ -221,7 +232,7 @@ object Integrations {
         linkLabel = "Create a key",
     )
 
-    val all = listOf(firecrawl, tavily, brave, exa, github, ntfy, telegram, gotify, webhook, email, vercel, netlify, cloudflare, supabase, render)
+    val all = listOf(firecrawl, tavily, brave, exa, github, ntfy, telegram, gotify, matrix, webhook, email, vercel, netlify, cloudflare, supabase, render)
 
     /** web_search uses the first of these that has a key. */
     val searchOrder = listOf(firecrawl, tavily, brave, exa)

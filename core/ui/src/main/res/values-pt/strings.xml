@@ -91,6 +91,18 @@
     <string name="ui_reachme_stored">Fica no cofre criptografado do Locus. A IA nunca vê o endereço nem o segredo.</string>
     <string name="ui_reachme_remove_title">Remover %1$s?</string>
     <string name="ui_reachme_remove_message">As notificações e os resultados das tarefas agendadas deixam de ir para %1$s. Você pode configurar de novo quando quiser.</string>
+    <string name="ui_reachme_matrix_server">Servidor</string>
+    <string name="ui_reachme_matrix_server_hint">O endereço ao qual seu app de Matrix se conecta. https:// a menos que esteja neste telefone ou na sua rede doméstica.</string>
+    <string name="ui_reachme_matrix_token_where">Entre na conta do bot em um app de Matrix e copie o token de acesso (no Element: Configurações → Ajuda e sobre).</string>
+    <string name="ui_reachme_matrix_room">Sala</string>
+    <string name="ui_reachme_matrix_room_hint">O endereço da sala (#nome:servidor) ou o ID (!…). Convide o bot e aceite o convite pela conta dele.</string>
+    <string name="ui_reachme_matrix_room_error">Um endereço de sala começa com # e tem :servidor; um ID de sala começa com !.</string>
+    <string name="ui_reachme_matrix_e2ee_title">Salas criptografadas não são compatíveis</string>
+    <string name="ui_reachme_matrix_e2ee_text">O Locus não consegue criptografar mensagens, então verifica a sala e não publica em uma com criptografia de ponta a ponta. Em uma sala sem criptografia, o servidor pode ler o que o bot publica.</string>
+    <string name="ui_reachme_matrix_encrypted_title">Esta sala é criptografada</string>
+    <string name="ui_reachme_matrix_checking">Verificando o servidor e a sala…</string>
+    <string name="ui_reachme_matrix_test_sent">Teste enviado como %1$s. Confira se chegou à sala.</string>
+    <string name="ui_reachme_matrix_stored">Fica no cofre criptografado do Locus. A IA nunca vê o servidor, o token nem a sala.</string>
     <string name="ui_telegram_remote_private_only">Aprovar e enviar tarefas pelo Telegram exige um chat privado com seu bot, para que só a sua conta possa tocar em um botão.</string>
     <string name="ui_telegram_approve_title">Aprovar pelo Telegram</string>
     <string name="ui_telegram_approve_subtitle">Os botões Permitir e Negar chegam a este chat quando uma tarefa em segundo plano pergunta.</string>
@@ -246,6 +258,7 @@
     <string name="ui_catalog_link_how_ntfy_works">Como o ntfy funciona</string>
     <string name="ui_catalog_link_how_gotify_works">Como o Gotify funciona</string>
     <string name="ui_catalog_link_webhook_format">Formato do webhook</string>
+    <string name="ui_catalog_link_how_matrix_works">Como funciona o bot de Matrix</string>
     <string name="ui_catalog_link_open_botfather">Abrir @BotFather</string>
     <string name="ui_catalog_link_create_a_gmail_app_password">Criar uma senha de app do Gmail</string>
     <string name="ui_catalog_link_create_a_key">Criar uma chave</string>
@@ -268,6 +281,8 @@
     <string name="ui_catalog_integration_telegram_description">Mensagens do seu próprio bot do Telegram: notify_me e os resultados das tarefas agendadas chegam ao seu chat com ele. Crie um bot com o @BotFather, envie qualquer mensagem e toque em Encontrar meu chat.</string>
     <string name="ui_catalog_integration_gotify_summary">Notificações push do seu próprio servidor</string>
     <string name="ui_catalog_integration_gotify_description">Notificações push pelo seu próprio servidor do Gotify: notify_me e os resultados das tarefas agendadas chegam ao app do Gotify. Crie um aplicativo na interface web do Gotify (Apps → Create Application) e cole o token.</string>
+    <string name="ui_catalog_integration_matrix_summary">Mensagens de um bot na sua própria sala</string>
+    <string name="ui_catalog_integration_matrix_description">Uma conta de bot do Matrix publica as mensagens do notify_me e os resultados das tarefas agendadas na sala que você escolher. Crie uma conta para o bot, convide-o para a sala e aceite o convite, depois cole o token de acesso dele. Salas com criptografia de ponta a ponta não são compatíveis: o Locus verifica e não envia para elas.</string>
     <string name="ui_catalog_integration_webhook_summary">Envie notificações para a sua própria automação</string>
     <string name="ui_catalog_integration_webhook_description">O Locus publica as mensagens do notify_me e os resultados das tarefas agendadas como JSON em uma URL que você escolher, como Home Assistant, n8n ou Node-RED. Com um segredo de assinatura, cada solicitação é assinada (HMAC-SHA256) para o seu servidor conferir que veio do Locus.</string>
     <string name="ui_catalog_integration_email_summary">Uma caixa de correio para o agente</string>

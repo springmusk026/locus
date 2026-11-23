@@ -233,7 +233,7 @@ class TelegramTest {
         val e = assertFailsWith<ToolException> {
             ToolRegistry(integrationTools(client { respond(ok) }, SecretResolver { null }))["notify_me"]!!.execute(JsonObject(mapOf("message" to JsonPrimitive("hi"))))
         }
-        assertTrue("ntfy, Telegram, Gotify or a webhook" in e.message!!)
+        assertTrue("ntfy, Telegram, Gotify, Matrix or a webhook" in e.message!!)
         assertTrue(seen.isEmpty())
         assertTrue(ReachMe.send(client { respond(ok) }, SecretResolver { null }, null, "x").isEmpty())
     }

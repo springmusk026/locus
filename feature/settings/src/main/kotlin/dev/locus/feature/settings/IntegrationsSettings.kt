@@ -259,7 +259,7 @@ private fun UseMcpCard(integration: Integration, template: McpTemplate, onUse: (
 private const val LARGE_FONT = 1.3f
 
 /** Integrations whose "key" is a whole setup (a bot, a topic, a mailbox) rather than one pasted key. */
-private val SET_UP = setOf("telegram", "ntfy", "gotify", "webhook", "email")
+private val SET_UP = setOf("telegram", "ntfy", "gotify", "matrix", "webhook", "email")
 
 /** The web search fallback order, named from [Integrations.searchOrder]. */
 @Composable

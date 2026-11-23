@@ -118,6 +118,20 @@
     <string name="ui_reachme_stored">Kept in Locus\'s encrypted vault. The AI never sees the address or the secret.</string>
     <string name="ui_reachme_remove_title">Remove %1$s?</string>
     <string name="ui_reachme_remove_message">Notifications and scheduled task results stop going to %1$s. You can set it up again any time.</string>
+    <string name="ui_reachme_matrix_server">Homeserver</string>
+    <string name="ui_reachme_matrix_server_hint">The address your Matrix app connects to. https:// unless it\'s on this phone or your home network.</string>
+    <string name="ui_reachme_matrix_token_where">Sign in to the bot account in a Matrix app and copy its access token (in Element: Settings → Help &amp; About).</string>
+    <string name="ui_reachme_matrix_room">Room</string>
+    <string name="ui_reachme_matrix_room_hint">The room\'s address (#name:server) or ID (!…). Invite the bot, and accept the invite from its account.</string>
+    <string name="ui_reachme_matrix_room_error">A room address starts with # and has :server; a room ID starts with !.</string>
+    <string name="ui_reachme_matrix_e2ee_title">Encrypted rooms aren\'t supported</string>
+    <string name="ui_reachme_matrix_e2ee_text">Locus can\'t encrypt messages, so it checks the room and won\'t post into an end-to-end encrypted one. In a room without encryption, the homeserver can read what the bot posts.</string>
+    <string name="ui_reachme_matrix_encrypted_title">This room is encrypted</string>
+    <string name="ui_reachme_matrix_checking">Checking the homeserver and the room…</string>
+    <string name="ui_reachme_matrix_test_sent">Test sent as %1$s. Check that it arrived in the room.</string>
+    <string name="ui_reachme_matrix_stored">Kept in Locus\'s encrypted vault. The AI never sees the homeserver, the token or the room.</string>
+    <string name="ui_reachme_matrix_server_placeholder" translatable="false">matrix.example.org</string>
+    <string name="ui_reachme_matrix_room_placeholder" translatable="false">#alerts:example.org</string>
     <string name="ui_telegram_remote_private_only">Approving and sending tasks from Telegram need a private chat with your bot, so only your account can press a button.</string>
     <string name="ui_telegram_approve_title">Approve from Telegram</string>
     <string name="ui_telegram_approve_subtitle">Allow and Deny buttons come to this chat when a task working in the background asks.</string>
@@ -298,6 +312,7 @@
     <string name="ui_catalog_link_how_ntfy_works">How ntfy works</string>
     <string name="ui_catalog_link_how_gotify_works">How Gotify works</string>
     <string name="ui_catalog_link_webhook_format">Webhook format</string>
+    <string name="ui_catalog_link_how_matrix_works">How the Matrix bot works</string>
     <string name="ui_catalog_link_open_botfather">Open @BotFather</string>
     <string name="ui_catalog_link_create_a_gmail_app_password">Create a Gmail app password</string>
     <string name="ui_catalog_link_create_a_key">Create a key</string>
@@ -322,6 +337,8 @@
     <string name="ui_catalog_integration_telegram_description">Messages from your own Telegram bot: notify_me and scheduled task results arrive in your chat with it. Make a bot with @BotFather, send it any message, then tap Find my chat.</string>
     <string name="ui_catalog_integration_gotify_summary">Push notifications from your own server</string>
     <string name="ui_catalog_integration_gotify_description">Push notifications through your own Gotify server: notify_me and scheduled task results arrive in the Gotify app. Create an application in Gotify\'s web UI (Apps → Create Application) and paste its token.</string>
+    <string name="ui_catalog_integration_matrix_summary">Messages from a bot in your own room</string>
+    <string name="ui_catalog_integration_matrix_description">A Matrix bot account posts notify_me messages and scheduled task results into a room you choose. Make an account for the bot, invite it to the room and accept the invite, then paste its access token. End-to-end encrypted rooms aren\'t supported: Locus checks and won\'t send into one.</string>
     <string name="ui_catalog_integration_webhook_summary">Send notifications to your own automation</string>
     <string name="ui_catalog_integration_webhook_description">Locus posts notify_me messages and scheduled task results as JSON to a URL you choose, such as Home Assistant, n8n or Node-RED. With a signing secret, each request is signed (HMAC-SHA256) so your server can check it came from Locus.</string>
     <string name="ui_catalog_integration_email_summary">A mailbox for the agent</string>
