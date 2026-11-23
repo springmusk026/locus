@@ -293,6 +293,7 @@
     <string name="chat_effort_provider_setting">%1$s, a configuração própria do provedor.</string>
     <string name="chat_effort_provider_default">Padrão do provedor</string>
     <string name="chat_effort_note">Mudar isto no meio do chat deixa a próxima resposta um pouco mais lenta e cara, uma única vez. Nos modelos Claude atuais, “Desativado” significa o menor esforço, pois o raciocínio deles não pode ser desligado.</string>
+    <string name="chat_effort_note_keeps_cache">Neste modelo, uma mudança no meio do chat mantém o cache do chat, então não custa nada a mais. Ela vale a partir da sua próxima mensagem. Nos modelos Claude atuais, “Desativado” significa o menor esforço, pois o raciocínio deles não pode ser desligado.</string>
     <string name="chat_effort_hint">O padrão de um provedor é definido ao editá-lo em</string>
     <string name="chat_mode_title">Modo do chat</string>
     <string name="chat_mode_subtitle">O que o Locus pode alterar neste chat.</string>

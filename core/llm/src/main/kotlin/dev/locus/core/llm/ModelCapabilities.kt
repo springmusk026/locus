@@ -208,6 +208,7 @@ data class ModelRequirements(
                 is Part.Attachment -> if (isImage(p)) IMAGE_TOKENS else 50
                 is Part.Checkpoint -> chars(p.summary) + p.recentUserMessages.sumOf(::chars) + chars(p.todos.orEmpty())
                 is Part.Reasoning -> 0
+                is Part.TurnEffort -> 0
             }
         }
 

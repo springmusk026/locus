@@ -3,9 +3,11 @@ package dev.locus.core.model
 /**
  * How hard the model thinks, chosen per chat in the composer. Mapped per wire format by [wireValue].
  *
- * Changing it mid-chat is allowed but not free: providers render the effort/thinking setting into
- * the cached prefix, so a change invalidates the cached conversation history once (the tool list and
- * system prompt stay cached on most models), and later turns cache again at the new level.
+ * Changing it mid-chat is allowed. Providers render the effort/thinking setting into the cached prefix,
+ * so a top-level change invalidates the cached conversation history once (the tool list and system
+ * prompt stay cached on most models). On models with a per-message form (core/llm `MidChatEffort`:
+ * Anthropic per-message effort, OpenAI `configuration_update`) the change goes inside the conversation
+ * instead and the cache holds (docs/design/midchat-config.md).
  */
 enum class Effort(val label: String, val description: String) {
     OFF("Off", "Fastest. Little or no reasoning."),

@@ -163,7 +163,9 @@ internal fun EffortSheet(provider: ChatProvider?, controls: ChatControls, onPick
                 EffortRow(stringResource(e.labelRes), stringResource(e.descriptionRes), selected = controls.effortOverridden && controls.effort == e) { onPick(e) }
             }
         }
-        SectionNote(stringResource(R.string.chat_effort_note))
+        // On models with per-message effort a change keeps the chat's cache (docs/design/midchat-config.md).
+        val keepsCache = provider != null && dev.locus.core.llm.MidChatEffort.keepsCache(provider.id, provider.format, provider.baseUrl, controls.model.ifBlank { provider.model })
+        SectionNote(stringResource(if (keepsCache) R.string.chat_effort_note_keeps_cache else R.string.chat_effort_note))
         SettingsLink(SettingsDestination.Models, hint = stringResource(R.string.chat_effort_hint))
     }
 }

@@ -257,6 +257,7 @@
     <string name="chat_effort_provider_setting">%1$s，提供商自己的设置。</string>
     <string name="chat_effort_provider_default">提供商默认值</string>
     <string name="chat_effort_note">在对话中途更改此项，会让下一次回复稍慢、稍贵，仅此一次。对于当前的 Claude 模型，“关闭”表示最低强度，因为它们的思考无法关闭。</string>
+    <string name="chat_effort_note_keeps_cache">在此模型上，对话中途更改此项会保留对话的缓存，不会产生额外费用。更改从你的下一条消息开始生效。对于当前的 Claude 模型，“关闭”表示最低强度，因为它们的思考无法关闭。</string>
     <string name="chat_effort_hint">提供商的默认值在编辑提供商时设置，位置：</string>
     <string name="chat_mode_title">对话模式</string>
     <string name="chat_mode_subtitle">Locus 在此对话中可以更改的内容。</string>
