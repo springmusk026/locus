@@ -242,6 +242,7 @@ fun ChatRoute(
     val sendWarning by viewModel.sendWarning.collectAsStateWithLifecycle()
     val heatHold by viewModel.heatHold.collectAsStateWithLifecycle()
     val compareConfirm by viewModel.compareConfirm.collectAsStateWithLifecycle()
+    val planRunConfirm by viewModel.planRunConfirm.collectAsStateWithLifecycle()
     val heatServices by viewModel.heatServices.collectAsStateWithLifecycle()
     // Android 17 blocks LAN providers (Ollama, LM Studio…) until the user allows local network access.
     val localNetwork = rememberLocalNetworkGate()
@@ -359,6 +360,9 @@ fun ChatRoute(
             keepAnswer = viewModel::keepAnswer,
             confirmCompare = viewModel::confirmCompare,
             dismissCompare = viewModel::dismissCompareConfirm,
+            setPlanRun = viewModel::setPlanRun,
+            confirmPlanRun = viewModel::confirmPlanRun,
+            dismissPlanRun = viewModel::dismissPlanRunConfirm,
         ),
         branches = BranchActions(
             regenerate = { viewModel.regenerate(it) },
@@ -390,6 +394,7 @@ fun ChatRoute(
         sendWarning = sendWarning,
         heatHold = heatHold,
         compareConfirm = compareConfirm,
+        planRunConfirm = planRunConfirm,
         heatServices = heatServices,
         heatActions = remember(viewModel) {
             HeatActions(
@@ -575,6 +580,8 @@ internal fun ChatScreen(
     onContinueImported: () -> Unit = {},
     /** A Compare send waiting for the user's OK on its estimate (docs/design/compare-models.md); null when none. */
     compareConfirm: CompareConfirm? = null,
+    /** An approval on another model waiting for the user's OK (docs/design/plan-run.md); null when none. */
+    planRunConfirm: PlanRunConfirm? = null,
 ) {
     // Opening at a search result: until it's been shown, keep the list where we put it.
     var focus by rememberSaveable { mutableStateOf(focusMessageId) }
@@ -628,6 +635,8 @@ internal fun ChatScreen(
             },
         )
     }
+    // Nothing ran: the plan still waits, with its model still picked.
+    if (planRunConfirm != null) PlanRunConfirmSheet(planRunConfirm, onRun = controls.confirmPlanRun, onCancel = controls.dismissPlanRun)
     // The composer's Aside switch: the next Send asks a side question (as `/btw`) instead of messaging the task.
     var asideOn by rememberSaveable { mutableStateOf(false) }
     // Plans the user cancelled here; Cancel also turns plan mode off, which is what persists.
@@ -931,6 +940,10 @@ internal fun ChatScreen(
                                     onApprove = controls.approvePlan,
                                     onEdit = { text = "Change the plan: " },
                                     onCancel = { cancelledPlans = cancelledPlans + item.key; controls.cancelPlan() },
+                                    // Plan mode's "Run with" (docs/design/plan-run.md): an imported archive runs nothing.
+                                    chatModel = state.controls.model,
+                                    runWith = state.controls.planRun,
+                                    onRunWith = { sheet = ControlSheet.PlanRun }.takeIf { state.importedFrom == null },
                                 )
                                 is ChatItem.ToolCall, is ChatItem.Note -> StepsGroup(listOf(item), activeTool = activeTool)
                                 is ChatItem.SentFile -> SentFileCard(item)
@@ -1176,6 +1189,7 @@ internal fun ChatScreen(
                             onWorkflows = workflows.pick,
                             onVoiceMode = onVoiceMode,
                             setCompare = controls.setCompare,
+                            setPlanRun = controls.setPlanRun,
                         )
                     },
                     sheet = sheet,
@@ -1327,6 +1341,11 @@ internal class ChatControlActions(
     /** The comparison's estimate: send it, or not now. */
     val confirmCompare: () -> Unit = {},
     val dismissCompare: () -> Unit = {},
+    /** Plan mode's "Run with" (docs/design/plan-run.md): the model the waiting plan runs on, or null for the chat's own. */
+    val setPlanRun: (dev.locus.core.model.ModelRef?) -> Unit = {},
+    /** Running the plan on another model: approve it, or not now. */
+    val confirmPlanRun: () -> Unit = {},
+    val dismissPlanRun: () -> Unit = {},
 )
 
 /**
@@ -1798,6 +1817,8 @@ private fun LiveTurn(state: ChatUiState, streamed: () -> String, reasoning: () -
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         // Compare models: whose answer this is while the second model writes, and that it only reads.
         state.run.comparing?.let { ComparingLabel(it) }
+        // Plan mode's "Run with": the approved plan runs on another model than the chat's.
+        state.run.planRun?.let { PlanRunLabel(it) }
         val since = state.run.thinkingSince
         val thinking = since != null && state.run.thoughtMs == null
         if (since != null && state.run.running) LiveThinking(reasoning, since, state.run.thoughtMs)

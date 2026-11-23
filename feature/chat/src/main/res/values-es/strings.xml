@@ -1675,4 +1675,27 @@
         <item quantity="many">%1$d secretos quitados</item>
         <item quantity="other">%1$d secretos quitados</item>
     </plurals>
+    <!-- PlanRunUi.kt: plan mode's "Run with" (docs/design/plan-run.md) -->
+    <string name="chat_plan_ran_on">Aprobado · ejecutado en %1$s</string>
+    <string name="chat_plan_run_label">Ejecutar con</string>
+    <string name="chat_plan_run_default_hint">El modelo de este chat. Toca para ejecutar el plan en otro.</string>
+    <string name="chat_plan_run_other_hint">Solo para este plan. Después el chat vuelve a %1$s.</string>
+    <string name="chat_plan_run_streaming">Ejecutando el plan: %1$s</string>
+    <string name="chat_plan_run_rule">El plan aprobado se ejecuta en el modelo que elijas, con la conversación, las herramientas y los permisos de este chat. Cuando termina su tarea, el chat vuelve a su propio modelo. No se pueden elegir modelos que no sirven para este chat.</string>
+    <string name="chat_plan_run_sheet_title">Ejecutar el plan con</string>
+    <string name="chat_plan_run_sheet_subtitle">Planifica con el modelo de este chat y ejecútalo con otro.</string>
+    <string name="chat_plan_run_cache_note">El modelo que elijas no ha visto este chat, así que su primera solicitud escribe toda la conversación en su caché, al precio de escritura en caché. El modelo de este chat conserva su caché; cuando el plan termina, su siguiente respuesta vuelve a leer el trabajo del plan.</string>
+    <string name="chat_plan_run_chip">Ejecuta el plan</string>
+    <string name="chat_plan_run_confirm_title">¿Ejecutar el plan en %1$s?</string>
+    <string name="chat_plan_run_confirm_provider">Esto envía toda la conversación hasta ahora a %1$s, un proveedor que este chat no ha usado.</string>
+    <string name="chat_plan_run_confirm_first">El plan se ejecuta en %1$s en lugar del modelo de este chat, con la misma conversación, herramientas y permisos.</string>
+    <string name="chat_plan_run_confirm_over">Se estima que su primera solicitud cuesta más de lo habitual.</string>
+    <string name="chat_plan_run_confirm_run_role">Ejecuta el plan · su primera solicitud escribe su caché</string>
+    <string name="chat_plan_run_confirm_chat_role">Modelo de este chat · si su caché sigue activa</string>
+    <string name="chat_plan_run_confirm_covers">Entrada estimada de la primera solicitud (unos %1$s tokens), según los precios de models.dev. Los pasos siguientes leen casi todo de la caché; las respuestas y los pasos con herramientas cuestan más.</string>
+    <string name="chat_plan_run_confirm_back">Cuando termine la tarea del plan, el chat vuelve a %1$s para tu siguiente mensaje.</string>
+    <string name="chat_run_plan_run_done">El plan se ejecutó en %1$s. Este chat vuelve a %2$s para tu siguiente mensaje.</string>
+    <string name="chat_run_plan_run_unavailable">No se pudo ejecutar el plan en %1$s: %2$s. Elige otro modelo o ejecútalo en el de este chat.</string>
+    <string name="chat_receipt_plan">Plan</string>
+    <string name="chat_receipt_plan_total">Plan y ejecución</string>
 </resources>

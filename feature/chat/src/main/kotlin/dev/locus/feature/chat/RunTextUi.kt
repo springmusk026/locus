@@ -182,6 +182,8 @@ internal fun runNoteInWords(resources: Resources, note: RunNote): String = when 
     RunNote.NoProvider -> resources.getString(R.string.chat_run_no_provider)
     is RunNote.CompareFailed -> resources.getString(R.string.chat_run_compare_failed, note.model, note.shownReason ?: resources.getString(R.string.chat_run_unknown_error))
     is RunNote.LessonsSaved ->resources.getQuantityString(R.plurals.chat_run_lessons_saved, note.count, note.count)
+    is RunNote.PlanRunDone -> resources.getString(R.string.chat_run_plan_run_done, note.model, note.chat)
+    is RunNote.PlanRunUnavailable -> resources.getString(R.string.chat_run_plan_run_unavailable, note.model, note.shownReason ?: resources.getString(R.string.chat_run_unknown_error))
     RunNote.SummarisingFrom -> resources.getString(R.string.chat_run_summarising_from)
     is RunNote.SummariseFailed -> resources.getString(R.string.chat_run_summarise_failed, note.shownReason ?: resources.getString(R.string.chat_run_unknown_error))
     RunNote.SummaryStale -> resources.getString(R.string.chat_run_summary_stale)
@@ -324,6 +326,20 @@ internal fun receiptChecksDetail(resources: Resources, r: TaskReceipt): String =
     r.checks.count { it.passed == false }.takeIf { it > 0 }?.let { resources.getQuantityString(R.plurals.chat_receipt_checks_failed_count, it, it) },
     r.checks.count { it.passed == null }.takeIf { it > 0 }?.let { resources.getQuantityString(R.plurals.chat_receipt_checks_timed_out_count, it, it) },
 ).joinToString(" · ")
+
+/**
+ * A plan-run receipt's Plan row (docs/design/plan-run.md): what the task that proposed the plan cost and which models
+ * wrote it, "≈$0.21 · claude-opus-5-5". Null when the task didn't carry out an approved plan.
+ */
+internal fun receiptPlan(resources: Resources, r: TaskReceipt): String? {
+    val plan = r.plan ?: return null
+    val cost = if (plan.requests == 0) null else plan.cost?.let { HelperSpend.costLabel(it.usd, it.partial) } ?: resources.getString(R.string.chat_receipt_cost_unknown_short)
+    return listOfNotNull(cost, plan.models.takeIf { it.isNotEmpty() }?.joinToString(" · ") { ModelNames.short(it) }).joinToString(" · ").ifEmpty { null }
+}
+
+/** Planning and running together, "≈$0.25" ([TaskReceipts.withPlanCost]); null without a plan or any known price. */
+internal fun receiptPlanTotal(r: TaskReceipt): String? =
+    dev.locus.core.agent.TaskReceipts.withPlanCost(r)?.let { HelperSpend.costLabel(it.usd, it.partial) }
 
 /** Each model once, with its role ([TaskReceipts.modelsLabel]). */
 internal fun receiptModels(resources: Resources, r: TaskReceipt): String? = r.models.takeIf { it.isNotEmpty() }?.joinToString(" · ") { m ->

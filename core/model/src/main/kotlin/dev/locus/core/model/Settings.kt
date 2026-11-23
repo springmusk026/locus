@@ -213,6 +213,11 @@ data class AppSettings(
     val modelPicks: List<ModelPickTally> = emptyList(),
     /** The user has confirmed a comparison's cost once; until then every Compare send asks first. */
     val compareConfirmed: Boolean = false,
+    /**
+     * The user has confirmed running a plan on another model once (docs/design/plan-run.md); until then
+     * Approve with another model asks first. A model at another provider than the chat's always asks.
+     */
+    val planRunConfirmed: Boolean = false,
 ) {
     /**
      * Whether to open onboarding at launch. People who set up a provider before onboarding existed

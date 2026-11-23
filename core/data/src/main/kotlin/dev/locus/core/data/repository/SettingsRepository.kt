@@ -318,6 +318,9 @@ class SettingsRepository @Inject constructor(
     /** The user confirmed a comparison's cost once ([AppSettings.compareConfirmed]). */
     suspend fun setCompareConfirmed() = store.updateData { it.copy(compareConfirmed = true) }
 
+    /** The user confirmed running a plan on another model once ([dev.locus.core.model.AppSettings.planRunConfirmed]). */
+    suspend fun setPlanRunConfirmed() = store.updateData { it.copy(planRunConfirmed = true) }
+
     /** Clears Insights → Your picks. The comparisons stay in their chats. */
     suspend fun clearModelPicks() = store.updateData { it.copy(modelPicks = emptyList(), compareTurns = it.compareTurns.map { t -> t.copy(kept = null) }) }
 

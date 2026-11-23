@@ -143,6 +143,8 @@ internal class ComposerActions(
      * chat (null on home: a new chat has no context to compare on yet, and its first answer settles its tools).
      */
     val setCompare: ((dev.locus.core.model.ModelRef?) -> Unit)? = null,
+    /** Plan mode's "Run with" (docs/design/plan-run.md): the model a waiting plan runs on; null where plans can't be run (home). */
+    val setPlanRun: ((dev.locus.core.model.ModelRef?) -> Unit)? = null,
 )
 
 /** A live panel's toggle at the composer's top right (in a chat): tinted while open, a live dot while its tool runs. */
@@ -522,6 +524,15 @@ private fun ComposerSheets(
             onDismiss = close,
             compare = true,
             onClearCompare = settings.controls.compare?.let { { close(); actions.setCompare?.invoke(null) } },
+        )
+        ControlSheet.PlanRun -> ModelSheet(
+            settings,
+            onPick = { id, model -> close(); actions.setPlanRun?.invoke(dev.locus.core.model.ModelRef(id, model.orEmpty())) },
+            onOpen = actions.prepareModels,
+            onToggleFavorite = actions.toggleFavorite,
+            onEnableCatalog = actions.enableCatalog,
+            onDismiss = close,
+            planRun = true,
         )
         ControlSheet.Effort -> EffortSheet(settings.provider, settings.controls, onPick = { close(); actions.setEffort(it) }, onDismiss = close)
         ControlSheet.Mode -> ModeSheet(settings.controls, onPick = { close(); actions.setMode(it) }, onDismiss = close)
