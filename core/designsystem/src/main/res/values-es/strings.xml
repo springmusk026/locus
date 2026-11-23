@@ -501,6 +501,7 @@
 
     <string name="designsystem_count_thousands">%1$s mil</string>
     <string name="designsystem_count_millions">%1$s M</string>
+    <string name="designsystem_count_billions">%1$s mil M</string>
     <string name="designsystem_count_over">%1$d+</string>
     <string name="designsystem_budget_tokens_amount">%1$s tokens</string>
 
