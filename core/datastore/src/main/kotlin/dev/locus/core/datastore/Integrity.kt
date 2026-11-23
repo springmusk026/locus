@@ -116,6 +116,9 @@ sealed interface IntegrityAlert {
 
     /** Persona files changed outside Locus: held for review, the approved version put back. */
     data class Persona(val files: List<String>) : IntegrityAlert
+
+    /** Project rules were changed outside Locus (or the seal couldn't be checked): every rule is suspended until the user resumes it. */
+    data object Rules : IntegrityAlert
 }
 
 /** Collects [IntegrityAlert]s until the user has seen them. */
@@ -194,6 +197,7 @@ class SealedSettingsStore(
             SealCheck.LEGACY -> PolicySeal.migrated(stored, System.currentTimeMillis())
             SealCheck.TAMPERED -> {
                 alerts.report(IntegrityAlert.ToolPermissions)
+                if (stored.projectRules.values.any { it.isNotEmpty() }) alerts.report(IntegrityAlert.Rules)
                 return endpoints(PolicySeal.restricted(stored), stored)
             }
         }
@@ -221,6 +225,7 @@ class SealedSettingsStore(
         } catch (_: Exception) {
             // The Keystore can't be used: other settings still save, permissions stay restricted.
             alerts.report(IntegrityAlert.ToolPermissions)
+            if (s.projectRules.values.any { it.isNotEmpty() }) alerts.report(IntegrityAlert.Rules)
             PolicySeal.restricted(s)
         }
     }

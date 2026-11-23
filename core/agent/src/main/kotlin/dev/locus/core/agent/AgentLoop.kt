@@ -242,6 +242,9 @@ sealed interface AgentEvent {
     data class ToolFinished(val callId: String, val name: String, val result: ToolResult, val decision: ApprovalDecision) : AgentEvent
     data class MessageAppended(val message: Message) : AgentEvent
 
+    /** A project rule's command started ([name]) or ended (null); see docs/design/rules.md. Its note follows as [MessageAppended]. */
+    data class RuleRunning(val name: String?) : AgentEvent
+
     /**
      * The run is summarising its transcript before the next request ([AgentConfig.compaction]):
      * because the last request filled the window, or because the provider said it no longer fits
@@ -479,6 +482,11 @@ class AgentConfig(
      * Only the run's own agent proposes ([depth] 0); its helpers still refuse. Null: refused, as before.
      */
     val proposals: ProposalSink? = null,
+    /**
+     * The project's rules (docs/design/rules.md): block matching commands, run commands after edits and before
+     * the task finishes. Helpers inherit them through [inherited]. Null: no rules (outside projects).
+     */
+    val rules: ProjectRuleHooks? = null,
 )
 
 /**
@@ -516,6 +524,7 @@ class AgentLoop(
         skills = config.skillManifests?.let { SkillSeed(emptySet(), it) },
         project = config.scope,
         trustedHosts = config.trustedHosts,
+        rules = config.rules,
     ) and config.inherited
 
     /** Proposals this run has recorded ([AgentConfig.proposals]); at most [Proposals.MAX_PER_RUN]. */
@@ -658,6 +667,10 @@ class AgentLoop(
             if (replied) appendAndEmit(assistant, transcript)
 
             if (turn.toolCalls.isEmpty()) {
+                // The project's before-finishing rules first (docs/design/rules.md): a failing one sends the agent back, a bounded number of times.
+                if (replied && turn.stopReason != StopReason.REFUSAL && beforeFinishApplies(step, transcript)) {
+                    if (runBeforeFinish(conversation.id, transcript, taint)) continue
+                }
                 // The completion check: open items in the transcript get one hidden note, then one more step.
                 if (replied && turn.stopReason != StopReason.REFUSAL && !completionAsked && completionCheckApplies(step, transcript)) {
                     val open = CompletionCheck.open(transcript)
@@ -679,6 +692,8 @@ class AgentLoop(
                 else -> executeAll(conversation.id, turn.toolCalls, transcript, review, taint)
             }
             appendAndEmit(Message(ids(), conversation.id, Role.TOOL, results, clock()), transcript)
+            // The project's after-edit rules (docs/design/rules.md): their notes follow this step's results.
+            if (turn.stopReason != StopReason.REFUSAL) runAfterEdits(conversation.id, turn.toolCalls, results, transcript, taint)
 
             if (turn.stopReason == StopReason.REFUSAL) {
                 emit(AgentEvent.Finished(Outcome.Refused(turn.refusalDetail)))
@@ -745,7 +760,110 @@ class AgentLoop(
         return !CompletionCheck.alreadyAsked(transcript)
     }
 
+    /**
+     * Whether before-finishing rules may run now: the user's own chat has rules, the run can still take another
+     * step, it isn't read-only (the run, or the chat's mode now) or in plan mode, nobody stopped it, and the task
+     * did something they should check ([RuleHooks.taskDidWork]).
+     */
+    private suspend fun beforeFinishApplies(step: Int, transcript: List<Message>): Boolean {
+        if (limits.rules == null || config.depth > 0 || limits.readOnly) return false
+        if (config.maxSteps != null && step >= config.maxSteps) return false
+        if (!currentCoroutineContext().isActive) return false
+        if (config.chatReadOnly?.invoke() == true) return false
+        if (CompletionCheck.taskStart(transcript)?.let(ModeNote::isPlanMode) == true) return false
+        return RuleHooks.taskDidWork(CompletionCheck.task(transcript))
+    }
+
+    /**
+     * Runs the active before-finishing rules. When one fails and the task has rounds left, appends their note and
+     * returns true (the run takes another step). On the last round the note says so and the turn ends; a rule that
+     * failed earlier in the task and passes now gets a short note.
+     */
+    private suspend fun FlowCollector<AgentEvent>.runBeforeFinish(conversationId: String, transcript: MutableList<Message>, taint: RunTaint): Boolean {
+        val hooks = limits.rules ?: return false
+        val rules = RuleHooks.beforeFinish(hooks.rules())
+        if (rules.isEmpty() || !hooks.canRun()) return false
+        val task = CompletionCheck.task(transcript)
+        val used = dev.locus.core.model.RuleNote.finishRounds(task)
+        // Out of rounds already (an earlier run of this task ended on the last failure): nothing more to say.
+        if (used > dev.locus.core.model.ProjectRules.MAX_FINISH_ROUNDS) return false
+        val failedBefore = dev.locus.core.model.RuleNote.failedBeforeFinish(task)
+        val outcomes = rules.map { rule -> rule to runRule(conversationId, hooks, rule, emptyList()) }
+        val failed = outcomes.any { !it.second.passed }
+        val round = used + 1
+        // The first failure and each of the extra rounds after it send the agent back; a failure after the last extra round doesn't.
+        val final = failed && round > dev.locus.core.model.ProjectRules.MAX_FINISH_ROUNDS
+        val parts = outcomes.flatMap { (rule, outcome) ->
+            when {
+                !outcome.passed -> RuleRun(rule, emptyList(), outcome, dev.locus.core.model.RuleNote.header(rule, outcome.exitCode, outcome.durationMs, emptyList(), round, final)).also { addRuleTaint(it, taint) }.parts
+                rule.name in failedBefore -> listOf(Part.Text(ModeNote.wrap(dev.locus.core.model.RuleNote.nowPasses(rule, outcome.durationMs))))
+                else -> emptyList()
+            }
+        }
+        if (parts.isNotEmpty()) appendAndEmit(Message(ids(), conversationId, Role.USER, parts, clock()), transcript)
+        return failed && !final
+    }
+
+    /** Runs the after-edit rules that cover this step's successful edits, and appends their note. */
+    private suspend fun FlowCollector<AgentEvent>.runAfterEdits(
+        conversationId: String,
+        calls: List<Part.ToolCall>,
+        results: List<Part.ToolResult>,
+        transcript: MutableList<Message>,
+        taint: RunTaint,
+    ) {
+        val hooks = limits.rules ?: return
+        if (limits.readOnly) return
+        val paths = RuleHooks.editedPaths(calls, results) { it.decision in RAN }
+        if (paths.isEmpty()) return
+        val due = RuleHooks.afterEdit(hooks.rules(), paths)
+        if (due.isEmpty() || !hooks.canRun()) return
+        val parts = due.flatMap { (rule, files) ->
+            val outcome = runRule(conversationId, hooks, rule, files)
+            RuleRun(rule, files, outcome, dev.locus.core.model.RuleNote.header(rule, outcome.exitCode, outcome.durationMs, files)).also { addRuleTaint(it, taint) }.parts
+        }
+        appendAndEmit(Message(ids(), conversationId, Role.USER, parts, clock()), transcript)
+    }
+
+    /** Runs one rule in the project's scope and records it in Activity. A failure to start counts as a failed run. */
+    private suspend fun FlowCollector<AgentEvent>.runRule(conversationId: String, hooks: ProjectRuleHooks, rule: dev.locus.core.model.ProjectRule, files: List<String>): RuleOutcome {
+        val startedAt = clock()
+        emit(AgentEvent.RuleRunning(rule.name))
+        val outcome = try {
+            withContext(ChatScope.element(limits.project)) { hooks.run(rule, files) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            RuleOutcome(-1, "The rule's command couldn't start: ${e.message ?: e::class.simpleName}", clock() - startedAt)
+        }
+        emit(AgentEvent.RuleRunning(null))
+        store.record(
+            AuditEntry(
+                id = ids(),
+                conversationId = conversationId,
+                callId = RULE_CALL_PREFIX + rule.id,
+                toolName = dev.locus.core.model.ProjectRules.ENTRY,
+                argumentsJson = RuleHooks.entryArgs(rule, files),
+                decision = ApprovalDecision.AUTO_ALLOWED,
+                resultPreview = RuleHooks.entryResult(outcome).take(500),
+                isError = !outcome.passed,
+                startedAt = startedAt,
+                finishedAt = clock(),
+            ),
+        )
+        return outcome
+    }
+
+    /** A rule's output taints the rest of the run like a run_command result (docs/design/rules.md, "Taint"). */
+    private fun addRuleTaint(run: RuleRun, taint: RunTaint) {
+        taint.sources += run.taintLabel
+        if (!run.local) taint.outside += run.taintLabel
+    }
+
     companion object {
+        /** The call id prefix of a rule run's Activity entry and progress event. */
+        const val RULE_CALL_PREFIX = "rule:"
+
         private const val MAX_CONSECUTIVE_DENIALS = 3
 
         /** The call id of the context [AgentConfig.atStepBoundary] runs with; see [ToolCallContext.forCall]. */
@@ -1266,6 +1384,11 @@ class AgentLoop(
         // With the chat's scope: where a project's commands run (Tool.sendsOffPhone) depends on it.
         withContext(ChatScope.element(limits.project)) { limits.restrict?.invoke(tool, args) }
             ?.let { reason -> return Authorized(ApprovalDecision.POLICY_DENIED, ToolResult.error(reason)) }
+        // The project's block rules (docs/design/rules.md): refused like the limits above; the command never runs.
+        if (tool.spec.name in dev.locus.core.model.ProjectRules.COMMAND_TOOLS) {
+            limits.rules?.let { hooks -> RuleHooks.blockReason(hooks.rules(), tool.spec.name, args) }
+                ?.let { reason -> return Authorized(ApprovalDecision.POLICY_DENIED, ToolResult.error(reason)) }
+        }
         // An unattended run's call to a proposable tool goes to the user later instead of being refused (Proposals):
         // it is checked as it would be in a chat, and where that would run it or ask, it's recorded as a proposal.
         val proposable = config.proposals != null && limits.readOnly && config.unattended && config.depth == 0 &&

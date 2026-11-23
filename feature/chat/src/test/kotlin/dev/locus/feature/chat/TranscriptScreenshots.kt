@@ -203,6 +203,59 @@ class TranscriptScreenshots : ScreenshotTest() {
         )
     }
 
+    // ---- Shell commands' changes (docs/design/shell-snapshots.md)
+
+    /** A turn where `npm run format` and a build script changed files, beside a file tool's edit. */
+    private val byCommand = ChatItem.Changes(
+        "a6:changes", "a6",
+        listOf(
+            change(1, "garden-app/src/checkout/payment.ts", added = 2, removed = 2, ago = 3 * min).copy(byCommand = true, beforeInSnapshot = true),
+            change(2, "garden-app/src/checkout/retry.ts", added = 9, removed = 4, ago = 3 * min, edits = listOf(
+                FileEdit("garden-app/src/checkout/retry.ts", "w1", "edit_file", Fx.T0 + 20_000, 5, 1),
+                FileEdit("garden-app/src/checkout/retry.ts", "r1", dev.locus.core.agent.tools.ShellSnapshots.TOOL, Fx.T0 + 40_000, 4, 3),
+            )).copy(byCommand = true),
+            change(3, "garden-app/dist-report.txt", TrackedChange.Kind.CREATED, added = 12, removed = 0, ago = 2 * min).copy(byCommand = true),
+            change(4, "garden-app/src/old-helpers.ts", TrackedChange.Kind.DELETED, added = 0, removed = 40, ago = 2 * min).copy(byCommand = true, beforeInSnapshot = true),
+        ),
+    )
+
+    @Test
+    fun changesCardByCommand() = snapAfter("changes-card-by-command", listOf(Step.Tap("Changed 4 files")), heightDp = 640) {
+        OnScreen { ChangesCard(byCommand, ChangeActions()) }
+    }
+
+    /** The same turn with a later command that wasn't tracked (another command was running): said under the files. */
+    @Test
+    fun changesCardByCommandWithNote() = snap("changes-card-by-command-note", heightDp = 640) {
+        OnScreen { ChangesCard(byCommand.copy(notes = listOf(shellNote(dev.locus.core.agent.tools.ShellSnapshots.SkipReason.BUSY))), ChangeActions()) }
+    }
+
+    /** A turn whose only commands weren't snapshotted (the project's folder too large): a card that says so. */
+    @Test
+    fun changesCardUntracked() = snap("changes-card-untracked", heightDp = 260) {
+        OnScreen {
+            ChangesCard(
+                ChatItem.Changes(
+                    "a7:changes", "a7", emptyList(),
+                    listOf(shellNote(dev.locus.core.agent.tools.ShellSnapshots.SkipReason.TOO_LARGE), shellNote(dev.locus.core.agent.tools.ShellSnapshots.SkipReason.TOO_LARGE)),
+                ),
+                ChangeActions(),
+            )
+        }
+    }
+
+    /** A command's change whose snapshot has expired: it can't be undone, and the sheet says why. */
+    @Test
+    fun diffSnapshotGone() = snap("sheet-diff-snapshot-gone", heightDp = 800) {
+        PrivateComposable("dev.locus.feature.chat.ChangesCardKt", "DiffSheet", byCommand.files[0].copy(canUndo = false, edits = listOf(
+            FileEdit("garden-app/src/checkout/payment.ts", "r1", dev.locus.core.agent.tools.ShellSnapshots.TOOL, Fx.T0 + 40_000, 2, 2, diff = paymentEdit1),
+        )), ChangeActions(), {}, {})
+    }
+
+    private fun shellNote(reason: dev.locus.core.agent.tools.ShellSnapshots.SkipReason) =
+        dev.locus.core.data.repository.ShellNote("c", "a7", "r", reason, Fx.T0)
+
+
     @Test
     fun diffUndone() = snap("sheet-diff-undone", heightDp = 800) {
         PrivateComposable("dev.locus.feature.chat.ChangesCardKt", "DiffSheet", payment.copy(undone = true, edits = emptyList()), ChangeActions(), {}, {})

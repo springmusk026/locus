@@ -163,6 +163,19 @@ class SettingsRepository @Inject constructor(
         it.copy(projectRemotes = if (remote == null) it.projectRemotes - projectId else it.projectRemotes + (projectId to remote))
     }
 
+    /**
+     * A project's rules (docs/design/rules.md), in the order they run; empty removes them. Only the project's
+     * Rules screen calls this: no tool writes rules. Sealed with the permissions.
+     */
+    suspend fun setProjectRules(projectId: String, rules: List<dev.locus.core.model.ProjectRule>) = store.updateData {
+        it.copy(projectRules = if (rules.isEmpty()) it.projectRules - projectId else it.projectRules + (projectId to rules.take(dev.locus.core.model.ProjectRule.MAX_PER_PROJECT)))
+    }
+
+    /** Whether [projectId]'s folder is snapshotted before shell commands (docs/design/shell-snapshots.md). */
+    suspend fun setShellSnapshots(projectId: String, enabled: Boolean) = store.updateData {
+        it.copy(shellSnapshotProjects = if (enabled) it.shellSnapshotProjects + projectId else it.shellSnapshotProjects - projectId)
+    }
+
     /** Lets other apps ask Locus to start tasks (docs/design/android-bridge.md). */
     suspend fun setAutomationEnabled(enabled: Boolean) = store.updateData { it.copy(automationEnabled = enabled) }
 

@@ -46,6 +46,8 @@
     <string name="data_storage_workspace_note">你和智能体保存的文件。</string>
     <string name="data_storage_trash_title">工作区回收站</string>
     <string name="data_storage_trash_note">已删除和被覆盖的文件，保留以便撤销更改。</string>
+    <string name="data_storage_snapshots_title">命令快照</string>
+    <string name="data_storage_snapshots_note">在运行 shell 命令前保存的项目文件，以便撤销命令所做的更改。</string>
     <string name="data_storage_linux_title">Linux</string>
     <string name="data_storage_linux_note">Alpine Linux 及其软件包和缓存。</string>
     <string name="data_storage_models_title">设备端模型</string>
@@ -168,4 +170,5 @@
     <plurals name="data_needs_you_more">
         <item quantity="other">还有 %1$d 项</item>
     </plurals>
+    <string name="data_integrity_rules">项目规则在 Locus 之外被更改。所有规则都已暂停，请在对应项目的“规则”中检查后再恢复。</string>
 </resources>

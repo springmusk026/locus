@@ -1532,6 +1532,8 @@ class AgentRunner @Inject constructor(
                     skillManifests = dev.locus.core.agent.SkillManifests { library.skillManifest(it) },
                     scope = chatScope,
                     spill = tools.outputSpill,
+                    // The project's block rules apply to an approved proposal too (docs/design/rules.md).
+                    rules = chatScope?.let { ProjectRuleRunner(it.projectId, settings::current, tools.linux) },
                 ),
                 ids = { UUID.randomUUID().toString() },
             )
@@ -1820,6 +1822,8 @@ class AgentRunner @Inject constructor(
                 coldClearing = current.clearColdToolResults,
                 // A scheduled or triggered task's outward calls wait in Needs you instead of being refused (docs/design/needs-you.md).
                 proposals = if (background) proposers[conversationId]?.let(proposals::sink) else null,
+                // The project's rules (docs/design/rules.md): blocks, after-edit and before-finishing commands; helpers inherit them.
+                rules = chatScope?.let { ProjectRuleRunner(it.projectId, settings::current, tools.linux) },
             ),
             ids = { UUID.randomUUID().toString() },
         )
@@ -1928,6 +1932,8 @@ class AgentRunner @Inject constructor(
                                     toolsUsed++
                                     update(conversationId) { it.copy(activeTool = null) }
                                 }
+                                // A project rule's command (docs/design/rules.md): shown as running like a tool.
+                                is AgentEvent.RuleRunning -> update(conversationId) { it.copy(activeTool = event.name?.let { dev.locus.core.model.ProjectRules.ENTRY }) }
                                 is AgentEvent.Compacted -> {
                                     usage.record(dev.locus.core.model.UsageSource.COMPACTION, conversationId, event.providerId, event.model, event.usage, event.durationMs)
                                     update(conversationId) { it.withProgress(null).withNotice(RunNote.Compacted(event.replaced)) }

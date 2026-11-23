@@ -111,6 +111,7 @@ internal fun ToolPhrase.pastRes(): Int = when (this) {
     ToolPhrase.ASK_USER -> R.string.designsystem_tool_ask_user_past
     ToolPhrase.TASK_BUDGET_PAUSED -> R.string.designsystem_tool_task_budget_paused_past
     ToolPhrase.TASK_BUDGET -> R.string.designsystem_tool_task_budget_past
+    ToolPhrase.PROJECT_RULE -> R.string.designsystem_tool_project_rule_past
     ToolPhrase.RUN_COMMAND -> R.string.designsystem_tool_run_command_past
     ToolPhrase.REMEMBER -> R.string.designsystem_tool_remember_past
     ToolPhrase.RECALL -> R.string.designsystem_tool_recall_past
@@ -298,6 +299,7 @@ internal fun ToolPhrase.presentRes(): Int = when (this) {
     ToolPhrase.ASK_USER -> R.string.designsystem_tool_ask_user_present
     ToolPhrase.TASK_BUDGET_PAUSED -> R.string.designsystem_tool_task_budget_paused_present
     ToolPhrase.TASK_BUDGET -> R.string.designsystem_tool_task_budget_present
+    ToolPhrase.PROJECT_RULE -> R.string.designsystem_tool_project_rule_present
     ToolPhrase.RUN_COMMAND -> R.string.designsystem_tool_run_command_present
     ToolPhrase.REMEMBER -> R.string.designsystem_tool_remember_present
     ToolPhrase.RECALL -> R.string.designsystem_tool_recall_present

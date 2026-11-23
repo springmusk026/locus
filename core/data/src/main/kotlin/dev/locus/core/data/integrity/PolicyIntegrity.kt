@@ -89,6 +89,7 @@ class PolicyIntegrity @Inject constructor(
                 is IntegrityAlert.Skills -> EngineText.Plural(R.plurals.data_integrity_skills, alert.names.size, names(alert.names))
                 is IntegrityAlert.Helpers -> EngineText.Plural(R.plurals.data_integrity_helpers, alert.names.size, names(alert.names))
                 is IntegrityAlert.Persona -> EngineText.Res(R.string.data_integrity_persona, names(alert.files))
+                IntegrityAlert.Rules -> EngineText.Res(R.string.data_integrity_rules)
             }
         }
 
@@ -97,7 +98,7 @@ class PolicyIntegrity @Inject constructor(
             IntegrityAlert.ToolPermissions -> SettingsDestination.Permissions
             IntegrityAlert.Endpoints -> SettingsDestination.Models
             is IntegrityAlert.Persona -> SettingsDestination.Agent
-            is IntegrityAlert.Connectors, is IntegrityAlert.Skills, is IntegrityAlert.Helpers -> null
+            is IntegrityAlert.Connectors, is IntegrityAlert.Skills, is IntegrityAlert.Helpers, IntegrityAlert.Rules -> null
         }
     }
 }

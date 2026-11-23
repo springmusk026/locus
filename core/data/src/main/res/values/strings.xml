@@ -54,6 +54,8 @@
     <string name="data_storage_workspace_note">Files you and the agent keep.</string>
     <string name="data_storage_trash_title">Workspace trash</string>
     <string name="data_storage_trash_note">Deleted and overwritten files, kept so changes can be undone.</string>
+    <string name="data_storage_snapshots_title">Command snapshots</string>
+    <string name="data_storage_snapshots_note">Project files saved before shell commands, so their changes can be undone.</string>
     <string name="data_storage_linux_title">Linux</string>
     <string name="data_storage_linux_note">Alpine Linux, its packages and its caches.</string>
     <string name="data_storage_models_title">On-device models</string>
@@ -191,4 +193,5 @@
         <item quantity="one">and %1$d more</item>
         <item quantity="other">and %1$d more</item>
     </plurals>
+    <string name="data_integrity_rules">Project rules were changed outside Locus. Every rule is suspended until you check it in its project\'s Rules and resume it.</string>
 </resources>

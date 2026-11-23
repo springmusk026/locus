@@ -37,6 +37,8 @@ class EngineTextTest {
             StorageArea.Database to ("Chats and history" to "The database: chats, messages, activity and usage."),
             StorageArea.Workspace to ("Workspace" to "Files you and the agent keep."),
             StorageArea.Trash to ("Workspace trash" to "Deleted and overwritten files, kept so changes can be undone."),
+            // New area (docs/design/shell-snapshots.md): added, the others unchanged.
+            StorageArea.Snapshots to ("Command snapshots" to "Project files saved before shell commands, so their changes can be undone."),
             StorageArea.Linux to ("Linux" to "Alpine Linux, its packages and its caches."),
             StorageArea.Models to ("On-device models" to "LiteRT and GGUF models, and unfinished downloads."),
             StorageArea.Browser to ("Browser data" to "The agent browser's cookies, sign-ins and page cache."),

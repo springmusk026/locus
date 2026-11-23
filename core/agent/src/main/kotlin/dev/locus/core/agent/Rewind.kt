@@ -126,7 +126,9 @@ object Rewind {
         return later.flatMap { m ->
             when (m.role) {
                 // A call the safety reviewer blocked and the user ran anyway: its result rides in a note.
-                Role.USER -> listOfNotNull(dev.locus.core.model.ModeNote.ranAnyway(m)?.let { Effect(EffectKind.OTHER, RAN_ANYWAY, it.take(MAX_LABEL)) })
+                Role.USER -> listOfNotNull(dev.locus.core.model.ModeNote.ranAnyway(m)?.let { Effect(EffectKind.OTHER, RAN_ANYWAY, it.take(MAX_LABEL)) }) +
+                    // A project rule's command ran in Linux (docs/design/rules.md): its changes aren't tracked either.
+                    dev.locus.core.model.RuleNote.runs(m).map { (info, _) -> Effect(EffectKind.COMMAND, dev.locus.core.model.ProjectRules.ENTRY, info.name.take(MAX_LABEL)) }
                 Role.ASSISTANT -> m.toolCalls.mapNotNull { call ->
                     val decision = results[call.id]?.decision ?: return@mapNotNull null
                     if (decision in NOT_RUN) return@mapNotNull null

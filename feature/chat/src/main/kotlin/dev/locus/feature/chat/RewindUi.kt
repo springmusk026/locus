@@ -175,12 +175,17 @@ internal fun rewindFileLine(resources: Resources, file: RewindFile): String = re
 )
 
 /** One line per kind of action that ran after the point and stays: "3 shell commands ran after this; their effects stay." */
-internal fun rewindEffectLines(resources: Resources, effects: List<Rewind.Effect>): List<Pair<String, List<String>>> =
+internal fun rewindEffectLines(
+    resources: Resources,
+    effects: List<Rewind.Effect>,
+    /** Some files go back because commands' changes were snapshotted (docs/design/shell-snapshots.md): say only the rest stays. */
+    commandFilesBack: Boolean = false,
+): List<Pair<String, List<String>>> =
     Rewind.EffectKind.entries.mapNotNull { kind ->
         val of = effects.filter { it.kind == kind }
         if (of.isEmpty()) return@mapNotNull null
         val res = when (kind) {
-            Rewind.EffectKind.COMMAND -> R.plurals.chat_rewind_effects_command
+            Rewind.EffectKind.COMMAND -> if (commandFilesBack) R.plurals.chat_rewind_effects_command_tracked else R.plurals.chat_rewind_effects_command
             Rewind.EffectKind.OUTSIDE -> R.plurals.chat_rewind_effects_outside
             Rewind.EffectKind.HELPER -> R.plurals.chat_rewind_effects_helper
             Rewind.EffectKind.OTHER -> R.plurals.chat_rewind_effects_other
@@ -233,7 +238,7 @@ internal fun RewindSheet(preview: RewindPreview, onConfirm: () -> Unit, onDismis
             SectionLabel(stringResource(R.string.chat_rewind_gone_title))
             FileList(gone, resources)
         }
-        val effects = rewindEffectLines(resources, preview.effects)
+        val effects = rewindEffectLines(resources, preview.effects, commandFilesBack = preview.files.any { it.byCommand && it.state == RewindFile.State.RESTORE })
         if (effects.isNotEmpty()) {
             SectionLabel(stringResource(R.string.chat_rewind_effects_title))
             effects.forEach { (line, names) ->

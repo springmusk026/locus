@@ -109,11 +109,15 @@ sealed interface ChatItem {
         val ranAnyway: Boolean = false,
         /** A proposal of this chat's run the user approved in Needs you (docs/design/needs-you.md). */
         val approvedProposal: Boolean = false,
+        /** A project rule's run (docs/design/rules.md): [text] is its English line, [ruleOutput] what it printed. */
+        val rule: dev.locus.core.model.RuleNote.Info? = null,
+        val ruleOutput: String? = null,
     ) : ChatItem {
         /** What the screen shows for this note. */
         fun shown(resources: android.content.res.Resources): String = when {
             ranAnyway -> resources.getString(R.string.chat_note_ran_anyway, text)
             approvedProposal -> resources.getString(R.string.chat_note_proposal_approved, text)
+            rule != null -> ruleLine(resources, rule)
             else -> text
         }
     }
@@ -154,7 +158,13 @@ sealed interface ChatItem {
     data class Verification(override val key: String, val call: ToolCall, val outcome: dev.locus.core.model.Verification.Outcome) : ChatItem
 
     /** The workspace files a turn changed, at the end of the turn: counts, diffs and undo. [turnId] keys the turn. */
-    data class Changes(override val key: String, val turnId: String, val files: List<dev.locus.core.data.repository.TrackedChange>) : ChatItem
+    data class Changes(
+        override val key: String,
+        val turnId: String,
+        val files: List<dev.locus.core.data.repository.TrackedChange>,
+        /** The turn's commands whose changes weren't tracked, and why (docs/design/shell-snapshots.md). */
+        val notes: List<dev.locus.core.data.repository.ShellNote> = emptyList(),
+    ) : ChatItem
 
     /**
      * A finished task's receipt, under its last turn (see docs/design/task-receipt.md). UI only; it's
@@ -616,16 +626,17 @@ class ChatViewModel @AssistedInject constructor(
     private val transcript = combine(
         conversations.observeThread(conversationId),
         // Both re-emit on writes to their tables from any chat; equal results change nothing here.
-        changes.observe(conversationId).distinctUntilChanged(),
+        // With the notes about commands whose changes weren't tracked (docs/design/shell-snapshots.md).
+        combine(changes.observe(conversationId).distinctUntilChanged(), changes.observeNotes(conversationId), ::Pair),
         receipts.inputs(conversationId).distinctUntilChanged(),
         // With recent on-device reply speeds, which live in memory only.
         onDevice.recentTurns,
         onDeviceChat,
-    ) { thread, changed, inputs, speeds, onDeviceProvider ->
+    ) { thread, (changed, shellNotes), inputs, speeds, onDeviceProvider ->
         val receiptList = inputs.receipts(thread.messages, changed)
         // A project chat's sent files live in its folder, as send_file resolved them (ChatScope).
         val scope = projectRepository?.scopeOf(conversations.get(conversationId))
-        val built = toItems(thread.messages, thread.branches, changed.groupBy { it.turnId }, receiptList, scope)
+        val built = toItems(thread.messages, thread.branches, changed.groupBy { it.turnId }, receiptList, scope, shellNotes)
             .markOutsideContent(dev.locus.core.agent.LinkGuard.repliesAfterOutsideContent(thread.messages))
         val items = itemKeeper.keep(if (onDeviceProvider) built.withSpeeds(speeds) else built)
         Transcript(
@@ -1063,8 +1074,9 @@ class ChatViewModel @AssistedInject constructor(
         changed: Map<String, List<dev.locus.core.data.repository.TrackedChange>>,
         receiptList: List<dev.locus.core.model.TaskReceipt>,
         scope: dev.locus.core.model.ChatScopeSpec?,
+        shellNotes: Map<String, List<dev.locus.core.data.repository.ShellNote>> = emptyMap(),
     ): List<ChatItem> =
-        transcriptItems(messages, branches, changed, receiptList).map { if (it is ChatItem.SentFile) it.copy(file = sentFileInfo(files, scope, it.path)) else it }
+        transcriptItems(messages, branches, changed, receiptList, shellNotes).map { if (it is ChatItem.SentFile) it.copy(file = sentFileInfo(files, scope, it.path)) else it }
 }
 
 /**
@@ -1129,6 +1141,8 @@ internal fun transcriptItems(
     changes: Map<String, List<dev.locus.core.data.repository.TrackedChange>> = emptyMap(),
     /** Finished tasks' receipts; each goes under the turn holding its [dev.locus.core.model.TaskReceipt.afterMessageId]. */
     receipts: List<dev.locus.core.model.TaskReceipt> = emptyList(),
+    /** By turn id: commands whose changes weren't tracked (docs/design/shell-snapshots.md), shown on the turn's changes card. */
+    shellNotes: Map<String, List<dev.locus.core.data.repository.ShellNote>> = emptyMap(),
 ): List<ChatItem> {
     val results = messages.filter { it.role == Role.TOOL }.flatMap { it.toolResults }.associateBy { it.callId }
     val receiptsAfter = receipts.groupBy { it.afterMessageId }
@@ -1146,7 +1160,11 @@ internal fun transcriptItems(
         val answered = from
         val info = if (start != null && answered != null) TurnBranch(answered, branches[start], last = start == lastTurnStart) else null
         // The files this turn changed, after everything else it showed.
-        val changed = start?.let { changes[it] }?.takeIf { it.isNotEmpty() }?.let { ChatItem.Changes("$start:changes", start, it) }
+        val changed = start?.let { s ->
+            val files = changes[s].orEmpty()
+            val notes = shellNotes[s].orEmpty()
+            ChatItem.Changes("$s:changes", s, files, notes).takeIf { files.isNotEmpty() || notes.isNotEmpty() }
+        }
         var items = turnItems(turn, results) + listOfNotNull(changed)
         val reply = items.indexOfLast { it is ChatItem.Assistant }
         // A task that ended normally with this reply puts its receipt on the reply's meta line; anything
@@ -1170,7 +1188,7 @@ internal fun transcriptItems(
         // A note from Locus belongs to the turn it joined: an undo the agent was told about mid-task shows
         // nothing; a call the user ran anyway mid-task shows as a step of that turn.
         if (ModeNote.isAgentNote(message)) {
-            if (ModeNote.ranAnyway(message) != null || ModeNote.proposalApproved(message) != null) turn += message
+            if (ModeNote.ranAnyway(message) != null || ModeNote.proposalApproved(message) != null || dev.locus.core.model.RuleNote.runs(message).isNotEmpty()) turn += message
             endedHere += ends
             return@forEach
         }
@@ -1244,6 +1262,10 @@ internal fun turnItems(turn: List<Message>, results: Map<String, Part.ToolResult
             if (message.role == Role.USER) {
                 ModeNote.ranAnyway(message)?.let { add(ChatItem.Note("${message.id}:ran", it, ranAnyway = true)) }
                 ModeNote.proposalApproved(message)?.let { add(ChatItem.Note("${message.id}:proposal", it, approvedProposal = true)) }
+                // A project rule's run (docs/design/rules.md): one step per rule, with what it printed.
+                dev.locus.core.model.RuleNote.runs(message).forEachIndexed { i, (info, output) ->
+                    add(ChatItem.Note("${message.id}:rule$i", ruleEnglish(info), rule = info, ruleOutput = output?.let(dev.locus.core.model.RuleNote::displayOutput)))
+                }
                 return@forEach
             }
             message.reasoning?.let { r -> add(ChatItem.Thought("${message.id}:thought", r.content, r.durationMs, inSteps = message.toolCalls.isNotEmpty())) }

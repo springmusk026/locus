@@ -124,6 +124,12 @@ data class AppSettings(
      */
     val projectRemotes: Map<String, ProjectRemote> = emptyMap(),
     /**
+     * Projects (by id) whose folder is snapshotted before each shell command, so the files a command
+     * changes show on the changes card and can be undone (docs/design/shell-snapshots.md). Off by default.
+     * Not sealed: it only adds a safety net, it never lets a project do more.
+     */
+    val shellSnapshotProjects: Set<String> = emptySet(),
+    /**
      * Whether other apps (Tasker, Automate…) may ask Locus to start tasks through its automation
      * intents (docs/design/android-bridge.md). Off by default; sealed with the permissions.
      */
@@ -156,6 +162,12 @@ data class AppSettings(
      * its project links decide what the agent may change and which chats see it.
      */
     val connectedFolders: List<ConnectedFolder> = emptyList(),
+    /**
+     * Each project's rules (by project id; docs/design/rules.md): commands to run after an edit or before
+     * finishing, and commands to block. Only the UI writes them; sealed with the permissions, so a change
+     * made outside Locus suspends them ([PolicySeal.restricted]).
+     */
+    val projectRules: Map<String, List<ProjectRule>> = emptyMap(),
     /**
      * HMAC of [toolPolicies], [projectPolicies] and the reviewer settings under a Keystore key ([PolicySeal]). Only the
      * settings store writes it; settings changed outside Locus fail the check and fall back to

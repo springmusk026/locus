@@ -147,6 +147,18 @@ internal object DataModule {
     fun changeHistory(@ApplicationContext context: Context): dev.locus.core.data.repository.ChangeHistory =
         dev.locus.core.data.repository.ChangeHistory(File(context.noBackupFilesDir, "change-history"))
 
+    /** Command snapshots' store: app-private, not backed up, out of Linux's reach (docs/design/shell-snapshots.md). */
+    @Provides
+    @Singleton
+    fun shellSnapshots(@ApplicationContext context: Context): dev.locus.core.agent.tools.ShellSnapshots =
+        dev.locus.core.agent.tools.ShellSnapshots(File(context.noBackupFilesDir, "shell-snapshots"))
+
+    /** Why a command's changes weren't tracked, for the changes card (docs/design/shell-snapshots.md). */
+    @Provides
+    @Singleton
+    fun shellNotes(@ApplicationContext context: Context): dev.locus.core.data.repository.ShellNotes =
+        dev.locus.core.data.repository.ShellNotes(File(context.noBackupFilesDir, "shell-snapshot-notes.json"))
+
     @Provides
     @Singleton
     fun workspace(@ApplicationContext context: Context, folders: dev.locus.core.data.folders.ConnectedFolderRepository): Workspace =

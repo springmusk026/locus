@@ -70,8 +70,8 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 import kotlin.math.roundToInt
 
-/** A clean-up on the Storage page. Both are confirmed in a sheet first. */
-internal enum class StorageAction { ClearCaches, EmptyTrash }
+/** A clean-up on the Storage page. Each is confirmed in a sheet first. */
+internal enum class StorageAction { ClearCaches, EmptyTrash, ClearSnapshots }
 
 /**
  * The Storage page: [report] is null until the first measure ends ([measuring] meanwhile), [error]
@@ -129,6 +129,9 @@ internal class StorageViewModel @Inject constructor(private val storage: Storage
                     StorageAction.EmptyTrash -> StorageMessage(
                         UiText.Plural(R.plurals.settings_storage_trash_emptied, storage.emptyTrash()),
                     )
+                    StorageAction.ClearSnapshots -> StorageMessage(
+                        UiText.Res(R.string.settings_storage_snapshots_cleared, LinuxHealth.bytesText(storage.clearSnapshots()).toUiText()),
+                    )
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -180,6 +183,14 @@ internal fun StorageRoute(
             title = stringResource(R.string.settings_storage_trash_title),
             message = stringResource(R.string.settings_storage_trash_message),
             confirmLabel = stringResource(R.string.settings_storage_trash_confirm),
+            tone = Tone.Critical,
+            onConfirm = { viewModel.run(action); confirm = null },
+            onDismiss = { confirm = null },
+        )
+        StorageAction.ClearSnapshots -> ConfirmSheet(
+            title = stringResource(R.string.settings_storage_snapshots_title),
+            message = stringResource(R.string.settings_storage_snapshots_message),
+            confirmLabel = stringResource(R.string.settings_storage_snapshots_confirm),
             tone = Tone.Critical,
             onConfirm = { viewModel.run(action); confirm = null },
             onDismiss = { confirm = null },
@@ -281,12 +292,14 @@ private fun AreaRow(
     val action: Pair<String, () -> Unit>? = when (item.area) {
         StorageArea.Caches -> (stringResource(R.string.settings_storage_action_clear) to { onAction(StorageAction.ClearCaches) }).takeIf { !empty && bytes != null }
         StorageArea.Trash -> (stringResource(R.string.settings_storage_action_empty) to { onAction(StorageAction.EmptyTrash) }).takeIf { !empty && bytes != null }
+        StorageArea.Snapshots -> (stringResource(R.string.settings_storage_action_clear) to { onAction(StorageAction.ClearSnapshots) }).takeIf { !empty && bytes != null }
         StorageArea.Linux -> (stringResource(R.string.settings_storage_action_manage) to onOpenLinux).takeIf { !empty }
         StorageArea.Models -> stringResource(R.string.settings_storage_action_manage) to onOpenModels
         else -> null
     }
     val running = (item.area == StorageArea.Caches && busy == StorageAction.ClearCaches) ||
-        (item.area == StorageArea.Trash && busy == StorageAction.EmptyTrash)
+        (item.area == StorageArea.Trash && busy == StorageAction.EmptyTrash) ||
+        (item.area == StorageArea.Snapshots && busy == StorageAction.ClearSnapshots)
     val actionButton: (@Composable () -> Unit)? = when {
         running -> ({ InlineSpinner(contentDescription = stringResource(R.string.settings_storage_working, stringResource(item.area.titleRes))) })
         action != null -> ({
@@ -326,6 +339,7 @@ private fun StorageArea.icon() = when (this) {
     StorageArea.Database -> LocusIcons.Chats
     StorageArea.Workspace -> LocusIcons.Folder
     StorageArea.Trash -> LocusIcons.Trash
+    StorageArea.Snapshots -> LocusIcons.Restore
     StorageArea.Linux -> LocusIcons.Terminal
     StorageArea.Models -> LocusIcons.Phone
     StorageArea.Browser -> LocusIcons.Globe

@@ -43,7 +43,7 @@ enum class Accent(private val light: Long, private val dark: Long) {
 /** Which accent and icon a tool gets, by its name. */
 fun accentFor(toolName: String): Pair<Accent, ImageVector> = when {
     toolName.startsWith("browser_") || toolName in setOf("fetch_url", "web_search", "web_read", "wikipedia", "weather") -> Accent.Web to LocusIcons.Globe
-    toolName == "run_command" || toolName.startsWith("linux_") || toolName.startsWith("git_") || toolName.startsWith("ssh_") || toolName.startsWith("sftp_") -> Accent.Linux to LocusIcons.Terminal
+    toolName == "run_command" || toolName == dev.locus.core.model.ProjectRules.ENTRY || toolName.startsWith("linux_") || toolName.startsWith("git_") || toolName.startsWith("ssh_") || toolName.startsWith("sftp_") -> Accent.Linux to LocusIcons.Terminal
     toolName.startsWith("memory_") || toolName.startsWith("skill_") || toolName.startsWith("chat_history_") -> Accent.Memory to LocusIcons.Library
     toolName == dev.locus.core.model.DeviceIntegrations.CALENDAR_READ -> Accent.Device to LocusIcons.Clock
     toolName == dev.locus.core.model.DeviceIntegrations.PHOTOS_PICK -> Accent.Device to LocusIcons.Image
