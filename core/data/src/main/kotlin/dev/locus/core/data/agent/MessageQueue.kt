@@ -23,6 +23,11 @@ data class QueuedMessage(
      * for a message from the Telegram bot, so it stays marked (and the run tainted) once it joins.
      */
     val note: String? = null,
+    /**
+     * Outside text Locus adds to the message for the model, already marked ([dev.locus.core.model.ModeNote.result]
+     * wraps it when it joins): an element the user picked in the browser. Never counts as the user's typing.
+     */
+    val result: String? = null,
 )
 
 /**
@@ -82,8 +87,8 @@ class MessageQueue(
 
     fun has(chatId: String): Boolean = get(chatId).isNotEmpty()
 
-    fun add(chatId: String, text: String, attachments: List<Part.Attachment> = emptyList(), note: String? = null): QueuedMessage = synchronized(lock) {
-        val message = QueuedMessage(UUID.randomUUID().toString(), text, attachments, clock(), note)
+    fun add(chatId: String, text: String, attachments: List<Part.Attachment> = emptyList(), note: String? = null, result: String? = null): QueuedMessage = synchronized(lock) {
+        val message = QueuedMessage(UUID.randomUUID().toString(), text, attachments, clock(), note, result)
         set(chatId, get(chatId) + message)
         message
     }
@@ -182,6 +187,7 @@ class MessageQueue(
 internal fun QueuedMessage.toChatMessage(chatId: String, planMode: Boolean, midTask: Boolean = false, now: Long = System.currentTimeMillis()): dev.locus.core.model.Message {
     val parts = attachments + listOfNotNull(
         Part.Text(text).takeIf { text.isNotBlank() },
+        result?.let { Part.Text(dev.locus.core.model.ModeNote.result(it)) },
         // Joining a running task at a step boundary: a hidden note says how to treat it (see ModeNote.MID_TASK).
         dev.locus.core.model.ModeNote.MID_TASK.takeIf { midTask }?.let { Part.Text(dev.locus.core.model.ModeNote.wrap(it)) },
         dev.locus.core.model.ModeNote.PLAN_MODE.takeIf { planMode }?.let { Part.Text(dev.locus.core.model.ModeNote.wrap(it)) },
