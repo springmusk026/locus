@@ -178,6 +178,14 @@ class TaskRepository(
         dao.markSeen(id)
     }
 
+    /**
+     * The user opened chat [conversationId]: if it's a task's latest run, that result counts as seen, however the
+     * chat was opened (Needs you, Tasks, the result's notification, the chat list).
+     */
+    suspend fun markSeenForChat(conversationId: String) {
+        dao.markSeenForChat(conversationId)
+    }
+
     /** Every task's latest result counts as seen ("Mark all read" in Needs you). */
     suspend fun markAllSeen() {
         dao.markAllSeen()

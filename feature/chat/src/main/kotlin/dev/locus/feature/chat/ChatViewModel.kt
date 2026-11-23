@@ -376,6 +376,8 @@ class ChatViewModel @AssistedInject constructor(
     private val remoteExecution: dev.locus.core.data.remote.RemoteExecution? = null,
     /** Deletes a temporary chat once this screen is left (docs/design/temporary-chats.md); null in tests that don't need it. */
     private val temporaryChats: dev.locus.core.data.repository.TemporaryChats? = null,
+    /** Marks a scheduled run's result read once its chat is opened (docs/design/needs-you.md); null in tests that don't need it. */
+    private val tasks: dev.locus.core.data.tasks.TaskRepository? = null,
 ) : ViewModel() {
     /** Services to suggest stopping while the phone is critically hot (never stopped without the user). */
     val heatServices: StateFlow<List<String>> = linuxHeat?.suggestion ?: MutableStateFlow(emptyList())
@@ -499,6 +501,8 @@ class ChatViewModel @AssistedInject constructor(
         viewModelScope.launch { directory.index() }
         // While this screen is open, a temporary chat isn't deleted.
         temporaryChats?.opened(conversationId)
+        // A scheduled run's chat, opened any way: its result in Needs you counts as read.
+        tasks?.let { t -> viewModelScope.launch { runCatching { t.markSeenForChat(conversationId) } } }
     }
 
     override fun onCleared() {

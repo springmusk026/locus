@@ -285,6 +285,12 @@ class FakeDatabase {
 
         override suspend fun markSeen(id: String) = update(id) { it.copy(lastSeenRunAt = it.lastRunAt) }
 
+        override suspend fun markSeenForChat(conversationId: String): Int = synchronized(this@FakeDatabase) {
+            val ran = tables.value.tasks.values.filter { it.lastConversationId == conversationId && it.lastRunAt != null }
+            tables.value = tables.value.copy(tasks = tables.value.tasks + ran.associate { it.id to it.copy(lastSeenRunAt = it.lastRunAt) })
+            ran.size
+        }
+
         override suspend fun markAllSeen(): Int = synchronized(this@FakeDatabase) {
             val ran = tables.value.tasks.values.filter { it.lastRunAt != null }
             tables.value = tables.value.copy(tasks = tables.value.tasks + ran.associate { it.id to it.copy(lastSeenRunAt = it.lastRunAt) })
