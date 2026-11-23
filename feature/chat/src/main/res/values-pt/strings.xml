@@ -1675,6 +1675,29 @@
         <item quantity="many">%1$d segredos removidos</item>
         <item quantity="other">%1$d segredos removidos</item>
     </plurals>
+    <!-- PlanRunUi.kt: plan mode's "Run with" (docs/design/plan-run.md) -->
+    <string name="chat_plan_ran_on">Aprovado · executado em %1$s</string>
+    <string name="chat_plan_run_label">Executar com</string>
+    <string name="chat_plan_run_default_hint">O modelo deste chat. Toque para executar o plano em outro.</string>
+    <string name="chat_plan_run_other_hint">Só para este plano. Depois o chat volta para %1$s.</string>
+    <string name="chat_plan_run_streaming">Executando o plano: %1$s</string>
+    <string name="chat_plan_run_rule">O plano aprovado é executado no modelo que você escolher, com a conversa, as ferramentas e as permissões deste chat. Quando a tarefa termina, o chat volta para o próprio modelo. Modelos que não atendem este chat não podem ser escolhidos.</string>
+    <string name="chat_plan_run_sheet_title">Executar o plano com</string>
+    <string name="chat_plan_run_sheet_subtitle">Planeje no modelo deste chat e execute em outro.</string>
+    <string name="chat_plan_run_cache_note">O modelo que você escolher não viu este chat, então a primeira solicitação dele grava a conversa inteira no cache, pelo preço de gravação em cache. O modelo deste chat mantém o próprio cache; quando o plano termina, a próxima resposta dele lê de novo o trabalho do plano.</string>
+    <string name="chat_plan_run_chip">Executa o plano</string>
+    <string name="chat_plan_run_confirm_title">Executar o plano em %1$s?</string>
+    <string name="chat_plan_run_confirm_provider">Isso envia a conversa inteira até agora para %1$s, um provedor que este chat não usou.</string>
+    <string name="chat_plan_run_confirm_first">O plano é executado em %1$s em vez do modelo deste chat, com a mesma conversa, ferramentas e permissões.</string>
+    <string name="chat_plan_run_confirm_over">A primeira solicitação dele deve custar mais que o normal.</string>
+    <string name="chat_plan_run_confirm_run_role">Executa o plano · a primeira solicitação grava o cache dele</string>
+    <string name="chat_plan_run_confirm_chat_role">Modelo deste chat · se o cache dele ainda estiver ativo</string>
+    <string name="chat_plan_run_confirm_covers">Entrada estimada da primeira solicitação (cerca de %1$s tokens), pelos preços do models.dev. Os passos seguintes leem quase tudo do cache; respostas e passos com ferramentas custam mais.</string>
+    <string name="chat_plan_run_confirm_back">Quando a tarefa do plano terminar, o chat volta para %1$s na sua próxima mensagem.</string>
+    <string name="chat_run_plan_run_done">O plano foi executado em %1$s. Este chat voltou para %2$s na sua próxima mensagem.</string>
+    <string name="chat_run_plan_run_unavailable">Não foi possível executar o plano em %1$s: %2$s. Escolha outro modelo ou execute no modelo deste chat.</string>
+    <string name="chat_receipt_plan">Plano</string>
+    <string name="chat_receipt_plan_total">Plano e execução</string>
     <string name="chat_composer_remove_pick">Remover o elemento escolhido %1$s</string>
     <string name="chat_picked_element">Escolhido na página: %1$s</string>
     <string name="chat_page_see">Ver a página</string>

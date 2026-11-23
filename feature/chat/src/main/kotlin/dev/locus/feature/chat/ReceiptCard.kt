@@ -210,6 +210,9 @@ internal fun ReceiptSheet(r: TaskReceipt, actions: ReceiptActions, onDismiss: ()
                 receiptCost(resources, r)?.let { cost ->
                     Field(stringResource(R.string.chat_receipt_cost), stringResource(if (r.cost == null) R.string.chat_receipt_cost_unknown else R.string.chat_receipt_cost_estimate, cost))
                 }
+                // A task that carried out an approved plan: what planning cost, on its model, and both together (docs/design/plan-run.md).
+                receiptPlan(resources, r)?.let { Field(stringResource(R.string.chat_receipt_plan), it) }
+                receiptPlanTotal(r)?.let { Field(stringResource(R.string.chat_receipt_plan_total), stringResource(R.string.chat_receipt_cost_estimate, it)) }
                 if (r.files > 0) {
                     Field(stringResource(R.string.chat_receipt_files), stringResource(R.string.chat_receipt_files_changed, r.files), onClick = item.changesKey?.let { key -> { onDismiss(); actions.showCard(key) } })
                 }

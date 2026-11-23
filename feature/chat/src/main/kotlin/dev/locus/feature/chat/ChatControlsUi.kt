@@ -80,7 +80,7 @@ import dev.locus.core.model.ToolGroup
 import kotlinx.coroutines.delay
 
 /** Which composer sheet is open. */
-internal enum class ControlSheet { Model, Effort, Mode, Tools, More, Budget, Temporary, Compare }
+internal enum class ControlSheet { Model, Effort, Mode, Tools, More, Budget, Temporary, Compare, PlanRun }
 
 /** "Off", "200k tokens · 30 min for this chat", "Default: 200k tokens". The limits' words come from core/designsystem. */
 internal fun budgetSubtitle(resources: Resources, controls: ChatControls): String {
@@ -250,7 +250,19 @@ private fun ColumnScope.ToolSwitches(controls: ChatControls, connectors: List<Ch
 
 /** A proposed plan. While it waits, it asks: run it, change it, or drop it. */
 @Composable
-internal fun PlanCard(item: ChatItem.Plan, actionable: Boolean, onApprove: () -> Unit, onEdit: () -> Unit, onCancel: () -> Unit) {
+internal fun PlanCard(
+    item: ChatItem.Plan,
+    actionable: Boolean,
+    onApprove: () -> Unit,
+    onEdit: () -> Unit,
+    onCancel: () -> Unit,
+    /** The chat's model id, for "Run with" (docs/design/plan-run.md); blank hides the row. */
+    chatModel: String = "",
+    /** The model picked to run the plan; null for the chat's own. */
+    runWith: CompareChoice? = null,
+    /** Opens the model sheet to pick the model that runs the plan; null where it isn't offered. */
+    onRunWith: (() -> Unit)? = null,
+) {
     val brand = MaterialTheme.colorScheme.primary
     // While it waits, the brand outline marks it; no glow on top.
     LocusCard(outline = brand.copy(alpha = Emphasis.toneOutline).takeIf { actionable }) {
@@ -263,7 +275,7 @@ internal fun PlanCard(item: ChatItem.Plan, actionable: Boolean, onApprove: () ->
             )
             val status = when (item.status) {
                 PlanStatus.Waiting -> if (actionable) null else stringResource(R.string.chat_plan_not_run)
-                PlanStatus.Approved -> stringResource(R.string.chat_plan_approved)
+                PlanStatus.Approved -> approvedStatus(item)
                 PlanStatus.Answered -> stringResource(R.string.chat_plan_changed)
             }
             if (status != null) SupportingText(status, style = LocusType.chip)
@@ -278,6 +290,7 @@ internal fun PlanCard(item: ChatItem.Plan, actionable: Boolean, onApprove: () ->
             }
         }
         item.plan.notes?.let { notes -> Box(Modifier.padding(top = Spacing.sm)) { ThoughtMarkdown(notes) } }
+        if (actionable && onRunWith != null && chatModel.isNotBlank()) PlanRunRow(chatModel, runWith, onRunWith)
         if (actionable && largeFont()) {
             // Stacked at a large font, full width, so "Approve and run" never breaks inside its button.
             Column(Modifier.fillMaxWidth().padding(top = Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {

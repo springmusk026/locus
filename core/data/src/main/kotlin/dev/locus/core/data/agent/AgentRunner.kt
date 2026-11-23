@@ -129,6 +129,11 @@ data class RunState(
      * ("gpt-5.2 (OpenAI)"), so the chat can say whose answer is streaming and that it only reads. Null otherwise.
      */
     val comparing: String? = null,
+    /**
+     * Plan mode's "Run with" (docs/design/plan-run.md): while the approved plan's task runs on a model other than
+     * the chat's, how that model is named ("claude-haiku-5-5 (Anthropic)"), for the live label. Null otherwise.
+     */
+    val planRun: String? = null,
 ) {
     /** The request to show now (the oldest). */
     val pendingApproval: ApprovalRequest? get() = approvals.firstOrNull()
@@ -813,14 +818,71 @@ class AgentRunner @Inject constructor(
     /**
      * The user approved the plan the agent proposed: plan mode goes off for this chat (as in Claude
      * Code, approving exits plan mode) and an approval message starts the work.
+     *
+     * With [runOn] (plan mode's "Run with", docs/design/plan-run.md), the task the approval starts runs on that
+     * model instead of the chat's: the same frozen system prompt, tool list and append-only path, the chat's
+     * permissions, its own backups. When that task ends, however it ends, the chat is back on its own model.
+     * A model that can't run it (provider gone, no key, no tool calling) sends nothing: the plan still waits,
+     * and a notice says why.
      */
-    fun approvePlan(conversationId: String) {
+    fun approvePlan(conversationId: String, runOn: dev.locus.core.model.ModelRef? = null) {
         if (jobs.containsKey(conversationId)) return
         scope.launch {
-            conversations.setPlanMode(conversationId, false)
-            send(conversationId, dev.locus.core.model.AgentControlTools.PLAN_APPROVED)
+            val conversation = conversations.get(conversationId) ?: return@launch
+            val current = settings.current()
+            val chat = current.provider(conversation.providerId)?.let { chatProvider(it, conversation) }
+            val target = dev.locus.core.model.PlanRun.runOn(chat?.let { dev.locus.core.model.ModelRef(it.id, it.model) }, runOn)
+            if (target == null || chat == null) {
+                conversations.setPlanMode(conversationId, false)
+                send(conversationId, dev.locus.core.model.AgentControlTools.PLAN_APPROVED)
+                return@launch
+            }
+            val base = dev.locus.core.model.PlanRun.available(current, target)
+            val label = base?.let { FallbackChain.label(it, target.model) } ?: dev.locus.core.model.ModelNames.short(target.model)
+            val problem = planRunProblem(conversation, base, target)
+            if (problem != null) {
+                update(conversationId) { it.withNotice(RunNote.PlanRunUnavailable(label, problem)) }
+                return@launch
+            }
+            val running = PlanRunning(target, label, FallbackChain.label(chat, chat.model))
+            val started = start(conversationId) {
+                conversations.setPlanMode(conversationId, false)
+                if (needsCompaction(conversationId)) compactBeforeTurn(conversationId)
+                appendQueued(conversationId)
+                // The same approval message as a normal Approve: the run model reads the plan and this, nothing rewritten.
+                conversations.appendUserMessage(
+                    conversationId, dev.locus.core.model.AgentControlTools.PLAN_APPROVED,
+                    extraNotes = listOfNotNull(takeUndoNote(conversationId)),
+                )
+                planRuns[conversationId] = running
+                // The budget's cost limit applies when the run model's prices are known.
+                newBudget(conversationId, runsOn = target)?.let { budgets[conversationId] = it }
+                run(conversationId)
+            }
+            // Another turn took the chat in between: nothing was sent, and the plan still waits.
+            if (!started) update(conversationId) { it.withNotice(RunNote.PlanRunUnavailable(label, "another task started in this chat")) }
         }
     }
+
+    /**
+     * Why [target] can't run an approved plan in [conversation] ([base] is its provider, null when that's gone),
+     * or null when it can. Unknown tool calling doesn't stop it (docs/design/model-capabilities.md).
+     */
+    private suspend fun planRunProblem(conversation: dev.locus.core.model.Conversation, base: dev.locus.core.model.ProviderConfig?, target: dev.locus.core.model.ModelRef): String? {
+        if (base == null) return "its provider is no longer set up"
+        val config = chatProvider(base, conversation.copy(modelOverride = target.model))
+        access.missing(config)?.let { return it }
+        if (!conversation.chatOnly && directory.capabilities(base, config.model).tools == dev.locus.core.llm.Support.NO) {
+            return "it can't call tools, and this chat uses them"
+        }
+        return null
+    }
+
+    /** The model running a chat's approved plan ([approvePlan]): which one, and how it and the chat's own model are named. */
+    private data class PlanRunning(val ref: dev.locus.core.model.ModelRef, val label: String, val chatLabel: String)
+
+    /** By chat: the plan's model, for the task the approval started; removed when that task ends. In memory only. */
+    private val planRuns = ConcurrentHashMap<String, PlanRunning>()
 
     /** The running task's token budget as its requests send it (see [dev.locus.core.llm.ChatRequest.taskBudget]); null with none. */
     fun taskBudgetTokens(conversationId: String): Long? = budgets[conversationId]?.budget?.tokens
@@ -1142,6 +1204,8 @@ class AgentRunner @Inject constructor(
                 failure = e
                 throw e
             } finally {
+                // An approved plan's model serves this task only (docs/design/plan-run.md): the chat is back on its own.
+                val ranPlan = planRuns.remove(conversationId)
                 val end = taskEndOf(conversationId, failure)
                 // Whoever waits for this run hears how it ended now, before any cleanup that could fail.
                 finishRecord(conversationId, record, end)
@@ -1160,7 +1224,11 @@ class AgentRunner @Inject constructor(
                 // Background helpers may still be asking; their requests stay. Skipped if a newer run
                 // took the chat meanwhile: its state is its own. Emitted after the slot is free, so
                 // AgentService sees the run gone and can stop.
-                updateIfIdle(conversationId) { st -> st.copy(running = false, streamingText = "", progress = "", reasoning = "", thinkingSince = null, thoughtMs = null, activeTool = null, approvals = st.approvals.filter { it.origin != null }, budgetPause = null) }
+                updateIfIdle(conversationId) { st ->
+                    st.copy(running = false, streamingText = "", progress = "", reasoning = "", thinkingSince = null, thoughtMs = null, activeTool = null, approvals = st.approvals.filter { it.origin != null }, budgetPause = null, planRun = null)
+                        // Said where the user looks next, unless the run ended with a notice of its own.
+                        .let { s -> if (ranPlan != null && s.notice == null) s.withNotice(RunNote.PlanRunDone(ranPlan.label, ranPlan.chatLabel)) else s }
+                }
                 // A research run that finished while Locus was in the background says so (docs/design/deep-research.md).
                 scope.launch { notifyIfResearch(conversationId, end) }
                 // A helper that finished just as this turn ended.
@@ -1319,7 +1387,7 @@ class AgentRunner @Inject constructor(
      * else the chat's own, else the default from Settings. Null when it's off. Prices come from the models.dev catalogue when the user turned it on; the
      * cost limit applies only when the chat model's prices are known.
      */
-    private suspend fun newBudget(conversationId: String, own: dev.locus.core.model.TaskBudget? = null): RunBudget? {
+    private suspend fun newBudget(conversationId: String, own: dev.locus.core.model.TaskBudget? = null, runsOn: dev.locus.core.model.ModelRef? = null): RunBudget? {
         val conversation = conversations.get(conversationId) ?: return null
         val current = settings.current()
         val limits = own ?: dev.locus.core.model.TaskBudget.effective(current.taskBudget, conversation.disabledTools)
@@ -1329,7 +1397,9 @@ class AgentRunner @Inject constructor(
             val p = current.provider(providerId) ?: return null
             return catalog?.lookup(p.baseUrl, p.format, model?.ifBlank { null } ?: p.model)?.price
         }
-        val chat = current.provider(conversation.providerId)?.let { chatProvider(it, conversation) }
+        // The model the task runs on: the chat's, or the one an approved plan runs on (docs/design/plan-run.md).
+        val chat = runsOn?.let { r -> dev.locus.core.model.PlanRun.available(current, r)?.let { chatProvider(it, conversation.copy(modelOverride = r.model)) } }
+            ?: current.provider(conversation.providerId)?.let { chatProvider(it, conversation) }
         val chatPrice = chat?.let { price(it.id, it.model) }
         val why = when {
             limits.costUsd == null -> null
@@ -1762,15 +1832,27 @@ class AgentRunner @Inject constructor(
         // A scheduled run, or the Telegram chat under its default rules (docs/design/telegram-remote.md):
         // read-only, nothing that asks. The Telegram chat can still be steered, since someone is there.
         val readOnly = background || current.telegramRemote.lockedChat(conversationId)
-        val base = current.provider(compare?.providerId ?: conversation.providerId)
+        // An approved plan's task on the model the user picked for it (docs/design/plan-run.md). Its provider
+        // must still be there: it never falls back to another provider the way a chat's own does.
+        val planRun = if (compare == null && !background) planRuns[conversationId] else null
+        val base = if (planRun != null) dev.locus.core.model.PlanRun.available(current, planRun.ref) else current.provider(compare?.providerId ?: conversation.providerId)
         if (base == null) {
-            taskEnds[conversationId] = TaskEnd(dev.locus.core.model.TaskOutcome.FAILED, RunNote.NoProvider.english)
-            update(conversationId) { it.withError(RunNote.NoProvider) }
+            val note = if (planRun != null) RunNote.PlanRunUnavailable(planRun.label, "its provider is no longer set up") else RunNote.NoProvider
+            taskEnds[conversationId] = TaskEnd(dev.locus.core.model.TaskOutcome.FAILED, note.english)
+            update(conversationId) { it.withError(note) }
             return
         }
-        // The comparison's model, with the chat's own effort mapped to its format.
-        val provider = chatProvider(base, if (compare != null) conversation.copy(modelOverride = compare.model) else conversation)
+        // The comparison's or the plan's model, with the chat's own effort mapped to its format.
+        val provider = chatProvider(
+            base,
+            when {
+                compare != null -> conversation.copy(modelOverride = compare.model)
+                planRun != null -> conversation.copy(modelOverride = planRun.ref.model)
+                else -> conversation
+            },
+        )
         if (compare != null) update(conversationId) { it.copy(comparing = FallbackChain.label(provider, provider.model)) }
+        if (planRun != null) update(conversationId) { it.copy(planRun = planRun.label) }
         access.missing(provider)?.let { problem ->
             taskEnds[conversationId] = TaskEnd(dev.locus.core.model.TaskOutcome.FAILED, problem)
             update(conversationId) { it.copy(error = problem) }
