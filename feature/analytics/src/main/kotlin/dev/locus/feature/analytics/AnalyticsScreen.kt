@@ -187,6 +187,12 @@ internal fun AnalyticsScreen(
                     }
                 }
             }
+            // Your picks from Compare models: every comparison so far, whatever the period (docs/design/compare-models.md).
+            if (state.picks.isNotEmpty()) {
+                item(key = "picks-label") { SectionLabel(stringResource(R.string.analytics_section_picks)) }
+                item(key = "picks-note") { SectionNote(stringResource(R.string.analytics_picks_note), Modifier.padding(start = Spacing.xs, bottom = Spacing.sm)) }
+                item(key = "picks") { PicksCard(state.picks) }
+            }
         }
     }
 }
@@ -687,5 +693,34 @@ internal fun modelTitle(m: ModelUsage, catalog: ModelCatalogIndex?, listed: Map<
     return fromProvider?.takeIf { it.isNotBlank() && it != m.model }
         ?: m.format?.let { catalog?.lookup(m.providerUrl, it, m.model)?.name?.takeIf(String::isNotBlank) }
         ?: dev.locus.core.model.ModelNames.short(m.model)
+}
+
+/**
+ * Your picks (docs/design/compare-models.md): one row per pair of models compared, each side with how often its
+ * answer was kept ("3 – 1"). TalkBack reads a row as one sentence.
+ */
+@Composable
+private fun PicksCard(picks: List<dev.locus.core.model.ModelPickTally>, modifier: Modifier = Modifier) {
+    CardGroup(modifier) {
+        picks.forEachIndexed { i, p ->
+            if (i > 0) GroupDivider()
+            val first = dev.locus.core.model.ModelNames.short(p.first.model)
+            val second = dev.locus.core.model.ModelNames.short(p.second.model)
+            val said = stringResource(R.string.analytics_picks_row_description, first, p.firstKept, second, p.secondKept)
+            // One line per model of the pair, its count at the end, so long names never squeeze the figures.
+            Column(
+                Modifier.fillMaxWidth().padding(horizontal = Spacing.lg, vertical = Spacing.md)
+                    .semantics(mergeDescendants = true) { contentDescription = said },
+                verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+            ) {
+                listOf(first to p.firstKept, second to p.secondKept).forEach { (name, kept) ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(name, Modifier.weight(1f), style = LocusType.rowTitle, maxLines = 2)
+                        Text(stringResource(R.string.analytics_picks_count, kept), Modifier.padding(start = Spacing.md), style = RowFigure)
+                    }
+                }
+            }
+        }
+    }
 }
 

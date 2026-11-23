@@ -105,6 +105,26 @@ class AnalyticsScreenshots : ScreenshotTest() {
 
     @Test fun populated() = snap("analytics", heightDp = 2600, content = screen(AnalyticsUiState(report = report)))
 
+    /** Your picks from Compare models, at the end: one row per pair, how often each answer was kept. */
+    @Test
+    fun picks() = snap(
+        "analytics-picks",
+        heightDp = 3200,
+        content = screen(
+            AnalyticsUiState(
+                report = report,
+                picks = listOf(
+                    dev.locus.core.model.ModelPickTally(
+                        dev.locus.core.model.ModelRef("anthropic", "claude-sonnet-4-5"), dev.locus.core.model.ModelRef("openrouter", "openai/gpt-5"), 5, 2,
+                    ),
+                    dev.locus.core.model.ModelPickTally(
+                        dev.locus.core.model.ModelRef("anthropic", "claude-sonnet-4-5"), dev.locus.core.model.ModelRef("openrouter", "deepseek/deepseek-chat-v3.1"), 1, 3,
+                    ),
+                ),
+            ),
+        ),
+    )
+
     @Test
     fun pricesOff() = snap(
         "analytics-prices-off",

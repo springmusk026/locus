@@ -103,6 +103,7 @@ one branch, shown and sent exactly as before. No row is changed apart from the n
 | Model requests, compaction, recovery, chat_history tools, reviewer | ✓ | |
 | Chat transcript, context ring, todo card | ✓ | |
 | Insights tokens and requests (spent is spent; fork copies excluded) | | ✓ |
+| A task's receipt: replies written during the task (Compare models answers on two branches) | | ✓ |
 | Home search and `chat_history_search` (a chat is found if any branch matches; fork copies skipped; docs/design/search.md) | | ✓ |
 | Activity / audit log (per chat and call) | | ✓ |
 

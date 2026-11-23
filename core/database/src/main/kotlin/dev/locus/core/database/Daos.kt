@@ -281,6 +281,10 @@ interface ScheduledTaskDao {
     @Query("UPDATE scheduled_tasks SET lastSeenRunAt = lastRunAt WHERE id = :id")
     suspend fun markSeen(id: String): Int
 
+    /** The user opened chat [conversationId]: the latest result of a task whose last run wrote it counts as seen. */
+    @Query("UPDATE scheduled_tasks SET lastSeenRunAt = lastRunAt WHERE lastConversationId = :conversationId AND lastRunAt IS NOT NULL")
+    suspend fun markSeenForChat(conversationId: String): Int
+
     /** Every task's latest result counts as seen ("Mark all read"). */
     @Query("UPDATE scheduled_tasks SET lastSeenRunAt = lastRunAt WHERE lastRunAt IS NOT NULL")
     suspend fun markAllSeen(): Int
@@ -494,6 +498,19 @@ data class HelperUsageRow(
     val model: String?,
 )
 
+/**
+ * One assistant turn of a chat, on any branch: its id, when it was stored, what it used and who answered.
+ * A task's receipt counts the turns written during it on other branches too (Compare models writes two).
+ */
+data class ReplyUsageRow(
+    val id: String,
+    val createdAt: Long,
+    val usageJson: String?,
+    val providerId: String?,
+    val model: String?,
+    val fallbackFrom: String?,
+)
+
 /** What a chat's task receipts read besides its messages: helpers' requests, side requests and the audit log. Read-only. */
 @Dao
 interface ReceiptDao {
@@ -505,6 +522,13 @@ interface ReceiptDao {
             "WHERE c.parentConversationId = :parentId AND m.role = 'ASSISTANT' ORDER BY m.seq",
     )
     fun observeHelperUsage(parentId: String): Flow<List<HelperUsageRow>>
+
+    /** Every assistant turn of [conversationId], on every branch, oldest first; fork copies are left out. */
+    @Query(
+        "SELECT id, createdAt, usageJson, providerId, model, fallbackFrom FROM messages " +
+            "WHERE conversationId = :conversationId AND role = 'ASSISTANT' AND copiedFrom IS NULL ORDER BY seq",
+    )
+    fun observeReplyUsage(conversationId: String): Flow<List<ReplyUsageRow>>
 
     /** Side requests (compaction, the safety reviewer…) of one chat, oldest first. */
     @Query("SELECT * FROM usage_events WHERE conversationId = :conversationId ORDER BY seq")

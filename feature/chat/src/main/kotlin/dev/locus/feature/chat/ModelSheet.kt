@@ -68,6 +68,14 @@ internal fun ModelSheet(
     onToggleFavorite: (ModelRef) -> Unit,
     onEnableCatalog: () -> Unit,
     onDismiss: () -> Unit,
+    /**
+     * Compare models (docs/design/compare-models.md): the sheet picks the second model for the next send instead
+     * of the chat's model. The chat's own model and models known not to serve the chat can't be picked, and the
+     * current second model is the one marked.
+     */
+    compare: Boolean = false,
+    /** In [compare] mode with a second model picked: Stop comparing. */
+    onClearCompare: (() -> Unit)? = null,
 ) {
     LaunchedEffect(Unit) { onOpen() }
     val current = state.provider
@@ -76,9 +84,9 @@ internal fun ModelSheet(
     // Only the chat's provider starts open; the rest open on tap (or all while searching).
     var expanded by rememberSaveable { mutableStateOf(listOfNotNull(current?.id)) }
     val searching = query.isNotBlank()
-    val sections = remember(state.providers, picker, current?.id, state.controls, query) {
+    val sections = remember(state.providers, picker, current?.id, state.controls, query, compare) {
         val catalog = picker.catalog
-        buildModelPicker(
+        val built = buildModelPicker(
             providers = state.providers,
             lists = picker.lists,
             currentProviderId = current?.id,
@@ -87,16 +95,22 @@ internal fun ModelSheet(
             recents = picker.recents,
             query = query,
             catalog = { p, id -> catalog?.lookup(p.baseUrl, p.format, id) },
-            needs = picker.needs,
+            needs = if (compare) compareNeeds(picker.needs, state.controls.chatOnly) else picker.needs,
         )
+        if (compare) built.forCompare(state.controls.compare?.ref) else built
     }
     // A pick of the provider's default stores no override, so the chat follows the default.
     val pick = { row: PickerRow -> onPick(row.ref.providerId, row.id) }
 
-    LocusSheet(title = stringResource(R.string.chat_modelsheet_title), subtitle = stringResource(R.string.chat_modelsheet_subtitle), onDismiss = onDismiss) {
+    LocusSheet(
+        title = stringResource(if (compare) R.string.chat_compare_sheet_title else R.string.chat_modelsheet_title),
+        subtitle = stringResource(if (compare) R.string.chat_compare_sheet_subtitle else R.string.chat_modelsheet_subtitle),
+        onDismiss = onDismiss,
+    ) {
+        if (compare) CompareSheetHeader(onClearCompare)
         SearchField(query, onQueryChange = { query = it }, placeholder = stringResource(R.string.chat_modelsheet_search), modifier = Modifier.padding(vertical = Spacing.xs))
         val anyChatOnly = sections.any { s -> s.rows.any { it.caps.tools == dev.locus.core.llm.Support.NO } }
-        chatOnlyNote(state.controls, anyChatOnly)?.let { SectionNote(it.asString(), Modifier.padding(bottom = Spacing.sm)) }
+        if (!compare) chatOnlyNote(state.controls, anyChatOnly)?.let { SectionNote(it.asString(), Modifier.padding(bottom = Spacing.sm)) }
         val firstProvider = sections.indexOfFirst { it.provider != null }
         sections.forEachIndexed { index, section ->
             val provider = section.provider
@@ -111,7 +125,7 @@ internal fun ModelSheet(
                 LocusCard(contentPadding = PaddingValues(0.dp)) {
                     section.rows.forEachIndexed { i, row ->
                         if (i > 0) GroupDivider(inset = Spacing.lg)
-                        PickerModelRow(row, showProvider = true, onPick = { pick(row) }, onToggleFavorite = { onToggleFavorite(row.ref) })
+                        PickerModelRow(row, showProvider = true, onPick = { pick(row) }, onToggleFavorite = { onToggleFavorite(row.ref) }, compare = compare)
                     }
                 }
             } else {
@@ -127,13 +141,14 @@ internal fun ModelSheet(
                     onToggle = { expanded = if (provider.id in expanded) expanded - provider.id else expanded + provider.id },
                     onPick = pick,
                     onToggleFavorite = onToggleFavorite,
+                    compare = compare,
                 )
             }
         }
         if (searching && sections.none { it.rows.isNotEmpty() }) SectionNote(stringResource(R.string.chat_modelsheet_no_match, query.trim()), Modifier.padding(top = Spacing.md))
         if (!picker.catalogOn) CatalogOffer(onEnableCatalog)
         // On-device models live on their own screen; the app routes this link there.
-        dev.locus.core.designsystem.Locus.settings?.let { links ->
+        if (!compare) dev.locus.core.designsystem.Locus.settings?.let { links ->
             LocusCard(Modifier.padding(top = Spacing.md), contentPadding = PaddingValues(0.dp)) {
                 dev.locus.core.designsystem.AddRow(stringResource(R.string.chat_modelsheet_get_on_device), icon = dev.locus.core.designsystem.LocusIcons.Phone) {
                     onDismiss()
@@ -142,7 +157,7 @@ internal fun ModelSheet(
             }
         }
         SectionNote(
-            stringResource(R.string.chat_modelsheet_cache_note),
+            stringResource(if (compare) R.string.chat_compare_cache_note else R.string.chat_modelsheet_cache_note),
             Modifier.padding(top = Spacing.md),
         )
     }
@@ -158,6 +173,7 @@ private fun ProviderCard(
     onToggle: () -> Unit,
     onPick: (PickerRow) -> Unit,
     onToggleFavorite: (ModelRef) -> Unit,
+    compare: Boolean = false,
 ) {
     val hideShowLabel = stringResource(if (open) R.string.chat_modelsheet_hide else R.string.chat_modelsheet_show)
     val expandedLabel = stringResource(if (open) R.string.chat_modelsheet_expanded else R.string.chat_modelsheet_collapsed)
@@ -189,7 +205,7 @@ private fun ProviderCard(
         if (open) {
             section.rows.forEach { row ->
                 GroupDivider(inset = 0.dp)
-                PickerModelRow(row, showProvider = false, onPick = { onPick(row) }, onToggleFavorite = { onToggleFavorite(row.ref) })
+                PickerModelRow(row, showProvider = false, onPick = { onPick(row) }, onToggleFavorite = { onToggleFavorite(row.ref) }, compare = compare)
             }
             when (val list = section.list) {
                 is ModelList.Failed -> SectionNote(stringResource(R.string.chat_modelsheet_load_failed, list.message), Modifier.padding(top = Spacing.sm))
@@ -225,9 +241,10 @@ internal fun providerStatus(resources: Resources, list: ModelList?, default: Str
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun PickerModelRow(row: PickerRow, showProvider: Boolean, onPick: () -> Unit, onToggleFavorite: () -> Unit) {
+private fun PickerModelRow(row: PickerRow, showProvider: Boolean, onPick: () -> Unit, onToggleFavorite: () -> Unit, compare: Boolean = false) {
     val resources = LocalResources.current
-    val inUse = stringResource(R.string.chat_modelsheet_in_use)
+    // Picking the second model (Compare): the marked row is that one, and the chat's own model says so.
+    val inUse = stringResource(if (compare) R.string.chat_compare_second_chip else R.string.chat_modelsheet_in_use)
     val subtitle = listOfNotNull(
         row.detail ?: row.id.takeIf { it != row.title },
         row.providerName.takeIf { showProvider },
@@ -238,7 +255,7 @@ private fun PickerModelRow(row: PickerRow, showProvider: Boolean, onPick: () -> 
     ).joinToString(" · ").ifEmpty { null }
     // The chat's model says so in its chips, not with a check in the trailing column, so the name
     // and detail keep the row's width beside the star (at 200% font too).
-    val chips = listOfNotNull((inUse to Tone.Brand).takeIf { row.selected }) +
+    val chips = listOfNotNull((inUse to Tone.Brand).takeIf { row.selected }, (stringResource(R.string.chat_compare_chat_chip) to Tone.Neutral).takeIf { row.chatModel }) +
         capabilityChips(resources, row.caps).map { it to Tone.Neutral } +
         listOfNotNull(chatOnlyChip(row.caps, row.fit)?.let { it to Tone.Caution }, cantUseLabel(resources, row.fit)?.let { it to Tone.Caution })
     ListRow(
@@ -248,6 +265,7 @@ private fun PickerModelRow(row: PickerRow, showProvider: Boolean, onPick: () -> 
         titleMaxLines = 2,
         subtitleMaxLines = 3,
         onClick = onPick,
+        enabled = row.pickable,
         modifier = Modifier.semantics {
             selected = row.selected
             if (row.selected) stateDescription = inUse
