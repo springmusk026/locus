@@ -809,6 +809,11 @@
     <string name="settings_models_effort_xhigh">X-high</string>
     <string name="settings_models_effort_note_model">Default lets the model use its own level (%1$s for this model). Higher effort thinks longer and costs more.</string>
     <string name="settings_models_effort_note">Default lets the model use its own level. Higher effort thinks longer and costs more.</string>
+    <string name="settings_models_effort_offer_title">Saved with High, the old default</string>
+    <string name="settings_models_effort_offer_title_named">%1$s is still on High</string>
+    <string name="settings_models_effort_offer_text">High was every provider\'s default before Locus 0.1.7. This model\'s own level is %1$s: replies start sooner and use fewer thinking tokens, so they cost less, though hard tasks may get less thorough answers. Chats you already have keep High, so their cached prompt still works; new chats use the model\'s default. You can change it any time under Effort in this provider.</string>
+    <string name="settings_models_effort_offer_keep">Keep High</string>
+    <string name="settings_models_effort_offer_use">Use the model\'s default</string>
     <string name="settings_models_make_default">Make default</string>
     <string name="settings_models_remove_provider">Remove provider</string>
     <string name="settings_models_remove_title">Remove %1$s?</string>

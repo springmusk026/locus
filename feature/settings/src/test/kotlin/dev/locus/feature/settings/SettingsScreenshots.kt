@@ -169,6 +169,20 @@ class SettingsScreenshots : ScreenshotTest() {
     @Test fun models() = snap("settings-models", heightDp = 1200) { SettingsScreenHost(populated, SettingsDestination.Models) }
     @Test fun modelsEmpty() = snap("settings-models-empty") { SettingsScreenHost(fresh, SettingsDestination.Models) }
 
+    /** A provider still on the old "high" default, on a model whose own level is medium (docs/design/cost.md#effort). */
+    private val effortOffer: SettingsUiState by lazy {
+        val opus = anthropic.copy(model = "claude-opus-5-5", effort = "high")
+        populated.copy(
+            providers = listOf(ProviderRow(opus, hasKey = true, isDefault = true, offersModelDefault = true, modelEffort = dev.locus.core.model.Effort.MEDIUM)) +
+                populated.providers.drop(1),
+        )
+    }
+
+    @Test fun modelsEffortOffer() = snap("settings-models-effort-offer", heightDp = 1400) { SettingsScreenHost(effortOffer, SettingsDestination.Models) }
+    @Test fun modelsEffortOfferSheet() = snapAfter("settings-models-effort-offer-sheet", listOf(Step.Tap("Anthropic")), heightDp = 1900) {
+        SettingsScreenHost(effortOffer, SettingsDestination.Models)
+    }
+
     @Test fun extras() = snap("settings-extras", heightDp = 1000) { SettingsScreenHost(populated, SettingsDestination.Extras) }
     @Test fun extrasDefaults() = snap("settings-extras-defaults", heightDp = 1000) { SettingsScreenHost(fresh, SettingsDestination.Extras) }
 

@@ -812,6 +812,11 @@
     <string name="settings_models_effort_xhigh">Muito alto</string>
     <string name="settings_models_effort_note_model">Padrão deixa o modelo usar o próprio nível (%1$s para este modelo). Um esforço maior pensa por mais tempo e custa mais.</string>
     <string name="settings_models_effort_note">Padrão deixa o modelo usar o próprio nível. Um esforço maior pensa por mais tempo e custa mais.</string>
+    <string name="settings_models_effort_offer_title">Salvo em Alto, o padrão anterior</string>
+    <string name="settings_models_effort_offer_title_named">%1$s ainda está em Alto</string>
+    <string name="settings_models_effort_offer_text">Alto era o padrão de todos os provedores antes do Locus 0.1.7. O nível próprio deste modelo é %1$s: as respostas começam antes e usam menos tokens de raciocínio, então custam menos, embora tarefas difíceis possam ter respostas menos minuciosas. As conversas que você já tem continuam em Alto, então o prompt em cache delas continua valendo; conversas novas usam o padrão do modelo. Você pode mudar isso quando quiser em Esforço, neste provedor.</string>
+    <string name="settings_models_effort_offer_keep">Manter Alto</string>
+    <string name="settings_models_effort_offer_use">Usar o padrão do modelo</string>
     <string name="settings_models_make_default">Tornar padrão</string>
     <string name="settings_models_remove_provider">Remover provedor</string>
     <string name="settings_models_remove_title">Remover %1$s?</string>

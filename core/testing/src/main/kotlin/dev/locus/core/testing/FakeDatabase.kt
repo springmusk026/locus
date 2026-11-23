@@ -123,6 +123,22 @@ class FakeDatabase {
         override suspend fun setProvider(id: String, providerId: String) = updateConversation(id) { it.copy(providerId = providerId) }
         override suspend fun setModelOverride(id: String, model: String?) = updateConversation(id) { it.copy(modelOverride = model) }
         override suspend fun setEffort(id: String, effort: String?) = updateConversation(id) { it.copy(effort = effort) }
+        override suspend fun keepEffort(providerId: String, orphans: Boolean, known: List<String>, effort: String): Int {
+            var changed = 0
+            write { t ->
+                val updated = t.conversations.mapValues { (_, c) ->
+                    val follows = c.providerId == providerId || (orphans && (c.providerId == null || c.providerId !in known))
+                    if (c.effort == null && c.parentConversationId == null && follows && t.messages.any { it.conversationId == c.id }) {
+                        changed++
+                        c.copy(effort = effort)
+                    } else {
+                        c
+                    }
+                }
+                t.copy(conversations = updated)
+            }
+            return changed
+        }
         override suspend fun setPlanMode(id: String, on: Boolean) = updateConversation(id) { it.copy(planMode = on) }
         override suspend fun setChatOnly(id: String, on: Boolean) = updateConversation(id) { it.copy(chatOnly = on) }
         override suspend fun setDisabledTools(id: String, keys: String) = updateConversation(id) { it.copy(disabledTools = keys) }

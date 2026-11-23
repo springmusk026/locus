@@ -50,7 +50,7 @@ class SettingsViewModelTest {
 
     private fun TestScope.fixture(settings: AppSettings = AppSettings()): Fixture {
         val g = TestGraph(backgroundScope, settings, dispatcher = StandardTestDispatcher(testScheduler))
-        val vm = host.add(SettingsViewModel(g.settingsRepository, g.tools, g.ssh, g.onDeviceModels, g.onDevice, g.ggufModels, g.chatGpt, g.telegram, g.email, g.reachMe, g.mcpPreference, g.io, g.directory))
+        val vm = host.add(SettingsViewModel(g.settingsRepository, g.tools, g.ssh, g.onDeviceModels, g.onDevice, g.ggufModels, g.chatGpt, g.telegram, g.email, g.reachMe, g.mcpPreference, g.io, g.directory, g.conversations))
         backgroundScope.launch { vm.uiState.collect {} }
         runCurrent()
         return Fixture(g, vm)
@@ -203,5 +203,29 @@ class SettingsViewModelTest {
     fun `on-device models are listed with their state`() = runTest {
         val s = fixture().vm.state { it.onDeviceModels.isNotEmpty() }
         assertEquals(listOf("gemma-4-e2b", "gemma-4-e4b"), s.onDeviceModels.map { it.first.id })
+    }
+
+    @Test
+    fun `a provider on the old high default is offered the model's own effort until the user answers`() = runTest {
+        val opus = ProviderConfig("o", "Claude", ApiFormat.ANTHROPIC_MESSAGES, "https://api.anthropic.test", "claude-opus-5-5", effort = "high")
+        val gpt = ProviderConfig("g", "OpenAI", ApiFormat.OPENAI_RESPONSES, "https://api.openai.test/v1", "gpt-6", effort = "high")
+        val f = fixture(AppSettings(providers = listOf(opus, gpt), defaultProviderId = "o"))
+        val chat = f.graph.conversations.create("o").also { f.graph.conversations.appendUserMessage(it.id, "Hi") }
+
+        val offered = f.vm.state { it.providers.size == 2 }
+        assertEquals(listOf(true, true), offered.providers.map { it.offersModelDefault })
+        assertEquals(listOf(dev.locus.core.model.Effort.MEDIUM, dev.locus.core.model.Effort.MEDIUM), offered.providers.map { it.modelEffort })
+
+        // Keep High: nothing changes but the answer, which persists.
+        f.vm.keepProviderEffort("g").join()
+        val kept = f.vm.state { s -> s.providers.none { it.config.id == "g" && it.offersModelDefault } }
+        assertEquals("high", kept.providers.first { it.config.id == "g" }.config.effort)
+        assertTrue("g" in f.graph.settingsRepository.current().effortChosen)
+
+        // The tap: the provider sends no effort for new chats; the chat that already talked keeps High.
+        f.vm.useModelDefaultEffort("o").join()
+        val moved = f.vm.state { s -> s.providers.none { it.offersModelDefault } }
+        assertEquals("", moved.providers.first { it.config.id == "o" }.config.effort)
+        assertEquals(dev.locus.core.model.Effort.HIGH, f.graph.conversations.get(chat.id)?.effort)
     }
 }

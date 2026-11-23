@@ -812,6 +812,11 @@
     <string name="settings_models_effort_xhigh">Muy alto</string>
     <string name="settings_models_effort_note_model">Predeterminado deja que el modelo use su propio nivel (%1$s para este modelo). Un esfuerzo mayor piensa más tiempo y cuesta más.</string>
     <string name="settings_models_effort_note">Predeterminado deja que el modelo use su propio nivel. Un esfuerzo mayor piensa más tiempo y cuesta más.</string>
+    <string name="settings_models_effort_offer_title">Guardado en Alto, el valor predeterminado anterior</string>
+    <string name="settings_models_effort_offer_title_named">%1$s sigue en Alto</string>
+    <string name="settings_models_effort_offer_text">Alto era el valor predeterminado de todos los proveedores antes de Locus 0.1.7. El nivel propio de este modelo es %1$s: las respuestas empiezan antes y usan menos tokens de razonamiento, así que cuestan menos, aunque en tareas difíciles pueden ser menos minuciosas. Los chats que ya tienes siguen en Alto, así su prompt en caché sigue sirviendo; los chats nuevos usan el valor predeterminado del modelo. Puedes cambiarlo cuando quieras en Esfuerzo, en este proveedor.</string>
+    <string name="settings_models_effort_offer_keep">Mantener Alto</string>
+    <string name="settings_models_effort_offer_use">Usar el predeterminado del modelo</string>
     <string name="settings_models_make_default">Hacer predeterminado</string>
     <string name="settings_models_remove_provider">Quitar proveedor</string>
     <string name="settings_models_remove_title">¿Quitar %1$s?</string>
