@@ -708,12 +708,14 @@ private fun Modifier.verticalScrollCompat() = this.verticalScroll(androidx.compo
 // Tokens
 // ---------------------------------------------------------------------------------------------
 
-/** 942 → "942", 12_400 → "12.4k", 1_000_000 → "1M", in the app's language. */
+/** 942 → "942", 12_400 → "12.4k", 1_000_000 → "1M", 1_087_500_000 → "1.1B", in the app's language. */
 fun compactCount(resources: Resources, n: Long): String = when {
     n < 1_000 -> "$n"
     n < 100_000 -> resources.getString(R.string.designsystem_count_thousands, oneDecimal(n / 1_000.0))
     n < 1_000_000 -> resources.getString(R.string.designsystem_count_thousands, "${n / 1_000}")
-    else -> resources.getString(R.string.designsystem_count_millions, oneDecimal(n / 1_000_000.0))
+    n < 100_000_000 -> resources.getString(R.string.designsystem_count_millions, oneDecimal(n / 1_000_000.0))
+    n < 1_000_000_000 -> resources.getString(R.string.designsystem_count_millions, "${n / 1_000_000}")
+    else -> resources.getString(R.string.designsystem_count_billions, oneDecimal(n / 1_000_000_000.0))
 }
 
 /**
@@ -724,7 +726,9 @@ fun compactCountEnglish(n: Long): String = when {
     n < 1_000 -> "$n"
     n < 100_000 -> "%.1fk".format(n / 1_000.0).replace(".0k", "k")
     n < 1_000_000 -> "${n / 1_000}k"
-    else -> "%.1fM".format(n / 1_000_000.0).replace(".0M", "M")
+    n < 100_000_000 -> "%.1fM".format(n / 1_000_000.0).replace(".0M", "M")
+    n < 1_000_000_000 -> "${n / 1_000_000}M"
+    else -> "%.1fB".format(n / 1_000_000_000.0).replace(".0B", "B")
 }
 
 /** [compactCount] in the composition's resources. */

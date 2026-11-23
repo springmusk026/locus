@@ -116,4 +116,5 @@
     <string name="analytics_section_picks">Suas escolhas</string>
     <string name="analytics_picks_note">De Comparar modelos nos chats: quantas vezes você ficou com a resposta de cada modelo. Fica só neste telefone e nunca é enviado.</string>
     <string name="analytics_picks_row_description">%1$s escolhida %2$d, %3$s escolhida %4$d</string>
+    <string name="analytics_updating">Atualizando…</string>
 </resources>

@@ -1,6 +1,7 @@
 package dev.locus.feature.analytics
 
 import androidx.lifecycle.SavedStateHandle
+import dev.locus.core.data.repository.AnalyticsPeriod
 import dev.locus.core.data.repository.AnalyticsRepository
 import dev.locus.core.model.AppSettings
 import dev.locus.core.testing.MainDispatcherRule
@@ -48,6 +49,18 @@ class AnalyticsViewModelTest {
     private suspend fun AnalyticsViewModel.turnOnAndWait(expected: PricesSetup): AnalyticsUiState {
         assertNotNull(turnOnPrices(), "a tap while idle starts it").join()
         return uiState.first { it.prices == expected }
+    }
+
+    @Test
+    fun `each period gets its own report after switching`() = runTest {
+        val vm = insights(graph())
+        assertEquals(AnalyticsPeriod.Week, vm.uiState.first { it.report != null }.report?.period)
+        for (period in listOf(AnalyticsPeriod.Month, AnalyticsPeriod.All, AnalyticsPeriod.Week)) {
+            vm.setPeriod(period)
+            // The selection moves at once; the screen shows "Updating…" until the report for it arrives.
+            assertEquals(period, vm.uiState.first { it.period == period }.period)
+            assertEquals(period, vm.uiState.first { it.report?.period == period }.report?.period)
+        }
     }
 
     @Test

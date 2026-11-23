@@ -137,6 +137,13 @@ internal fun AnalyticsScreen(
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
+            // Another period's report stays on screen until this one is built: say so, rather than show its numbers as this period's.
+            if (report != null && report.period != state.period) {
+                item(key = "updating") {
+                    val updating = stringResource(R.string.analytics_updating)
+                    Meter(null, Modifier.padding(top = Spacing.sm), contentDescription = updating)
+                }
+            }
             when {
                 report == null -> item(key = "loading") { LoadingState(Modifier.fillParentMaxHeight(StateHeight)) }
                 report.isEmpty -> item(key = "empty") {
@@ -148,6 +155,18 @@ internal fun AnalyticsScreen(
                     )
                 }
                 else -> {
+                    // The dates the figures cover: "All" starts at the first day with anything in it, so a short
+                    // history shows why 30 days and All read the same.
+                    item(key = "range") {
+                        val context = androidx.compose.ui.platform.LocalContext.current
+                        val range = remember(report.from, report.to) {
+                            android.text.format.DateUtils.formatDateRange(
+                                context, report.from, report.to,
+                                android.text.format.DateUtils.FORMAT_SHOW_DATE or android.text.format.DateUtils.FORMAT_ABBREV_MONTH,
+                            )
+                        }
+                        SectionNote(range, Modifier.padding(top = Spacing.sm, start = Spacing.xs))
+                    }
                     item(key = "hero") { TokensCard(report, Modifier.padding(top = Spacing.md).entrance(0)) }
                     item(key = "speed") { SpeedRow(report, Modifier.padding(top = Spacing.md).entrance(1)) }
                     item(key = "cost-label") { SectionLabel(stringResource(R.string.analytics_section_spend)) }

@@ -19,13 +19,13 @@ import dev.locus.core.model.TASK_BUDGET_ENTRY
 import dev.locus.core.model.TokenUsage
 import dev.locus.core.model.UsageSource
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
 import java.time.Instant
 import java.time.LocalDate
@@ -223,8 +223,12 @@ class AnalyticsRepository @Inject constructor(
     private val usageEvents: UsageEventDao,
     private val directory: ModelDirectory,
 ) {
-    /** Live report for [period]; re-computed (at most twice a second) as chats and tool calls land. */
-    @OptIn(FlowPreview::class)
+    /**
+     * Live report for [period], re-computed as chats and tool calls land. Each new state of the database is
+     * built at most once, newest first ([conflate]): a chat that keeps writing while Insights is open never
+     * holds the report back (a debounce would wait for a quiet half second that never comes), and states that
+     * arrive while a report is being built are skipped for the latest one.
+     */
     fun report(period: AnalyticsPeriod, zone: ZoneId = ZoneId.systemDefault()): Flow<AnalyticsReport> {
         val now = System.currentTimeMillis()
         val since = period.days?.let { LocalDate.now(zone).minusDays(it - 1L).atStartOfDay(zone).toInstant().toEpochMilli() } ?: 0L
@@ -236,30 +240,51 @@ class AnalyticsRepository @Inject constructor(
             conversations.observeAll(),
             settings.settings,
             tasks.tasks,
-        ) { (m, e, catalog), a, c, s, t ->
+        ) { (m, e, catalog), a, c, s, t -> ReportInputs(m, e, catalog, a, c, s, t) }
+            .distinctUntilChanged()
+            .conflate()
             // The spend's windows end now, not when the screen opened: a request made while Insights is open counts today.
-            buildReport(period, since, maxOf(now, System.currentTimeMillis()), m, a, c, s, t, zone, e, priceLookup(s, catalog), s.modelCatalog)
-        }
-            .debounce(500)
+            .map { i -> buildReport(period, since, maxOf(now, System.currentTimeMillis()), i.messages, i.audit, i.conversations, i.settings, i.tasks, zone, i.events, priceLookup(i.settings, i.catalog), i.settings.modelCatalog) }
             .flowOn(Dispatchers.Default)
     }
+
+    /** What a report is built from; equal inputs build the same report, so a repeated database emission is skipped. */
+    private data class ReportInputs(
+        val messages: List<MessageStatRow>,
+        val events: List<UsageEventEntity>,
+        val catalog: ModelCatalogIndex?,
+        val audit: List<AuditStatRow>,
+        val conversations: List<ConversationEntity>,
+        val settings: AppSettings,
+        val tasks: List<ScheduledTask>,
+    )
 
     /**
      * Today's usage across every provider and source, counted exactly as Insights counts it ([buildReport]'s
      * tokens, requests and `cost.today`), for the usage widget. Reads only today's requests, starts over at
-     * local midnight while collected, and re-computes (at most twice a second) as requests land.
+     * local midnight while collected, and re-computes as requests land, newest state first (see [report]).
      */
-    @OptIn(FlowPreview::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     fun today(zone: ZoneId = ZoneId.systemDefault()): Flow<UsageToday> = dayStarts(zone).flatMapLatest { from ->
-        combine(messages.observeStats(from), usageEvents.observeSince(from), directory.catalog, settings.settings) { m, e, catalog, s ->
-            // No chats or tool log: today's rows all store their provider and model (v9), and only totals are read.
-            val report = buildReport(AnalyticsPeriod.Week, from, System.currentTimeMillis(), m, emptyList(), emptyList(), s, emptyList(), zone, e, priceLookup(s, catalog), s.modelCatalog)
-            UsageToday(tokens = report.tokens.total, requests = report.requests, cost = report.cost.today, pricesOn = s.modelCatalog)
-        }
+        combine(messages.observeStats(from), usageEvents.observeSince(from), directory.catalog, settings.settings) { m, e, catalog, s -> TodayInputs(from, m, e, catalog, s) }
+            .distinctUntilChanged()
+            .conflate()
+            .map { i ->
+                // No chats or tool log: today's rows all store their provider and model (v9), and only totals are read.
+                val report = buildReport(AnalyticsPeriod.Week, i.from, System.currentTimeMillis(), i.messages, emptyList(), emptyList(), i.settings, emptyList(), zone, i.events, priceLookup(i.settings, i.catalog), i.settings.modelCatalog)
+                UsageToday(tokens = report.tokens.total, requests = report.requests, cost = report.cost.today, pricesOn = i.settings.modelCatalog)
+            }
     }
         .distinctUntilChanged()
-        .debounce(500)
         .flowOn(Dispatchers.Default)
+
+    private data class TodayInputs(
+        val from: Long,
+        val messages: List<MessageStatRow>,
+        val events: List<UsageEventEntity>,
+        val catalog: ModelCatalogIndex?,
+        val settings: AppSettings,
+    )
 
     internal companion object {
         private val json = Json { ignoreUnknownKeys = true }
@@ -328,9 +353,17 @@ class AnalyticsRepository @Inject constructor(
                 else settings.provider(c?.providerId).let { p -> p?.id to (c?.modelOverride ?: p?.model.orEmpty()) }
 
             fun usageOf(usageJson: String?) = usageJson?.let { runCatching { json.decodeFromString(TokenUsage.serializer(), it) }.getOrNull() }
+            // Each request's usage is decoded once and each model's price looked up once: a report reads every
+            // request of the last 30 days, often thousands, and is rebuilt as requests land.
+            val usages = java.util.IdentityHashMap<Any, TokenUsage?>()
+            fun usageFor(row: Any, usageJson: String?): TokenUsage? =
+                if (usages.containsKey(row)) usages[row] else usageOf(usageJson).also { usages[row] = it }
+            val prices = HashMap<Pair<String?, String>, ModelPrice?>()
+            fun priceOf(model: Pair<String?, String>): ModelPrice? =
+                if (prices.containsKey(model)) prices[model] else price(model.first, model.second.ifBlank { null }).also { prices[model] = it }
             /** One request's estimated cost; null when its model has no known price or it has no token counts. */
             fun costOf(model: Pair<String?, String>, usage: TokenUsage?): Double? =
-                usage?.let { u -> price(model.first, model.second.ifBlank { null })?.cost(u) }
+                usage?.let { u -> priceOf(model)?.cost(u) }
             val bucketCost = Array(count) { CostEstimate() }
             var periodCost = CostEstimate()
             val modelCost = HashMap<Pair<String?, String>, CostEstimate>()
@@ -364,8 +397,7 @@ class AnalyticsRepository @Inject constructor(
              * A summary the provider wrote inside the request ([TokenUsage.serverCompaction]) was billed as one
              * more request: it's counted on its own, under "compaction".
              */
-            fun count(at: Long, conversationId: String?, model: Pair<String?, String>, source: UsageSource, usageJson: String?) {
-                val all = usageOf(usageJson)
+            fun count(at: Long, conversationId: String?, model: Pair<String?, String>, source: UsageSource, all: TokenUsage?) {
                 countOne(at, conversationId, model, source, all?.withoutCompaction)
                 all?.serverCompaction?.let { countOne(at, conversationId, model, UsageSource.COMPACTION, it) }
             }
@@ -378,7 +410,7 @@ class AnalyticsRepository @Inject constructor(
                 if (row.role != "ASSISTANT") continue
                 val chat = byConversation[row.conversationId]
                 val source = if (chat?.parentConversationId != null) UsageSource.HELPER else UsageSource.CHAT
-                count(row.createdAt, row.conversationId, modelKey(row.providerId, row.model, chat), source, row.usageJson)
+                count(row.createdAt, row.conversationId, modelKey(row.providerId, row.model, chat), source, usageFor(row, row.usageJson))
                 val totalMs = row.totalMs
                 if (totalMs != null) {
                     replyTimes += totalMs
@@ -389,7 +421,7 @@ class AnalyticsRepository @Inject constructor(
                 }
             }
             for (e in events) {
-                count(e.createdAt, e.conversationId, modelKey(e.providerId, e.model, null), UsageSource.parse(e.source), e.usageJson)
+                count(e.createdAt, e.conversationId, modelKey(e.providerId, e.model, null), UsageSource.parse(e.source), usageFor(e, e.usageJson))
             }
 
             // The spend's fixed windows (today, 7 and 30 days, ending today), from every request read.
@@ -400,15 +432,15 @@ class AnalyticsRepository @Inject constructor(
             var todayCost = CostEstimate()
             var weekCost = CostEstimate()
             var monthCost = CostEstimate()
-            fun window(at: Long, model: Pair<String?, String>, usageJson: String?) {
+            fun window(at: Long, model: Pair<String?, String>, usage: TokenUsage?) {
                 if (at < monthFrom || at > now) return
-                val cost = costOf(model, usageOf(usageJson))
+                val cost = costOf(model, usage)
                 monthCost += cost
                 if (at >= weekFrom) weekCost += cost
                 if (at >= todayFrom) todayCost += cost
             }
-            messageRows.filter { it.role == "ASSISTANT" }.forEach { row -> window(row.createdAt, modelKey(row.providerId, row.model, byConversation[row.conversationId]), row.usageJson) }
-            eventRows.forEach { e -> window(e.createdAt, modelKey(e.providerId, e.model, null), e.usageJson) }
+            messageRows.filter { it.role == "ASSISTANT" }.forEach { row -> window(row.createdAt, modelKey(row.providerId, row.model, byConversation[row.conversationId]), usageFor(row, row.usageJson)) }
+            eventRows.forEach { e -> window(e.createdAt, modelKey(e.providerId, e.model, null), usageFor(e, e.usageJson)) }
             /** Most spent first; unknown ones (nothing priced) last, by how many requests they made. */
             val byCost = compareByDescending<CostEstimate> { it.priced > 0 }.thenByDescending { it.usd }.thenByDescending { it.requests }
 
