@@ -2081,6 +2081,8 @@ class AgentRunner @Inject constructor(
                                     update(conversationId) { it.withProgress(null).withNotice(RunNote.Compacted(event.replaced)) }
                                 }
                                 is AgentEvent.CompactionFailed -> update(conversationId) { it.withProgress(null).withNotice(RunNote.CompactionFailed(event.reason)) }
+                                // A summary started in the background that wasn't used was billed: it counts like any other.
+                                is AgentEvent.SummaryUnused -> usage.record(dev.locus.core.model.UsageSource.COMPACTION, conversationId, event.providerId, event.model, event.usage, event.durationMs)
                                 is AgentEvent.Finished -> {
                                     // A model failure gets its details and what to try next (docs/design/provider-failures.md).
                                     val failure = (event.outcome as? Outcome.Failed)?.let { runFailure(conversationId, it, provider) }
@@ -2304,6 +2306,8 @@ internal fun compactionSetup(
         contextWindow = provider.contextWindow.takeUnless { serverCompacts },
         prompt = dev.locus.core.model.HelperPrompts.compaction(settings),
         ceiling = dev.locus.core.model.PriceSteps.ceiling(provider.model, price).takeUnless { serverCompacts },
+        // Started early, beside the run, where the format allows it (docs/design/compaction.md, "Starting the summary early").
+        background = true,
     )
 }
 

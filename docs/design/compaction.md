@@ -38,6 +38,9 @@ in [cost](cost.md#compacting-below-a-price-step).
 A threshold compaction never runs at the step right after another one: if the summary view is
 already that large, summarising again wouldn't help (an overflow error still recovers).
 
+On Chat Completions models the summary usually starts earlier, in the background, and is ready by
+then; see [Starting the summary early](#starting-the-summary-early).
+
 Compaction comes before the user's queued messages are added at that boundary (#55). Those messages
 then follow the summary as ordinary messages, with their mid-task note, so the model reads them as
 new rather than as part of the summary.
@@ -151,6 +154,70 @@ checkpoint, `agent_send` continues from the checkpoint's view and no longer rese
 The whole result is passed through `SecretScrubber` with the vault's values first, as "What was sent"
 does. A checkpoint shows as "A summary was written here".
 
+### Starting the summary early
+
+Writing the summary at the threshold stops the task while the request runs. Codex starts its mid-turn
+compaction before the limit (`async_compaction::maybe_start` with `CompactionPhase::MidTurn`, `take_ready`),
+so nobody waits; Locus does the same.
+
+- **When.** At a step boundary where the context is past `CompactionSetup.earlyLimit`: 7/8 of the point
+  where compaction is due (`Compaction.EARLY_SHARE`), so 70% of the window at the 80% threshold, and
+  78,750 tokens below Haiku 5.5's 90,000 ceiling. Not at the step right after a compaction, and once per
+  stretch between compactions (one that failed isn't sent again each step). `compactionSetup` turns it
+  on for chats and helpers (`CompactionSetup.background`); there's no setting, since it changes when the
+  summary is written, not what the model sees or what compacting costs.
+- **The request.** Exactly the summary request the threshold would send at that boundary:
+  `Compaction.request` over the transcript so far, same system prompt, tools, cache key, task budget and
+  cold-cache view, plus the prompt. So it reads the prefix the step's own request just wrote, as today's
+  summary does. It goes out from a child coroutine of the run on the model serving the run then. It
+  doesn't touch the transcript: the run's own requests are exactly what they'd be without it until the
+  summary is used.
+- **At the threshold** (`AgentLoop.useEarly`): if it's back, it's used at once. If it's still out, the
+  run waits for it (the chat shows "Summarising earlier messages…"): it started earlier than a new
+  request would, so waiting is never slower, and a second request would be billed again. The run
+  never sends a request over the threshold meanwhile. It falls back to the ordinary summary, at once, when:
+  - the request failed or came back with no summary (a failed request has no usage to record);
+  - what the run added since it started, by the provider's own counts, plus the summary's view would be
+    over half the compaction point (`Compaction.KEPT_AFTER_SHARE`): an ordinary summary leaves a smaller
+    context;
+  - the run fell back to a model that isn't Chat Completions meanwhile, or a kept reply came from one.
+  A summary that came back but isn't used is billed all the same (see below).
+- **The checkpoint.** `Part.Checkpoint.coversUpTo` names the last message the summary covers (the
+  step's results, or the last note at that boundary). The checkpoint is stored after the turns that ran
+  meanwhile (the store stays append-only), and `Compaction.place` puts its view where the covered part
+  was: `[view] + [turns after the covered part] + [what comes next]`. The running task applies it with
+  the same function `modelContext` uses, so the next request is byte-identical to what a restart
+  rebuilds from storage (`EarlySummaryTest` checks it on the Chat Completions wire). Its kept user
+  messages and checklist are the covered part's; later `todo_write` calls are in the kept turns, and a
+  later compaction carries both forward as usual. The view ends with "The messages after this summary
+  came later and are kept word for word: carry on from the latest of them." An id that isn't in the
+  context (never on a consistent path) makes the checkpoint replace everything before it, as an
+  ordinary one does, which is always a valid request. An edited summary of it (`supersedes`) replaces
+  only the view it corrects; the kept turns stay.
+- **Taint.** The checkpoint records the run's taint when it's stored plus what the covered part read
+  (`Compaction.checkpoint`), so it covers at least everything it summarises; the kept turns carry their
+  own sources.
+- **Billing.** A summary that's used is recorded like the ordinary one: the run's task budget, the
+  helper's token limit, and `AgentEvent.Compacted` for usage records, so receipts and Insights show it
+  as "compaction". One that came back but isn't used (the run ended before the threshold, it fell back,
+  or an overflow error) is recorded the same way through `AgentEvent.SummaryUnused`, before the run's
+  `Finished` event, and nothing is stored. One still out when the run ends, is stopped or the app is
+  killed is cancelled: nothing came back to count, as for a reply cut off by Stop, and nothing was
+  stored, so a restart sees the chat as it was.
+- **Overflow.** A context-overflow error drops it (counted if it came back) and summarises everything:
+  keeping the turns after it is what didn't fit.
+- **Where not.** Only on Chat Completions (`Compaction.keepsTurnsAfterSummary`), where Locus replays no
+  reasoning. Keeping turns after a summary is the "keep the tail, rewrite what's before it" shape that
+  [rewind](rewind.md#prefix-byte-identity-per-provider) avoids: on Anthropic, preserved thinking is
+  checked against everything before a thinking block, so rewriting the turns before a kept one would
+  invalidate it; the Responses API and the ChatGPT plan replay encrypted reasoning items, which Locus
+  never sends after a changed prefix. Those keep the blocking summary, and so does Anthropic with server
+  compaction, which doesn't compact in Locus at all. On-device models don't compact at a threshold.
+- **In the chat.** The checkpoint card still says "Summarised N earlier messages", and its note says the
+  latest messages above it, written while it was prepared, are still sent as they were.
+  `chat_history_read` shows it as "replaced the entries up to #k, and kept the ones after".
+- No Room change: `coversUpTo` is a field of the serialized part, absent (null) in older checkpoints.
+
 ## Server-side compaction (Anthropic)
 
 On models Anthropic lists for [threshold compaction](https://platform.claude.com/docs/en/build-with-claude/compaction-threshold),
@@ -183,11 +250,10 @@ and the API summarises earlier turns into a `compaction` block that's replayed l
 ## Not done
 
 - ~~Editing the summary~~: done, see [rewind](rewind.md#editing-a-checkpoint-the-roadmaps-editable-summary).
-- **Starting the summary early in the background** (about 70%, as Codex's `async_compaction` does with
-  `CompactionPhase::MidTurn`). The checkpoint would cover the transcript up to where the summary
-  started, but it's stored after the steps that ran meanwhile, and `modelContext` treats everything
-  before the latest checkpoint as summarised. Doing it needs a checkpoint that names the message it
-  covers up to. Left for later; the summary request reads the cache, so the wait is short.
+- ~~Starting the summary early in the background~~: done on Chat Completions, see
+  [Starting the summary early](#starting-the-summary-early). On Anthropic and Responses it would need
+  their replayed reasoning to survive a rewritten prefix, which it doesn't (Anthropic) or isn't documented
+  to (Responses).
 - **OpenAI Responses server-side compaction.** The request shape is verified from the API reference
   (developers.openai.com/api/reference/resources/responses/methods/create) and the guide
   (developers.openai.com/api/docs/guides/compaction): a top-level array,

@@ -1311,6 +1311,7 @@
     <string name="chat_summary_review">Review</string>
     <string name="chat_summary_pending_title">Summary ready to review</string>
     <string name="chat_screen_summary_note_partial">Locus works from this summary for the messages it covers; the ones before them are still sent as they were.</string>
+    <string name="chat_screen_summary_note_kept_after">Locus works from this summary for the earlier messages; the latest ones above it, written while it was being prepared, are still sent as they were.</string>
     <string name="chat_screen_summary_edited">You edited this summary.</string>
     <string name="chat_screen_summary_edit">Edit summary</string>
     <string name="chat_run_summarising_from">Summarising from the chosen message</string>
