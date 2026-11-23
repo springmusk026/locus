@@ -104,4 +104,5 @@
     <string name="analytics_section_picks">你的选择</string>
     <string name="analytics_picks_note">来自对话中的“对比模型”：你保留每个模型回复的次数。只保存在这部手机上，从不发送到任何地方。</string>
     <string name="analytics_picks_row_description">%1$s 保留 %2$d 次，%3$s 保留 %4$d 次</string>
+    <string name="analytics_updating">正在更新…</string>
 </resources>
