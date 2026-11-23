@@ -1230,6 +1230,7 @@
     <string name="chat_summary_review">查看</string>
     <string name="chat_summary_pending_title">摘要已就绪，待查看</string>
     <string name="chat_screen_summary_note_partial">对于这份摘要涵盖的消息，Locus 依据摘要工作；更早的消息仍按原样发送。</string>
+    <string name="chat_screen_summary_note_kept_after">对于更早的消息，Locus 依据这份摘要工作；摘要准备期间写下的、位于其上方的最新消息仍按原样发送。</string>
     <string name="chat_screen_summary_edited">你编辑过这份摘要。</string>
     <string name="chat_screen_summary_edit">编辑摘要</string>
     <string name="chat_run_summarising_from">正在从所选消息开始总结</string>

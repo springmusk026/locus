@@ -2101,7 +2101,13 @@ internal fun CheckpointCard(
         }
         SupportingText(
             listOfNotNull(
-                stringResource(if (item.partial) R.string.chat_screen_summary_note_partial else R.string.chat_screen_summary_note),
+                stringResource(
+                    when {
+                        item.partial -> R.string.chat_screen_summary_note_partial
+                        item.keptAfter -> R.string.chat_screen_summary_note_kept_after
+                        else -> R.string.chat_screen_summary_note
+                    },
+                ),
                 stringResource(R.string.chat_screen_summary_edited).takeIf { item.edited },
             ).joinToString(" "),
         )
