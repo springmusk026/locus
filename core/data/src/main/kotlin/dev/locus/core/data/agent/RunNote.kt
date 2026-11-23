@@ -153,6 +153,25 @@ sealed interface RunNote {
     data class LessonsSaved(val count: Int) : RunNote {
         override val english get() = if (count == 1) "Saved 1 lesson to memory." else "Saved $count lessons to memory."
     }
+
+    /**
+     * Plan mode's "Run with" (docs/design/plan-run.md): the approved plan's task ended on [model] (its short name
+     * and provider), and the chat is back on its own model [chat]: the next message, Continue and Try again go there.
+     */
+    data class PlanRunDone(val model: String, val chat: String) : RunNote {
+        override val english get() = "The plan ran on $model. This chat is back on $chat for your next message."
+    }
+
+    /**
+     * The plan couldn't start on [model]: its provider is gone, it has no key, or it can't call tools ([reason]).
+     * Nothing was sent and the plan still waits; pick another model or this chat's own.
+     */
+    data class PlanRunUnavailable(val model: String, val reason: String?) : RunNote {
+        override val english get() = "Couldn't run the plan on $model: ${shownReason ?: "unknown error"}. Pick another model, or run it on this chat's."
+
+        /** The reason's first line, as the error shows it. */
+        val shownReason: String? get() = reason?.lineSequence()?.firstOrNull()?.take(200)?.ifBlank { null }
+    }
 }
 
 /** This state with [note] as its notice (or none). */

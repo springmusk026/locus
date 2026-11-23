@@ -242,6 +242,7 @@ fun ChatRoute(
     val sendWarning by viewModel.sendWarning.collectAsStateWithLifecycle()
     val heatHold by viewModel.heatHold.collectAsStateWithLifecycle()
     val compareConfirm by viewModel.compareConfirm.collectAsStateWithLifecycle()
+    val planRunConfirm by viewModel.planRunConfirm.collectAsStateWithLifecycle()
     val heatServices by viewModel.heatServices.collectAsStateWithLifecycle()
     // Android 17 blocks LAN providers (Ollama, LM Studio…) until the user allows local network access.
     val localNetwork = rememberLocalNetworkGate()
@@ -305,6 +306,7 @@ fun ChatRoute(
         LocalMemoryReads provides memoryReads,
         LocalProviderDrafts provides providerDrafts,
         LocalOpenWorkspaceFile provides onOpenWorkspaceFile,
+        LocalBrowserPages provides viewModel::pageAt,
     ) { // (body not re-indented, to keep the diff small)
     androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
     // "Continue in Locus" on an imported archive: a new chat whose first message (a draft the user sends) names this one.
@@ -335,6 +337,7 @@ fun ChatRoute(
         onResume = viewModel::resume,
         onAttach = viewModel::attach,
         onRemoveAttachment = viewModel::removeAttachment,
+        onRemovePick = viewModel::removePick,
         onCompact = viewModel::compactNow,
         onSaveExport = viewModel::saveExport,
         projectHeader = projectHeader,
@@ -359,6 +362,9 @@ fun ChatRoute(
             keepAnswer = viewModel::keepAnswer,
             confirmCompare = viewModel::confirmCompare,
             dismissCompare = viewModel::dismissCompareConfirm,
+            setPlanRun = viewModel::setPlanRun,
+            confirmPlanRun = viewModel::confirmPlanRun,
+            dismissPlanRun = viewModel::dismissPlanRunConfirm,
         ),
         branches = BranchActions(
             regenerate = { viewModel.regenerate(it) },
@@ -390,6 +396,7 @@ fun ChatRoute(
         sendWarning = sendWarning,
         heatHold = heatHold,
         compareConfirm = compareConfirm,
+        planRunConfirm = planRunConfirm,
         heatServices = heatServices,
         heatActions = remember(viewModel) {
             HeatActions(
@@ -524,6 +531,8 @@ internal fun ChatScreen(
     onResume: () -> Unit,
     onAttach: (List<android.net.Uri>) -> Unit = {},
     onRemoveAttachment: (Part.Attachment) -> Unit = {},
+    /** The composer's ✕ on the element picked in the browser for the next message. */
+    onRemovePick: () -> Unit = {},
     onCompact: () -> Unit = {},
     browserView: (@Composable (Modifier) -> Unit)? = null,
     draft: String? = null,
@@ -575,6 +584,8 @@ internal fun ChatScreen(
     onContinueImported: () -> Unit = {},
     /** A Compare send waiting for the user's OK on its estimate (docs/design/compare-models.md); null when none. */
     compareConfirm: CompareConfirm? = null,
+    /** An approval on another model waiting for the user's OK (docs/design/plan-run.md); null when none. */
+    planRunConfirm: PlanRunConfirm? = null,
 ) {
     // Opening at a search result: until it's been shown, keep the list where we put it.
     var focus by rememberSaveable { mutableStateOf(focusMessageId) }
@@ -628,6 +639,8 @@ internal fun ChatScreen(
             },
         )
     }
+    // Nothing ran: the plan still waits, with its model still picked.
+    if (planRunConfirm != null) PlanRunConfirmSheet(planRunConfirm, onRun = controls.confirmPlanRun, onCancel = controls.dismissPlanRun)
     // The composer's Aside switch: the next Send asks a side question (as `/btw`) instead of messaging the task.
     var asideOn by rememberSaveable { mutableStateOf(false) }
     // Plans the user cancelled here; Cancel also turns plan mode off, which is what persists.
@@ -863,6 +876,7 @@ internal fun ChatScreen(
                             is TranscriptRow.Single -> when (val item = row.item) {
                                 is ChatItem.User -> UserBubble(
                                     item.text, item.attachments,
+                                    picked = item.picked,
                                     onEdit = { editingQueued = null; editing = item.key; text = item.text },
                                     planMode = item.planMode,
                                     midTask = item.midTask,
@@ -931,6 +945,10 @@ internal fun ChatScreen(
                                     onApprove = controls.approvePlan,
                                     onEdit = { text = "Change the plan: " },
                                     onCancel = { cancelledPlans = cancelledPlans + item.key; controls.cancelPlan() },
+                                    // Plan mode's "Run with" (docs/design/plan-run.md): an imported archive runs nothing.
+                                    chatModel = state.controls.model,
+                                    runWith = state.controls.planRun,
+                                    onRunWith = { sheet = ControlSheet.PlanRun }.takeIf { state.importedFrom == null },
                                 )
                                 is ChatItem.ToolCall, is ChatItem.Note -> StepsGroup(listOf(item), activeTool = activeTool)
                                 is ChatItem.SentFile -> SentFileCard(item)
@@ -1159,7 +1177,7 @@ internal fun ChatScreen(
                         state.provider, state.providers, state.controls, state.connectors, state.picker,
                         taskMeter = state.run.budget?.takeIf { state.run.running },
                     ),
-                    actions = remember(controls, onAttach, onRemoveAttachment, onCompact, workflows, onVoiceMode) {
+                    actions = remember(controls, onAttach, onRemoveAttachment, onRemovePick, onCompact, workflows, onVoiceMode) {
                         ComposerActions(
                             setModel = controls.setModel,
                             prepareModels = controls.prepareModels,
@@ -1172,10 +1190,12 @@ internal fun ChatScreen(
                             setMode = controls.setMode,
                             onAttach = onAttach,
                             onRemoveAttachment = onRemoveAttachment,
+                            onRemovePick = onRemovePick,
                             onCompact = onCompact,
                             onWorkflows = workflows.pick,
                             onVoiceMode = onVoiceMode,
                             setCompare = controls.setCompare,
+                            setPlanRun = controls.setPlanRun,
                         )
                     },
                     sheet = sheet,
@@ -1196,6 +1216,7 @@ internal fun ChatScreen(
                         ).takeIf { toggles.browser },
                     ),
                     attachments = state.pendingAttachments,
+                    picked = state.pendingPick?.let { p -> if (p.host.isBlank()) p.label else "${p.label} · ${p.host}" },
                     running = state.run.running,
                     // While the agent works the box stays open: a message queues for its next step, even with an
                     // approval waiting. A background helper waiting for approval must not lock the user out either.
@@ -1327,6 +1348,11 @@ internal class ChatControlActions(
     /** The comparison's estimate: send it, or not now. */
     val confirmCompare: () -> Unit = {},
     val dismissCompare: () -> Unit = {},
+    /** Plan mode's "Run with" (docs/design/plan-run.md): the model the waiting plan runs on, or null for the chat's own. */
+    val setPlanRun: (dev.locus.core.model.ModelRef?) -> Unit = {},
+    /** Running the plan on another model: approve it, or not now. */
+    val confirmPlanRun: () -> Unit = {},
+    val dismissPlanRun: () -> Unit = {},
 )
 
 /**
@@ -1477,12 +1503,15 @@ private fun UserBubble(
     historyMenu: @Composable (close: () -> Unit) -> Unit = {},
     /** In an imported archive: copy only (no edit or fork); the ‹ i/n › switcher stays. */
     archive: Boolean = false,
+    /** The element the user picked in the browser and sent with it. */
+    picked: String? = null,
 ) {
     var menu by remember { mutableStateOf(false) }
     val clipboard = androidx.compose.ui.platform.LocalClipboard.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
         SentAttachments(attachments)
+        picked?.let { PickedElementChip(it) }
         if (planMode) Text(stringResource(R.string.chat_composer_plan_mode), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
         if (midTask) Text(stringResource(R.string.chat_screen_mid_task), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
         if (text.isNotBlank()) {
@@ -1536,6 +1565,7 @@ private fun QueuedBubble(
 ) {
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
         SentAttachments(queued.attachments)
+        queued.result?.let(dev.locus.core.browser.PickedElement::shownIn)?.let { PickedElementChip(it) }
         if (queued.text.isNotBlank()) {
             Surface(
                 // Not in the chat yet: dimmer than a sent message.
@@ -1774,6 +1804,10 @@ private fun ToolCallRow(item: ChatItem.ToolCall, running: Boolean) {
         item.result?.images?.takeIf { it.isNotEmpty() }?.let { images ->
             ToolImages(images, Modifier.padding(start = IconSize.large + Spacing.sm, top = Spacing.xs))
         }
+        // A browser step that ran: what the page looked like then (docs/design/browser.md, "The page as it was").
+        if (done && item.name in dev.locus.core.browser.BrowserPages.SHOWS_PAGE) {
+            item.result?.let { SeePageAction(it.callId, it, Modifier.padding(start = IconSize.large + Spacing.sm, top = Spacing.xs)) }
+        }
         AnimatedVisibility(expanded) {
             Column(Modifier.padding(top = Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                 CodeBlock(stringResource(R.string.chat_screen_input), prettyJson(item.argumentsJson))
@@ -1798,6 +1832,8 @@ private fun LiveTurn(state: ChatUiState, streamed: () -> String, reasoning: () -
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         // Compare models: whose answer this is while the second model writes, and that it only reads.
         state.run.comparing?.let { ComparingLabel(it) }
+        // Plan mode's "Run with": the approved plan runs on another model than the chat's.
+        state.run.planRun?.let { PlanRunLabel(it) }
         val since = state.run.thinkingSince
         val thinking = since != null && state.run.thoughtMs == null
         if (since != null && state.run.running) LiveThinking(reasoning, since, state.run.thoughtMs)

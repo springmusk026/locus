@@ -1650,4 +1650,41 @@
         <item quantity="one">%1$d secret removed</item>
         <item quantity="other">%1$d secrets removed</item>
     </plurals>
+    <!-- PlanRunUi.kt: plan mode's "Run with" (docs/design/plan-run.md) -->
+    <string name="chat_plan_ran_on">Approved · ran on %1$s</string>
+    <string name="chat_plan_run_label">Run with</string>
+    <string name="chat_plan_run_default_hint">This chat\'s model. Tap to run the plan on another one.</string>
+    <string name="chat_plan_run_other_hint">For this plan only. Then the chat goes back to %1$s.</string>
+    <string name="chat_plan_run_streaming">Running the plan: %1$s</string>
+    <string name="chat_plan_run_rule">The approved plan runs on the model you pick, with this chat\'s conversation, tools and permissions. When its task ends, the chat goes back to its own model. Models that can\'t serve this chat can\'t be picked.</string>
+    <string name="chat_plan_run_sheet_title">Run the plan with</string>
+    <string name="chat_plan_run_sheet_subtitle">Plan on this chat\'s model, carry it out on another.</string>
+    <string name="chat_plan_run_cache_note">The model you pick hasn\'t seen this chat, so its first request writes the whole conversation to its cache, at the cache-write price. This chat\'s own model keeps its cache; when the plan is done, its next reply reads the plan\'s work fresh.</string>
+    <string name="chat_plan_run_chip">Runs the plan</string>
+    <string name="chat_plan_run_confirm_title">Run the plan on %1$s?</string>
+    <string name="chat_plan_run_confirm_provider">This sends the whole conversation so far to %1$s, a provider this chat hasn\'t used.</string>
+    <string name="chat_plan_run_confirm_first">The plan runs on %1$s instead of this chat\'s model, with the same conversation, tools and permissions.</string>
+    <string name="chat_plan_run_confirm_over">Its first request is estimated to cost more than usual.</string>
+    <string name="chat_plan_run_confirm_run_role">Runs the plan · its first request writes its cache</string>
+    <string name="chat_plan_run_confirm_chat_role">This chat\'s model · if its cache is still warm</string>
+    <string name="chat_plan_run_confirm_covers">Estimated input of the first request (about %1$s tokens), from models.dev prices. Later steps read most of it from the cache; replies and tool steps cost more.</string>
+    <string name="chat_plan_run_confirm_back">When the plan\'s task ends, the chat goes back to %1$s for your next message.</string>
+    <string name="chat_run_plan_run_done">The plan ran on %1$s. This chat is back on %2$s for your next message.</string>
+    <string name="chat_run_plan_run_unavailable">Couldn\'t run the plan on %1$s: %2$s. Pick another model, or run it on this chat\'s.</string>
+    <string name="chat_receipt_plan">Plan</string>
+    <string name="chat_receipt_plan_total">Plan and run</string>
+    <string name="chat_composer_remove_pick">Remove picked element %1$s</string>
+    <string name="chat_picked_element">Picked on the page: %1$s</string>
+    <string name="chat_page_see">See the page</string>
+    <string name="chat_page_title">The page at this step</string>
+    <string name="chat_page_loading">Loading the page</string>
+    <string name="chat_page_failed">Locus couldn\'t read what it kept of this page.</string>
+    <string name="chat_page_retry">Try again</string>
+    <string name="chat_page_no_picture">No picture: the browser wasn\'t on screen at this step.</string>
+    <string name="chat_page_text_label">What Locus read on the page</string>
+    <string name="chat_page_private">Kept on this phone for you only, and deleted with the chat. It is never sent to the model again.</string>
+    <string name="chat_page_not_kept_title">Not kept</string>
+    <string name="chat_page_not_kept_message">Locus has no copy of this page. It keeps the latest pages of each chat, not those from before this was added, from a restored backup or a copied chat. The step\'s details still show what it read.</string>
+    <string name="chat_page_when">Seen %1$s</string>
+    <string name="chat_page_picture">The page as it looked</string>
 </resources>

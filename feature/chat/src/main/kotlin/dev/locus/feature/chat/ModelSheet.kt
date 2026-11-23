@@ -76,7 +76,14 @@ internal fun ModelSheet(
     compare: Boolean = false,
     /** In [compare] mode with a second model picked: Stop comparing. */
     onClearCompare: (() -> Unit)? = null,
+    /**
+     * Plan mode's "Run with" (docs/design/plan-run.md): the sheet picks the model the waiting plan runs on. The
+     * chat's own model can be picked (it's the default); models known not to serve the chat can't.
+     */
+    planRun: Boolean = false,
 ) {
+    // Both pick a model for something other than the chat itself, with the same requirements.
+    val other = compare || planRun
     LaunchedEffect(Unit) { onOpen() }
     val current = state.provider
     val picker = state.picker
@@ -84,7 +91,7 @@ internal fun ModelSheet(
     // Only the chat's provider starts open; the rest open on tap (or all while searching).
     var expanded by rememberSaveable { mutableStateOf(listOfNotNull(current?.id)) }
     val searching = query.isNotBlank()
-    val sections = remember(state.providers, picker, current?.id, state.controls, query, compare) {
+    val sections = remember(state.providers, picker, current?.id, state.controls, query, compare, planRun) {
         val catalog = picker.catalog
         val built = buildModelPicker(
             providers = state.providers,
@@ -95,22 +102,39 @@ internal fun ModelSheet(
             recents = picker.recents,
             query = query,
             catalog = { p, id -> catalog?.lookup(p.baseUrl, p.format, id) },
-            needs = if (compare) compareNeeds(picker.needs, state.controls.chatOnly) else picker.needs,
+            needs = if (other) compareNeeds(picker.needs, state.controls.chatOnly) else picker.needs,
         )
-        if (compare) built.forCompare(state.controls.compare?.ref) else built
+        when {
+            compare -> built.forCompare(state.controls.compare?.ref)
+            planRun -> built.forPlanRun(state.controls.planRun?.ref)
+            else -> built
+        }
     }
     // A pick of the provider's default stores no override, so the chat follows the default.
     val pick = { row: PickerRow -> onPick(row.ref.providerId, row.id) }
 
     LocusSheet(
-        title = stringResource(if (compare) R.string.chat_compare_sheet_title else R.string.chat_modelsheet_title),
-        subtitle = stringResource(if (compare) R.string.chat_compare_sheet_subtitle else R.string.chat_modelsheet_subtitle),
+        title = stringResource(
+            when {
+                compare -> R.string.chat_compare_sheet_title
+                planRun -> R.string.chat_plan_run_sheet_title
+                else -> R.string.chat_modelsheet_title
+            },
+        ),
+        subtitle = stringResource(
+            when {
+                compare -> R.string.chat_compare_sheet_subtitle
+                planRun -> R.string.chat_plan_run_sheet_subtitle
+                else -> R.string.chat_modelsheet_subtitle
+            },
+        ),
         onDismiss = onDismiss,
     ) {
         if (compare) CompareSheetHeader(onClearCompare)
+        if (planRun) PlanRunSheetHeader()
         SearchField(query, onQueryChange = { query = it }, placeholder = stringResource(R.string.chat_modelsheet_search), modifier = Modifier.padding(vertical = Spacing.xs))
         val anyChatOnly = sections.any { s -> s.rows.any { it.caps.tools == dev.locus.core.llm.Support.NO } }
-        if (!compare) chatOnlyNote(state.controls, anyChatOnly)?.let { SectionNote(it.asString(), Modifier.padding(bottom = Spacing.sm)) }
+        if (!other) chatOnlyNote(state.controls, anyChatOnly)?.let { SectionNote(it.asString(), Modifier.padding(bottom = Spacing.sm)) }
         val firstProvider = sections.indexOfFirst { it.provider != null }
         sections.forEachIndexed { index, section ->
             val provider = section.provider
@@ -125,7 +149,7 @@ internal fun ModelSheet(
                 LocusCard(contentPadding = PaddingValues(0.dp)) {
                     section.rows.forEachIndexed { i, row ->
                         if (i > 0) GroupDivider(inset = Spacing.lg)
-                        PickerModelRow(row, showProvider = true, onPick = { pick(row) }, onToggleFavorite = { onToggleFavorite(row.ref) }, compare = compare)
+                        PickerModelRow(row, showProvider = true, onPick = { pick(row) }, onToggleFavorite = { onToggleFavorite(row.ref) }, inUseRes = inUseLabel(compare, planRun))
                     }
                 }
             } else {
@@ -141,14 +165,14 @@ internal fun ModelSheet(
                     onToggle = { expanded = if (provider.id in expanded) expanded - provider.id else expanded + provider.id },
                     onPick = pick,
                     onToggleFavorite = onToggleFavorite,
-                    compare = compare,
+                    inUse = inUseLabel(compare, planRun),
                 )
             }
         }
         if (searching && sections.none { it.rows.isNotEmpty() }) SectionNote(stringResource(R.string.chat_modelsheet_no_match, query.trim()), Modifier.padding(top = Spacing.md))
         if (!picker.catalogOn) CatalogOffer(onEnableCatalog)
         // On-device models live on their own screen; the app routes this link there.
-        if (!compare) dev.locus.core.designsystem.Locus.settings?.let { links ->
+        if (!other) dev.locus.core.designsystem.Locus.settings?.let { links ->
             LocusCard(Modifier.padding(top = Spacing.md), contentPadding = PaddingValues(0.dp)) {
                 dev.locus.core.designsystem.AddRow(stringResource(R.string.chat_modelsheet_get_on_device), icon = dev.locus.core.designsystem.LocusIcons.Phone) {
                     onDismiss()
@@ -157,10 +181,24 @@ internal fun ModelSheet(
             }
         }
         SectionNote(
-            stringResource(if (compare) R.string.chat_compare_cache_note else R.string.chat_modelsheet_cache_note),
+            stringResource(
+                when {
+                    compare -> R.string.chat_compare_cache_note
+                    planRun -> R.string.chat_plan_run_cache_note
+                    else -> R.string.chat_modelsheet_cache_note
+                },
+            ),
             Modifier.padding(top = Spacing.md),
         )
     }
+}
+
+/** What the marked row's chip says: the chat's model, the second model (Compare), or the plan's ("Runs the plan"). */
+@androidx.annotation.StringRes
+private fun inUseLabel(compare: Boolean, planRun: Boolean): Int = when {
+    compare -> R.string.chat_compare_second_chip
+    planRun -> R.string.chat_plan_run_chip
+    else -> R.string.chat_modelsheet_in_use
 }
 
 @Composable
@@ -173,7 +211,7 @@ private fun ProviderCard(
     onToggle: () -> Unit,
     onPick: (PickerRow) -> Unit,
     onToggleFavorite: (ModelRef) -> Unit,
-    compare: Boolean = false,
+    @androidx.annotation.StringRes inUse: Int = R.string.chat_modelsheet_in_use,
 ) {
     val hideShowLabel = stringResource(if (open) R.string.chat_modelsheet_hide else R.string.chat_modelsheet_show)
     val expandedLabel = stringResource(if (open) R.string.chat_modelsheet_expanded else R.string.chat_modelsheet_collapsed)
@@ -205,7 +243,7 @@ private fun ProviderCard(
         if (open) {
             section.rows.forEach { row ->
                 GroupDivider(inset = 0.dp)
-                PickerModelRow(row, showProvider = false, onPick = { onPick(row) }, onToggleFavorite = { onToggleFavorite(row.ref) }, compare = compare)
+                PickerModelRow(row, showProvider = false, onPick = { onPick(row) }, onToggleFavorite = { onToggleFavorite(row.ref) }, inUseRes = inUse)
             }
             when (val list = section.list) {
                 is ModelList.Failed -> SectionNote(stringResource(R.string.chat_modelsheet_load_failed, list.message), Modifier.padding(top = Spacing.sm))
@@ -241,10 +279,10 @@ internal fun providerStatus(resources: Resources, list: ModelList?, default: Str
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun PickerModelRow(row: PickerRow, showProvider: Boolean, onPick: () -> Unit, onToggleFavorite: () -> Unit, compare: Boolean = false) {
+private fun PickerModelRow(row: PickerRow, showProvider: Boolean, onPick: () -> Unit, onToggleFavorite: () -> Unit, @androidx.annotation.StringRes inUseRes: Int = R.string.chat_modelsheet_in_use) {
     val resources = LocalResources.current
-    // Picking the second model (Compare): the marked row is that one, and the chat's own model says so.
-    val inUse = stringResource(if (compare) R.string.chat_compare_second_chip else R.string.chat_modelsheet_in_use)
+    // Picking the second model (Compare) or the plan's: the marked row is that one, and the chat's own model says so.
+    val inUse = stringResource(inUseRes)
     val subtitle = listOfNotNull(
         row.detail ?: row.id.takeIf { it != row.title },
         row.providerName.takeIf { showProvider },

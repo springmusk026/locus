@@ -11,7 +11,15 @@ import dev.locus.core.agent.ApprovalRequest
 import dev.locus.core.agent.tools.QuestionAnswer
 import dev.locus.core.agent.tools.UserQuestion
 import dev.locus.core.data.agent.AgentRunner
+import dev.locus.core.browser.PickFailure
+import dev.locus.core.browser.PickOutcome
+import dev.locus.core.browser.PickedElement
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
@@ -36,6 +44,8 @@ data class BrowserUi(
     val approvals: List<ApprovalRequest> = emptyList(),
     /** The chat's `ask_user` questions waiting for an answer, oldest first (`RunState.questions`). */
     val questions: List<UserQuestion> = emptyList(),
+    /** "Pick an element" is on: taps point at the page instead of reaching it. Null when it's off. */
+    val pick: PickMode? = null,
 ) {
     /** Locus is paused on the user's answer to an approval or a question, shown at the bottom of the browser. */
     val waitingForAnswer: Boolean get() = approvals.isNotEmpty() || questions.isNotEmpty()
@@ -45,7 +55,27 @@ data class BrowserUi(
 
     /** The user may use the address bar, back, forward and reload. */
     val userDriving: Boolean get() = !agentDriving
+
+    /**
+     * Whether "Pick an element" can start: a chat's browser (the user's own browsing has no message to attach
+     * to), a page, nobody else acting on it, and no page dialog in the way.
+     */
+    val canPick: Boolean get() = !standalone && page.hasPage && userDriving && page.dialog == null
 }
+
+/**
+ * Pick mode in the full-screen browser (docs/design/browser.md, "Element picker"): what the last tap found
+ * ([selection]), or why it found nothing ([failure]), and whether the page is being asked ([busy]).
+ * [stale] when the page scrolled since, so the highlight is hidden until the next tap.
+ */
+data class PickMode(
+    val selection: PickedElement? = null,
+    val failure: PickFailure? = null,
+    val busy: Boolean = false,
+    val stale: Boolean = false,
+    /** Attaching it to the chat's next message failed (the saved logins couldn't be read to clean its text). */
+    val attachFailed: Boolean = false,
+)
 
 @HiltViewModel
 class BrowserViewModel @Inject constructor(val browser: AgentBrowser, private val runner: AgentRunner) : ViewModel() {
@@ -54,11 +84,13 @@ class BrowserViewModel @Inject constructor(val browser: AgentBrowser, private va
     private var before: String? = null
     private var showingStandalone = false
 
-    val uiState: StateFlow<BrowserUi> = combine(browser.state, browser.focusedKey, runner.states, browser.loginOffer) { page, key, runs, offer ->
+    private val pick = MutableStateFlow<PickMode?>(null)
+
+    val uiState: StateFlow<BrowserUi> = combine(browser.state, browser.focusedKey, runner.states, browser.loginOffer, pick) { page, key, runs, offer, picking ->
         val standalone = key == AgentBrowser.STANDALONE
         // The user's own browsing belongs to no chat, so nothing waits on it.
         val run = key?.takeIf { !standalone }?.let { runs[it] }
-        BrowserUi(
+        val ui = BrowserUi(
             page,
             agentRunning = run?.running == true,
             standalone = standalone,
@@ -66,7 +98,68 @@ class BrowserViewModel @Inject constructor(val browser: AgentBrowser, private va
             approvals = run?.approvals.orEmpty(),
             questions = run?.questions.orEmpty(),
         )
+        // Pick mode ends by itself once picking isn't possible (Locus started browsing, the page closed, a dialog opened).
+        ui.copy(pick = picking?.takeIf { ui.canPick })
     }.stateIn(viewModelScope, SharingStarted.Eagerly, BrowserUi(browser.state.value))
+
+    init {
+        // Another page, or another tab: what was picked belongs to the old one.
+        viewModelScope.launch {
+            browser.state.map { it.url to it.activeTab }.distinctUntilChanged().drop(1).collect {
+                pick.update { it?.copy(selection = null, failure = null, stale = false, attachFailed = false) }
+            }
+        }
+        viewModelScope.launch {
+            uiState.map { it.canPick }.distinctUntilChanged().collect { can -> if (!can) pick.value = null }
+        }
+    }
+
+    /** "Pick an element" from the menu: the next tap on the page points at something instead of reaching it. */
+    fun startPick() {
+        if (uiState.value.canPick) pick.value = PickMode()
+    }
+
+    fun cancelPick() {
+        pick.value = null
+    }
+
+    /** A tap at ([fx], [fy]), fractions of the page's size, while picking: what's there becomes the selection. */
+    fun pickAt(fx: Float, fy: Float) {
+        if (pick.value?.busy != false) return
+        pick.update { it?.copy(busy = true, attachFailed = false) }
+        viewModelScope.launch {
+            val outcome = runCatching { browser.pickAt(fx, fy) }.getOrElse { PickOutcome.Failed(PickFailure.NoAnswer) }
+            pick.update { current ->
+                current ?: return@update null
+                when (outcome) {
+                    is PickOutcome.Picked -> current.copy(selection = outcome.element, failure = null, busy = false, stale = false)
+                    // A miss keeps an earlier pick, so a stray tap doesn't lose it.
+                    is PickOutcome.Failed -> current.copy(failure = outcome.reason, busy = false)
+                }
+            }
+        }
+    }
+
+    /** Scrolls the page while picking (a drag); the highlight is hidden, since the element moved. */
+    fun pickScroll(dy: Int) {
+        if (pick.value == null) return
+        pick.update { it?.copy(stale = it.selection != null) }
+        viewModelScope.launch { browser.userScroll(dy) }
+    }
+
+    /**
+     * Attaches the selection to the chat's next message and ends pick mode; [onDone] gets true when it's
+     * attached, so the screen can go back to the chat.
+     */
+    fun attachPick(onDone: (Boolean) -> Unit) {
+        val selection = pick.value?.selection ?: return
+        val chat = browser.pickChat() ?: return onDone(false)
+        viewModelScope.launch {
+            val ok = runCatching { browser.attachPick(chat, selection) }.getOrDefault(false)
+            if (ok) pick.value = null else pick.update { it?.copy(attachFailed = true) }
+            onDone(ok)
+        }
+    }
 
     /** Opened from the Workspace: the user's own browsing, which belongs to no chat. */
     fun showStandalone() {

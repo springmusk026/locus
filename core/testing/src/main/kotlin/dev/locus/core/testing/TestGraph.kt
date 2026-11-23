@@ -148,16 +148,19 @@ class TestGraph(
      * [directory] knows of the model. Tests set their own to start chats on a model that can't use tools.
      */
     var chatOnlyRule: dev.locus.core.data.repository.ChatOnlyRule? = null
+    /** What browser steps' pages looked like (docs/design/browser.md, "The page as it was"), shared by the browser and the chats. */
+    val browserPages = dev.locus.core.browser.BrowserPages(context)
     val conversations = ConversationRepository(
         database.conversationDao, database.messageDao, database.auditDao, settingsRepository, home, mcpPreference, projects,
         // Read at each use: the directory is made below, and tests may swap the rule.
         chatOnlyRule = { p, m -> (chatOnlyRule ?: dev.locus.core.data.repository.ModelChatOnlyRule(settingsRepository, directory)).startsChatOnly(p, m) },
+        browserPages = browserPages,
     )
     val library = LibraryRepository(home, secrets, mcp, mcpSignIn, linux, httpClient, secretResolver, context, io, database.conversationDao, database.projectDao, keyOrigins)
     val ssh = SshService(settingsRepository)
     /** Saved site logins, in the vault (docs/design/browser.md, "Saved logins"). */
     val siteLogins = dev.locus.core.data.logins.SiteLoginStore(secrets)
-    val browser = AgentBrowser(context, workspace, siteLogins)
+    val browser = AgentBrowser(context, workspace, siteLogins, browserPages)
     val onDeviceModels = OnDeviceModels(context)
     /** The phone's heat, battery and network; set it to drive Battery & heat decisions. */
     val conditions = dev.locus.core.llm.FixedDeviceConditions()

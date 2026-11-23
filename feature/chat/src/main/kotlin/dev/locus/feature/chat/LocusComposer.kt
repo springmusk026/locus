@@ -125,6 +125,8 @@ internal class ComposerActions(
     val setBudget: (dev.locus.core.model.TaskBudget?) -> Unit = {},
     val onAttach: (List<Uri>) -> Unit = {},
     val onRemoveAttachment: (Part.Attachment) -> Unit = {},
+    /** Removes the element picked in the browser from the next message. */
+    val onRemovePick: () -> Unit = {},
     /** Summarise the conversation now; null where there's no conversation yet (home). */
     val onCompact: (() -> Unit)? = null,
     /** Pick a saved workflow to run here; null where workflows aren't offered (home). */
@@ -143,6 +145,8 @@ internal class ComposerActions(
      * chat (null on home: a new chat has no context to compare on yet, and its first answer settles its tools).
      */
     val setCompare: ((dev.locus.core.model.ModelRef?) -> Unit)? = null,
+    /** Plan mode's "Run with" (docs/design/plan-run.md): the model a waiting plan runs on; null where plans can't be run (home). */
+    val setPlanRun: ((dev.locus.core.model.ModelRef?) -> Unit)? = null,
 )
 
 /** A live panel's toggle at the composer's top right (in a chat): tinted while open, a live dot while its tool runs. */
@@ -167,6 +171,8 @@ internal fun LocusComposer(
     onSend: () -> Unit,
     modifier: Modifier = Modifier,
     attachments: List<Part.Attachment> = emptyList(),
+    /** The element picked in the browser for the next message, as the user reads it; null for none. */
+    picked: String? = null,
     running: Boolean = false,
     enabled: Boolean = true,
     /** The agent waits on a question: Send answers it. Otherwise, while it runs, Send queues (steer and queue). */
@@ -222,7 +228,7 @@ internal fun LocusComposer(
     val asking = onAsideChange != null && (aside || SideCommand.parse(text) != null)
     // While the agent works, a typed message is queued for its next step (or answers its open question).
     // A side question needs words; attachments never go with it.
-    val canSend = enabled && if (running || asking) text.isNotBlank() else text.isNotBlank() || attachments.isNotEmpty()
+    val canSend = enabled && if (running || asking) text.isNotBlank() else text.isNotBlank() || attachments.isNotEmpty() || picked != null
     val controlsEnabled = enabled && !running
     val controls = settings.controls
     val provider = settings.provider
@@ -279,11 +285,14 @@ internal fun LocusComposer(
             dock()
             dev.locus.core.designsystem.GroupDivider(inset = Spacing.lg)
         }
-        if (attachments.isNotEmpty()) {
+        if (attachments.isNotEmpty() || picked != null) {
             Row(
                 Modifier.horizontalScroll(rememberScrollState()).padding(start = Spacing.md, end = Spacing.md, top = Spacing.md),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            ) { attachments.forEach { a -> ComposerAttachment(a, onRemove = { actions.onRemoveAttachment(a) }) } }
+            ) {
+                picked?.let { ComposerPick(it, onRemove = actions.onRemovePick) }
+                attachments.forEach { a -> ComposerAttachment(a, onRemove = { actions.onRemoveAttachment(a) }) }
+            }
         }
         if (slash != null && prompts != null) {
             SlashSuggestions(
@@ -522,6 +531,15 @@ private fun ComposerSheets(
             onDismiss = close,
             compare = true,
             onClearCompare = settings.controls.compare?.let { { close(); actions.setCompare?.invoke(null) } },
+        )
+        ControlSheet.PlanRun -> ModelSheet(
+            settings,
+            onPick = { id, model -> close(); actions.setPlanRun?.invoke(dev.locus.core.model.ModelRef(id, model.orEmpty())) },
+            onOpen = actions.prepareModels,
+            onToggleFavorite = actions.toggleFavorite,
+            onEnableCatalog = actions.enableCatalog,
+            onDismiss = close,
+            planRun = true,
         )
         ControlSheet.Effort -> EffortSheet(settings.provider, settings.controls, onPick = { close(); actions.setEffort(it) }, onDismiss = close)
         ControlSheet.Mode -> ModeSheet(settings.controls, onPick = { close(); actions.setMode(it) }, onDismiss = close)
@@ -871,6 +889,25 @@ private fun ComposerAttachment(a: Part.Attachment, onRemove: () -> Unit) {
             Text(a.name, Modifier.padding(start = Spacing.sm).widthIn(max = ComposerSizes.attachmentName), style = LocusType.chip, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         BarButton(LocusIcons.Close, stringResource(R.string.chat_composer_remove, a.name), onClick = onRemove)
+    }
+}
+
+/** The element picked in the browser, waiting to go with the next message: the crosshair, what it is, and ✕. */
+@Composable
+private fun ComposerPick(label: String, onRemove: () -> Unit) {
+    Row(
+        Modifier.height(Sizes.touchTarget).background(MaterialTheme.colorScheme.surfaceContainerHigh, MaterialTheme.shapes.medium).padding(start = Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(LocusIcons.Target, contentDescription = null, modifier = Modifier.size(IconSize.small), tint = MaterialTheme.colorScheme.primary)
+        Text(
+            label,
+            Modifier.padding(start = Spacing.xs).widthIn(max = ComposerSizes.attachmentName),
+            style = LocusType.chip,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        BarButton(LocusIcons.Close, stringResource(R.string.chat_composer_remove_pick, label), onClick = onRemove)
     }
 }
 

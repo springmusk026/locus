@@ -296,6 +296,13 @@ object LocusIcons {
         curveTo(19.2f, 16.5f, 15.8f, 18.5f, 12f, 18.5f); curveTo(8.2f, 18.5f, 4.8f, 16.5f, 2.5f, 12f); close()
         moveTo(15f, 12f); arcTo(3f, 3f, 0f, true, true, 9f, 12f); arcTo(3f, 3f, 0f, true, true, 15f, 12f)
     }
+    /** A crosshair: point at one thing on a page (the browser's element picker). */
+    val Target = icon("target") {
+        moveTo(18f, 12f); arcTo(6f, 6f, 0f, true, true, 6f, 12f); arcTo(6f, 6f, 0f, true, true, 18f, 12f)
+        moveTo(12f, 3f); lineTo(12f, 6f); moveTo(12f, 18f); lineTo(12f, 21f)
+        moveTo(3f, 12f); lineTo(6f, 12f); moveTo(18f, 12f); lineTo(21f, 12f)
+        moveTo(13f, 12f); arcTo(1f, 1f, 0f, true, true, 11f, 12f); arcTo(1f, 1f, 0f, true, true, 13f, 12f)
+    }
     /** An eye struck through: hide the text again. */
     val EyeOff = icon("eye_off") {
         moveTo(2.5f, 12f); curveTo(4.8f, 7.5f, 8.2f, 5.5f, 12f, 5.5f); curveTo(15.8f, 5.5f, 19.2f, 7.5f, 21.5f, 12f)

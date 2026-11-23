@@ -100,10 +100,14 @@ class ModelTextTest {
         TaskBudgetPresets.minutes.forEach { assertEquals(TaskBudgetPresets.minutes(it), TaskBudgetPresets.minutes(res, it)) }
         assertEquals("200k tokens · $2 · 30 min", TaskBudgetPresets.summary(res, TaskBudget(tokens = 200_000, costUsd = 2.0, minutes = 30)))
 
-        listOf(0L, 942, 1_000, 12_000, 12_400, 99_960, 100_000, 999_999, 1_000_000, 1_250_000, 40_000_000).forEach {
+        listOf(0L, 942, 1_000, 12_000, 12_400, 99_960, 100_000, 999_999, 1_000_000, 1_250_000, 40_000_000, 250_400_000, 999_999_999, 1_000_000_000, 1_087_500_000, 12_300_000_000).forEach {
             assertEquals(compactCountEnglish(it), compactCount(res, it), "$it")
         }
         assertEquals("12.4k", compactCount(res, 12_400))
+        // Past a thousand million it's billions, not "1087.5M".
+        assertEquals("1.1B", compactCount(res, 1_087_500_000))
+        assertEquals("1B", compactCount(res, 1_000_000_000))
+        assertEquals("250M", compactCount(res, 250_400_000))
     }
 
     @Test

@@ -88,6 +88,11 @@ data class TaskReceipt(
      * items Locus asked the agent to finish or report. Null when it didn't.
      */
     val completionCheck: Int? = null,
+    /**
+     * Set when the task carried out a plan the user approved (docs/design/plan-run.md): the task that proposed
+     * it, so the receipt shows what planning and running cost together, each on its own model. Null otherwise.
+     */
+    val plan: ReceiptPlan? = null,
 ) {
     val durationMs: Long get() = (endedAt - startedAt).coerceAtLeast(0)
     val tainted: Boolean get() = outsideContent.isNotEmpty()
@@ -106,6 +111,12 @@ data class ReceiptTokens(val input: Long = 0, val output: Long = 0, val cacheRea
 
 /** One helper of a task: its label ("Researcher #1"), the model it ran on, and its cost (null: no price known). */
 data class ReceiptHelper(val label: String, val model: String?, val cost: ReceiptCost?)
+
+/**
+ * The task that proposed the plan a task carried out: the models that wrote it ([models], the chat's own and
+ * any backup), its [cost] (null: no price known) and its [requests].
+ */
+data class ReceiptPlan(val models: List<String>, val cost: ReceiptCost?, val requests: Int)
 
 /** Estimated dollars. [partial]: some requests went to models without a known price, so it's a floor. */
 data class ReceiptCost(val usd: Double, val partial: Boolean)
