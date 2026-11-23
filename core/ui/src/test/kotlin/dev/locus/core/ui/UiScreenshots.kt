@@ -121,6 +121,51 @@ class UiScreenshots : ScreenshotTest() {
         ReachMeSheet(Integrations.webhook, hasKey = true, actions = ReachMeActions.None, onDismiss = {}, initial = ReachMeForm(url = "https://hooks.example.com/locus", savedSecret = true))
     }
 
+    // ---- Matrix
+
+    @Test
+    fun matrixNew() = snap("matrix-sheet", heightDp = 1400) {
+        ReachMeSheet(Integrations.matrix, hasKey = false, actions = ReachMeActions.None, onDismiss = {}, initial = ReachMeForm())
+    }
+
+    @Test
+    fun matrixChecking() = snap("matrix-sheet-checking", heightDp = 1400) {
+        ReachMeSheet(
+            Integrations.matrix, hasKey = false, actions = ReachMeActions.None, onDismiss = {},
+            initial = ReachMeForm(url = "matrix.example.org", secret = "syt_Ym90_AbCdEfGhIjKlMnOpQrSt_0a1b2c", room = "#alerts:example.org", running = "test"),
+        )
+    }
+
+    @Test
+    fun matrixSent() = snap("matrix-sheet-saved", heightDp = 1400) {
+        ReachMeSheet(
+            Integrations.matrix, hasKey = true, actions = ReachMeActions.None, onDismiss = {},
+            initial = ReachMeForm(
+                url = "https://matrix.example.org", room = "!AbCdEf:example.org",
+                note = dev.locus.core.designsystem.UiText.Res(R.string.ui_reachme_matrix_test_sent, "@locus:example.org"),
+            ),
+        )
+    }
+
+    @Test
+    fun matrixEncrypted() = snap("matrix-sheet-encrypted", heightDp = 1400) {
+        ReachMeSheet(
+            Integrations.matrix, hasKey = false, actions = ReachMeActions.None, onDismiss = {},
+            initial = ReachMeForm(url = "https://matrix.example.org", secret = "syt_Ym90_AbCdEfGhIjKlMnOpQrSt_0a1b2c", room = "#family:example.org", encrypted = true),
+        )
+    }
+
+    @Test
+    fun matrixNotJoined() = snap("matrix-sheet-not-joined", heightDp = 1400) {
+        ReachMeSheet(
+            Integrations.matrix, hasKey = false, actions = ReachMeActions.None, onDismiss = {},
+            initial = ReachMeForm(
+                url = "https://matrix.example.org", secret = "syt_Ym90_AbCdEfGhIjKlMnOpQrSt_0a1b2c", room = "alerts",
+                error = dev.locus.core.designsystem.UiText.Res(dev.locus.core.data.R.string.data_reachme_matrix_not_joined, "@locus:example.org"),
+            ),
+        )
+    }
+
     // ---- Email
 
     private val gmail = EmailForm().withAddress("agent@gmail.com").copy(password = "abcdefghijklmnop", name = "Locus Agent")

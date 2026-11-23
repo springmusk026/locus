@@ -182,6 +182,17 @@
     <string name="data_reachme_gotify_refused">%1$s recusou o token (HTTP %2$d). Use um token de aplicativo (Apps), não um de cliente, e copie-o inteiro.</string>
     <string name="data_reachme_webhook_refused">%1$s recusou a solicitação (HTTP %2$d). Se ele verifica assinaturas, confira se tem o mesmo segredo.</string>
     <string name="data_reachme_not_found">Nada encontrado nesse endereço (HTTP 404). Confira-o, incluindo qualquer subcaminho.</string>
+    <string name="data_reachme_matrix_token_missing">Cole o token de acesso da conta do bot.</string>
+    <string name="data_reachme_matrix_token_invalid">Isso não parece um token de acesso: copie-o inteiro, sem espaços.</string>
+    <string name="data_reachme_matrix_room_invalid">Digite o endereço da sala, como #alerts:example.org, ou o ID dela, que começa com !.</string>
+    <string name="data_reachme_matrix_token_refused">%1$s não aceitou o token de acesso. Copie-o de novo da conta do bot; encerrar essa sessão invalida o token.</string>
+    <string name="data_reachme_matrix_alias_unknown">O servidor não conhece a sala %1$s. Confira o endereço ou use o ID da sala.</string>
+    <string name="data_reachme_matrix_not_joined">%1$s ainda não está nessa sala. Convide-o e aceite o convite pela conta do bot.</string>
+    <string name="data_reachme_matrix_not_member">O bot não está nessa sala. Convide-o e aceite o convite pela conta do bot.</string>
+    <string name="data_reachme_matrix_encrypted">Essa sala tem criptografia de ponta a ponta. O Locus não consegue criptografar mensagens, então não vai publicar nela. Use uma sala sem criptografia.</string>
+    <string name="data_reachme_matrix_forbidden">A sala não deixa o bot publicar mensagens. Permita que ele envie mensagens nas permissões da sala.</string>
+    <string name="data_reachme_matrix_rate_limited">%1$s está limitando a frequência de envio do bot. Espere um minuto e tente de novo.</string>
+    <string name="data_reachme_matrix_not_matrix">%1$s não respondeu como um servidor Matrix. Use o endereço ao qual seu app de Matrix se conecta, como https://matrix-client.matrix.org.</string>
     <string name="data_needs_you_channel">Precisa de você</string>
     <plurals name="data_needs_you_title">
         <item quantity="one">%1$d item precisa de você</item>
