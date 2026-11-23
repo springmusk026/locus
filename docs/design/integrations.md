@@ -73,6 +73,7 @@ Home Assistant ships its own MCP server, so it only needed a preset and a safety
 - Header names must be RFC 9110 tokens. `Host`, `Cookie`, `Content-Length`, `Content-Type`, `Connection` and `Transfer-Encoding` are refused.
 - Basic auth and the prefix work for HTTP connectors and for remote MCP servers (`ConnectorKeys.header` builds the header for both).
 - **Scrubbing.** `ConnectorKeys.secretForms` lists every form a credential can take: as stored, the password part, and the base64 credentials. A reply or error is scrubbed of all of them before the model sees it. The model only ever sees connector ids, descriptions and operation names (`<available_connectors>`).
+- **A script can't turn a read into a write.** A connector's `request(operation, args)` script may reshape the path, query and body, and may change the method of an operation that already asks first. For a `read` operation, the method stays as declared: `connector_call` decides whether to ask from the operation's declared side effect, before the script runs, so a read whose script returned `DELETE` would otherwise delete without asking. Such a call is refused before anything is sent (`ConnectorScriptTest`).
 - **Origin binding.** As before, a key is tied to the origin the user typed it for (`ConnectorKeyOrigins.saved`) and sent nowhere else.
 
 ## Outward operations
