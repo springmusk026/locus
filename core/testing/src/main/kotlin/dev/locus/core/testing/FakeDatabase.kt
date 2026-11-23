@@ -446,6 +446,10 @@ class FakeDatabase {
                 HelperUsageRow(m.conversationId, c.parentCallId, c.agentType, m.createdAt, m.usageJson, m.providerId, m.model)
             }
         }
+        override fun observeReplyUsage(conversationId: String) = select { t ->
+            t.messages.filter { it.conversationId == conversationId && it.role == "ASSISTANT" && it.copiedFrom == null }.sortedBy { it.seq }
+                .map { m -> dev.locus.core.database.ReplyUsageRow(m.id, m.createdAt, m.usageJson, m.providerId, m.model, m.fallbackFrom) }
+        }
         override fun observeSideUsage(conversationId: String) = select { t -> t.usageEvents.filter { it.conversationId == conversationId }.sortedBy { it.seq } }
         override fun observeAudit(conversationId: String) = select { t ->
             val helpers = t.conversations.values.filter { it.parentConversationId == conversationId }.map { it.id }.toSet()

@@ -241,6 +241,7 @@ fun ChatRoute(
     val aside by viewModel.aside.collectAsStateWithLifecycle()
     val sendWarning by viewModel.sendWarning.collectAsStateWithLifecycle()
     val heatHold by viewModel.heatHold.collectAsStateWithLifecycle()
+    val compareConfirm by viewModel.compareConfirm.collectAsStateWithLifecycle()
     val heatServices by viewModel.heatServices.collectAsStateWithLifecycle()
     // Android 17 blocks LAN providers (Ollama, LM Studio…) until the user allows local network access.
     val localNetwork = rememberLocalNetworkGate()
@@ -354,6 +355,10 @@ fun ChatRoute(
             cancelPlan = { viewModel.cancelPlan() },
             runAnyway = viewModel::runAnyway,
             dismissReviewerBlock = viewModel::dismissReviewerBlock,
+            setCompare = viewModel::setCompare,
+            keepAnswer = viewModel::keepAnswer,
+            confirmCompare = viewModel::confirmCompare,
+            dismissCompare = viewModel::dismissCompareConfirm,
         ),
         branches = BranchActions(
             regenerate = { viewModel.regenerate(it) },
@@ -384,6 +389,7 @@ fun ChatRoute(
         onOpenActivity = onOpenActivity,
         sendWarning = sendWarning,
         heatHold = heatHold,
+        compareConfirm = compareConfirm,
         heatServices = heatServices,
         heatActions = remember(viewModel) {
             HeatActions(
@@ -567,6 +573,8 @@ internal fun ChatScreen(
     onOpenWaiting: (String) -> Unit = {},
     /** An imported archive's "Continue in Locus" (docs/design/import-chats.md). */
     onContinueImported: () -> Unit = {},
+    /** A Compare send waiting for the user's OK on its estimate (docs/design/compare-models.md); null when none. */
+    compareConfirm: CompareConfirm? = null,
 ) {
     // Opening at a search result: until it's been shown, keep the list where we put it.
     var focus by rememberSaveable { mutableStateOf(focusMessageId) }
@@ -606,6 +614,17 @@ internal fun ChatScreen(
             onNotNow = {
                 if (text.isBlank()) text = heatHold.text
                 heatActions.dismiss()
+            },
+        )
+    }
+    if (compareConfirm != null) {
+        CompareConfirmSheet(
+            compareConfirm,
+            onSend = controls.confirmCompare,
+            // Nothing was sent: the message goes back into the composer.
+            onCancel = {
+                if (text.isBlank()) text = compareConfirm.text
+                controls.dismissCompare()
             },
         )
     }
@@ -866,6 +885,9 @@ internal fun ChatScreen(
                                 ) {
                                     AssistantText(
                                         item.text, item.usage,
+                                        model = item.model?.takeIf { item.turn?.branch != null },
+                                        compare = item.compare,
+                                        onKeep = { item.compare?.let { c -> item.model?.let { m -> controls.keepAnswer(c.userMessageId, m) } } },
                                         receipt = item.receipt,
                                         receiptActions = receiptActions,
                                         speed = item.speed,
@@ -1153,6 +1175,7 @@ internal fun ChatScreen(
                             onCompact = onCompact,
                             onWorkflows = workflows.pick,
                             onVoiceMode = onVoiceMode,
+                            setCompare = controls.setCompare,
                         )
                     },
                     sheet = sheet,
@@ -1297,6 +1320,13 @@ internal class ChatControlActions(
     /** Overrides the safety reviewer for a blocked call (by call id). */
     val runAnyway: (String) -> Unit = {},
     val dismissReviewerBlock: (String) -> Unit = {},
+    /** Compare models (docs/design/compare-models.md): the second model for the next send, or none. */
+    val setCompare: (dev.locus.core.model.ModelRef?) -> Unit = {},
+    /** "Keep this one" under an answer of a Compare turn: the message it answered and the model that wrote it. */
+    val keepAnswer: (userMessageId: String, model: dev.locus.core.model.ModelRef) -> Unit = { _, _ -> },
+    /** The comparison's estimate: send it, or not now. */
+    val confirmCompare: () -> Unit = {},
+    val dismissCompare: () -> Unit = {},
 )
 
 /**
@@ -1594,6 +1624,11 @@ private fun AssistantText(
     onReadAloud: () -> Unit = {},
     /** Save the task this reply ended as a workflow; null when that isn't offered. */
     onSaveWorkflow: (() -> Unit)? = null,
+    /** The model that wrote this answer, where the turn has alternatives: a compact label above it. */
+    model: dev.locus.core.model.ModelRef? = null,
+    /** An answer of a Compare turn: "Keep this one", or "Kept" once picked (docs/design/compare-models.md). */
+    compare: ComparePick? = null,
+    onKeep: () -> Unit = {},
 ) {
     val clipboard = androidx.compose.ui.platform.LocalClipboard.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -1625,7 +1660,9 @@ private fun AssistantText(
         )
     }
     Column {
+        if (model != null) AnswerModelLabel(model, readOnly = compare?.second == true)
         AssistantMarkdown(text)
+        if (compare != null && !archive) KeepAnswerRow(compare, enabled = branchEnabled, onKeep = onKeep)
         fallbackNote?.let {
             SupportingText(it.asString(), Modifier.padding(top = Spacing.xs), style = LocusType.mono, maxLines = 2)
         }
@@ -1759,6 +1796,8 @@ private fun CodeBlock(label: String, code: String) {
 @Composable
 private fun LiveTurn(state: ChatUiState, streamed: () -> String, reasoning: () -> String = { state.run.reasoning }) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        // Compare models: whose answer this is while the second model writes, and that it only reads.
+        state.run.comparing?.let { ComparingLabel(it) }
         val since = state.run.thinkingSince
         val thinking = since != null && state.run.thoughtMs == null
         if (since != null && state.run.running) LiveThinking(reasoning, since, state.run.thoughtMs)
