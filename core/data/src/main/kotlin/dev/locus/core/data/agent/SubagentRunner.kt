@@ -185,6 +185,12 @@ class SubagentRunner @Inject constructor(
         }
     }
 
+    override fun summaryUnused(state: SubagentState, event: dev.locus.core.agent.AgentEvent.SummaryUnused) {
+        scope.launch {
+            usage.record(dev.locus.core.model.UsageSource.COMPACTION, state.agentId, event.providerId, event.model, event.usage, event.durationMs)
+        }
+    }
+
     override suspend fun helper(agentId: String): HelperRecord? {
         val row = conversations.get(agentId)?.takeIf { it.hidden && it.parentConversationId != null } ?: return null
         val history = conversations.history(agentId)

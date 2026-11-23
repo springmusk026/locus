@@ -127,7 +127,15 @@ sealed interface ChatItem {
      * of the later part only (Summarise from here), the messages before it still go to the model as they were;
      * [edited]: the user corrected an earlier summary (docs/design/rewind.md).
      */
-    data class Checkpoint(override val key: String, val summary: String, val replaced: Int, val partial: Boolean = false, val edited: Boolean = false) : ChatItem
+    data class Checkpoint(
+        override val key: String,
+        val summary: String,
+        val replaced: Int,
+        val partial: Boolean = false,
+        val edited: Boolean = false,
+        /** Written in the background while the task went on: the latest messages above it are still sent as they were. */
+        val keptAfter: Boolean = false,
+    ) : ChatItem
     data class ToolCall(override val key: String, val name: String, val argumentsJson: String, val result: Part.ToolResult?) : ChatItem
 
     /**
@@ -1203,7 +1211,9 @@ internal fun transcriptItems(
                 // A summary the user corrected shows once, as the corrected one; the earlier text stays stored.
                 if (message.id in superseded) return@forEach
                 out += message.parts.filterIsInstance<Part.Checkpoint>().lastOrNull()
-                    ?.let { ChatItem.Checkpoint(message.id, it.summary, it.replacedMessages, partial = it.from != null, edited = it.supersedes != null) }
+                    ?.let {
+                        ChatItem.Checkpoint(message.id, it.summary, it.replacedMessages, partial = it.from != null, edited = it.supersedes != null, keptAfter = it.coversUpTo != null)
+                    }
                     ?: ChatItem.User(
                         message.id, message.userText, message.attachments,
                         planMode = ModeNote.isPlanMode(message),
