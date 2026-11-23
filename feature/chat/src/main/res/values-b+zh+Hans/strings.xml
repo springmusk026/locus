@@ -1536,6 +1536,29 @@
     <plurals name="chat_publish_removed">
         <item quantity="other">已移除 %1$d 个机密</item>
     </plurals>
+    <!-- PlanRunUi.kt: plan mode's "Run with" (docs/design/plan-run.md) -->
+    <string name="chat_plan_ran_on">已批准 · 在 %1$s 上运行</string>
+    <string name="chat_plan_run_label">运行模型</string>
+    <string name="chat_plan_run_default_hint">此对话的模型。点按可在其他模型上运行计划。</string>
+    <string name="chat_plan_run_other_hint">仅用于此计划，之后对话回到 %1$s。</string>
+    <string name="chat_plan_run_streaming">正在运行计划：%1$s</string>
+    <string name="chat_plan_run_rule">批准的计划在你选择的模型上运行，使用此对话的内容、工具和权限。任务结束后，对话回到自己的模型。无法服务此对话的模型不能选择。</string>
+    <string name="chat_plan_run_sheet_title">选择运行计划的模型</string>
+    <string name="chat_plan_run_sheet_subtitle">用此对话的模型做计划，用另一个模型执行。</string>
+    <string name="chat_plan_run_cache_note">你选择的模型没有见过此对话，因此它的第一个请求会把整个对话写入其缓存，按缓存写入计费。此对话的模型保留自己的缓存；计划完成后，它的下一条回复会重新读取计划所做的工作。</string>
+    <string name="chat_plan_run_chip">运行计划</string>
+    <string name="chat_plan_run_confirm_title">在 %1$s 上运行计划？</string>
+    <string name="chat_plan_run_confirm_provider">这会把目前为止的整个对话发送给 %1$s，此对话还没有用过这个提供商。</string>
+    <string name="chat_plan_run_confirm_first">计划将在 %1$s 上运行，而不是此对话的模型，对话、工具和权限都不变。</string>
+    <string name="chat_plan_run_confirm_over">其第一个请求的预估费用高于平常。</string>
+    <string name="chat_plan_run_confirm_run_role">运行计划 · 第一个请求写入其缓存</string>
+    <string name="chat_plan_run_confirm_chat_role">此对话的模型 · 若其缓存仍有效</string>
+    <string name="chat_plan_run_confirm_covers">第一个请求的预估输入（约 %1$s 个 token），按 models.dev 价格计算。之后的步骤大多从缓存读取；回复和工具步骤会更贵。</string>
+    <string name="chat_plan_run_confirm_back">计划的任务结束后，你的下一条消息会回到 %1$s。</string>
+    <string name="chat_run_plan_run_done">计划已在 %1$s 上运行。你的下一条消息会回到此对话的模型 %2$s。</string>
+    <string name="chat_run_plan_run_unavailable">无法在 %1$s 上运行计划：%2$s。请选择其他模型，或用此对话的模型运行。</string>
+    <string name="chat_receipt_plan">计划</string>
+    <string name="chat_receipt_plan_total">计划和运行</string>
     <string name="chat_composer_remove_pick">移除选取的元素 %1$s</string>
     <string name="chat_picked_element">在页面上选取：%1$s</string>
     <string name="chat_page_see">查看页面</string>

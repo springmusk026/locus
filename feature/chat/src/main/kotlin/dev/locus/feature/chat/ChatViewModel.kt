@@ -19,6 +19,7 @@ import dev.locus.core.data.repository.ModelDirectory
 import dev.locus.core.data.repository.ModelList
 import dev.locus.core.llm.ModelCatalogIndex
 import dev.locus.core.model.ModelRef
+import dev.locus.core.model.PlanRun
 import dev.locus.core.data.repository.WorkspaceRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import dev.locus.core.model.Message
@@ -148,7 +149,15 @@ sealed interface ChatItem {
     data class Thought(override val key: String, val text: String, val durationMs: Long, val inSteps: Boolean) : ChatItem
 
     /** A plan the agent proposed (plan_propose), with what became of it. */
-    data class Plan(override val key: String, val plan: ProposedPlan, val status: PlanStatus) : ChatItem
+    data class Plan(
+        override val key: String,
+        val plan: ProposedPlan,
+        val status: PlanStatus,
+        /** The model that proposed it, from its reply (docs/design/plan-run.md). */
+        val plannedBy: dev.locus.core.model.ModelRef? = null,
+        /** Set once approved and run on another model than [plannedBy]: the card says "ran on …". */
+        val ranOn: dev.locus.core.model.ModelRef? = null,
+    ) : ChatItem
 
     /**
      * A workspace file the agent handed to the user (send_file), shown as a file card at the end of
@@ -262,6 +271,11 @@ data class ChatControls(
      * null for a normal send. Picked in the composer's options; one send uses it up.
      */
     val compare: CompareChoice? = null,
+    /**
+     * Plan mode's "Run with" (docs/design/plan-run.md): the model the waiting plan runs on once approved, or null
+     * for this chat's own model (the default). Picked on the plan card; approving uses it up.
+     */
+    val planRun: CompareChoice? = null,
 ) {
     /** Tool groups and connectors switched off, for the tools chip's count (the mode and budget entries share the set). */
     val disabledCount: Int get() = disabledTools.count { !TaskBudget.isBudgetKey(it) && !dev.locus.core.model.ChatMode.isModeKey(it) }
@@ -524,6 +538,12 @@ class ChatViewModel @AssistedInject constructor(
     /** Compare models: the second model the next message also goes to; null for a normal send. In memory only. */
     private val compareWith = MutableStateFlow<ModelRef?>(null)
 
+    /**
+     * Plan mode's "Run with" (docs/design/plan-run.md): the model the waiting plan runs on once approved; null for
+     * this chat's own. In memory only: after a restart the plan runs on the chat's model unless picked again.
+     */
+    private val planRunWith = MutableStateFlow<ModelRef?>(null)
+
     /** Picks the second model for the next send (Compare models), or none with null. */
     fun setCompare(ref: ModelRef?) {
         compareWith.value = ref
@@ -697,13 +717,14 @@ class ChatViewModel @AssistedInject constructor(
         settings.settings,
         combine(
             browser.stateOf(conversationId),
-            combine(pending, compareWith, browser.attachedPicks) { p, cmp, picks -> Triple(p, cmp, picks[conversationId]?.element) },
+            combine(pending, compareWith, planRunWith, browser.attachedPicks) { p, cmp, run, picks -> ExtrasInputs(p, cmp, run, picks[conversationId]?.element) },
             directory.lists, directory.catalog, library.library,
-        ) { b, (p, cmp, picked), m, cat, lib ->
+        ) { b, i, m, cat, lib ->
             Extras(
-                b, p, m, cmp, cat, lib.connectors.filterNot { it.draft }.map { ChatConnector(it.connector.id, it.connector.name, it.connector.kind == "mcp") },
+                b, i.pending, m, i.compareWith, cat, lib.connectors.filterNot { it.draft }.map { ChatConnector(it.connector.id, it.connector.name, it.connector.kind == "mcp") },
                 connectorAddresses = lib.connectors.filterNot { it.draft }.map { it.connector.baseUrl },
-                picked = picked,
+                planRun = i.planRun,
+                picked = i.picked,
             )
         },
     ) { conversation, transcript, run, s, extras ->
@@ -734,6 +755,7 @@ class ChatViewModel @AssistedInject constructor(
                 empty = items.isEmpty(),
                 temporary = conversation?.temporary == true,
                 compare = extras.compare?.let { CompareChoice(it, compareTitle(it, extras.models)) },
+                planRun = extras.planRun?.let { CompareChoice(it, compareTitle(it, extras.models)) },
             ),
             connectors = extras.connectors,
             todos = todos,
@@ -1011,10 +1033,76 @@ class ChatViewModel @AssistedInject constructor(
         conversations.setDisabledTools(conversationId, dev.locus.core.model.ChatMode.withMode(current, mode))
     }
 
-    fun approvePlan() = runner.approvePlan(conversationId)
+    /**
+     * Approve and run on a proposed plan. On this chat's model it starts at once. On another model (plan mode's
+     * "Run with", docs/design/plan-run.md) it asks first when [PlanRun.needsConfirm] says so: always for a
+     * provider this chat doesn't use, the first time, and when the first request's estimate is over the threshold.
+     */
+    fun approvePlan() {
+        val state = uiState.value
+        val provider = state.provider
+        val runOn = planRunWith.value
+        if (runOn == null || provider == null) {
+            runner.approvePlan(conversationId)
+            return
+        }
+        val chat = ModelRef(provider.id, provider.model)
+        val lists = state.picker.lists
+        val estimate = planRunEstimate(state.providers, state.picker.catalog, state.tokens.context, chat, runOn)
+        val confirm = PlanRunConfirm(
+            chat = CompareChoice(chat, compareTitle(chat, lists)),
+            run = CompareChoice(runOn, compareTitle(runOn, lists)),
+            estimate = estimate,
+            first = !planRunConfirmed.value,
+            otherProvider = state.providers.firstOrNull { it.id == runOn.providerId }?.name?.takeIf { runOn.providerId != chat.providerId },
+        )
+        if (PlanRun.needsConfirm(planRunConfirmed.value, chat, runOn, estimate)) {
+            _planRunConfirm.value = confirm
+            return
+        }
+        startPlanRun(runOn)
+    }
+
+    /** Plan mode's "Run with": the model the plan runs on once approved; null (or this chat's model) for the chat's own. */
+    fun setPlanRun(ref: ModelRef?) {
+        val state = uiState.value
+        // A pick of a provider's default names no model: it's that provider's default.
+        val resolved = ref?.let { r -> if (r.model.isBlank()) state.providers.firstOrNull { it.id == r.providerId }?.let { ModelRef(it.id, it.model) } else r }
+        planRunWith.value = PlanRun.runOn(state.provider?.let { ModelRef(it.id, it.model) }, resolved)
+    }
+
+    private val _planRunConfirm = MutableStateFlow<PlanRunConfirm?>(null)
+
+    /** An approval on another model waiting for the user's OK on its estimate and provider; null when none. */
+    internal val planRunConfirm: StateFlow<PlanRunConfirm?> = _planRunConfirm
+
+    private val planRunConfirmed = settings.settings.map { it.planRunConfirmed }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    /** The user said yes: the plan runs on the picked model, and later approvals on its provider ask only when they cost more. */
+    fun confirmPlanRun() {
+        val c = _planRunConfirm.value ?: return
+        _planRunConfirm.value = null
+        viewModelScope.launch { settings.setPlanRunConfirmed() }
+        startPlanRun(c.run.ref)
+    }
+
+    /** Not now: nothing runs, the plan still waits, and the picked model stays picked. */
+    fun dismissPlanRunConfirm() {
+        _planRunConfirm.value = null
+    }
+
+    private fun startPlanRun(ref: ModelRef) {
+        runner.approvePlan(conversationId, ref)
+        // One approval uses the pick up: the next plan starts on this chat's model again.
+        planRunWith.value = null
+    }
 
     /** Cancel on a proposed plan: nothing runs, and plan mode goes off so the card stops asking. */
-    fun cancelPlan() = viewModelScope.launch { conversations.setPlanMode(conversationId, false) }
+    fun cancelPlan() = viewModelScope.launch {
+        planRunWith.value = null
+        conversations.setPlanMode(conversationId, false)
+    }
 
     fun answer(callId: String, approved: Boolean) = runner.answer(callId, approved)
 
@@ -1177,6 +1265,8 @@ private data class Extras(
     val connectors: List<ChatConnector>,
     /** The active connectors' addresses: hosts the user set up, so links to them open in one tap. */
     val connectorAddresses: List<String> = emptyList(),
+    /** The model the waiting plan runs on (plan mode's "Run with"); null for the chat's own. */
+    val planRun: ModelRef? = null,
     val picked: dev.locus.core.browser.PickedElement? = null,
 )
 
@@ -1273,7 +1363,7 @@ internal fun transcriptItems(
         endedHere += ends
     }
     flushTurn()
-    return resolvePlans(out)
+    return resolvePlans(out).withPlanRuns(messages)
 }
 
 /**
@@ -1337,7 +1427,7 @@ internal fun turnItems(turn: List<Message>, results: Map<String, Part.ToolResult
                     AgentControlTools.TODO_WRITE -> Unit
                     AgentControlTools.PLAN_PROPOSE -> {
                         val plan = Plans.parse(call.argumentsJson)
-                        if (plan != null && results[call.id]?.isError != true) add(ChatItem.Plan(key, plan, PlanStatus.Waiting))
+                        if (plan != null && results[call.id]?.isError != true) add(ChatItem.Plan(key, plan, PlanStatus.Waiting, plannedBy = replyModel(listOf(message), message.id)))
                         else add(ChatItem.ToolCall(key, call.name, call.argumentsJson, results[call.id]))
                     }
                     dev.locus.core.model.ProviderDrafts.TOOL -> {
@@ -1432,3 +1522,11 @@ private const val RECENT_STEPS = 8
 
 /** One request's prompt and how much of it the provider read from or wrote to its cache. */
 data class StepCache(val number: Int, val input: Int, val read: Int, val written: Int, val written1h: Int)
+
+/** The chat screen's small inputs that change together rarely: attachments, Compare's and Run with's picks, the picked element. */
+private data class ExtrasInputs(
+    val pending: List<Part.Attachment>,
+    val compareWith: ModelRef?,
+    val planRun: ModelRef?,
+    val picked: dev.locus.core.browser.PickedElement?,
+)

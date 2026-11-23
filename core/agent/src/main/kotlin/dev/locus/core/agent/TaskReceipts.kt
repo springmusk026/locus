@@ -9,6 +9,8 @@ import dev.locus.core.model.ReceiptCheck
 import dev.locus.core.model.ReceiptCost
 import dev.locus.core.model.ReceiptHelper
 import dev.locus.core.model.ReceiptModel
+import dev.locus.core.model.ReceiptPlan
+import dev.locus.core.model.AgentControlTools
 import dev.locus.core.model.ReceiptTokens
 import dev.locus.core.model.Role
 import dev.locus.core.model.SubagentTools
@@ -67,7 +69,37 @@ object TaskReceipts {
     ): List<TaskReceipt> {
         if (records.isEmpty() || path.isEmpty()) return emptyList()
         val results = path.filter { it.role == Role.TOOL }.flatMap { it.toolResults }.associateBy { it.callId }
-        return records.sortedBy { it.startedAt }.mapNotNull { receipt(it, path, results, audit, changes, helpers, side, price, otherBranches) }
+        val built = records.sortedBy { it.startedAt }.mapNotNull { receipt(it, path, results, audit, changes, helpers, side, price, otherBranches) }
+        return withPlans(built, path)
+    }
+
+    /**
+     * A task that starts with the user's approval of a plan ([AgentControlTools.PLAN_APPROVED]) gets the task
+     * before it, the one that proposed the plan, as its [TaskReceipt.plan] (docs/design/plan-run.md): planning
+     * and running often use different models, and the receipt shows both, each at its own price.
+     */
+    private fun withPlans(receipts: List<TaskReceipt>, path: List<Message>): List<TaskReceipt> = receipts.mapIndexed { i, r ->
+        val before = receipts.getOrNull(i - 1) ?: return@mapIndexed r
+        val first = path.firstOrNull { it.createdAt in r.startedAt..r.endedAt } ?: return@mapIndexed r
+        if (first.role != Role.USER || first.userText.trim() != AgentControlTools.PLAN_APPROVED) return@mapIndexed r
+        val proposed = path.any { m ->
+            m.role == Role.ASSISTANT && m.createdAt in before.startedAt..before.endedAt &&
+                m.toolCalls.any { c -> dev.locus.core.model.DiscoveryTools.unwrap(c.name, c.argumentsJson).first == AgentControlTools.PLAN_PROPOSE }
+        }
+        if (!proposed) return@mapIndexed r
+        val models = before.models.filter { it.kind == ReceiptModel.Kind.CHAT || it.kind == ReceiptModel.Kind.BACKUP }.map { it.name }.distinct()
+        r.copy(plan = ReceiptPlan(models, before.cost, before.tokens.requests))
+    }
+
+    /**
+     * What planning and running cost together, for a task with a [TaskReceipt.plan]: the sum where either is
+     * known, a floor ([ReceiptCost.partial]) when one isn't. Null without a plan or with no price at all.
+     */
+    fun withPlanCost(r: TaskReceipt): ReceiptCost? {
+        val plan = r.plan ?: return null
+        val parts = listOf(plan.cost, r.cost)
+        if (parts.all { it == null }) return null
+        return ReceiptCost(parts.sumOf { it?.usd ?: 0.0 }, partial = parts.any { it == null || it.partial })
     }
 
     private fun receipt(
