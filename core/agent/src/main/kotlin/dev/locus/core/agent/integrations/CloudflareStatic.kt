@@ -79,101 +79,114 @@ internal class CloudflareDeployStatic(private val api: CloudflareApi, private va
         }
         val spa = args.bool("spa") == true
         val folder = collectSiteFiles(workspace, args.str("path").orEmpty(), maxFiles = MAX_FILES, maxBytes = MAX_TOTAL_BYTES)
-        folder.files.firstOrNull { it.size > MAX_FILE_BYTES }?.let {
-            throw ToolException("${it.path} is ${it.size / 1024 / 1024} MiB; Cloudflare takes files up to 25 MiB. Shrink or remove it first.")
-        }
-        val assets = folder.files.map { AssetFile(it, assetHash(it.bytes(), it.path)) }
-        if (spa && assets.none { it.file.path == "index.html" }) {
-            throw ToolException("spa needs an index.html at the top of ${folder.path}. Is this the build output folder?")
-        }
-
-        val account = api.accountId()
-        refuseCodeWorker(account, name)
-
-        val session = api.call(HttpMethod.Post, "/accounts/$account/workers/scripts/$name/assets-upload-session", json = manifest(assets))["result"].asObj()
-            ?: throw ToolException("Unexpected response from Cloudflare.")
-        val uploadJwt = session.field("jwt") ?: throw ToolException("Cloudflare didn't return an upload session.")
-        val buckets = (session["buckets"] as? JsonArray).orEmpty().map { b -> (b as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.contentOrNull } }
-        val byHash = assets.associateBy { it.hash }
-        var completion = uploadJwt
-        var uploaded = 0
-        for (bucket in buckets.filter { it.isNotEmpty() }) {
-            val form = MultiPartFormDataContent(
-                formData {
-                    for (hash in bucket) {
-                        val asset = byHash[hash] ?: throw ToolException("Cloudflare asked for a file that isn't in the folder ($hash).")
-                        // As wrangler: payload.append(hash, new File([base64], hash, { type }), hash).
-                        append(hash, Base64.getEncoder().encodeToString(asset.file.bytes()), filePartHeaders(hash, contentTypeFor(asset.file.path)))
-                        uploaded++
-                    }
-                },
-            )
-            val result = api.call(HttpMethod.Post, "/accounts/$account/workers/assets/upload", mapOf("base64" to true), form = form, bearer = uploadJwt)["result"].asObj()
-            result?.field("jwt")?.let { completion = it }
-        }
-        if (buckets.any { it.isNotEmpty() } && completion == uploadJwt) {
-            throw ToolException("Cloudflare accepted the files but didn't confirm the upload. Run the deploy again.")
-        }
-
-        val metadata = buildJsonObject {
-            put("main_module", STUB_NAME)
-            put("compatibility_date", COMPATIBILITY_DATE)
-            putJsonArray("tags") { add(TAG) }
-            putJsonArray("bindings") { addJsonObject { put("type", "assets"); put("name", "ASSETS") } }
-            putJsonObject("assets") {
-                put("jwt", completion)
-                putJsonObject("config") {
-                    put("not_found_handling", if (spa) "single-page-application" else "404-page")
-                }
-            }
-        }
-        val script = MultiPartFormDataContent(
-            formData {
-                append("metadata", metadata.toString(), Headers.build { append(HttpHeaders.ContentType, "application/json") })
-                // As wrangler: formData.set(module.name, new File([content], module.name, { type: "application/javascript+module" })).
-                append(STUB_NAME, STUB, filePartHeaders(STUB_NAME, "application/javascript+module"))
-            },
-        )
-        api.call(HttpMethod.Put, "/accounts/$account/workers/scripts/$name", form = script)
-
-        val subdomain = api.find("/accounts/$account/workers/subdomain")?.get("result").asObj()?.field("subdomain")
+        val d = deploy(api, name, spa, folder)
+        val url = d.url
             ?: return ToolResult(
                 "Uploaded ${folder.path} as the Worker $name, but the account has no workers.dev subdomain yet, so it has no public URL. " +
                     "Ask the user to open Workers & Pages in the Cloudflare dashboard once (it sets up the subdomain), then run this again.",
             )
-        api.call(
-            HttpMethod.Post, "/accounts/$account/workers/scripts/$name/subdomain",
-            json = buildJsonObject { put("enabled", true); put("previews_enabled", false) },
-        )
-        val url = "https://$name.$subdomain.workers.dev"
         return ToolResult(
             "Published ${folder.path} to $url\n" +
-                "${assets.size} files (${uploaded} uploaded, the rest already on Cloudflare)" +
+                "${d.files} files (${d.uploaded} uploaded, the rest already on Cloudflare)" +
                 (if (spa) "; unknown paths serve index.html." else "; unknown paths serve 404.html if there is one.") +
                 "\nA brand-new workers.dev address can take a minute or two to start answering.",
         )
     }
 
-    /**
-     * Refuses to overwrite a Worker that runs someone's code: replacing it with a static site would
-     * delete that code. Workers this tool made carry [TAG]; assets-only Workers have no modules.
-     */
-    private suspend fun refuseCodeWorker(account: String, name: String) {
-        val scripts = api.call(HttpMethod.Get, "/accounts/$account/workers/scripts")["result"].objects()
-        val existing = scripts.firstOrNull { it.field("id") == name } ?: return
-        val tags = (existing["tags"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
-        if (TAG in tags) return
-        val handlers = (existing["handlers"] as? JsonArray).orEmpty()
-        if (existing.flag("has_modules") == true || handlers.isNotEmpty()) {
-            throw ToolException(
-                "A Worker named $name already exists and runs code; publishing static files over it would delete that code. Pick another name.",
-            )
-        }
-    }
-
     internal class AssetFile(val file: SiteFile, val hash: String)
 
+    /** What one static deploy made: its public URL (null without a workers.dev subdomain) and file counts. */
+    internal class Deployed(val url: String?, val files: Int, val uploaded: Int)
+
     companion object {
+        /**
+         * The direct-upload deploy shared by `cloudflare_deploy_static` and Publish (docs/design/publish.md),
+         * steps 1 to 4 above.
+         */
+        internal suspend fun deploy(api: CloudflareApi, name: String, spa: Boolean, folder: SiteFolder): Deployed {
+            folder.files.firstOrNull { it.size > MAX_FILE_BYTES }?.let {
+                throw ToolException("${it.path} is ${it.size / 1024 / 1024} MiB; Cloudflare takes files up to 25 MiB. Shrink or remove it first.")
+            }
+            val assets = folder.files.map { AssetFile(it, assetHash(it.bytes(), it.path)) }
+            if (spa && assets.none { it.file.path == "index.html" }) {
+                throw ToolException("spa needs an index.html at the top of ${folder.path}. Is this the build output folder?")
+            }
+    
+            val account = api.accountId()
+            refuseCodeWorker(api, account, name)
+    
+            val session = api.call(HttpMethod.Post, "/accounts/$account/workers/scripts/$name/assets-upload-session", json = manifest(assets))["result"].asObj()
+                ?: throw ToolException("Unexpected response from Cloudflare.")
+            val uploadJwt = session.field("jwt") ?: throw ToolException("Cloudflare didn't return an upload session.")
+            val buckets = (session["buckets"] as? JsonArray).orEmpty().map { b -> (b as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.contentOrNull } }
+            val byHash = assets.associateBy { it.hash }
+            var completion = uploadJwt
+            var uploaded = 0
+            for (bucket in buckets.filter { it.isNotEmpty() }) {
+                val form = MultiPartFormDataContent(
+                    formData {
+                        for (hash in bucket) {
+                            val asset = byHash[hash] ?: throw ToolException("Cloudflare asked for a file that isn't in the folder ($hash).")
+                            // As wrangler: payload.append(hash, new File([base64], hash, { type }), hash).
+                            append(hash, Base64.getEncoder().encodeToString(asset.file.bytes()), filePartHeaders(hash, contentTypeFor(asset.file.path)))
+                            uploaded++
+                        }
+                    },
+                )
+                val result = api.call(HttpMethod.Post, "/accounts/$account/workers/assets/upload", mapOf("base64" to true), form = form, bearer = uploadJwt)["result"].asObj()
+                result?.field("jwt")?.let { completion = it }
+            }
+            if (buckets.any { it.isNotEmpty() } && completion == uploadJwt) {
+                throw ToolException("Cloudflare accepted the files but didn't confirm the upload. Run the deploy again.")
+            }
+    
+            val metadata = buildJsonObject {
+                put("main_module", STUB_NAME)
+                put("compatibility_date", COMPATIBILITY_DATE)
+                putJsonArray("tags") { add(TAG) }
+                putJsonArray("bindings") { addJsonObject { put("type", "assets"); put("name", "ASSETS") } }
+                putJsonObject("assets") {
+                    put("jwt", completion)
+                    putJsonObject("config") {
+                        put("not_found_handling", if (spa) "single-page-application" else "404-page")
+                    }
+                }
+            }
+            val script = MultiPartFormDataContent(
+                formData {
+                    append("metadata", metadata.toString(), Headers.build { append(HttpHeaders.ContentType, "application/json") })
+                    // As wrangler: formData.set(module.name, new File([content], module.name, { type: "application/javascript+module" })).
+                    append(STUB_NAME, STUB, filePartHeaders(STUB_NAME, "application/javascript+module"))
+                },
+            )
+            api.call(HttpMethod.Put, "/accounts/$account/workers/scripts/$name", form = script)
+    
+            val subdomain = api.find("/accounts/$account/workers/subdomain")?.get("result").asObj()?.field("subdomain")
+                ?: return Deployed(null, assets.size, uploaded)
+            api.call(
+                HttpMethod.Post, "/accounts/$account/workers/scripts/$name/subdomain",
+                json = buildJsonObject { put("enabled", true); put("previews_enabled", false) },
+            )
+            return Deployed("https://$name.$subdomain.workers.dev", assets.size, uploaded)
+        }
+
+        /**
+         * Refuses to overwrite a Worker that runs someone's code: replacing it with a static site would
+         * delete that code. Workers this tool made carry [TAG]; assets-only Workers have no modules.
+         */
+        private suspend fun refuseCodeWorker(api: CloudflareApi, account: String, name: String) {
+            val scripts = api.call(HttpMethod.Get, "/accounts/$account/workers/scripts")["result"].objects()
+            val existing = scripts.firstOrNull { it.field("id") == name } ?: return
+            val tags = (existing["tags"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
+            if (TAG in tags) return
+            val handlers = (existing["handlers"] as? JsonArray).orEmpty()
+            if (existing.flag("has_modules") == true || handlers.isNotEmpty()) {
+                throw ToolException(
+                    "A Worker named $name already exists and runs code; publishing static files over it would delete that code. Pick another name.",
+                )
+            }
+        }
+
         val WORKER_NAME = Regex("^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 
         /** https://developers.cloudflare.com/workers/static-assets/#limits (paid plans allow more files). */

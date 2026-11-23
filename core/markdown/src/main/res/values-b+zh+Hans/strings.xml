@@ -35,4 +35,5 @@
     <string name="markdown_artifact_blocked_styles">此处已拦截网络上的样式</string>
     <string name="markdown_artifact_blocked_scripts">此处已拦截网络上的脚本</string>
     <string name="markdown_artifact_blocked_other">此处已拦截网络上的图片和字体</string>
+    <string name="markdown_artifact_publish">发布为网页</string>
 </resources>
