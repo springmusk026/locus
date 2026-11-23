@@ -1329,6 +1329,7 @@
     <string name="chat_summary_review">Revisar</string>
     <string name="chat_summary_pending_title">Resumen listo para revisar</string>
     <string name="chat_screen_summary_note_partial">Locus trabaja con este resumen para los mensajes que cubre; los anteriores se siguen enviando tal como eran.</string>
+    <string name="chat_screen_summary_note_kept_after">Locus trabaja con este resumen para los mensajes anteriores; los más recientes de arriba, escritos mientras se preparaba, se siguen enviando tal como eran.</string>
     <string name="chat_screen_summary_edited">Editaste este resumen.</string>
     <string name="chat_screen_summary_edit">Editar resumen</string>
     <string name="chat_run_summarising_from">Resumiendo desde el mensaje elegido</string>
