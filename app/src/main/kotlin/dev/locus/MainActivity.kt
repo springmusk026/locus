@@ -347,7 +347,7 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>, appLock: AppLock) 
                         onOpenSavedLogins = { backStack.add(SettingsRoute(dev.locus.core.model.SettingsDestination.Logins)) },
                     )
                 }
-                entry<LibraryRoute> { key -> LibraryScreen(onBack = pop, initialTab = key.tab, initialTemplate = key.template, onOpenChat = { backStack.add(ChatRoute(it)) }) }
+                entry<LibraryRoute> { key -> LibraryScreen(onBack = pop, initialTab = key.tab, initialTemplate = key.template, onOpenChat = { backStack.add(ChatRoute(it)) }, suggestMemories = key.suggestMemories) }
                 entry<TasksRoute> { TasksScreen(onBack = pop, onOpenChat = { backStack.add(ChatRoute(it)) }) }
                 entry<AnalyticsRoute> { AnalyticsScreen(onBack = pop, onOpenConversation = { backStack.add(ChatRoute(it)) }) }
                 entry<SettingsRoute> { key ->
@@ -361,6 +361,8 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>, appLock: AppLock) 
                         onOpenLinux = { backStack.add(LinuxHealthRoute) },
                         onOpenOnDeviceModels = { backStack.add(OnDeviceModelsRoute) },
                         onOpenActivity = { backStack.add(ActivityRoute()) },
+                        // After an import: Library → Memory with the suggestion sheet open (docs/design/import-chats.md).
+                        onSuggestMemories = { backStack.add(LibraryRoute(tab = 0, suggestMemories = true)) },
                     )
                 }
                 entry<OnDeviceModelsRoute> {

@@ -45,6 +45,8 @@ fun SettingsRoute(
     onOpenOnDeviceModels: () -> Unit = {},
     /** Opens Activity, the log of every action (About links to it). */
     onOpenActivity: () -> Unit = {},
+    /** Opens Library → Memory's "Suggest memories from imported chats" (from an import's outcome). */
+    onSuggestMemories: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -65,6 +67,7 @@ fun SettingsRoute(
         onRunSetup = onRunSetup,
         onOpenLinux = onOpenLinux,
         onOpenActivity = onOpenActivity,
+        onSuggestMemories = onSuggestMemories,
         onSaveProvider = viewModel::saveProvider,
         onSetFallbacks = { viewModel.setFallbackModels(it) },
         onDeleteProvider = viewModel::deleteProvider,
@@ -172,6 +175,7 @@ internal fun SettingsScreen(
     onRunSetup: () -> Unit = {},
     onOpenLinux: () -> Unit = {},
     onOpenActivity: () -> Unit = {},
+    onSuggestMemories: () -> Unit = {},
     chatGpt: ChatGptActions = ChatGptActions.None,
     telegram: TelegramActions = TelegramActions.None,
     email: dev.locus.core.ui.EmailActions = dev.locus.core.ui.EmailActions.None,
@@ -235,7 +239,7 @@ internal fun SettingsScreen(
             SettingsPage.Voice -> VoiceRoute(onBack = back)
             SettingsPage.Automation -> AutomationRoute(onBack = back)
             SettingsPage.Phone -> PhoneRoute(onBack = back)
-            SettingsPage.Backup -> BackupRoute(onBack = back)
+            SettingsPage.Backup -> BackupRoute(onBack = back, onSuggestMemories = onSuggestMemories)
             SettingsPage.About -> {
                 val (lock, lockActions) = rememberAppLockSection(hiltViewModel())
                 AboutSettings(onBack = back, onRunSetup = onRunSetup, onOpenDiagnostics = { pageName = SettingsPage.Diagnostics.name }, onOpenActivity = onOpenActivity, lock = lock, lockActions = lockActions)

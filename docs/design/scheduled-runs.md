@@ -168,6 +168,21 @@ model again with nothing new.
 
 A scheduled or triggered run is still read-only, but a call to `email_send`, `calendar_create` or a workspace `write_file` that would be refused is recorded as a proposal instead, for the user to approve or decline in Needs you on home; the run is told it was proposed and says so in its answer. Approving runs exactly that call once, later, through the normal checks. Everything else is refused as before. See [needs you](needs-you.md).
 
+## Taking over a run
+
+A scheduled or triggered run happens in a chat of its own, which the user can open while it works (from Needs you, the task's row or the chat list). Before, a message sent there waited in the queue until the run ended, and Stop did nothing (the worker owns the run's end). Now the user can take over:
+
+- **Send** in that chat takes it over. The message is queued with a hidden note (`ModeNote.TAKEN_OVER`: the user opened the chat while the scheduled task ran, the background rules no longer apply, answer this message), and the chat's progress line says "Stopping the scheduled run…". **Stop** takes it over the same way, without a message. Typing a draft does nothing: only Send and Stop reach the runner.
+- **Where it stops.** `AgentConfig.stopAtBoundary` is asked at each step boundary, before the next request, and once a reply has arrived, before its tool calls run. Either way the loop ends with `Outcome.Interrupted` and every call has a result: a call already running finishes (scheduled runs' calls are read-only and short), and a reply's calls that hadn't started are answered "Not run: the user took over this chat". Nothing is cut off mid-call, and the transcript stays valid to continue. A request in flight isn't cancelled; its reply is kept.
+- **The record.** The run ends as `TaskOutcome.STOPPED` with the detail "you took over the chat" (`BackgroundRun.takenOver`); `ScheduledRun` records it as stopped, "Stopped: you took over in the chat, so the run stopped after its last step. It runs again at its next time." It isn't sent to reach-me channels. The notification is skipped while Locus is on screen (the chat says it); if the user has left Locus by the time the run ends, "Title: stopped" says so.
+- **The claim and the marker.** The worker returns normally, so the marker is cleared as for any finished run (`clearMarker(taskId, workId)`, only if this work still holds it): the prompt went out once, a retry of the same work would find no marker and nothing is ever re-sent. The user's own turn holds no claim: it runs in the chat like any message. The next scheduled time runs as usual.
+- **The user's message runs once, as a normal turn.** When `runInBackground` has freed the chat's slot, `continueAfterTakeover` starts a turn only if something is still queued, and that turn's block adds the queued messages and runs only if it took any, so neither a Stop-only takeover nor a race with the queue's own pickup asks the model again with nothing new. It is an ordinary turn: not read-only, the chat's own approvals and remembered answers, the reviewer, the completion check and steering apply; outward calls ask instead of becoming proposals. Taint carries over from the transcript as for any turn (a run that read a web page leaves the chat tainted). It starts as a queued message does (`BackgroundStart.QUEUED`), so if Android refuses the foreground service the chat offers Continue. The chat shows "You took over: the scheduled run stopped, and your message runs as a normal chat turn." (or, after Stop, "… stopped here. Send a message to carry on as a normal chat.").
+- **Prompt cache.** The chat's system prompt and tools are fixed when the run creates it and don't change; the note rides on the user's message.
+
+## Run conditions: unmetered only
+
+A task's conditions (Tasks → edit → Conditions) are WorkManager constraints, set by `TaskConstraints.of`: a run always needs a network (`NetworkType.CONNECTED`); **On Wi-Fi** narrows it to an unmetered network (`NetworkType.UNMETERED`, which also covers unmetered Ethernet and a Wi-Fi the user didn't mark metered); **While charging** and **Battery not low** add theirs. WorkManager holds the run until all hold, and stops a running worker if one stops holding (recorded as "Stopped by Android (network lost)" and so on, above). Run now ignores them (`TaskConstraints.runNow`: any network). Stored in `scheduled_tasks.unmeteredOnly` since database v16. Tested in `TaskConstraintsTest` (on Wi-Fi maps to `UNMETERED`, the default to `CONNECTED`) and `TaskRepositoryTest`.
+
 ## Event-triggered runs
 
 A task can also start when an event arrives ([event triggers](event-triggers.md)). Such a run is a one-time `TaskWorker` carrying the event's id. It goes through the same marker, claim, budget, receipt, notification and hot-phone hold described here. The event's history row records whether the claim was taken ("Already running") and how the run ended.
@@ -179,6 +194,11 @@ A task can also start when an event arrives ([event triggers](event-triggers.md)
   next to a live or stale marker; the start rule and stop reason texts.
 - `BackgroundStartTest`: a refused automatic start doesn't run, offers Continue and posts the
   notification, and Continue then runs; a refused user-started turn still runs.
+- `TakeOverTest`: a message mid-run stops it at the step boundary after its call finished, records
+  "you took over", releases the marker, sends no notification while Locus is on screen, and runs the
+  message once as a normal turn whose memory write isn't refused; Stop alone sends nothing more and
+  notifies when Locus isn't on screen; a reply that arrives after the takeover has its calls answered,
+  not run; without a send the run carries on.
 
 ## Not covered
 

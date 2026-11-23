@@ -168,6 +168,8 @@ class TestGraph(
     val reviewer = ReviewerModel(access, helper, usage)
     /** Library → Memory → Tidy up (docs/design/memory-approval.md). */
     val memoryTidy = dev.locus.core.data.repository.MemoryTidyRepository(home, helper, settingsRepository, access, database.projectDao, library, io)
+    /** Library → Memory → Suggest memories from imported chats (docs/design/import-chats.md). */
+    val memorySuggest by lazy { dev.locus.core.data.repository.MemorySuggestRepository(home, helper, settingsRepository, conversations, memoryTidy, io) }
     /** WorkManager for tasks, in memory. */
     val taskWork = FakeTaskWork()
     val tasks = TaskRepository(database.scheduledTaskDao, database.triggerEventDao, taskWork, secrets)
@@ -233,4 +235,45 @@ class TestGraph(
         dev.locus.core.data.updates.Updates(
             settingsRepository, dev.locus.core.data.updates.ReleaseSource(httpClient, now), updateCache, updateWork, updatePlatform, build, scope, io, "dev.locus", now,
         )
+
+    /**
+     * Imports one read-only chat through the real importer, from a minimal export of [source]
+     * (docs/design/import-chats.md): [turns] alternate user and assistant, starting with the user.
+     * Returns its Locus id.
+     */
+    suspend fun importChat(
+        source: dev.locus.core.model.ChatImportSource,
+        sourceId: String,
+        title: String,
+        turns: List<String>,
+        createdAt: Long = 1_700_000_000_000L,
+        updatedAt: Long = createdAt,
+    ): String {
+        fun str(s: String) = kotlinx.serialization.json.JsonPrimitive(s).toString()
+        fun iso(t: Long) = str(java.time.Instant.ofEpochMilli(t).toString())
+        val json = when (source) {
+            dev.locus.core.model.ChatImportSource.CLAUDE -> {
+                val messages = turns.mapIndexed { i, text ->
+                    """{"uuid":"$sourceId-m$i","sender":"${if (i % 2 == 0) "human" else "assistant"}","text":${str(text)},"created_at":${iso(createdAt + i)}}"""
+                }
+                """[{"uuid":"$sourceId","name":${str(title)},"created_at":${iso(createdAt)},"updated_at":${iso(updatedAt)},"chat_messages":[${messages.joinToString(",")}]}]"""
+            }
+            dev.locus.core.model.ChatImportSource.CHATGPT -> {
+                val nodes = turns.mapIndexed { i, text ->
+                    val parent = if (i == 0) "null" else "\"n${i - 1}\""
+                    val children = if (i == turns.lastIndex) "[]" else "[\"n${i + 1}\"]"
+                    """"n$i":{"id":"n$i","parent":$parent,"children":$children,"message":{"id":"n$i","author":{"role":"${if (i % 2 == 0) "user" else "assistant"}"},""" +
+                        """"create_time":${(createdAt + i) / 1000.0},"content":{"content_type":"text","parts":[${str(text)}]}}}"""
+                }
+                """[{"id":"$sourceId","title":${str(title)},"create_time":${createdAt / 1000.0},"update_time":${updatedAt / 1000.0},""" +
+                    """"current_node":"n${turns.lastIndex}","mapping":{${nodes.joinToString(",")}}}]"""
+            }
+        }
+        val bytes = json.toByteArray()
+        val file = dev.locus.core.data.chatimport.ExportFile("conversations.json", bytes.size.toLong()) { bytes.inputStream() }
+        val importer = dev.locus.core.data.chatimport.ChatImporter(conversations)
+        val plan = importer.scan(listOf(file)).plan()
+        importer.import(listOf(file), plan.ids)
+        return dev.locus.core.model.ImportedChats.chatId(source, sourceId)
+    }
 }

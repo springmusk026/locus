@@ -249,18 +249,28 @@ internal fun MemoryTidySheet(
     }
 }
 
+/**
+ * The review list, shared by Tidy up and "Suggest memories from imported chats": a checkbox per proposal,
+ * nothing ticked at first. [emptyTitle], [emptyBody] and [note] word it for the pass that made it.
+ */
 @Composable
-private fun TidyReview(review: TidyUiState.Review, onToggle: (String) -> Unit) {
+internal fun TidyReview(
+    review: TidyUiState.Review,
+    onToggle: (String) -> Unit,
+    emptyTitle: String = stringResource(R.string.library_tidy_none_title),
+    emptyBody: String = pluralStringResource(R.plurals.library_tidy_none_body, review.read, review.read),
+    note: String = stringResource(R.string.library_tidy_review_note),
+) {
     if (review.proposals.isEmpty()) {
         Column(Modifier.fillMaxWidth().padding(vertical = Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            Text(stringResource(R.string.library_tidy_none_title), style = LocusType.cardTitle)
-            SupportingText(pluralStringResource(R.plurals.library_tidy_none_body, review.read, review.read))
+            Text(emptyTitle, style = LocusType.cardTitle)
+            SupportingText(emptyBody)
         }
     } else {
-        SectionNote(stringResource(R.string.library_tidy_review_note))
-        // Project names are said only when there is more than one memory.
-        val manyMemories = review.proposals.map { it.sources.first().projectId }.distinct().size > 1 ||
-            review.proposals.any { it.sources.first().projectId != null }
+        SectionNote(note)
+        // Project names are said only when there is more than one memory (a new note always goes to general memory).
+        val memories = review.proposals.map { it.sources.firstOrNull()?.projectId }
+        val manyMemories = memories.distinct().size > 1 || memories.any { it != null }
         CardGroup {
             review.proposals.forEachIndexed { i, p ->
                 if (i > 0) GroupDivider(Spacing.sm + Sizes.touchTarget)
@@ -278,6 +288,7 @@ private fun TidyProposalRow(p: MemoryTidy.Proposal, checked: Boolean, enabled: B
     val title = when (p) {
         is MemoryTidy.Proposal.Merge -> stringResource(R.string.library_tidy_merge_title, names.joinToString(stringResource(R.string.library_memory_taint_separator)), p.topic.replace('-', ' '))
         is MemoryTidy.Proposal.Delete -> stringResource(R.string.library_tidy_delete_title, names.single())
+        is MemoryTidy.Proposal.New -> stringResource(R.string.library_suggest_new_title, p.topic.replace('-', ' '))
     }
     Column(Modifier.fillMaxWidth()) {
         Row(
@@ -288,20 +299,26 @@ private fun TidyProposalRow(p: MemoryTidy.Proposal, checked: Boolean, enabled: B
             Column(Modifier.weight(1f).padding(vertical = Spacing.sm)) {
                 Text(title, style = LocusType.rowTitle)
                 if (p.reason.isNotBlank()) SupportingText(p.reason, style = LocusType.rowSupporting)
-                if (showMemory) {
-                    val e = p.sources.first()
+                if (p is MemoryTidy.Proposal.New) SuggestedFrom(p.chat)
+                val e = p.sources.firstOrNull()
+                if (showMemory && e != null) {
                     SupportingText(
                         if (e.projectId == null) stringResource(R.string.library_tidy_in_general) else stringResource(R.string.library_tidy_in_project, e.projectName ?: stringResource(R.string.library_tidy_project_unnamed)),
                     )
                 }
             }
         }
-        if (p is MemoryTidy.Proposal.Merge) {
-            // The note the merge saves, in full: what the user accepts is exactly what is written.
+        val saved = when (p) {
+            is MemoryTidy.Proposal.Merge -> p.summary to p.content
+            is MemoryTidy.Proposal.New -> p.summary to p.content
+            is MemoryTidy.Proposal.Delete -> null
+        }
+        if (saved != null) {
+            // The note it saves, in full: what the user accepts is exactly what is written.
             Column(Modifier.fillMaxWidth().padding(start = Spacing.sm + Sizes.touchTarget, end = Spacing.lg, bottom = Spacing.md)) {
-                KeyValueRow(stringResource(R.string.library_memory_summary_label), p.summary, dense = true, valueMaxLines = Int.MAX_VALUE)
+                KeyValueRow(stringResource(R.string.library_memory_summary_label), saved.first, dense = true, valueMaxLines = Int.MAX_VALUE)
                 CodeSurface(Modifier.fillMaxWidth().padding(top = Spacing.xs)) {
-                    SelectionContainer { Text(p.content, Modifier.padding(Spacing.sm), style = LocusType.rowSupporting) }
+                    SelectionContainer { Text(saved.second, Modifier.padding(Spacing.sm), style = LocusType.rowSupporting) }
                 }
             }
         }

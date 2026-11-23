@@ -1560,6 +1560,10 @@
         <item quantity="many">%1$d regras</item>
         <item quantity="other">%1$d regras</item>
     </plurals>
+    <!-- A scheduled run the user took over (docs/design/scheduled-runs.md). -->
+    <string name="chat_run_taking_over">Parando a tarefa agendada…</string>
+    <string name="chat_run_took_over_message">Você assumiu: a tarefa agendada parou e sua mensagem segue como um turno normal do chat.</string>
+    <string name="chat_run_took_over">Você assumiu: a tarefa agendada parou aqui. Envie uma mensagem para continuar como um chat normal.</string>
     <string name="chat_compare_sheet_title">Comparar com</string>
     <string name="chat_compare_sheet_subtitle">Sua próxima mensagem também vai para um segundo modelo, como outra resposta ao lado da deste chat.</string>
     <string name="chat_compare_rule">Comparar não deixa o segundo modelo mudar nada: ele pode ler e olhar, mas gravar arquivos, executar comandos, enviar e iniciar ajudantes é negado. O modelo deste chat responde como sempre.</string>
