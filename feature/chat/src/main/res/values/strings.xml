@@ -1532,4 +1532,8 @@
         <item quantity="one">%1$d rule</item>
         <item quantity="other">%1$d rules</item>
     </plurals>
+    <!-- A scheduled run the user took over (docs/design/scheduled-runs.md). -->
+    <string name="chat_run_taking_over">Stopping the scheduled run…</string>
+    <string name="chat_run_took_over_message">You took over: the scheduled run stopped, and your message runs as a normal chat turn.</string>
+    <string name="chat_run_took_over">You took over: the scheduled run stopped here. Send a message to carry on as a normal chat.</string>
 </resources>

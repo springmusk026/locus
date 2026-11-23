@@ -110,6 +110,16 @@ class ScheduledRun @Inject constructor(
     /** Runs right after the claim, won or lost; tests hold the winner here until the other start has tried too. */
     internal var afterClaim: suspend () -> Unit = {}
 
+    /**
+     * Whether Locus is on screen. A run the user took over (they sent a message or tapped Stop in its chat) is
+     * then told about in the chat, not in a notification. Replaced in tests.
+     */
+    internal var onScreen: () -> Boolean = {
+        runCatching {
+            androidx.lifecycle.ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
+        }.getOrDefault(false)
+    }
+
     enum class Result { DONE, FAILED, SKIPPED }
 
     /**
@@ -188,6 +198,8 @@ class ScheduledRun @Inject constructor(
             val (outcome, summary) = when {
                 run == null -> TaskRunOutcome.STOPPED to "Stopped: it took longer than ${budget.inWholeMinutes} minutes, the limit for a scheduled run. The chat has what it found so far."
                 run.error != null -> TaskRunOutcome.FAILED to "Failed: ${run.error}"
+                // The user sent a message or tapped Stop in the chat: it stopped at a step boundary, and their message runs there as a normal turn.
+                run.takenOver -> TaskRunOutcome.STOPPED to TAKEN_OVER_SUMMARY
                 // Ended without finishing (budget, step limit, a refusal): say so, not a mid-task reply as the answer.
                 run.outcome == TaskOutcome.REFUSED -> TaskRunOutcome.FAILED to run.endLine.orEmpty()
                 run.outcome != TaskOutcome.DONE -> TaskRunOutcome.STOPPED to run.endLine.orEmpty()
@@ -195,10 +207,13 @@ class ScheduledRun @Inject constructor(
             }
             tasks.recordRun(taskId, conversation.id, summary, outcome)
             eventId?.let { tasks.recordEventRun(it, conversation.id, outcome, plain(summary)) }
-            notify(title(task.title, outcome), withReceipt(plain(summary), conversation.id), conversation.id)
+            // Taken over: the user is in the chat, which says so; a notification only if they've left Locus since.
+            val takenOver = run?.takenOver == true
+            if (!takenOver || !onScreen()) notify(title(task.title, outcome), withReceipt(plain(summary), conversation.id), conversation.id)
             // Also to the user's reach-me channels (ntfy, Telegram, Gotify, a webhook) when any is set up, so the answer reaches their other devices.
-            // ReachMe catches each channel's failure; this guards the rest.
-            runCatching { ReachMe.send(http, secrets, title(task.title, outcome), summary) }
+            // ReachMe catches each channel's failure; this guards the rest. Not for a run the user took over: they were there.
+            if (!takenOver) runCatching { ReachMe.send(http, secrets, title(task.title, outcome), summary) }
+            // Released even when taken over: the prompt was sent once, and the user's own turn needs no claim.
             tasks.clearMarker(taskId, workId)
             return if (outcome == TaskRunOutcome.FAILED) Result.FAILED else Result.DONE
         } catch (e: CancellationException) {
@@ -268,6 +283,9 @@ class ScheduledRun @Inject constructor(
          * record the outcome and notify before it would be stopped.
          */
         val RUN_BUDGET: Duration = 8.minutes
+
+        /** What a run the user took over records and, if they left Locus, notifies. */
+        const val TAKEN_OVER_SUMMARY = "Stopped: you took over in the chat, so the run stopped after its last step. It runs again at its next time."
 
         /** A marker older than this was left by a run that died: no worker lives past ten minutes. */
         val MARKER_STALE: Duration = 15.minutes

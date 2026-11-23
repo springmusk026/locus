@@ -1560,4 +1560,8 @@
         <item quantity="many">%1$d reglas</item>
         <item quantity="other">%1$d reglas</item>
     </plurals>
+    <!-- A scheduled run the user took over (docs/design/scheduled-runs.md). -->
+    <string name="chat_run_taking_over">Deteniendo la tarea programada…</string>
+    <string name="chat_run_took_over_message">Tomaste el control: la tarea programada se detuvo y tu mensaje se envía como un turno normal del chat.</string>
+    <string name="chat_run_took_over">Tomaste el control: la tarea programada se detuvo aquí. Envía un mensaje para seguir como en un chat normal.</string>
 </resources>

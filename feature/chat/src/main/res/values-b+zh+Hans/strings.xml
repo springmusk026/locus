@@ -1422,4 +1422,8 @@
     <plurals name="chat_projecteditor_rules_count">
         <item quantity="other">%1$d 条规则</item>
     </plurals>
+    <!-- A scheduled run the user took over (docs/design/scheduled-runs.md). -->
+    <string name="chat_run_taking_over">正在停止计划任务…</string>
+    <string name="chat_run_took_over_message">你已接手：计划任务已停止，你的消息将作为普通聊天轮次运行。</string>
+    <string name="chat_run_took_over">你已接手：计划任务在此停止。发送消息即可像普通聊天一样继续。</string>
 </resources>

@@ -175,6 +175,9 @@ data class BackgroundRun(
     /** The run's answer: its final reply when it finished, else null. */
     val answer: String? get() = text.takeIf { outcome == dev.locus.core.model.TaskOutcome.DONE }
 
+    /** The user took the chat over while this scheduled run worked: it stopped at a step boundary ([TAKEN_OVER]). */
+    val takenOver: Boolean get() = outcome == dev.locus.core.model.TaskOutcome.STOPPED && detail == TAKEN_OVER
+
     /** One line saying how a run that didn't finish ended ("Stopped: …"); null for a finished run. */
     val endLine: String? get() = when (outcome) {
         dev.locus.core.model.TaskOutcome.DONE -> null
@@ -185,6 +188,11 @@ data class BackgroundRun(
         dev.locus.core.model.TaskOutcome.STEP_LIMIT -> "Stopped at the step limit" + (detail?.let { " ($it)" }.orEmpty()) + "."
         dev.locus.core.model.TaskOutcome.INTERRUPTED -> "Stopped: Locus was closed before the task ended."
         dev.locus.core.model.TaskOutcome.TOOL_LOOP -> detail ?: "Stopped: the model kept calling tools it can't use."
+    }
+
+    companion object {
+        /** The [detail] of a scheduled run the user took over ([takenOver]): "Stopped: you took over the chat". */
+        const val TAKEN_OVER = "you took over the chat"
     }
 }
 
@@ -305,6 +313,7 @@ class AgentRunner @Inject constructor(
         is Outcome.StepLimitReached -> TaskEnd(dev.locus.core.model.TaskOutcome.STEP_LIMIT, "after ${outcome.steps} steps")
         is Outcome.BudgetStopped -> TaskEnd(dev.locus.core.model.TaskOutcome.BUDGET, outcome.message)
         is Outcome.ToolLoopStopped -> TaskEnd(dev.locus.core.model.TaskOutcome.TOOL_LOOP, outcome.loop.message)
+        Outcome.Interrupted -> TaskEnd(dev.locus.core.model.TaskOutcome.STOPPED, BackgroundRun.TAKEN_OVER)
     }
 
     /** The one-line receipt of [conversationId]'s latest task, for a notification; null when there's none. */
@@ -502,6 +511,14 @@ class AgentRunner @Inject constructor(
         // A read-only imported archive takes no messages, not even queued ones (see [startRun]).
         if (dev.locus.core.model.ImportedChats.isImported(conversationId)) return
         if (jobs.containsKey(conversationId)) {
+            val takeover = takeovers[conversationId]
+            if (takeover != null) {
+                // A scheduled or triggered run holds the chat: sending takes it over (docs/design/scheduled-runs.md). The
+                // message waits, marked, and runs as a normal turn once the run has stopped at its next step boundary.
+                queueBehindRun(conversationId) { queue.add(conversationId, text.trim(), attachments, note = ModeNote.TAKEN_OVER) }
+                takeOver(conversationId, takeover)
+                return
+            }
             queueBehindRun(conversationId) { queue.add(conversationId, text.trim(), attachments) }
             return
         }
@@ -1176,9 +1193,39 @@ class AgentRunner @Inject constructor(
     }
 
     fun cancel(conversationId: String) {
+        // Stop in a scheduled run's chat: the user takes it over; it stops at its next step boundary, and its
+        // worker records the end (docs/design/scheduled-runs.md). Never cancelled mid-call.
+        takeovers[conversationId]?.let { takeOver(conversationId, it) }
         // Not a scheduled run (its worker owns its end) or a branch switch.
         jobs[conversationId]?.takeIf { it !in quietJobs }?.cancel()
         subagents.engine.cancelChildren(conversationId)
+    }
+
+    /** A scheduled or triggered run the user may take over: set once they send a message or tap Stop in its chat. */
+    private class Takeover {
+        @Volatile var requested = false
+    }
+
+    /** The running scheduled or triggered run of each chat ([runInBackground]), for the user to take over. */
+    private val takeovers = ConcurrentHashMap<String, Takeover>()
+
+    private fun takeOver(conversationId: String, takeover: Takeover) {
+        if (takeover.requested) return
+        takeover.requested = true
+        update(conversationId) { it.withProgress(RunNote.TakingOver) }
+    }
+
+    /**
+     * After a scheduled run the user took over: their queued message runs as a normal turn (the chat's own
+     * rules, not the background ones). Nothing runs if the queue is empty by then (Stop alone, or another start
+     * already took the message), so the model is never asked again with nothing new.
+     */
+    private fun continueAfterTakeover(conversationId: String) {
+        if (!queue.has(conversationId)) return
+        val started = startRun(conversationId, BackgroundStart.QUEUED) {
+            if (appendQueued(conversationId)) run(conversationId)
+        }
+        if (started != null) update(conversationId) { it.withNotice(RunNote.TookOver(message = true)) }
     }
 
     fun answer(callId: String, approved: Boolean) = answer(callId, if (approved) dev.locus.core.agent.ApprovalAnswer.ALLOW else dev.locus.core.agent.ApprovalAnswer.DENY)
@@ -1602,6 +1649,8 @@ class AgentRunner @Inject constructor(
         val record = RunRecord(UUID.randomUUID().toString())
         runRecords[conversationId] = record
         if (origin != null) proposers[conversationId] = origin
+        val takeover = Takeover()
+        takeovers[conversationId] = takeover
         try {
             update(conversationId) { it.copy(scheduled = true) }
             taskEnds.remove(conversationId)
@@ -1631,9 +1680,12 @@ class AgentRunner @Inject constructor(
         } finally {
             runRecords.remove(conversationId, record)
             proposers.remove(conversationId)
+            takeovers.remove(conversationId, takeover)
             jobs.remove(conversationId, slot)
             quietJobs -= slot
             slot.complete()
+            // The user took over: their message, queued meanwhile, now runs as a normal turn.
+            if (takeover.requested) continueAfterTakeover(conversationId)
         }
         return record.result.await()
     }
@@ -1711,6 +1763,8 @@ class AgentRunner @Inject constructor(
                 unattended = background,
                 // What the user queued while this step ran (steer and queue); background runs have no one typing.
                 atStepBoundary = if (background) null else ({ boundaryMessages(conversationId) }),
+                // The user took a scheduled run's chat over: it stops at the next step boundary, nothing cut off mid-call.
+                stopAtBoundary = if (background) ({ takeovers[conversationId]?.requested == true }) else null,
                 // Read fresh for every call, so flipping plan mode or a tool off mid-run applies to the next call.
                 restrict = { tool, args ->
                     val c = conversations.get(conversationId)
@@ -1895,6 +1949,7 @@ class AgentRunner @Inject constructor(
                                                 ?.let { r -> it.withNotice(RunNote.BudgetStopped(r)) }
                                                 ?: it.copy(notice = "${outcome.message} Send a message to go on.")
                                             is Outcome.ToolLoopStopped -> it.copy(notice = outcome.loop.message)
+                                            Outcome.Interrupted -> it.withProgress(null).withNotice(RunNote.TookOver(message = queue.has(conversationId)))
                                         }
                                     }
                                 }

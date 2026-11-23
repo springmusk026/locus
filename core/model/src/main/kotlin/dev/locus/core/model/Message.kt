@@ -225,6 +225,15 @@ object ModeNote {
     fun isFromAnotherApp(message: Message): Boolean =
         message.parts.any { it is Part.Text && isNote(it.text) && EXTERNAL_PREFIX in it.text && EXTERNAL_FROM_APP in it.text }
 
+    /**
+     * Rides on a message the user sent in a scheduled or triggered run's chat while that run worked
+     * (docs/design/scheduled-runs.md): the run stopped so the user could take over, and from here on the
+     * chat is a normal one. In the message, never the system prompt, so the cached prefix holds.
+     */
+    const val TAKEN_OVER = "The user opened this chat while the scheduled task above was running and sent the message above, so that run " +
+        "stopped. From here on this is a normal chat with the user: the scheduled task's background rules no longer apply, and actions " +
+        "follow the chat's usual approvals. Answer this message; carry on with the task only if the user asks."
+
     const val PLAN_MODE = "Plan mode is on. Only reading and looking tools work (no writing, running, sending or changing anything). " +
         "Investigate as needed, then call plan_propose with your plan and stop. Don't carry out the task until the user approves."
 
