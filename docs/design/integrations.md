@@ -201,6 +201,20 @@ A forced confirmation is in-app only. It's never remembered, never answered by v
 - Linux already runs `uvx` templates (git, fetch). This one pulls heavier wheels (cryptography, lxml, pillow, grpc), and whether all of them have musl aarch64 builds on Alpine is *unverified on a phone*.
 - If it doesn't start, a WebDAV/CalDAV connector template is the fallback. Basic auth (above) is what it needs.
 
+### The WebDAV/CalDAV fallback: not built (checked 2026-11-23)
+
+Not built, for two reasons:
+
+- **The condition hasn't happened.** The fallback is for when the community server doesn't run in Locus's Linux on a phone. Nobody has tried it on a phone yet, so that's still unknown.
+- **HTTP connectors can't speak WebDAV or CalDAV yet.**
+  - Nextcloud's WebDAV docs list a folder with `PROPFIND` (an optional XML body naming the properties, and `Depth: 0` for the folder alone) at `/remote.php/dav/files/{user}/…`. Downloads are `GET` and uploads are a `PUT` of the raw file. CalDAV lives under `/remote.php/dav/calendars/{user}/…`. Reading events by date range is a `REPORT` with an XML `calendar-query`, and writing an event is a `PUT` of `text/calendar`.
+  - `Connector.validate` allows only GET, POST, PUT, PATCH and DELETE. `ConnectorCall` sends bodies only as JSON (`Content-Type: application/json`, the arguments as an object) and adds no headers besides auth (no `Depth`, `Content-Type` or `Accept`).
+  - So a template could list no folders, run no date-range queries and create no events. A connector script's `request()` can change the method without the validation, but leaning on that gap would be the wrong fix.
+- **What GET alone could do.** Sabre's ICS export (Nextcloud's DAV server is sabre/dav) reads one calendar with `GET …/calendars/{user}/{calendar}?export&start=…&end=…&expand=1&accept=jcal`. A file whose path is known can be downloaded with `GET`. Paths are cut into segments, and `{param}` is URL-encoded, so `/` becomes `%2F`, which many web servers reject. Calendars and folders couldn't be discovered at all. That's too little to call a Nextcloud template.
+- **What building it would take** (M, not S, no new dependency): HTTP connector operations with `PROPFIND` and `REPORT` in the allowlist, a fixed per-operation `Depth` header, a raw body template with its content type (XML, `text/calendar`), and a WebDAV-style path parameter that keeps `/`. Then a template with app-password guidance, Basic auth, and **Test connection** as `PROPFIND` with `Depth: 0` on `/remote.php/dav/files/{user}/`.
+- **Next step:** try `uvx nextcloud-mcp-server@0.204.3` on a phone. Build the above only if it fails.
+- **Sources:** [WebDAV basics](https://docs.nextcloud.com/server/latest/developer_manual/client_apis/WebDAV/basic.html) (endpoint, PROPFIND and Depth, GET and PUT, app passwords for "WebDAV clients and scripts"); [OCS API overview](https://docs.nextcloud.com/server/latest/developer_manual/client_apis/OCS/ocs-api-overview.html) (every example sends `OCS-APIRequest: true`, a second header that a connector can't add); [Android sync](https://docs.nextcloud.com/server/latest/user_manual/en/groupware/sync_android.html) (base `…/remote.php/dav`, "Use a dedicated App password instead", and password logins fail with two-factor authentication); [sabre/dav ICS export](https://sabre.io/dav/ics-export-plugin/) (`?export`, `start`, `end`, `expand`, `accept=jcal`, `componentType`).
+
 ## RSS digest
 
 Tasks → **News digest** runs every day from 07:00 (`TaskDraft.newsDigest`), like the Morning digest.
