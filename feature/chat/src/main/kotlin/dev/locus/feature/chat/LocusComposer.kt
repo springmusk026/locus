@@ -138,6 +138,11 @@ internal class ComposerActions(
     val setTemporary: ((Boolean) -> Unit)? = null,
     /** The temporary-chat explanation was seen. */
     val onTemporaryExplained: () -> Unit = {},
+    /**
+     * Compare models (docs/design/compare-models.md): the second model for the next send, or none. Only in a
+     * chat (null on home: a new chat has no context to compare on yet, and its first answer settles its tools).
+     */
+    val setCompare: ((dev.locus.core.model.ModelRef?) -> Unit)? = null,
 )
 
 /** A live panel's toggle at the composer's top right (in a chat): tinted while open, a live dot while its tool runs. */
@@ -394,6 +399,19 @@ internal fun LocusComposer(
                         onClick = { onSheet(ControlSheet.More) },
                     )
                 }
+                // Compare models: the second model the next message also goes to, until it's sent.
+                controls.compare?.let { cmp ->
+                    BarPill(
+                        label = stringResource(R.string.chat_compare_pill, modelLabel(cmp.ref)).takeUnless { running },
+                        icon = LocusIcons.Layers,
+                        active = true,
+                        enabled = controlsEnabled,
+                        description = stringResource(R.string.chat_compare_pill_description, cmp.label),
+                        state = stringResource(R.string.chat_composer_on),
+                        onClickLabel = stringResource(R.string.chat_compare_pill_change),
+                        onClick = { onSheet(ControlSheet.Compare) },
+                    )
+                }
                 if (provider != null) {
                     BarPill(
                         // While a task runs the Aside pill and Stop take the row: the model shows as its badge
@@ -495,6 +513,16 @@ private fun ComposerSheets(
             onEnableCatalog = actions.enableCatalog,
             onDismiss = close,
         )
+        ControlSheet.Compare -> ModelSheet(
+            settings,
+            onPick = { id, model -> close(); actions.setCompare?.invoke(dev.locus.core.model.ModelRef(id, model.orEmpty())) },
+            onOpen = actions.prepareModels,
+            onToggleFavorite = actions.toggleFavorite,
+            onEnableCatalog = actions.enableCatalog,
+            onDismiss = close,
+            compare = true,
+            onClearCompare = settings.controls.compare?.let { { close(); actions.setCompare?.invoke(null) } },
+        )
         ControlSheet.Effort -> EffortSheet(settings.provider, settings.controls, onPick = { close(); actions.setEffort(it) }, onDismiss = close)
         ControlSheet.Mode -> ModeSheet(settings.controls, onPick = { close(); actions.setMode(it) }, onDismiss = close)
         ControlSheet.Tools -> ToolsSheet(settings.controls, settings.connectors, onSetEnabled = actions.setToolEnabled, onDismiss = close)
@@ -517,6 +545,7 @@ private fun ComposerSheets(
             onWorkflows = actions.onWorkflows?.let { open -> { close(); open() } },
             onPrompts = onPrompts?.let { open -> { close(); open() } },
             onVoiceMode = actions.onVoiceMode?.let { open -> { close(); open() } },
+            onCompare = actions.setCompare?.let { { onSheet(ControlSheet.Compare) } },
             // The first time it's turned on, the + sheet makes way for what it means.
             onSetTemporary = actions.setTemporary?.let { set ->
                 { on: Boolean -> set(on); if (on && !settings.temporaryExplained) onSheet(ControlSheet.Temporary) }
@@ -544,6 +573,8 @@ private fun MoreSheet(
     onVoiceMode: (() -> Unit)? = null,
     /** Home only: the next chat starts temporary ([ComposerActions.setTemporary]). */
     onSetTemporary: ((Boolean) -> Unit)? = null,
+    /** Compare models: pick a second model for the next message; null where it isn't offered (home). */
+    onCompare: (() -> Unit)? = null,
 ) {
     LocusSheet(title = stringResource(R.string.chat_composer_options), onDismiss = onDismiss) {
         if (onVoiceMode != null) {
@@ -598,6 +629,16 @@ private fun MoreSheet(
                 budgetSubtitle(LocalResources.current, controls),
                 onClick = onBudget,
             ) { RowChevron() }
+            // Compare models: the next message also goes to a second model, which only reads.
+            if (onCompare != null) {
+                GroupDivider(inset = Insets.iconRow)
+                SheetRow(
+                    LocusIcons.Layers,
+                    stringResource(R.string.chat_compare_row),
+                    controls.compare?.let { stringResource(R.string.chat_compare_row_on, it.label) } ?: stringResource(R.string.chat_compare_row_hint),
+                    onClick = onCompare,
+                ) { RowChevron() }
+            }
         }
         if (onCompact != null) {
             CardGroup {

@@ -1532,4 +1532,34 @@
         <item quantity="one">%1$d rule</item>
         <item quantity="other">%1$d rules</item>
     </plurals>
+    <string name="chat_compare_sheet_title">Compare with</string>
+    <string name="chat_compare_sheet_subtitle">Your next message also goes to a second model, as another answer beside this chat\'s.</string>
+    <string name="chat_compare_rule">Compare doesn\'t let the second model change anything: it can read and look, but writing files, running commands, sending and starting helpers are refused. This chat\'s model answers as usual.</string>
+    <string name="chat_compare_cache_note">The second model\'s provider hasn\'t seen this chat, so its first request writes the whole prompt to its cache, at the cache-write price. This chat\'s own model and its cache aren\'t affected.</string>
+    <string name="chat_compare_second_chip">Second model</string>
+    <string name="chat_compare_chat_chip">This chat\'s model</string>
+    <string name="chat_compare_stop">Stop comparing</string>
+    <string name="chat_compare_stop_hint">The next message goes to this chat\'s model only.</string>
+    <string name="chat_compare_pill">vs %1$s</string>
+    <string name="chat_compare_pill_description">Compare with %1$s</string>
+    <string name="chat_compare_pill_change">change or stop comparing</string>
+    <string name="chat_compare_row">Compare models</string>
+    <string name="chat_compare_row_hint">Send the next message to a second model too, and keep the better answer.</string>
+    <string name="chat_compare_row_on">The next message also goes to %1$s.</string>
+    <string name="chat_compare_label_read_only">%1$s · read-only</string>
+    <string name="chat_compare_keep">Keep this one</string>
+    <string name="chat_compare_kept">Kept</string>
+    <string name="chat_compare_streaming">Second answer: %1$s · read-only</string>
+    <string name="chat_compare_price_unknown">unknown</string>
+    <string name="chat_compare_price_tiny">&lt; $0.001</string>
+    <string name="chat_compare_price">$%1$s</string>
+    <string name="chat_compare_confirm_title">Send to both models?</string>
+    <string name="chat_compare_confirm_send">Send to both</string>
+    <string name="chat_compare_confirm_first">Your message goes to this chat\'s model and to a second one. Both answers show as ‹ 1/2 ›, each labelled with its model; keep the one you like.</string>
+    <string name="chat_compare_confirm_over">This comparison is estimated to cost more than usual.</string>
+    <string name="chat_compare_confirm_chat_role">This chat\'s model · less with a warm cache</string>
+    <string name="chat_compare_confirm_other_role">Second model · read-only</string>
+    <string name="chat_compare_confirm_covers">Estimated input of each model\'s first request (about %1$s tokens), from models.dev prices. Replies and tool steps cost more.</string>
+    <string name="chat_compare_confirm_cache">%1$s hasn\'t seen this chat, so its provider writes the whole prompt to its cache: it\'s priced as a cache write.</string>
+    <string name="chat_run_compare_failed">%1$s couldn\'t answer the comparison: %2$s</string>
 </resources>

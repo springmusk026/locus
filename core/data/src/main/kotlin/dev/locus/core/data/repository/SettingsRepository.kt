@@ -281,6 +281,30 @@ class SettingsRepository @Inject constructor(
     /** Whether the update check also offers pre-releases ([AppSettings.updateBeta]). */
     suspend fun setUpdateBeta(enabled: Boolean) = store.updateData { it.copy(updateBeta = enabled) }
 
+    /** Compare models: remembers that [turn]'s message was answered by two models, for "Keep this one". */
+    suspend fun recordCompare(turn: dev.locus.core.model.CompareTurn) =
+        store.updateData { it.copy(compareTurns = dev.locus.core.model.ModelCompare.remember(it.compareTurns, turn)) }
+
+    /**
+     * Compare models: the user kept [kept]'s answer to [userMessageId]. The pair's tally (Insights → Your picks)
+     * counts it; false when that message wasn't a comparison or [kept] isn't one of its models. On the phone only.
+     */
+    suspend fun keepCompare(conversationId: String, userMessageId: String, kept: ModelRef): Boolean {
+        var done = false
+        store.updateData { s ->
+            val next = dev.locus.core.model.ModelCompare.keep(s.compareTurns, s.modelPicks, conversationId, userMessageId, kept) ?: return@updateData s
+            done = true
+            s.copy(compareTurns = next.first, modelPicks = next.second)
+        }
+        return done
+    }
+
+    /** The user confirmed a comparison's cost once ([AppSettings.compareConfirmed]). */
+    suspend fun setCompareConfirmed() = store.updateData { it.copy(compareConfirmed = true) }
+
+    /** Clears Insights → Your picks. The comparisons stay in their chats. */
+    suspend fun clearModelPicks() = store.updateData { it.copy(modelPicks = emptyList(), compareTurns = it.compareTurns.map { t -> t.copy(kept = null) }) }
+
     /** The temporary-chat explanation was shown ([AppSettings.temporaryChatExplained]). */
     suspend fun setTemporaryChatExplained() = store.updateData { it.copy(temporaryChatExplained = true) }
 

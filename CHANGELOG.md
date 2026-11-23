@@ -5,6 +5,11 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Added
+- **Compare models.** In a chat, + → **Compare models** picks a second model for your next message; the bar then shows "vs gpt-5". Models that can't serve the chat (no tool calling when it uses tools, no vision for images, too small a window) can't be picked, nor can the chat's own. Sending asks first with an estimate of both requests' input cost from models.dev prices ("unknown" without one), the first time and later only above $0.05; the second model's provider hasn't seen the chat, so its first request is priced as a full cache write, and the sheet says so. Both answers then sit under your message as ‹ 1/2 ›, each labelled with its model; **Keep this one** marks the one you prefer, and the other stays one tap away like any branch.
+  - **Compare doesn't let the second model change anything.** It answers first and may only read and look: writing files, commands, sending, the browser's clicks and helpers are refused, so nothing happens twice. Then the chat's own model answers exactly as a normal send (same request, so its prompt cache is untouched), with your usual permissions. If the second model fails, a notice says so and the chat's model still answers.
+  - Both answers are one task: the task budget counts both, and the receipt lists both models and their cost.
+  - **Insights → Your picks**: for each pair of models you compared, how often you kept each answer. Kept in Locus's settings on this phone (and in encrypted backups), never sent anywhere.
+  - No database change. See [compare models](docs/design/compare-models.md). *Not yet tried on the phone or against live keys.*
 - **Project rules.** A project's settings now have **Rules**. Each one runs a command or blocks one:
   - **After an edit** runs a command (for example `ruff check $LOCUS_RULE_FILES`) after the agent changes files matching its globs (`*.py, src/**`). Only successful `write_file`, `edit_file` and `multi_edit` calls count.
   - **Before finishing** runs a command (`npm test`) when the agent is about to end a task in which it changed files, ran commands or used helpers. If it fails, the agent is sent back to fix it, at most twice per task.

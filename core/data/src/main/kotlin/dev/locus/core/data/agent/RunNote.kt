@@ -126,6 +126,17 @@ sealed interface RunNote {
         }
     }
 
+    /**
+     * Compare models: the second model couldn't answer ([model], its short name and provider; [reason] as the
+     * error said it). The chat's own model answers anyway (docs/design/compare-models.md).
+     */
+    data class CompareFailed(val model: String, val reason: String?) : RunNote {
+        override val english get() = "$model couldn't answer the comparison: ${shownReason ?: "unknown error"}"
+
+        /** The reason's first line, as the notice shows it. */
+        val shownReason: String? get() = reason?.lineSequence()?.firstOrNull()?.take(200)?.ifBlank { null }
+    }
+
     /** "Saved 2 lessons to memory." */
     data class LessonsSaved(val count: Int) : RunNote {
         override val english get() = if (count == 1) "Saved 1 lesson to memory." else "Saved $count lessons to memory."

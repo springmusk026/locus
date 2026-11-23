@@ -197,6 +197,16 @@ data class AppSettings(
     val memoryApproval: MemoryApproval = MemoryApproval.OUTSIDE_CONTENT,
     /** Lock Locus and locked chats (docs/design/app-lock.md). Not sealed: see [AppLockSettings]. */
     val appLock: AppLockSettings = AppLockSettings(),
+    /**
+     * Compare models (docs/design/compare-models.md): the comparisons sent lately, newest first, at most
+     * [ModelCompare.MAX_TURNS], so "Keep this one" knows which turns were comparisons and what each one kept.
+     * On the phone only, never in a request. Not sealed: it grants the agent nothing.
+     */
+    val compareTurns: List<CompareTurn> = emptyList(),
+    /** Your picks: for each pair of models compared, how often you kept each (Insights). On the phone only. */
+    val modelPicks: List<ModelPickTally> = emptyList(),
+    /** The user has confirmed a comparison's cost once; until then every Compare send asks first. */
+    val compareConfirmed: Boolean = false,
 ) {
     /**
      * Whether to open onboarding at launch. People who set up a provider before onboarding existed
