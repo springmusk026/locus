@@ -1,0 +1,85 @@
+{
+  "label": "Claude Opus 5.5, a chat with pauses (synthetic)",
+  "model": "claude-opus-5-5",
+  "format": "ANTHROPIC_MESSAGES",
+  "price": {
+    "input": 4.0,
+    "output": 20.0,
+    "cacheRead": 0.2,
+    "cacheWrite": 5.0
+  },
+  "contextWindow": 1000000,
+  "prefixTokens": 10000,
+  "steps": [
+    {
+      "sentAtMs": 0,
+      "replyAtMs": 20000,
+      "newTokens": 2000,
+      "userTokens": 2000,
+      "outputTokens": 500,
+      "startsTurn": true,
+      "recorded": {
+        "input": 12000,
+        "output": 500,
+        "cacheRead": 0,
+        "cacheWrite": 12000,
+        "cacheWrite1h": 12000
+      }
+    },
+    {
+      "sentAtMs": 30000,
+      "replyAtMs": 40000,
+      "newTokens": 3000,
+      "outputTokens": 400,
+      "results": [
+        {
+          "chars": 10000
+        }
+      ],
+      "recorded": {
+        "input": 15000,
+        "output": 400,
+        "cacheRead": 12000,
+        "cacheWrite": 3000,
+        "cacheWrite1h": 3000
+      }
+    },
+    {
+      "sentAtMs": 690000,
+      "replyAtMs": 698000,
+      "newTokens": 1000,
+      "userTokens": 600,
+      "outputTokens": 300,
+      "startsTurn": true,
+      "recorded": {
+        "input": 16000,
+        "output": 300,
+        "cacheRead": 15000,
+        "cacheWrite": 1000,
+        "cacheWrite1h": 1000
+      }
+    },
+    {
+      "sentAtMs": 5490000,
+      "replyAtMs": 5496000,
+      "newTokens": 2000,
+      "outputTokens": 200,
+      "results": [
+        {
+          "chars": 6800
+        }
+      ],
+      "recorded": {
+        "input": 18000,
+        "output": 200,
+        "cacheRead": 0,
+        "cacheWrite": 18000,
+        "cacheWrite1h": 18000
+      }
+    }
+  ],
+  "recordedPolicy": {
+    "label": "Locus today",
+    "compaction": "NONE"
+  }
+}
