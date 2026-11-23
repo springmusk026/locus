@@ -66,8 +66,13 @@ class ReachMeActions(
     val remove: (channel: ReachMeChannel) -> Unit,
     /** A new random signing secret for a webhook. */
     val newSecret: () -> String = { ReachMeSetup.newSecret() },
+    /** Matrix: checks the homeserver, token and room, then posts a test; the result is the bot's user ID. */
+    val matrixTest: (url: String, token: String, room: String, onResult: (Result<String>) -> Unit) -> Unit = { _, _, _, _ -> },
+    /** Matrix: checks the homeserver, token and room, then saves them (an alias as its room ID). */
+    val matrixSave: (url: String, token: String, room: String, onResult: (Result<Unit>) -> Unit) -> Unit = { _, _, _, _ -> },
 ) {
-    data class Saved(val url: String, val hasSecret: Boolean)
+    /** [room] is the saved Matrix room's ID. */
+    data class Saved(val url: String, val hasSecret: Boolean, val room: String? = null)
 
     companion object {
         val None = ReachMeActions({ _, done -> done(null) }, { _, _, _, _ -> }, { _, _, _, _ -> }, {})
@@ -75,17 +80,27 @@ class ReachMeActions(
         /** The sheet's actions over [setup], run in [scope] (a view model's). Failures come back as results. */
         fun of(setup: ReachMeSetup, scope: CoroutineScope) = ReachMeActions(
             saved = { channel, done ->
-                scope.launch { done(runCatching { setup.savedUrl(channel)?.let { Saved(it, setup.hasSecret(channel)) } }.getOrNull()) }
+                scope.launch {
+                    done(
+                        runCatching {
+                            setup.savedUrl(channel)?.let { Saved(it, setup.hasSecret(channel), if (channel == ReachMeChannel.MATRIX) setup.savedRoom() else null) }
+                        }.getOrNull(),
+                    )
+                }
             },
-            test = { channel, url, secret, done -> scope.launch { done(runCatching { setup.sendTest(channel, url, secret) }) } },
+            test = { channel, url, secret, done -> scope.launch { done(runCatching { setup.sendTest(channel, url, secret); Unit }) } },
             save = { channel, url, secret, done -> scope.launch { done(runCatching { setup.save(channel, url, secret) }) } },
             remove = { channel -> scope.launch { setup.remove(channel) } },
+            matrixTest = { url, token, room, done ->
+                scope.launch { done(runCatching { checkNotNull(setup.sendTest(ReachMeChannel.MATRIX, url, token, room)) }) }
+            },
+            matrixSave = { url, token, room, done -> scope.launch { done(runCatching { setup.save(ReachMeChannel.MATRIX, url, token, room) }) } },
         )
     }
 }
 
 /** A failure in the user's language when core gave one, else its own words, else a generic line. */
-private fun Throwable.uiText(): UiText =
+internal fun Throwable.uiText(): UiText =
     (this as? ServiceSetupException)?.text?.toUiText() ?: message?.let(UiText::Plain) ?: UiText.Res(DesignR.string.common_error_generic)
 
 /**
@@ -105,6 +120,10 @@ fun ReachMeSheet(
     initial: ReachMeForm? = null,
 ) {
     val channel = ReachMeChannel.of(integration.id) ?: return
+    if (channel == ReachMeChannel.MATRIX) {
+        MatrixSheet(integration, hasKey, actions, onDismiss, localNetwork, initial)
+        return
+    }
     val gotify = channel == ReachMeChannel.GOTIFY
     val res = LocalResources.current
     val uriHandler = LocalUriHandler.current
@@ -254,4 +273,10 @@ data class ReachMeForm(
     val savedSecret: Boolean = false,
     val note: UiText? = null,
     val error: UiText? = null,
+    /** Matrix: the room's address or ID. */
+    val room: String = "",
+    /** Matrix: the room turned out to be end-to-end encrypted. */
+    val encrypted: Boolean = false,
+    /** The action shown as running ("test" or "save"), for renders of the checking state. */
+    val running: String? = null,
 )

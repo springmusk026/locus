@@ -5,6 +5,7 @@ import dev.locus.core.agent.integrations.ChannelHttpException
 import dev.locus.core.agent.integrations.Gotify
 import dev.locus.core.agent.integrations.Integration
 import dev.locus.core.agent.integrations.Integrations
+import dev.locus.core.agent.integrations.Matrix
 import dev.locus.core.agent.integrations.Webhook
 import dev.locus.core.data.R
 import dev.locus.core.data.connectors.ServiceSetupException
@@ -21,6 +22,7 @@ import javax.inject.Singleton
 /** The reach-me channels set up with an address and a secret (docs/design/reach-me-channels.md). */
 enum class ReachMeChannel(val integration: Integration) {
     GOTIFY(Integrations.gotify),
+    MATRIX(Integrations.matrix),
     WEBHOOK(Integrations.webhook),
     ;
 
@@ -30,8 +32,12 @@ enum class ReachMeChannel(val integration: Integration) {
 }
 
 /**
- * Settings → Integrations → Gotify or Webhook: check the address and secret, send a test, save them
- * in the vault together (see [Gotify.parse], [Webhook.parse]), or remove them.
+ * Settings → Integrations → Gotify, Matrix or Webhook: check the address and secret, send a test, save
+ * them in the vault together (see [Gotify.parse], [Matrix.parse], [Webhook.parse]), or remove them.
+ *
+ * Matrix also needs a room, and is checked against the homeserver before it's saved ([checkMatrix]):
+ * the token, the room (an alias is resolved to its ID), that the bot has joined it, and that it isn't
+ * end-to-end encrypted, which Locus can't send into.
  *
  * A blank secret means "the one already saved", but only for the same origin: a saved token is never
  * sent to an address the user didn't save it for. Redirects aren't followed. Every failure is a
@@ -47,6 +53,7 @@ class ReachMeSetup @Inject constructor(http: HttpClient, private val secrets: Se
     private suspend fun saved(channel: ReachMeChannel): Pair<String, String?>? = secrets.get(name(channel))?.let { value ->
         when (channel) {
             ReachMeChannel.GOTIFY -> Gotify.parse(value)?.let { it.url to it.token }
+            ReachMeChannel.MATRIX -> Matrix.parse(value)?.let { it.url to it.token }
             ReachMeChannel.WEBHOOK -> Webhook.parse(value)?.let { it.url to it.secret }
         }
     }
@@ -54,16 +61,20 @@ class ReachMeSetup @Inject constructor(http: HttpClient, private val secrets: Se
     /** The saved address, to fill the sheet (the secret is never read back to the UI). */
     suspend fun savedUrl(channel: ReachMeChannel): String? = saved(channel)?.first
 
+    /** The saved Matrix room's ID, to fill the sheet. */
+    suspend fun savedRoom(): String? = secrets.get(name(ReachMeChannel.MATRIX))?.let(Matrix::parse)?.roomId
+
     /** Whether a secret is saved with it: a webhook may have none. */
     suspend fun hasSecret(channel: ReachMeChannel): Boolean = saved(channel)?.second != null
 
     /**
      * The vault value for [url] and [secret]. [secret] blank keeps the saved one when [url] has the same
-     * origin; for a webhook, null means "no signing secret".
+     * origin; for a webhook, null means "no signing secret". For Matrix it is the address and the token;
+     * [checkMatrix] adds the room.
      */
     internal suspend fun value(channel: ReachMeChannel, url: String, secret: String?): String {
         val checked = when (channel) {
-            ReachMeChannel.GOTIFY -> dev.locus.core.model.ServiceAddress.check(url)
+            ReachMeChannel.GOTIFY, ReachMeChannel.MATRIX -> dev.locus.core.model.ServiceAddress.check(url)
             ReachMeChannel.WEBHOOK -> Webhook.check(url)
         }
         val address = checked.url ?: throw ServiceSetupException(EngineText.Plain(checked.error.orEmpty()), checked.error.orEmpty())
@@ -79,6 +90,13 @@ class ReachMeSetup @Inject constructor(http: HttpClient, private val secrets: Se
                 if (!Gotify.isToken(token)) fail(R.string.data_reachme_token_invalid, "That isn't an application token.")
                 Gotify.format(address, token)
             }
+            ReachMeChannel.MATRIX -> {
+                val token = entered?.takeIf { it.isNotEmpty() } ?: kept
+                    ?: if (saved(channel) != null) fail(R.string.data_reachme_token_again, "Paste the token again for the new address.")
+                    else fail(R.string.data_reachme_matrix_token_missing, "Paste the bot account's access token.")
+                if (!Matrix.isToken(token)) fail(R.string.data_reachme_matrix_token_invalid, "That isn't an access token.")
+                "$address $token"
+            }
             ReachMeChannel.WEBHOOK -> {
                 val signing = when {
                     entered == null -> null
@@ -90,8 +108,67 @@ class ReachMeSetup @Inject constructor(http: HttpClient, private val secrets: Se
         }
     }
 
-    /** Sends a short test message with [url] and [secret] (see [value]). */
-    suspend fun sendTest(channel: ReachMeChannel, url: String, secret: String?) {
+    /** What a Matrix check found: the bot's user ID, the room's ID (an alias resolved) and the vault value. */
+    data class MatrixCheck(val userId: String, val roomId: String, internal val value: String)
+
+    /**
+     * Checks a Matrix setup against the homeserver, in the order a user can fix it: the token
+     * (`whoami`), the room (an alias resolved through the room directory), the bot's membership
+     * (`joined_rooms`) and the room's encryption (`m.room.encryption` state): an encrypted room is refused.
+     */
+    suspend fun checkMatrix(url: String, token: String?, room: String?): MatrixCheck {
+        val (address, key) = value(ReachMeChannel.MATRIX, url, token).split(' ').let { it[0] to it[1] }
+        val typed = room?.trim().orEmpty()
+        if (!Matrix.isRoomId(typed) && !Matrix.isAlias(typed)) fail(R.string.data_reachme_matrix_room_invalid, "Enter a room ID (!…) or a room address (#name:server).")
+        return matrixCall(hostOf(address), key, typed) {
+            val user = Matrix.whoami(http, address, key)
+            val roomId = if (Matrix.isAlias(typed)) Matrix.resolveAlias(http, address, key, typed) else typed
+            if (roomId !in Matrix.joinedRooms(http, address, key)) {
+                throw ServiceSetupException(EngineText.Res(R.string.data_reachme_matrix_not_joined, user), "$user hasn't joined that room.")
+            }
+            if (Matrix.isEncrypted(http, address, key, roomId)) throw Matrix.encrypted()
+            MatrixCheck(user, roomId, Matrix.format(address, key, roomId))
+        }
+    }
+
+    /** Runs Matrix calls, turning each failure into the user's words without the token. */
+    private suspend fun <T> matrixCall(host: String, token: String, room: String, block: suspend () -> T): T = try {
+        block()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: ServiceSetupException) {
+        throw e
+    } catch (e: Matrix.Failure) {
+        val text = when (e.problem) {
+            Matrix.Problem.TOKEN -> EngineText.Res(R.string.data_reachme_matrix_token_refused, host)
+            Matrix.Problem.ALIAS_UNKNOWN -> EngineText.Res(R.string.data_reachme_matrix_alias_unknown, room)
+            Matrix.Problem.NOT_JOINED -> EngineText.Res(R.string.data_reachme_matrix_not_member)
+            Matrix.Problem.ENCRYPTED -> EngineText.Res(R.string.data_reachme_matrix_encrypted)
+            Matrix.Problem.FORBIDDEN -> EngineText.Res(R.string.data_reachme_matrix_forbidden)
+            Matrix.Problem.RATE_LIMITED -> EngineText.Res(R.string.data_reachme_matrix_rate_limited, host)
+            Matrix.Problem.REDIRECT -> EngineText.Res(R.string.data_reachme_redirect, host)
+            Matrix.Problem.NOT_MATRIX -> EngineText.Res(R.string.data_reachme_matrix_not_matrix, host)
+            Matrix.Problem.OTHER -> if (e.status >= 500) EngineText.Res(R.string.data_service_server_error, host, e.status)
+            else EngineText.Res(R.string.data_service_http, host, e.status)
+        }
+        throw ServiceSetupException(text, Matrix.scrub(e.message.orEmpty(), token))
+    } catch (e: Exception) {
+        throw ServiceSetupException(networkMessage(e, host) { Matrix.scrub(it, token) }, "Couldn't reach $host.")
+    }
+
+    /**
+     * Sends a short test message with [url] and [secret] (see [value]). Matrix also needs [room] and is
+     * checked first ([checkMatrix]); its bot's user ID is returned, null for the other channels.
+     */
+    suspend fun sendTest(channel: ReachMeChannel, url: String, secret: String?, room: String? = null): String? {
+        if (channel == ReachMeChannel.MATRIX) {
+            val check = checkMatrix(url, secret, room)
+            val target = Matrix.parse(check.value)!!
+            matrixCall(hostOf(target.url), target.token, room.orEmpty().trim()) {
+                Matrix.send(http, target, "Locus", "Matrix is connected. Notifications and scheduled task results will be posted in this room.")
+            }
+            return check.userId
+        }
         val value = value(channel, url, secret)
         val host = hostOf(value.substringBefore(' '))
         val forms = value.split(' ').filter { it.length >= 6 }
@@ -105,6 +182,7 @@ class ReachMeSetup @Inject constructor(http: HttpClient, private val secrets: Se
                     http, Webhook.parse(value)!!, "Locus",
                     "The webhook is connected. Notifications and scheduled task results will be posted here.",
                 )
+                ReachMeChannel.MATRIX -> Unit
             }
         } catch (e: CancellationException) {
             throw e
@@ -113,9 +191,14 @@ class ReachMeSetup @Inject constructor(http: HttpClient, private val secrets: Se
         } catch (e: Exception) {
             throw ServiceSetupException(networkMessage(e, host) { text -> forms.fold(text) { acc, f -> acc.replace(f, "[secret]") } }, "Couldn't reach $host.")
         }
+        return null
     }
 
-    suspend fun save(channel: ReachMeChannel, url: String, secret: String?) = secrets.put(name(channel), value(channel, url, secret))
+    /** Saves the channel. Matrix is checked against the homeserver first ([checkMatrix]) and saved with the room's ID. */
+    suspend fun save(channel: ReachMeChannel, url: String, secret: String?, room: String? = null) = secrets.put(
+        name(channel),
+        if (channel == ReachMeChannel.MATRIX) checkMatrix(url, secret, room).value else value(channel, url, secret),
+    )
 
     suspend fun remove(channel: ReachMeChannel) = secrets.put(name(channel), null)
 
