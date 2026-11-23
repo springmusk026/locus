@@ -132,4 +132,5 @@
     <string name="analytics_picks_note">From Compare models in chats: how often you kept each model\'s answer. Kept on this phone only, never sent anywhere.</string>
     <string name="analytics_picks_row_description">%1$s kept %2$d, %3$s kept %4$d</string>
     <string name="analytics_picks_count" translatable="false">%1$d</string>
+    <string name="analytics_updating">Updating…</string>
 </resources>

@@ -523,6 +523,7 @@
     <!-- Compact counts: %1$s is a number such as 12.4 (thousands) or 1.2 (millions). -->
     <string name="designsystem_count_thousands">%1$sk</string>
     <string name="designsystem_count_millions">%1$sM</string>
+    <string name="designsystem_count_billions">%1$sB</string>
     <!-- A capped count: %1$d is the cap, as in 99+. -->
     <string name="designsystem_count_over">%1$d+</string>
     <!-- A token budget: %1$s is an amount such as 200k. -->

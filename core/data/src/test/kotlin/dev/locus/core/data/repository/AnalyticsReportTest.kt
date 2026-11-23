@@ -252,6 +252,28 @@ class AnalyticsReportTest {
     }
 
     @Test
+    fun `a month of requests looks each model's price up once and sums the same`() {
+        // Insights reads every request of the last 30 days and rebuilds as requests land: pricing must not
+        // repeat per request (a catalogue lookup per request made a few thousand requests take seconds).
+        var lookups = 0
+        val counting: PriceLookup = { p, model -> lookups++; prices(p, model) }
+        val messages = (0 until 3_000).map { i ->
+            MessageStatRow("a", "ASSISTANT", today - (i % 30) * day + i, usage(1_000, 100), providerId = "p", model = if (i % 2 == 0) "claude-x" else "gpt-y")
+        }
+        val events = (0 until 500).map { i ->
+            UsageEventEntity(conversationId = "a", source = UsageSource.TITLE.wire, createdAt = today - (i % 30) * day + i, providerId = "p", model = "claude-x", usageJson = usage(1_000, 0), totalMs = 1)
+        }
+        val r = AnalyticsRepository.buildReport(AnalyticsPeriod.Month, today - 29 * day, now, messages, emptyList(), listOf(chat("a")), twoProviders, emptyList(), zone, events, counting, pricesOn = true)
+        assertEquals(2, lookups, "one lookup per (provider, model), however many requests")
+        assertEquals(3_500, r.requests)
+        // 1,500 claude-x replies at 1k in × $3/M + 100 out × $15/M, and 500 titles at 1k in × $3/M.
+        assertEquals(1_500 * (0.003 + 0.0015) + 500 * 0.003, r.cost.month.usd, 1e-6)
+        assertEquals(r.cost.month.usd, r.cost.period.usd, 1e-9)
+        assertEquals(1_500 + 500, r.cost.period.priced)
+        assertEquals(1_500, r.cost.period.unpriced)
+    }
+
+    @Test
     fun `missing prices make the spend unknown, never zero`() {
         val messages = listOf(MessageStatRow("a", "ASSISTANT", today + 1_000, usage(1_000, 100), providerId = "q", model = "gpt-y"))
         // Prices off: nothing is priced.

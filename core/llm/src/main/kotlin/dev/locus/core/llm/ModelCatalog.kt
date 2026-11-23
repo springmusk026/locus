@@ -104,8 +104,18 @@ class ModelCatalogIndex(val providers: Map<String, CatalogProvider>) {
         val host = hostOf(baseUrl) ?: return emptyList()
         if (isLocal(host)) return emptyList()
         val known = KNOWN_HOSTS[host]?.let(::listOf).orEmpty()
-        val byApi = providers.filter { (_, p) -> p.api?.let(::hostOf) == host }.keys.sorted()
-        return (known + byApi).distinct()
+        return (known + byApiHost[host].orEmpty()).distinct()
+    }
+
+    /**
+     * Catalogue provider ids by the host of their `api` URL, sorted. Built once: [lookup] runs for every
+     * request Insights and receipts price, and parsing every provider's URL each time made a report of a
+     * few thousand requests take seconds.
+     */
+    private val byApiHost: Map<String, List<String>> by lazy {
+        providers.mapNotNull { (id, p) -> p.api?.let(::hostOf)?.let { it to id } }
+            .groupBy({ it.first }, { it.second })
+            .mapValues { (_, ids) -> ids.sorted() }
     }
 
     companion object {
