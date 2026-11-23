@@ -334,6 +334,29 @@ class ConversationRepository @Inject constructor(
 
     suspend fun setEffort(id: String, effort: dev.locus.core.model.Effort?) = conversations.setEffort(id, effort?.name)
 
+    /**
+     * The one-tap move of provider [providerId] from its old "high" to the model's own effort
+     * (docs/design/cost.md#effort). Effort is part of the provider's cached prefix, so chats that already have
+     * messages and follow the provider's setting first get the level they've been sending as their own: their
+     * next request is byte for byte what it would have been, and their cache holds. New chats, and chats with
+     * nothing sent yet, use the model's default. Returns how many chats kept their level; nothing changes
+     * when the provider is gone or isn't offered the move.
+     */
+    suspend fun moveToModelDefaultEffort(providerId: String): Int {
+        val current = settings.current()
+        val provider = current.providers.firstOrNull { it.id == providerId } ?: return 0
+        if (!dev.locus.core.model.EffortDefaults.offersModelDefault(current, provider)) return 0
+        val level = dev.locus.core.model.Effort.fromWire(provider.effort)
+        val kept = conversations.keepEffort(
+            providerId = providerId,
+            orphans = current.provider(null)?.id == providerId,
+            known = current.providers.map { it.id },
+            effort = level.name,
+        )
+        settings.useModelDefaultEffort(providerId)
+        return kept
+    }
+
     suspend fun setPlanMode(id: String, on: Boolean) = conversations.setPlanMode(id, on)
 
     suspend fun setDisabledTools(id: String, keys: Set<String>) = conversations.setDisabledTools(id, keys.sorted().joinToString("\n"))

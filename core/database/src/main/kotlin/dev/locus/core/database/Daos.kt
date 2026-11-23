@@ -71,6 +71,18 @@ interface ConversationDao {
     @Query("UPDATE conversations SET effort = :effort WHERE id = :id")
     suspend fun setEffort(id: String, effort: String?)
 
+    /**
+     * Gives [effort] to the chats that follow [providerId]'s own effort and already have messages, so a change
+     * to the provider's setting doesn't change their requests. [orphans]: the provider is also the one chats
+     * without a provider, or with one removed (not in [known]), fall back to. Helper chats are left out.
+     */
+    @Query(
+        "UPDATE conversations SET effort = :effort WHERE effort IS NULL AND parentConversationId IS NULL " +
+            "AND EXISTS (SELECT 1 FROM messages WHERE messages.conversationId = conversations.id) " +
+            "AND (providerId = :providerId OR (:orphans AND (providerId IS NULL OR providerId NOT IN (:known))))",
+    )
+    suspend fun keepEffort(providerId: String, orphans: Boolean, known: List<String>, effort: String): Int
+
     @Query("UPDATE conversations SET planMode = :on WHERE id = :id")
     suspend fun setPlanMode(id: String, on: Boolean)
 

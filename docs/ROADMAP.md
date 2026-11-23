@@ -343,7 +343,7 @@ The ranked shortlist of the token-cost research round. Items 1–5 and 8 are don
 - [ ] **Cache-safe mid-chat changes** (S–M): per-message effort (`mid-conversation-output-config-2026-07-01`) and mid-conversation system messages instead of top-level changes; enables a low-then-high effort cascade.
 - [x] **Cold-cache tool-result clearing** (M): built, see the November research above and [cold-cache clearing](design/cold-cache-clearing.md).
 - [x] **A default cheap helper model** (S–M): "Automatic" picks a cheaper model of the chat's own provider for titles, suggestions and look-and-report helpers, with cost per helper run. Compaction summaries stay on the chat's model (they reuse its cached prefix), and the safety reviewer uses a helper model only when the user chose one ([cost](design/cost.md#the-helper-model)).
-- [ ] **One-tap move to the model's default effort** for providers saved with "high" before the default changed (S): they can pick Default in the provider sheet today; nothing prompts them.
+- [x] **One-tap move to the model's default effort** for providers saved with "high" before the default changed (S). *Built:* an Info banner on Settings → Models and in the provider sheet for Anthropic, Responses and ChatGPT providers still on "high" whose model defaults lower, with **Use the model's default** and **Keep High**; the answer is stored, nothing changes without the tap, and chats that already have messages keep High so their prompt cache holds ([cost](design/cost.md#effort)). *Not yet tried on the device.*
 - [ ] **Offline cache simulator** for the bench (M): price TTL and compaction policies on recorded request sequences without calling a model.
 
 ## From the comparable-projects research (2026-11-06)

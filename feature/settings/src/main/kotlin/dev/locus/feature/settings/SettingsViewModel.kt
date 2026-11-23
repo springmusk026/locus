@@ -59,6 +59,12 @@ data class ProviderRow(
     val isDefault: Boolean,
     /** Backup API keys are saved for it (the key pool); names only, never the keys. */
     val hasBackupKeys: Boolean = false,
+    /**
+     * Its stored effort is the old "high" default and the model's own is lower, so Settings offers the one-tap
+     * move ([dev.locus.core.model.EffortDefaults.offersModelDefault]); [modelEffort] is the model's own level.
+     */
+    val offersModelDefault: Boolean = false,
+    val modelEffort: dev.locus.core.model.Effort? = null,
 )
 
 data class ToolRow(val name: String, val description: String, val risk: ToolRisk, val policy: ToolPolicy, val isDefault: Boolean, val defaultPolicy: ToolPolicy)
@@ -134,6 +140,8 @@ class SettingsViewModel @Inject constructor(
     @param:dev.locus.core.data.di.IoDispatcher private val io: kotlinx.coroutines.CoroutineDispatcher,
     /** The models.dev catalogue, when it's on: its hosts count as known providers in a draft's review. */
     private val directory: dev.locus.core.data.repository.ModelDirectory,
+    /** For the one-tap move to the model's effort, which keeps existing chats on their level. */
+    private val conversations: dev.locus.core.data.repository.ConversationRepository,
 ) : ViewModel() {
 
     /** A draft the chat card asked to open (docs/design/provider-drafts.md). */
@@ -229,7 +237,14 @@ class SettingsViewModel @Inject constructor(
     ) { (s, hosts), (withKeys, networkSecrets, withBackups), local, (integrationKeys, telegramConnected, mcpFirst), accounts ->
         val modelStates = local.states
         SettingsUiState(
-            providers = s.providers.map { ProviderRow(it, it.id in withKeys, it.id == s.defaultProviderId, it.id in withBackups) },
+            providers = s.providers.map {
+                val offer = dev.locus.core.model.EffortDefaults.offersModelDefault(s, it)
+                ProviderRow(
+                    it, it.id in withKeys, it.id == s.defaultProviderId, it.id in withBackups,
+                    offersModelDefault = offer,
+                    modelEffort = if (offer) dev.locus.core.model.Effort.modelDefault(it.format, it.baseUrl, it.model) else null,
+                )
+            },
             providerDrafts = s.providerDrafts.sortedByDescending { it.createdAt }.map { ProviderDraftRow(it, dev.locus.core.model.ProviderDrafts.knownHost(it.host, hosts)) },
             chatGptAccounts = accounts,
             tools = catalog.registry.all.map { tool ->
@@ -282,6 +297,15 @@ class SettingsViewModel @Inject constructor(
     fun setFallbackModels(models: List<dev.locus.core.model.ModelRef>) = viewModelScope.launch { settings.setFallbackModels(models) }
 
     fun deleteProvider(id: String) = viewModelScope.launch { settings.deleteProvider(id) }
+
+    /**
+     * The effort offer's tap: provider [id] moves from the old "high" to the model's own effort for new chats;
+     * chats that already have messages keep High, so their prompt cache holds (docs/design/cost.md#effort).
+     */
+    fun useModelDefaultEffort(id: String) = viewModelScope.launch { conversations.moveToModelDefaultEffort(id) }
+
+    /** The effort offer's Keep High: nothing changes, and the offer doesn't come back. */
+    fun keepProviderEffort(id: String) = viewModelScope.launch { settings.keepProviderEffort(id) }
 
     fun setDefault(id: String) = viewModelScope.launch { settings.setDefaultProvider(id) }
 
