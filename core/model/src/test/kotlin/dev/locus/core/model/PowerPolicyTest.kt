@@ -28,6 +28,13 @@ class PowerPolicyTest {
         assertNull(PowerPolicy.deferReason(DeviceState(batteryPercent = 5), on), "a low battery alone is WorkManager's job")
     }
 
+    @Test fun `work held for heat cools down while the phone is still warm`() {
+        assertTrue(PowerPolicy.coolingDown(DeviceState(thermal = ThermalLevel.MODERATE), on))
+        assertTrue(PowerPolicy.coolingDown(hot, on))
+        assertFalse(PowerPolicy.coolingDown(DeviceState(thermal = ThermalLevel.LIGHT), on))
+        assertFalse(PowerPolicy.coolingDown(DeviceState(thermal = ThermalLevel.MODERATE), on.copy(deferWhenHot = false)))
+    }
+
     @Test fun `turning deferral off runs everything`() {
         assertNull(PowerPolicy.deferReason(critical, on.copy(deferWhenHot = false)))
     }
