@@ -755,12 +755,12 @@ class AgentRunner @Inject constructor(
     /**
      * Runs the turn after [fromMessageId] (the user message or checkpoint it answered) again, as a new
      * branch beside the old reply. If the run adds nothing (no provider, an error before the first
-     * step), the old branch is shown again.
+     * step), the old branch is shown again. False when nothing started: the chat was busy (it says so).
      */
-    fun regenerate(conversationId: String, fromMessageId: String) {
-        if (jobs.containsKey(conversationId)) return
+    fun regenerate(conversationId: String, fromMessageId: String): Boolean {
+        if (busy(conversationId)) return false
         update(conversationId) { it.copy(reviewerBlocks = emptyList()) }
-        start(conversationId) {
+        return start(conversationId) {
             val previous = conversations.activeLeaf(conversationId)
             conversations.setActiveLeaf(conversationId, fromMessageId)
             try {
@@ -776,12 +776,14 @@ class AgentRunner @Inject constructor(
     /**
      * Sends [text] as an edit of the user message [messageId]: a sibling of it (same attachments), so
      * the original and its replies stay as another branch. Automatic compaction waits for the next send.
+     * False when nothing started (nothing to send, or the chat was busy, which it says), so the caller
+     * keeps the text and the attachments (#339).
      */
-    fun edit(conversationId: String, messageId: String, text: String, attachments: List<Part.Attachment> = emptyList()) {
-        if (text.isBlank() && attachments.isEmpty()) return
-        if (jobs.containsKey(conversationId)) return
+    fun edit(conversationId: String, messageId: String, text: String, attachments: List<Part.Attachment> = emptyList()): Boolean {
+        if (text.isBlank() && attachments.isEmpty()) return false
+        if (busy(conversationId)) return false
         update(conversationId) { it.copy(reviewerBlocks = emptyList()) }
-        start(conversationId) {
+        return start(conversationId) {
             val original = conversations.history(conversationId).firstOrNull { it.id == messageId } ?: return@start
             val planMode = conversations.get(conversationId)?.planMode == true
             conversations.appendUserMessage(
@@ -791,6 +793,10 @@ class AgentRunner @Inject constructor(
             run(conversationId)
         }
     }
+
+    /** Whether something holds [conversationId]'s slot; the chat then says the edit or retry wasn't started (#339). */
+    private fun busy(conversationId: String): Boolean =
+        jobs.containsKey(conversationId).also { if (it) update(conversationId) { s -> s.withNotice(RunNote.BusyNotStarted) } }
 
     /**
      * Shows the branch through [messageId]. Not while the chat is running. A branch cut off mid-call
@@ -1330,6 +1336,29 @@ class AgentRunner @Inject constructor(
         subagents.engine.cancelChildren(conversationId)
     }
 
+    /**
+     * The chat [conversationId] is being deleted (#338): its run and its helpers stop, messages queued in it and
+     * side jobs held for it are dropped, and nothing about it is kept here. Returns once its run has ended (at most
+     * [FORGET_WAIT_MS]), so the caller deletes the rows after the last write. A scheduled run's worker owns its job:
+     * it is taken over and stops at its next step boundary, with nothing queued to continue.
+     */
+    suspend fun forget(conversationId: String) {
+        queue.clear(conversationId)
+        queuedOverrides.remove(conversationId)
+        takeovers[conversationId]?.let { takeOver(conversationId, it) }
+        subagents.engine.cancelChildren(conversationId)
+        jobs[conversationId]?.takeIf { it !in quietJobs }?.let { job ->
+            job.cancel()
+            kotlinx.coroutines.withTimeoutOrNull(FORGET_WAIT_MS) { job.join() }
+        }
+        deferred.drop(conversationId)
+        folders.remove(conversationId)
+        taskEnds.remove(conversationId)
+        lastFailures.remove(conversationId)
+        // A run still holding the slot (a scheduled one, until its step boundary) keeps its state until it ends.
+        synchronized(slotLock) { if (!jobs.containsKey(conversationId)) _states.update { it - conversationId } }
+    }
+
     /** A scheduled or triggered run the user may take over: set once they send a message or tap Stop in its chat. */
     private class Takeover {
         @Volatile var requested = false
@@ -1484,7 +1513,10 @@ class AgentRunner @Inject constructor(
             return
         }
         start(conversationId) {
-            runOverride(conversationId, block, midTask = false)?.let { conversations.append(it) }
+            // Refused (the tool is gone, or a limit now says no): the chat says why and no turn starts,
+            // which would send a request ending on the assistant's last reply (#337).
+            val ran = runOverride(conversationId, block, midTask = false) ?: return@start
+            conversations.append(ran)
             run(conversationId)
         }
     }
@@ -1805,7 +1837,8 @@ class AgentRunner @Inject constructor(
                 budgets.remove(conversationId)?.let { b -> recordBudget(conversationId, b, null, null) }
                 // Helpers of a scheduled run end with it: a late report must never restart this chat as a normal (writable) turn.
                 subagents.engine.cancelChildren(conversationId)
-                update(conversationId) { it.copy(running = false, streamingText = "", progress = "", activeTool = null, approvals = emptyList()) }
+                // No longer a scheduled run's chat: the widget, waiting chats and receipts treat it as the user's again (#341).
+                update(conversationId) { it.copy(running = false, scheduled = false, streamingText = "", progress = "", activeTool = null, approvals = emptyList()) }
                 library.refresh()
             }
         } finally {
@@ -2126,12 +2159,16 @@ class AgentRunner @Inject constructor(
         // chat busy, and its turn isn't kept in the chat, so the transcript stays exactly what the user saw.
         // Never in a temporary chat: it saves nothing to memory (docs/design/temporary-chats.md). Nor while every memory
         // write asks (docs/design/memory-approval.md): nobody is there to approve its saves, so the request would be wasted.
-        if (completed && !readOnly && compare == null && !conversation.temporary && current.reflectAfterTasks && current.memoryApproval != dev.locus.core.model.MemoryApproval.ALWAYS &&
-            toolsUsed >= REFLECT_AFTER_TOOLS && provider.format != ApiFormat.ON_DEVICE
+        // reflect() checks the chat and the settings again when it runs: they may have changed during the task (#341).
+        if (completed && !readOnly && compare == null && toolsUsed >= REFLECT_AFTER_TOOLS && provider.format != ApiFormat.ON_DEVICE &&
+            reflects(conversation, current)
         ) {
-            scope.launch { deferred.runOrHold("${conversation.id}/reflect", conversation.id) { reflect(conversation, provider, current) } }
+            scope.launch { deferred.runOrHold("${conversation.id}/reflect", conversation.id) { reflect(conversation.id, provider) } }
         }
     }
+
+    private fun reflects(conversation: dev.locus.core.model.Conversation, settings: dev.locus.core.model.AppSettings) =
+        !conversation.temporary && settings.reflectAfterTasks && settings.memoryApproval != dev.locus.core.model.MemoryApproval.ALWAYS
 
     /** Runs [conversationId]'s side jobs held for heat or battery saver now ("Run anyway"). */
     fun runDeferredNow(conversationId: String) = deferred.runAnyway(conversationId)
@@ -2147,15 +2184,15 @@ class AgentRunner @Inject constructor(
         // What the user wrote, oldest first; a message with only attachments counts as a request.
         val userTexts = history.filter { it.role == Role.USER && !ModeNote.isAgentNote(it) && it.parts.none { p -> p is Part.Checkpoint } }
             .map { it.userText.ifBlank { "(attachment)" } }
-        if (s.autoTitle && s.telegramRemote.chatId != conversationId &&
-            HelperModel.shouldTitle(userTexts, conversations.get(conversationId)?.title)
-        ) {
+        val title = conversations.get(conversationId)?.title
+        if (s.autoTitle && s.telegramRemote.chatId != conversationId && HelperModel.shouldTitle(userTexts, title)) {
             helper.complete(
                 provider, HelperModel.titlePrompt(HelperModel.excerpt(history, turns = 4, perMessage = 500), s), maxOutputTokens = 60,
                 source = dev.locus.core.model.UsageSource.TITLE, conversationId = conversationId, quick = true,
             )
                 ?.let(HelperModel::cleanTitle)
-                ?.let { conversations.rename(conversationId, it) }
+                // Only if the title is still the one checked: a name the user gave meanwhile stays (#341).
+                ?.let { conversations.renameIf(conversationId, expected = title, title = it) }
         }
         if (s.suggestFollowUps) {
             val ideas = helper.complete(
@@ -2168,7 +2205,15 @@ class AgentRunner @Inject constructor(
         }
     }
 
-    private suspend fun reflect(conversation: dev.locus.core.model.Conversation, provider: dev.locus.core.model.ProviderConfig, settings: dev.locus.core.model.AppSettings) {
+    /**
+     * The after-task reflection of [conversationId]. The chat and the settings are read now, not when the task
+     * started: a chat made Read-only, reflection turned off or memory set to always ask during a long task (or
+     * while the pass waited for the phone to cool) apply to it (#341).
+     */
+    private suspend fun reflect(conversationId: String, provider: dev.locus.core.model.ProviderConfig) {
+        val conversation = conversations.get(conversationId) ?: return
+        val settings = settings.current()
+        if (!reflects(conversation, settings)) return
         var saved = 0
         val reflection = AgentLoop(
             model = access.chatModel(provider),
@@ -2229,6 +2274,9 @@ class AgentRunner @Inject constructor(
         private const val PROPOSAL_ESCALATION = "Proposed by a scheduled or triggered run; the user approved it in Needs you."
 
         const val OVERRIDE_RESULT_CHARS = 20_000
+
+        /** How long deleting a chat waits for its cancelled run to finish its cleanup. */
+        const val FORGET_WAIT_MS = 5_000L
 
         /** Finished runs kept for [awaitRun]; a caller asks right after starting one. */
         const val RECENT_RUNS = 64

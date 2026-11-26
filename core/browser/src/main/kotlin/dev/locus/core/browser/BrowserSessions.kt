@@ -141,6 +141,11 @@ class BrowserSessions(
         entries[key]?.apply { tabs = 0; scope = null }
     }
 
+    /** [key]'s conversation was deleted: nothing about it is kept, its download policy included (#338). */
+    @Synchronized fun forget(key: String) {
+        entries.remove(key)
+    }
+
     companion object {
         /** WebViews alive across all chats; each holds a renderer's worth of memory. */
         const val MAX_LIVE_TABS = 8

@@ -391,6 +391,8 @@ fun ChatRoute(
         aside = aside,
         asideActions = remember(viewModel) { AsideActions(ask = viewModel::askAside, dismiss = viewModel::dismissAside, clear = viewModel::clearAside) },
         draft = draft,
+        savedDraft = remember(viewModel) { viewModel.savedDraft },
+        onDraftChange = viewModel::setDraft,
         focusMessageId = focusMessageId,
         onOpenActivity = onOpenActivity,
         sendWarning = sendWarning,
@@ -536,6 +538,10 @@ internal fun ChatScreen(
     onCompact: () -> Unit = {},
     browserView: (@Composable (Modifier) -> Unit)? = null,
     draft: String? = null,
+    /** The text left unsent in this chat's composer last time (#319); [draft] goes first when there is one. */
+    savedDraft: String = "",
+    /** The composer's unsent text changed (not a message being edited), to keep it when the chat is left (#319). */
+    onDraftChange: (String) -> Unit = {},
     /** The live reasoning; a lambda for the same reason as [streamingText]. */
     reasoningText: () -> String = { state.run.reasoning },
     controls: ChatControlActions = ChatControlActions(),
@@ -592,7 +598,7 @@ internal fun ChatScreen(
     var flashKey by remember { mutableStateOf<String?>(null) }
     var panel by rememberSaveable { mutableStateOf<LivePanelKind?>(null) }
     // Hoisted so the empty-state suggestions can fill the composer.
-    var text by rememberSaveable { mutableStateOf(draft.orEmpty()) }
+    var text by rememberSaveable { mutableStateOf(draft ?: savedDraft) }
     var sheet by rememberSaveable { mutableStateOf<ControlSheet?>(null) }
     // What a temporary chat means, from the Temporary chip under the title.
     var temporarySheet by rememberSaveable { mutableStateOf(false) }
@@ -649,8 +655,34 @@ internal fun ChatScreen(
     var editing by rememberSaveable { mutableStateOf<String?>(null) }
     // The queued message being edited (steer and queue): sending changes it before it goes.
     var editingQueued by rememberSaveable { mutableStateOf<String?>(null) }
+    // What the composer held when an edit began: it comes back when the edit is sent or cancelled (#319).
+    var stashed by rememberSaveable { mutableStateOf<String?>(null) }
+    val beginEdit = { edited: String ->
+        if (editing == null && editingQueued == null) stashed = text
+        text = edited
+    }
+    val endEdit = {
+        when {
+            editingQueued != null -> text = stashed.orEmpty()
+            // Closing a message's edit over an empty composer keeps its text, to send as a new message
+            // (docs/design/branching.md); a draft that was there comes back instead.
+            editing != null -> stashed?.takeIf { it.isNotBlank() }?.let { text = it }
+        }
+        editing = null
+        editingQueued = null
+        stashed = null
+    }
+    // The draft is what the user typed for a new message; while an edit is open, it's the text set aside.
+    val composerDraft = if (editing != null || editingQueued != null) stashed.orEmpty() else text
+    LaunchedEffect(composerDraft) { onDraftChange(composerDraft) }
+    // Back leaves an edit (restoring the draft) or the Aside switch before it leaves the chat (#319).
+    androidx.activity.compose.BackHandler(enabled = editing != null || editingQueued != null || asideOn) {
+        if (editing != null || editingQueued != null) endEdit() else asideOn = false
+    }
     // Branch actions wait while the agent works: a run continues the branch it started on.
     val canBranch = !state.run.running
+    // A plan's Edit starts the reply that changes it (#319).
+    val planChangePrefix = stringResource(R.string.chat_screen_plan_change_prefix)
     // Rewind here and Summarise from here (docs/design/rewind.md): the confirm sheets and the summary editor.
     rewindPreview?.let { preview ->
         RewindSheet(
@@ -772,13 +804,15 @@ internal fun ChatScreen(
         }
     }
     val showLive = state.run.running || hasStream
+    // One pass over the transcript per change, not one per row (#321).
+    val index = remember(state.items) { transcriptIndex(state.items) }
     val itemCount = rows.size + if (showLive) 1 else 0
     val follower = rememberTranscriptFollower(
         list = listState,
         ready = !state.loading && itemCount > 0,
         contentVersion = Triple(rows.size, showLive, state.run.activeTool),
         streamLength = { shownStream.value.length },
-        lastUserKey = remember(state.items) { state.items.lastOrNull { it is ChatItem.User }?.key },
+        lastUserKey = index.lastUserKey,
         holdPosition = focus != null,
     )
     val scope = rememberCoroutineScope()
@@ -812,15 +846,20 @@ internal fun ChatScreen(
     // editing (the typed text stays in the box, to send as a new message or clear).
     LaunchedEffect(editingQueued, state.run.queued, state.loading) {
         val id = editingQueued ?: return@LaunchedEffect
-        if (!state.loading && state.run.queued.none { it.id == id }) editingQueued = null
+        if (!state.loading && state.run.queued.none { it.id == id }) {
+            editingQueued = null
+            // The draft set aside for the edit comes back after the typed text, so neither is lost (#319).
+            stashed?.takeIf { it.isNotBlank() && it != text }?.let { text = if (text.isBlank()) it else "$text\n\n$it" }
+            stashed = null
+        }
     }
 
     // A panel button shows only when its panel has something to show: commands this chat ran (or one
     // running now), and a page actually open in the browser that this chat used (or browsing now).
     // An open panel keeps its button so it can be closed.
     val activeTool = state.run.activeTool
-    val toggles = remember(state.items, activeTool, state.browserHasPage, panel) {
-        panelToggles(state.items, activeTool, state.browserHasPage, panel)
+    val toggles = remember(index, activeTool, state.browserHasPage, panel) {
+        panelToggles(index, activeTool, state.browserHasPage, panel)
     }
     val browsingNow = activeTool?.isBrowserTool() == true
     // Nothing to show any more (e.g. the app restarted, so no page is open): close the browser panel.
@@ -877,7 +916,7 @@ internal fun ChatScreen(
                                 is ChatItem.User -> UserBubble(
                                     item.text, item.attachments,
                                     picked = item.picked,
-                                    onEdit = { editingQueued = null; editing = item.key; text = item.text },
+                                    onEdit = { beginEdit(item.text); editingQueued = null; editing = item.key },
                                     planMode = item.planMode,
                                     midTask = item.midTask,
                                     branch = item.branch,
@@ -926,10 +965,7 @@ internal fun ChatScreen(
                                         onReadAloud = { readAloud.toggle(item.key, item.text) },
                                         // The task this reply belongs to: the first receipt after it (a finished task has one).
                                         onSaveWorkflow = workflows.saveFromTask?.let { save ->
-                                            val task = remember(state.items, item.key) {
-                                                state.items.dropWhile { it.key != item.key }.firstNotNullOfOrNull { (it as? ChatItem.Receipt)?.receipt?.taskId }
-                                            }
-                                            task?.let { id -> { save(id) } }
+                                            index.taskByReply[item.key]?.let { id -> { save(id) } }
                                         },
                                     )
                                 }
@@ -943,7 +979,8 @@ internal fun ChatScreen(
                                     item,
                                     actionable = item.status == PlanStatus.Waiting && item.key !in cancelledPlans && state.pendingApproval == null,
                                     onApprove = controls.approvePlan,
-                                    onEdit = { text = "Change the plan: " },
+                                    // Only into an empty composer: a draft is never replaced (#319).
+                                    onEdit = { if (text.isBlank()) text = "$planChangePrefix " },
                                     onCancel = { cancelledPlans = cancelledPlans + item.key; controls.cancelPlan() },
                                     // Plan mode's "Run with" (docs/design/plan-run.md): an imported archive runs nothing.
                                     chatModel = state.controls.model,
@@ -981,9 +1018,9 @@ internal fun ChatScreen(
                             queued,
                             running = state.run.running,
                             editing = editingQueued == queued.id,
-                            onEdit = { editing = null; editingQueued = queued.id; text = queued.text },
+                            onEdit = { beginEdit(queued.text); editing = null; editingQueued = queued.id },
                             onCancel = {
-                                if (editingQueued == queued.id) { editingQueued = null; text = "" }
+                                if (editingQueued == queued.id) endEdit()
                                 queue.cancel(queued.id)
                             },
                         )
@@ -1085,8 +1122,7 @@ internal fun ChatScreen(
                     // Queued messages that weren't sent (Stop, an error, or Locus closed): send them now or drop them.
                     val unsent = if (state.run.running) 0 else state.run.queued.size
                     val discardQueued = {
-                        if (editingQueued != null) text = ""
-                        editingQueued = null
+                        if (editingQueued != null) endEdit()
                         queue.discard()
                     }
                     if (canResume && unsent > 0) {
@@ -1136,12 +1172,12 @@ internal fun ChatScreen(
                             bannerModifier,
                             title = stringResource(R.string.chat_screen_editing_title),
                         ) {
-                            IconButton(onClick = { editing = null }) { Icon(LocusIcons.Close, contentDescription = stringResource(R.string.chat_screen_stop_editing)) }
+                            IconButton(onClick = endEdit) { Icon(LocusIcons.Close, contentDescription = stringResource(R.string.chat_screen_stop_editing)) }
                         }
                     }
                     editingQueued?.let {
                         Banner(stringResource(R.string.chat_screen_editing_queued_body), Tone.Brand, bannerModifier, title = stringResource(R.string.chat_screen_editing_queued_title)) {
-                            IconButton(onClick = { editingQueued = null; text = "" }) { Icon(LocusIcons.Close, contentDescription = stringResource(R.string.chat_screen_stop_editing)) }
+                            IconButton(onClick = endEdit) { Icon(LocusIcons.Close, contentDescription = stringResource(R.string.chat_screen_stop_editing)) }
                         }
                     }
                     ReviewerBlockChips(state.run.reviewerBlocks, controls.runAnyway, controls.dismissReviewerBlock, bannerModifier)
@@ -1235,16 +1271,20 @@ internal fun ChatScreen(
                         if (side != null) {
                             asideActions.ask(side)
                             asideOn = false
+                            text = ""
                         } else {
-                            when {
-                                queuedTarget != null -> queue.edit(queuedTarget, text)
+                            val sent = when {
+                                queuedTarget != null -> { queue.edit(queuedTarget, text); true }
+                                // Not started (the chat got busy, which it says): the text and the edit stay (#339).
                                 target != null && canBranch -> branches.edit(target, text)
-                                else -> onSend(text)
+                                else -> { onSend(text); true }
                             }
-                            editing = null
-                            editingQueued = null
+                            if (sent) {
+                                text = ""
+                                // An edit sent: the draft set aside for it comes back.
+                                endEdit()
+                            }
                         }
-                        text = ""
                     },
                     onStop = onStop,
                     // The current turn's checklist, while there's something left to do or it's being worked
@@ -1306,7 +1346,8 @@ internal class QueueActions(
 /** Callbacks for branches: regenerate (from a message id), edit, switch to a sibling, fork (message id, is a user message). */
 internal class BranchActions(
     val regenerate: (String) -> Unit = {},
-    val edit: (messageId: String, text: String) -> Unit = { _, _ -> },
+    /** False when the edit wasn't started (the chat was busy); the composer keeps it (#339). */
+    val edit: (messageId: String, text: String) -> Boolean = { _, _ -> true },
     val switchTo: (String) -> Unit = {},
     val fork: (messageId: String, userMessage: Boolean) -> Unit = { _, _ -> },
 )
@@ -2140,12 +2181,49 @@ internal data class PanelToggles(val terminal: Boolean, val browser: Boolean)
  * now), and a page actually open in the browser that this chat used (or browsing now). An open terminal
  * panel keeps its toggle so it can be closed.
  */
-internal fun panelToggles(items: List<ChatItem>, activeTool: String?, browserHasPage: Boolean, open: LivePanelKind?): PanelToggles {
-    val terminal = items.any { (it is ChatItem.ToolCall && it.name in TERMINAL_TOOLS) || it is ChatItem.Verification } ||
-        activeTool in TERMINAL_TOOLS || open == LivePanelKind.Terminal
-    val chatUsedBrowser = items.any { it is ChatItem.ToolCall && it.name.isBrowserTool() }
-    val browser = (chatUsedBrowser && browserHasPage) || activeTool?.isBrowserTool() == true
+internal fun panelToggles(items: List<ChatItem>, activeTool: String?, browserHasPage: Boolean, open: LivePanelKind?): PanelToggles =
+    panelToggles(transcriptIndex(items), activeTool, browserHasPage, open)
+
+/** The same from a [TranscriptIndex]: no pass over the transcript when only the tool in use changes (#321). */
+internal fun panelToggles(index: TranscriptIndex, activeTool: String?, browserHasPage: Boolean, open: LivePanelKind?): PanelToggles {
+    val terminal = index.usedTerminal || activeTool in TERMINAL_TOOLS || open == LivePanelKind.Terminal
+    val browser = (index.usedBrowser && browserHasPage) || activeTool?.isBrowserTool() == true
     return PanelToggles(terminal, browser)
+}
+
+/**
+ * What the chat screen needs from the whole transcript, found in one pass each time it changes rather than by
+ * each row (#321): [taskByReply] is the task a reply belongs to (the first receipt after it, by the reply's key);
+ * [lastUserKey] the newest user message; [usedTerminal] and [usedBrowser] whether the chat ran a command or used
+ * the browser. Pure.
+ */
+internal data class TranscriptIndex(
+    val taskByReply: Map<String, String>,
+    val lastUserKey: String?,
+    val usedTerminal: Boolean,
+    val usedBrowser: Boolean,
+)
+
+internal fun transcriptIndex(items: List<ChatItem>): TranscriptIndex {
+    val tasks = HashMap<String, String>()
+    var nextTask: String? = null
+    var lastUser: String? = null
+    var terminal = false
+    var browser = false
+    for (i in items.indices.reversed()) {
+        when (val item = items[i]) {
+            is ChatItem.Receipt -> nextTask = item.receipt.taskId
+            is ChatItem.Assistant -> nextTask?.let { tasks[item.key] = it }
+            is ChatItem.User -> if (lastUser == null) lastUser = item.key
+            is ChatItem.ToolCall -> {
+                if (item.name in TERMINAL_TOOLS) terminal = true
+                if (item.name.isBrowserTool()) browser = true
+            }
+            is ChatItem.Verification -> terminal = true
+            else -> Unit
+        }
+    }
+    return TranscriptIndex(tasks, lastUser, terminal, browser)
 }
 
 /** Shown when the user has scrolled up and something new arrived below. */

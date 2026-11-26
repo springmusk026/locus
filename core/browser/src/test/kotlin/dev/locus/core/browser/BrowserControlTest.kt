@@ -3,6 +3,8 @@ package dev.locus.core.browser
 import dev.locus.core.agent.ToolException
 import dev.locus.core.agent.ToolResult
 import kotlinx.coroutines.async
+import kotlinx.coroutines.sync.Mutex
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -123,5 +125,35 @@ class BrowserControlTest {
     @Test
     fun `the timeout is long enough for a login with a code`() {
         assertTrue(BrowserControl.WAIT_MS >= 3 * 60_000)
+    }
+
+    @Test
+    fun `a call queued behind another doesn't touch the page the user took over meanwhile`() = runTest {
+        val lock = Mutex()
+        val touched = mutableListOf<String>()
+        // The agent's first call holds the session's lock (a page load, say).
+        lock.lock()
+        val queued = async { agentTurn(control, "c", lock, waits = true, EmptyCoroutineContext) { touched += "click"; "clicked" } }
+        runCurrent()
+        // Nobody had the browser when it was queued, so it waits for the lock, not for the user.
+        assertTrue(touched.isEmpty())
+
+        // The user takes over; then the first call ends and lets the lock go (#340).
+        assertTrue(control.takeOver("c"))
+        lock.unlock()
+        runCurrent()
+        assertTrue(touched.isEmpty(), "the queued call must wait for the hand-back")
+        assertTrue(control.waiting("c"))
+        assertFalse(lock.isLocked, "and not hold the lock while it waits")
+
+        control.handBack("c", noted = false)
+        assertEquals("clicked", queued.await())
+        assertEquals(listOf("click"), touched)
+    }
+
+    @Test
+    fun `the user's own actions never wait for the agent's turn`() = runTest {
+        assertTrue(control.takeOver("c"))
+        assertEquals("shown", agentTurn(control, "c", Mutex(), waits = false, EmptyCoroutineContext) { "shown" })
     }
 }

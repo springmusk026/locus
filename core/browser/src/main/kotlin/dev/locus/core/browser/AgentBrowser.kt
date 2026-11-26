@@ -204,9 +204,12 @@ class AgentBrowser @Inject constructor(
      * [BrowserControl.WAIT_MS]) instead of racing their taps, and nothing on the page reaches the model
      * until they hand it back. Refs from earlier snapshots are void from now on. False with no chat on
      * screen, in the user's own browsing, or when they already have it.
+     *
+     * [conversationId] is the chat whose browser the caller shows (the focused one when null). The caller keeps
+     * it for [handBack]: the focus may move to another chat meanwhile (#340).
      */
-    fun takeOver(): Boolean {
-        val key = focused.value?.takeIf { it != STANDALONE } ?: return false
+    fun takeOver(conversationId: String? = focused.value): Boolean {
+        val key = conversationId?.takeIf { it != STANDALONE } ?: return false
         if (!control.takeOver(key)) return false
         sessionsBook.begin(key)
         sessionsBook.userTookOver(key)
@@ -214,11 +217,11 @@ class AgentBrowser @Inject constructor(
     }
 
     /**
-     * The user hands the browser back. [noted]: they left a note, sent as their own message by the caller
-     * before this. Main thread (it resets the tabs' last snapshots, so the next one is shown in full).
+     * The user hands chat [conversationId]'s browser back (the one they took, not whichever chat is focused
+     * now, #340). [noted]: they left a note, sent as their own message by the caller before this. Main thread (it resets the tabs' last snapshots, so the next one is shown in full).
      */
-    fun handBack(noted: Boolean) {
-        val key = focused.value ?: return
+    fun handBack(conversationId: String, noted: Boolean) {
+        val key = conversationId
         control.handBack(key, noted) ?: return
         sessionsBook.end(key)
         sessionsBook.userTookOver(key)
@@ -384,12 +387,14 @@ class AgentBrowser @Inject constructor(
         if (display === show) {
             display = null
             displayKey = null
+            // No screen shows the browser now: the WebViews must not keep the closed activity alive (#340).
+            context.baseContext = appContext
         }
     }
 
-    /** User finished the handoff on the browser screen (or dismissed it); the focused chat's waiting call continues. */
-    fun completeHandoff() {
-        sessions[focused.value ?: DEFAULT_KEY]?.handoff?.complete(Unit)
+    /** User finished the handoff of chat [conversationId] on the browser screen (or dismissed it); its waiting call continues. */
+    fun completeHandoff(conversationId: String) {
+        sessions[conversationId]?.handoff?.complete(Unit)
     }
 
     /** The calling conversation's session key: its id in a tool call, else the chat on screen. */
@@ -1389,7 +1394,28 @@ class AgentBrowser @Inject constructor(
         }
         states.forEach { (key, flow) -> flow.value = BrowserState(userControl = control.inControl(key), agentWaiting = control.waiting(key)) }
         sessions.values.forEach { it.vouched.clear() }
+        // Hosts typed in the address bar and elements picked from pages are browsing data too (#338).
+        typedHosts.clear()
+        picks.value = emptyMap()
         offer.value = null
+    }
+
+    /**
+     * Chat [conversationId] was deleted (#338): its tabs close, a takeover or handoff of it ends, and nothing about
+     * it stays here (its tabs, state, typed hosts, picked element). Its run has been stopped first.
+     */
+    suspend fun forget(conversationId: String) = withContext(Dispatchers.Main) {
+        control.handBack(conversationId, noted = false)
+        control.takeNotice(conversationId)
+        sessions.remove(conversationId)?.let { s ->
+            s.handoff?.complete(Unit)
+            s.tabs.toList().forEach(::close)
+        }
+        sessionsBook.forget(conversationId)
+        typedHosts.remove(conversationId)
+        picks.update { it - conversationId }
+        states.remove(conversationId)
+        if (focused.value == conversationId) focused.value = null
     }
 
     /** What happened in the caller's browser outside its view since it last asked: load errors, dialogs, downloads, new tabs. */
@@ -1406,19 +1432,18 @@ class AgentBrowser @Inject constructor(
     // ---- Plumbing ---------------------------------------------------------------------------------
 
     private suspend fun <T> action(block: suspend Session.() -> T): T {
-        // Nothing on the page is read or touched for the model while the user has the browser.
-        awaitAgentTurn(key())
         val s = session(key())
-        return s.lock.withLock {
-            withContext(Dispatchers.Main) {
-                sessionsBook.begin(s.key)
-                try {
-                    s.block()
-                } catch (_: DialogOpen) {
-                    throw ToolException(s.dialog?.let { dialogNote(it.info) } ?: "The page is paused by a dialog. Use browser_dialog.")
-                } finally {
-                    sessionsBook.end(s.key)
-                }
+        // Nothing on the page is read or touched for the model while the user has the browser, also when they
+        // took over while this call waited for the lock behind another one (#340). UI calls never wait.
+        val waits = currentCoroutineContext()[ToolCallContext] != null
+        return agentTurn(control, s.key, s.lock, waits, Dispatchers.Main) {
+            sessionsBook.begin(s.key)
+            try {
+                s.block()
+            } catch (_: DialogOpen) {
+                throw ToolException(s.dialog?.let { dialogNote(it.info) } ?: "The page is paused by a dialog. Use browser_dialog.")
+            } finally {
+                sessionsBook.end(s.key)
             }
         }
     }

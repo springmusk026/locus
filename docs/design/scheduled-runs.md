@@ -77,6 +77,8 @@ is recorded on the task (`lastOutcome`: done, failed or stopped, plus the summar
 | The user turned the task off or deleted it | Stopped: the task was turned off | No |
 
 A stop is recorded under `NonCancellable` in the cancelled worker, then the cancellation is rethrown.
+However it ends, the chat's run state stops saying it's a scheduled run's (`RunState.scheduled`), so the
+widget, waiting chats and the chat itself treat it as the user's chat again (#341).
 Tasks shows "Last run failed" or "Last run stopped" in red on the task's row and over its last result.
 
 ### Following a run

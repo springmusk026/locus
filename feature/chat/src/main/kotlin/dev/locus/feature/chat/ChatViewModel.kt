@@ -394,6 +394,9 @@ data class ChatUiState(
     val pendingQuestion: dev.locus.core.agent.tools.UserQuestion? get() = run.pendingQuestion
 }
 
+/** How long typing pauses before the composer's draft is written to disk (#319). */
+private const val DRAFT_WRITE_DELAY_MS = 500L
+
 @HiltViewModel(assistedFactory = ChatViewModel.Factory::class)
 class ChatViewModel @AssistedInject constructor(
     @Assisted private val conversationId: String,
@@ -421,6 +424,8 @@ class ChatViewModel @AssistedInject constructor(
     private val temporaryChats: dev.locus.core.data.repository.TemporaryChats? = null,
     /** Marks a scheduled run's result read once its chat is opened (docs/design/needs-you.md); null in tests that don't need it. */
     private val tasks: dev.locus.core.data.tasks.TaskRepository? = null,
+    /** Each chat's unsent composer text, kept when the chat is left (#319); null in tests that don't need it. */
+    private val drafts: dev.locus.core.data.repository.ChatDrafts? = null,
 ) : ViewModel() {
     /** Services to suggest stopping while the phone is critically hot (never stopped without the user). */
     val heatServices: StateFlow<List<String>> = linuxHeat?.suggestion ?: MutableStateFlow(emptyList())
@@ -634,9 +639,50 @@ class ChatViewModel @AssistedInject constructor(
     }
 
     override fun onCleared() {
+        // The last keystrokes before leaving are kept, whatever the debounce was waiting for.
+        draftWrite?.cancel()
+        lastDraft?.let { drafts?.set(conversationId, it, inMemory = !draftOnDisk) }
         // Leaving a temporary chat deletes it (once a running task ends); other chats are untouched.
+        if (conversationTemporary) drafts?.clear(conversationId)
         temporaryChats?.left(conversationId)
         super.onCleared()
+    }
+
+    // ---- The composer's draft (#319) ----------------------------------------------------------------
+
+    /** The text left unsent in this chat's composer last time; empty when none. */
+    val savedDraft: String get() = drafts?.get(conversationId).orEmpty()
+
+    /** Whether this chat's draft may go to disk: known not to be a temporary chat (which keeps nothing). */
+    @Volatile private var draftOnDisk = false
+    @Volatile private var conversationTemporary = false
+    private var lastDraft: String? = null
+    private var draftWrite: kotlinx.coroutines.Job? = null
+
+    init {
+        drafts?.let {
+            viewModelScope.launch {
+                val temporary = conversations.get(conversationId)?.temporary == true
+                conversationTemporary = temporary
+                draftOnDisk = !temporary
+            }
+        }
+    }
+
+    /**
+     * The composer's unsent text changed to [text] (the draft, not a message being edited). Kept in memory at once,
+     * so the chat list shows it, and written after typing pauses; blank drops it.
+     */
+    fun setDraft(text: String) {
+        val drafts = drafts ?: return
+        if (text == lastDraft) return
+        lastDraft = text
+        drafts.set(conversationId, text, inMemory = true)
+        draftWrite?.cancel()
+        draftWrite = viewModelScope.launch {
+            kotlinx.coroutines.delay(DRAFT_WRITE_DELAY_MS)
+            drafts.set(conversationId, text, inMemory = !draftOnDisk)
+        }
     }
 
     private val runState = runner.states.map { it[conversationId] ?: RunState() }
@@ -795,8 +841,11 @@ class ChatViewModel @AssistedInject constructor(
     fun send(text: String) {
         // While the agent waits on a question, a typed message is the answer (attachments stay for later).
         val question = runner.states.value[conversationId]?.pendingQuestion
-        if (question != null && text.isNotBlank()) {
+        // If the question closed meanwhile (answered elsewhere, timed out, the run stopped), the text is sent as a
+        // normal message instead of being dropped (#339).
+        if (question != null && text.isNotBlank() &&
             runner.answerQuestion(question.callId, dev.locus.core.agent.tools.QuestionAnswer(text = text))
+        ) {
             return
         }
         // When the chat's model is known not to take this message (images without vision, a context past its
@@ -1129,10 +1178,15 @@ class ChatViewModel @AssistedInject constructor(
     /** Runs the turn after [fromMessageId] again, as a new branch beside the old reply. */
     fun regenerate(fromMessageId: String) = runner.regenerate(conversationId, fromMessageId)
 
-    /** Sends [text] as an edit of the user message [messageId], on a new branch; composer attachments are added. */
-    fun edit(messageId: String, text: String) {
-        runner.edit(conversationId, messageId, text, pending.value)
-        pending.value = emptyList()
+    /**
+     * Sends [text] as an edit of the user message [messageId], on a new branch; composer attachments are added.
+     * False when it wasn't started (the chat was busy, which it says): the attachments stay, and the screen
+     * keeps the text and the edit (#339).
+     */
+    fun edit(messageId: String, text: String): Boolean {
+        val started = runner.edit(conversationId, messageId, text, pending.value)
+        if (started) pending.value = emptyList()
+        return started
     }
 
     /** Shows the branch through [messageId] (a sibling from a ‹ i/n › switcher). */

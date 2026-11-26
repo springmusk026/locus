@@ -83,6 +83,12 @@ Folded into Edit. Edit puts the text in the composer with an "Editing" banner; s
 branch. Closing the banner keeps the text, and sending then appends it at the end — the old
 "edit as new message" behaviour — so nothing is lost and the menu stays short.
 
+What the composer held before Edit isn't replaced for good (#319): it is set aside and comes back
+once the edit is sent, or when the banner is closed (then it takes the place of the edited text;
+over an empty composer the edited text stays, as above). Back closes the banner first. A queued
+message's edit works the same way. An edit tapped while the chat is busy isn't started: the chat
+says so, and the text, the edit and the attachments stay (#339).
+
 ## Migration 6 → 7
 
 An `AutoMigration` adds the three nullable columns. Its spec's `onPostMigrate` fills `parentId` for

@@ -84,6 +84,11 @@ sealed interface RunNote {
         override val english get() = (if (helper) BackgroundStart.HELPER else BackgroundStart.QUEUED).notice
     }
 
+    /** An edit or a retry asked for while the chat was busy: nothing was sent (#339). */
+    data object BusyNotStarted : RunNote {
+        override val english get() = "Locus is still working in this chat, so that wasn't sent. Try again when it's done."
+    }
+
     /** "Couldn't run it: that tool is no longer available." */
     data object ToolGone : RunNote {
         override val english get() = "Couldn't run it: that tool is no longer available."

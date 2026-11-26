@@ -149,6 +149,11 @@ class FakeDatabase {
         }
         override suspend fun setActiveLeaf(id: String, leafId: String?) = updateConversation(id) { it.copy(activeLeafId = leafId) }
         override suspend fun rename(id: String, title: String) = updateConversation(id) { it.copy(title = title) }
+        override suspend fun renameIf(id: String, expected: String, title: String): Int = synchronized(this@FakeDatabase) {
+            if (tables.value.conversations[id]?.title != expected) return 0
+            updateConversation(id) { it.copy(title = title) }
+            1
+        }
         override suspend fun delete(id: String) = write { t ->
             // ON DELETE CASCADE for messages and tracked changes.
             t.copy(

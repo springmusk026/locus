@@ -69,6 +69,11 @@ internal class TranscriptFollower(val list: LazyListState, private val nearPx: F
         snapToEnd()
     }
 
+    /** A new user message (sent, or another branch shown): follow it from the end, unless the user is reading further up (#321). */
+    suspend fun onUserMessage() {
+        if (following || nearBottom()) resume() else hasUnseen = true
+    }
+
     /** Opened somewhere other than the end: stay put until the user scrolls back down. */
     internal fun holdHere() {
         following = false
@@ -134,9 +139,10 @@ internal fun rememberTranscriptFollower(
         }
     }
 
-    // The user just sent something: always bring them down to it.
+    // The user just sent something: bring them down to it when they were at the end. Sent (a steer) or a branch
+    // shown while they read further up, their place stays and "jump to latest" offers the way down (#321).
     LaunchedEffect(follower, lastUserKey) {
-        if (follower.landed) follower.resume()
+        if (follower.landed) follower.onUserMessage()
     }
     // Something new arrived: if they're reading further up, offer "jump to latest" instead of yanking them.
     LaunchedEffect(follower, contentVersion) { follower.onNewContent() }

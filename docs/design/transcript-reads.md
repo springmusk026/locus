@@ -91,6 +91,30 @@ transformations in your ViewModel …) so Compose can skip using instance equali
   reason). The browser's state also changes with every percent of a page load, its tabs and dialogs,
   so `uiState` combines only those four (`forChat`, with `distinctUntilChanged`): a page load no
   longer rebuilds `ChatUiState` (and re-marks every item) once per progress tick (#342).
+- What the screen needs from the whole transcript comes from one pass per change (`transcriptIndex`):
+  the task each reply belongs to (for "Save as workflow"), the newest user message, and whether the
+  chat ran a command or used the browser (the panel toggles). Each reply row used to scan the list
+  after itself on every emission, which is quadratic in the chat's length, and the toggles scanned it
+  again at every tool call (#321).
+
+### Following the end
+
+`TranscriptFollower` keeps the newest content in view while the user is at the end. A new user
+message (one sent, or another branch shown) brings the list down only when the user was following or
+near the end; reading further up, a steer sent from there keeps their place and turns on "jump to
+latest" instead (#321). Test: `TranscriptFollowTest`.
+
+### The composer's draft
+
+What the user typed and hasn't sent is kept per chat (`ChatDrafts`, #319): in memory at once, so the
+chat list shows it as "Draft: …", and in a small file per chat in no-backup storage once typing pauses
+(half a second) or the chat is left. Leaving the chat, opening it from the list again and restarting
+Locus bring it back; sending clears it. No database change: a column on `conversations` would need a
+migration, and a settings entry would rewrite the whole settings file per pause. A temporary chat's
+draft never goes to disk. Deleting a chat deletes its draft. An edit (of a sent or queued message) sets
+the draft aside and gives it back (docs/design/branching.md), and a plan's Edit starts "Change the
+plan:" only in an empty composer. Tests: `ChatDraftsTest`, `ComposerDraftTest`, `ComposerEditTest`,
+`DeleteChatTest`.
 
 ### Home
 
