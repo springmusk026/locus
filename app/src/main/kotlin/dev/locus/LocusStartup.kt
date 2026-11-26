@@ -42,5 +42,7 @@ object LocusStartup {
         integrity.get().checkAtStart()
         // ANRs, native crashes and kills Android recorded since the last start, into Diagnostics.
         scope.launch(Dispatchers.IO) { diagnostics.get().recordExitsSinceLastStart() }
+        // The vault's values come out of everything the log writes from here on (docs/design/diagnostics.md, "Scrubbing").
+        scope.launch(Dispatchers.IO) { diagnostics.get().keepLogScrubbed() }
     }
 }

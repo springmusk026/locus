@@ -11,6 +11,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.yield
+import org.junit.After
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -28,6 +30,11 @@ class DiagnosticsTest {
     private fun log() = DiagnosticsLog(File(tmp.root, "diagnostics"))
 
     private val apiKey = "sk-proj-abcdefghijklmnopqrstuvwx"
+
+    @After
+    fun resetWriteScrubber() {
+        DiagnosticsLog.writeScrubber = { it }
+    }
 
     @Test
     fun `a crash is written scrubbed, then passed to the previous handler`() {
@@ -125,5 +132,41 @@ class DiagnosticsTest {
         assertEquals(listOf("keys reset"), log.notices())
         log.dismissNotices()
         assertTrue(log.notices().isEmpty())
+    }
+
+    @Test
+    fun `a crash report also loses private keys, JWTs, AWS ids and Telegram tokens`() {
+        val log = log()
+        val pem = "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASC\n-----END PRIVATE KEY-----"
+        val jwt = "eyJhbGciOiJIUzI1NiJ9" + ".eyJzdWIiOiIxMjM0NTY3ODkwIn0" + ".SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV"
+        val aws = "AKIA" + "IOSFODNN7EXAMPLE"
+        val telegram = "123456789" + ":AAH" + "k3j4h5g6f7d8s9a0qwertyuiopasdfghjk"
+        CrashRecorder(log, null, "Locus test").uncaughtException(Thread.currentThread(), IllegalStateException("failed: $pem $jwt $aws bot$telegram"))
+        val text = log.entries().single().text
+        listOf("MIIEvQIBADANBgkq", jwt, aws, telegram).forEach { assertFalse(it in text, "$it leaked: $text") }
+    }
+
+    @Test
+    fun `a vault value never reaches the log file`() = runTest {
+        val log = log()
+        val secrets = SecretStore(InMemoryDataStore(mapOf(SecretStore.connectorSecret("x") to "plainvaultvalue42")))
+        val repo = DiagnosticsRepository(TestContext(tmp.newFolder("ctx")), log, secrets)
+        backgroundScope.launch(StandardTestDispatcher(testScheduler)) { repo.keepLogScrubbed() }
+        // The collector installs the scrubber once the vault's values have come through its flows.
+        repeat(100) {
+            advanceUntilIdle()
+            if (DiagnosticsLog.writeScrubber("plainvaultvalue42") != "plainvaultvalue42") return@repeat
+            yield()
+        }
+        assertEquals("[secret]", DiagnosticsLog.writeScrubber("plainvaultvalue42"))
+
+        // Every writer: a crash, a background error, an exit text, a provider's body.
+        CrashRecorder(log, null, "env").uncaughtException(Thread.currentThread(), IllegalStateException("token plainvaultvalue42 failed"))
+        repo.recordError(IllegalStateException("bad plainvaultvalue42"))
+        log.record(DiagnosticsLog.Kind.EXIT, "Native crash plainvaultvalue42", "Android says: plainvaultvalue42")
+
+        val files = File(tmp.root, "diagnostics").listFiles().orEmpty()
+        assertEquals(3, files.size)
+        files.forEach { assertFalse("plainvaultvalue42" in it.readText(), "${it.name} holds the vault value: ${it.readText()}") }
     }
 }

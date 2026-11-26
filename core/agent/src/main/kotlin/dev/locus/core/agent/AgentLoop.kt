@@ -742,6 +742,8 @@ class AgentLoop(
                 return@flow
             }
 
+            taint.repaired.clear()
+            taint.repaired += turn.repairedCallIds
             // Asked to stop while the reply streamed: none of its calls runs, but each is answered.
             val interrupted = config.stopAtBoundary?.invoke() == true
             val results = when {
@@ -950,6 +952,11 @@ class AgentLoop(
         const val RULE_CALL_PREFIX = "rule:"
 
         private const val MAX_CONSECUTIVE_DENIALS = 3
+
+        /** Shown on the approval card of a call the on-device adapter rebuilt from unparsed text (AssistantTurn.repairedCallIds). */
+        const val REPAIRED_CALL_REASON =
+            "Rebuilt call: the on-device model's tool call was malformed and Locus reconstructed it from the text, " +
+                "which may include text copied from a page. Check the arguments before allowing it."
 
         /** The call id of the context [AgentConfig.atStepBoundary] runs with; see [ToolCallContext.forCall]. */
         const val STEP_BOUNDARY_CALL = "step-boundary"
@@ -1413,6 +1420,7 @@ class AgentLoop(
         if (limits.restrict?.invoke(tool, args) != null) return false
         if (policyFor(tool) != ToolPolicy.ALLOW) return false
         if (tool.mustConfirm(args) != null) return false
+        if (call.id in taint.repaired) return false
         if (withContext(ChatScope.element(limits.project)) { tool.asksFirst(args) }) return false
         if (limits.escalate?.invoke(tool, args) != null) return false
         if (taint.couldGate(tool, args)) return false
@@ -1664,11 +1672,14 @@ class AgentLoop(
         } else {
             withContext(callContext(conversationId, call.id, transcript, review, taint) + ChatScope.element(limits.project)) { tool.mustConfirm(args) }
         }
+        // A call rebuilt from text the model runtime couldn't parse may be page text posing as a call: it asks
+        // whatever the policy, and no remembered approval covers it (GemmaCallRepair).
+        val repairedReason = if (basePolicy == ToolPolicy.DENY || call.id !in taint.repaired) null else REPAIRED_CALL_REASON
         // A tainted call already says it opens a host the user hasn't named; the disclosure line adds nothing then.
         val disclosureReason = disclosure?.takeIf { taintReason == null }
-        var confirmReason = listOfNotNull(ownReason, taintReason, disclosureReason, typing, skillReason, escalated).joinToString("\n").ifEmpty { null }
+        var confirmReason = listOfNotNull(ownReason, repairedReason, taintReason, disclosureReason, typing, skillReason, escalated).joinToString("\n").ifEmpty { null }
         var flags = buildSet {
-            if (ownReason != null) add(ApprovalFlag.MUST_CONFIRM)
+            if (ownReason != null || repairedReason != null) add(ApprovalFlag.MUST_CONFIRM)
             if (taintReason != null) add(ApprovalFlag.TAINTED)
             if (disclosure != null || typing != null) add(ApprovalFlag.PRIVATE_DATA)
             if (skillReason != null) add(ApprovalFlag.SKILL_SCOPE)
@@ -1967,6 +1978,12 @@ class AgentLoop(
         /** The serving model's vision, for [ToolCallContext.vision]. */
         val vision: () -> dev.locus.core.llm.Support = { dev.locus.core.llm.Support.UNKNOWN },
     ) {
+        /**
+         * Ids of this step's calls that the model adapter rebuilt from text its runtime couldn't parse
+         * ([AssistantTurn.repairedCallIds]). Replaced each step, since adapters number their calls per turn.
+         */
+        val repaired: MutableSet<String> = concurrentSetOf(emptyList())
+
         /** Whether the user allowed the host [tool] opens, or the page it acts on, for the rest of this run ([Taint.siteOf]). */
         suspend fun siteAllowed(tool: Tool, args: JsonObject): Boolean =
             allowedSites.isNotEmpty() && Taint.siteOf(tool, args)?.let { it in allowedSites } == true

@@ -6,8 +6,13 @@ import androidx.core.net.toUri
 import dev.locus.core.agent.auth.OAuthRedirect
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.Closeable
 import java.io.IOException
@@ -16,13 +21,15 @@ import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.SocketTimeoutException
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.coroutineContext
 
 /**
  * A one-shot listener on 127.0.0.1 for a browser sign-in's redirect (RFC 8252 loopback), open for the
  * length of one sign-in. Anything else that connects (preconnects, favicon requests, or a web page or
  * app poking the port) is answered and ignored: only a request to exactly [path] carrying this
- * sign-in's state is taken, and requests are read up to 8 KB.
+ * sign-in's state is taken, and requests are read up to 8 KB, in 3 seconds, each on its own coroutine
+ * (docs/design/network.md, "The sign-in listener").
  *
  * The redirect arrives while the browser is in front, and Android blocks network access for apps in
  * the background (the token exchange then fails with "Unable to resolve host"). So the browser is
@@ -39,48 +46,89 @@ internal class LoopbackRedirect private constructor(
 
     /** Waits up to five minutes for the redirect with [state] and hands its query to [onCallback]. */
     suspend fun await(state: String, failure: (String) -> Exception, onCallback: suspend (Map<String, String>) -> Unit) {
-        server.soTimeout = 1_000
-        val deadline = System.currentTimeMillis() + 5 * 60_000
-        while (System.currentTimeMillis() < deadline) {
-            coroutineContext.ensureActive()
-            val socket = try {
-                server.accept()
-            } catch (_: SocketTimeoutException) {
-                continue
-            }
-            socket.use { s ->
-                val target = try {
-                    s.soTimeout = 3_000
-                    readRequestTarget(s)
-                } catch (_: IOException) {
-                    null
-                } ?: return@use
-                val params = OAuthRedirect.params(target, path)
-                if (params == null || params["state"] != state) {
-                    respond(s, 404, "Not found.")
-                    return@use
+        val params = awaitRedirect(state, SIGN_IN_WAIT_MS) ?: throw failure("Sign-in timed out. Try again.")
+        val back = withTimeoutOrNull(10 * 60_000L) {
+            ProcessLifecycleOwner.get().lifecycle.currentStateFlow.first { it.isAtLeast(Lifecycle.State.STARTED) }
+        }
+        if (back == null) throw failure("Sign-in wasn't finished: Locus wasn't reopened. Try again.")
+        onCallback(params)
+    }
+
+    /**
+     * The query of the first request to [path] that carries [state], answered with the page that returns to
+     * Locus, or null after [waitMs]. Every connection is read on its own coroutine, so one that sends a
+     * byte now and then (any app on the phone, or a program in Linux, can open one) holds up neither the
+     * browser's redirect nor a cancel. A request gets [REQUEST_MS] in all, not per read, and at most
+     * [MAX_OPEN] are read at a time. Cancelling returns within about a [POLL_MS] poll.
+     */
+    internal suspend fun awaitRedirect(state: String, waitMs: Long): Map<String, String>? = coroutineScope {
+        val found = CompletableDeferred<Map<String, String>>()
+        val open = AtomicInteger(0)
+        val acceptor = launch(Dispatchers.IO) {
+            server.soTimeout = POLL_MS
+            while (isActive) {
+                val socket = try {
+                    server.accept()
+                } catch (_: SocketTimeoutException) {
+                    continue
                 }
-                respondReturn(s)
-                s.close()
-                val back = withTimeoutOrNull(10 * 60_000L) {
-                    ProcessLifecycleOwner.get().lifecycle.currentStateFlow.first { it.isAtLeast(Lifecycle.State.STARTED) }
+                if (open.incrementAndGet() > MAX_OPEN) {
+                    open.decrementAndGet()
+                    runCatching { socket.close() }
+                    continue
                 }
-                if (back == null) throw failure("Sign-in wasn't finished: Locus wasn't reopened. Try again.")
-                onCallback(params)
-                return
+                launch(Dispatchers.IO) {
+                    try {
+                        serve(socket, state)?.let { found.complete(it) }
+                    } finally {
+                        runCatching { socket.close() }
+                        open.decrementAndGet()
+                    }
+                }
             }
         }
-        throw failure("Sign-in timed out. Try again.")
+        try {
+            withTimeoutOrNull(waitMs) { found.await() }
+        } finally {
+            acceptor.cancel()
+        }
+    }
+
+    /** Reads one request and answers it; the redirect's query if it is the one for [state]. */
+    private suspend fun serve(socket: Socket, state: String): Map<String, String>? {
+        val target = try {
+            readRequestTarget(socket)
+        } catch (_: IOException) {
+            null
+        } ?: return null
+        val params = OAuthRedirect.params(target, path)
+        if (params == null || params["state"] != state) {
+            respond(socket, 404, "Not found.")
+            return null
+        }
+        respondReturn(socket)
+        return params
     }
 
     override fun close() = server.close()
 
-    /** The request target from "GET /path?query HTTP/1.1", reading at most 8 KB. */
-    private fun readRequestTarget(socket: Socket): String? {
+    /**
+     * The request target from "GET /path?query HTTP/1.1", reading at most 8 KB in at most [REQUEST_MS] (null
+     * when it takes longer). Reads in short polls so a cancel is noticed within about [POLL_MS].
+     */
+    private suspend fun readRequestTarget(socket: Socket): String? {
         val input = socket.getInputStream()
         val line = StringBuilder()
+        val stopAt = System.nanoTime() + REQUEST_MS * 1_000_000L
+        socket.soTimeout = POLL_MS
         while (line.length < 8_192) {
-            val c = input.read()
+            coroutineContext.ensureActive()
+            if (System.nanoTime() >= stopAt) return null
+            val c = try {
+                input.read()
+            } catch (_: SocketTimeoutException) {
+                continue
+            }
             if (c < 0 || c == '\n'.code) break
             if (c != '\r'.code) line.append(c.toChar())
         }
@@ -109,6 +157,17 @@ internal class LoopbackRedirect private constructor(
     }
 
     companion object {
+        private const val SIGN_IN_WAIT_MS = 5 * 60_000L
+
+        /** All the time one connection gets to send its request line; a browser sends it at once. */
+        internal const val REQUEST_MS = 3_000L
+
+        /** How long a blocking accept or read lasts before it checks for a cancel. */
+        private const val POLL_MS = 250
+
+        /** Connections read at the same time; more are closed at once. */
+        private const val MAX_OPEN = 16
+
         /**
          * Opens Locus from the browser (an intent filter on MainActivity); it carries no data. Debug
          * builds are a separate app (dev.locus.debug) with their own scheme, so a sign-in in one never

@@ -90,6 +90,24 @@ class SecretStore @Inject constructor(
     }.distinctUntilChanged()
 
     /**
+     * [valuesForScrubbing] as the vault changes, for the diagnostics log to scrub entries as they are
+     * written. Empty while the vault is closed, and follows it once it opens. Never display, log or send it.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val scrubbableValues: Flow<Collection<String>> = flow {
+        runCatching { openVault() }
+        emitAll(
+            vault.state.flatMapLatest { state ->
+                if (state != VaultState.Ready) {
+                    flowOf(emptyList())
+                } else {
+                    store.data.map { scrubbable(it) }.catch { if (it is VaultUnavailableException) emit(emptyList()) else throw it }
+                }
+            },
+        )
+    }
+
+    /**
      * Every stored value, only so text can be scrubbed of them before it is shown (the "What was sent"
      * viewer). Never display, log or send what this returns. Empty while the vault is closed: no value
      * can be read then, so none can leak.

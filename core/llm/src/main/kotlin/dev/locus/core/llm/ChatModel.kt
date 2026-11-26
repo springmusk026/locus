@@ -98,6 +98,12 @@ data class AssistantTurn(
      */
     val turnEffort: Part.TurnEffort? = null,
     /**
+     * Ids of [toolCalls] the adapter rebuilt from text the model runtime failed to parse (on-device
+     * `GemmaCallRepair`). Text the model copied can pass as such a call, so the agent asks the user
+     * before running one, whatever the tool's policy.
+     */
+    val repairedCallIds: Set<String> = emptySet(),
+    /**
      * The request put the system prompt in a `developer` input message ([SystemPlacement]); stored on the
      * turn as [Part.SystemInInput] so later requests of the chat keep that placement.
      */
