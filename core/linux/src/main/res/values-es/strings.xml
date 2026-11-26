@@ -38,7 +38,11 @@
     <string name="linux_health_files_damaged_missing">A Linux le faltan %1$s. Solo una reinstalación los recupera; los archivos de tu espacio de trabajo se conservan.</string>
     <string name="linux_health_files_damaged_missing_and_db">A Linux le faltan %1$s y no se puede leer la base de datos de paquetes. Solo una reinstalación los recupera; los archivos de tu espacio de trabajo se conservan.</string>
     <string name="linux_health_files_damaged_db">No se puede leer la base de datos de paquetes de Linux. Solo una reinstalación la recupera; los archivos de tu espacio de trabajo se conservan.</string>
-    <string name="linux_health_files_more">%1$s y %2$d más</string>
+    <plurals name="linux_health_files_more">
+        <item quantity="one">%1$s y %2$d más</item>
+        <item quantity="many">%1$s y %2$d más</item>
+        <item quantity="other">%1$s y %2$d más</item>
+    </plurals>
     <string name="linux_health_files_ok_title">Archivos del sistema intactos</string>
     <string name="linux_health_files_ok_detail">Los archivos clave y la base de datos de paquetes están en su sitio.</string>
     <string name="linux_health_storage_full_title">El almacenamiento del teléfono está casi lleno</string>
@@ -58,7 +62,11 @@
     <string name="linux_health_phantom_off_title">El límite en segundo plano está desactivado</string>
     <string name="linux_health_phantom_off_detail">Las restricciones de procesos secundarios están desactivadas, así que Android no detendrá Linux por ese motivo.</string>
     <string name="linux_health_phantom_warning_title">Android puede detener Linux en segundo plano</string>
-    <string name="linux_health_phantom_warning_detail">Android 12 o posterior detiene los procesos extra de las apps (ahora hay %1$d en ejecución para Locus). Puedes desactivarlo.</string>
+    <plurals name="linux_health_phantom_warning_detail">
+        <item quantity="one">Android 12 o posterior detiene los procesos extra de las apps (ahora hay %1$d en ejecución para Locus). Puedes desactivarlo.</item>
+        <item quantity="many">Android 12 o posterior detiene los procesos extra de las apps (ahora hay %1$d en ejecución para Locus). Puedes desactivarlo.</item>
+        <item quantity="other">Android 12 o posterior detiene los procesos extra de las apps (ahora hay %1$d en ejecución para Locus). Puedes desactivarlo.</item>
+    </plurals>
     <string name="linux_health_phantom_killed_command">Android detuvo un comando mientras Locus estaba en segundo plano.</string>
     <string name="linux_health_phantom_killed_service">Android detuvo el servicio %1$s mientras Locus estaba en segundo plano.</string>
     <string name="linux_health_phantom_killed_terminal">Android detuvo una terminal mientras Locus estaba en segundo plano.</string>

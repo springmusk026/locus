@@ -28,7 +28,10 @@
     <string name="data_linux_update_failed">%1$s Check the internet connection and try again.</string>
     <string name="data_linux_package_timed_out">Timed out. The agent can finish this later with apk add.</string>
     <string name="data_linux_package_exit">apk exited with %1$s</string>
-    <string name="data_linux_packages_failed">%1$d of %2$d couldn\'t be installed. See below; you can retry.</string>
+    <plurals name="data_linux_packages_failed">
+        <item quantity="one">%1$d of %2$d couldn\'t be installed. See below; you can retry.</item>
+        <item quantity="other">%1$d of %2$d couldn\'t be installed. See below; you can retry.</item>
+    </plurals>
     <string name="data_linux_with_output" translatable="false">%1$s\n%2$s</string>
     <string name="data_linux_estimate_under_a_minute">About %1$d MB to download, %2$d MB on the phone. Usually under a minute on Wi-Fi.</string>
     <plurals name="data_linux_estimate_minutes">
@@ -41,7 +44,10 @@
     <string name="data_linux_notification_cancel">Cancel</string>
 
     <!-- The phone is very hot and Linux services run (LinuxHeatAdvice) -->
-    <string name="data_heat_services_more">%1$s and %2$d more</string>
+    <plurals name="data_heat_services_more">
+        <item quantity="one">%1$s and %2$d more</item>
+        <item quantity="other">%1$s and %2$d more</item>
+    </plurals>
     <plurals name="data_heat_message">
         <item quantity="one">The phone is very hot and a Linux service is running (%2$s). Stopping them would help it cool down; the agent can start them again later.</item>
         <item quantity="other">The phone is very hot and %1$d Linux services are running (%2$s). Stopping them would help it cool down; the agent can start them again later.</item>
@@ -109,7 +115,10 @@
         <item quantity="one">%1$s: %2$d check passed.</item>
         <item quantity="other">%1$s: %2$d checks passed.</item>
     </plurals>
-    <string name="data_selftest_linux_attention">%1$s. %2$d of %3$d checks need attention; each has its fix on the Linux screen.</string>
+    <plurals name="data_selftest_linux_attention">
+        <item quantity="one">%1$s. %2$d of %3$d checks need attention; each has its fix on the Linux screen.</item>
+        <item quantity="other">%1$s. %2$d of %3$d checks need attention; each has its fix on the Linux screen.</item>
+    </plurals>
     <string name="data_selftest_provider_not_checked">Not checked: %1$s</string>
     <plurals name="data_selftest_provider_listed">
         <item quantity="one">Reachable with its key: %1$d model listed.</item>

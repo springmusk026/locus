@@ -316,9 +316,9 @@ internal fun checklistLine(resources: Resources, todos: List<TodoItem>): String 
     val done = todos.count { it.status == TodoStatus.COMPLETED }
     val current = todos.firstOrNull { it.status == TodoStatus.IN_PROGRESS } ?: todos.firstOrNull { it.status == TodoStatus.PENDING }
     return if (current == null) {
-        resources.getString(R.string.chat_checklist_progress, done, todos.size)
+        resources.getQuantityString(R.plurals.chat_checklist_progress, done, done, todos.size)
     } else {
-        resources.getString(R.string.chat_checklist_progress_current, done, todos.size, current.shown)
+        resources.getQuantityString(R.plurals.chat_checklist_progress_current, done, done, todos.size, current.shown)
     }
 }
 

@@ -45,8 +45,9 @@ class SearchTextTest {
     /** The migration derives the same words in SQL from the stored JSON as [SearchText] does for new messages. */
     @Test
     fun `the v8 backfill derives the same text`() {
-        val ok = runCatching { ProcessBuilder("sqlite3", ":memory:", "SELECT json_valid('[]')").start().waitFor(10, TimeUnit.SECONDS) }.getOrDefault(false)
-        Assume.assumeTrue("sqlite3 is not installed", ok)
+        val problem = systemSqliteProblem()
+        if (System.getenv("CI") == "true") check(problem == null) { "$problem (required on CI)" }
+        Assume.assumeTrue(problem, problem == null)
         val rows = samples.mapIndexed { i, (role, parts) ->
             with(ConversationRepository) { Message("m$i", "c", role, parts, i.toLong()).toEntity(parentId = null) }
         }
@@ -69,5 +70,24 @@ class SearchTextTest {
             assertEquals(row.searchText?.let(SearchQuery::words), fromSql[row.id]?.let(SearchQuery::words), "message ${row.id}")
             assertEquals(row.searchText == null, fromSql[row.id] == null, "message ${row.id}")
         }
+    }
+
+    /**
+     * Why the system `sqlite3` can't run the backfill, or null when it can. The backfill uses
+     * `group_concat(... ORDER BY ...)`, new in SQLite 3.44; Debian 12 ships 3.40, where it fails with
+     * `near "ORDER": syntax error`. The app uses the bundled SQLite (3.50), so it isn't affected.
+     */
+    private fun systemSqliteProblem(): String? {
+        val output = runCatching {
+            val p = ProcessBuilder("sqlite3", "--version").redirectErrorStream(true).start()
+            try {
+                p.inputStream.bufferedReader().readText().takeIf { p.waitFor(10, TimeUnit.SECONDS) && p.exitValue() == 0 }
+            } finally {
+                p.destroy()
+            }
+        }.getOrNull() ?: return "sqlite3 is not installed"
+        val version = output.trim().substringBefore(' ').split('.').map { it.toIntOrNull() ?: 0 }
+        val tooOld = version.getOrElse(0) { 0 } < 3 || (version.getOrElse(0) { 0 } == 3 && version.getOrElse(1) { 0 } < 44)
+        return if (tooOld) "sqlite3 3.44 or newer is needed (group_concat ... ORDER BY), found ${output.trim().substringBefore(' ')}" else null
     }
 }

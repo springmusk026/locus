@@ -107,7 +107,10 @@
     <string name="workspace_linux_checking">Checking…</string>
     <string name="workspace_linux_services">Services</string>
     <string name="workspace_linux_services_none">None running</string>
-    <string name="workspace_linux_services_running">%1$d running</string>
+    <plurals name="workspace_linux_services_running">
+        <item quantity="one">%1$d running</item>
+        <item quantity="other">%1$d running</item>
+    </plurals>
     <string name="workspace_linux_service_running">Service %1$s, running</string>
     <string name="workspace_linux_service_stop">Stop %1$s</string>
     <string name="workspace_linux_add_tools">Add tools</string>
@@ -172,8 +175,14 @@
     <string name="workspace_health_level_warning">Warning</string>
     <string name="workspace_health_level_problem">Problem</string>
     <string name="workspace_health_status">Status: %1$s</string>
-    <string name="workspace_health_verdict_passed">%1$d checks passed · checked %2$s</string>
-    <string name="workspace_health_verdict_attention">%1$d of %2$d checks need attention · checked %3$s</string>
+    <plurals name="workspace_health_verdict_passed">
+        <item quantity="one">%1$d check passed · checked %2$s</item>
+        <item quantity="other">%1$d checks passed · checked %2$s</item>
+    </plurals>
+    <plurals name="workspace_health_verdict_attention">
+        <item quantity="one">%1$d of %2$d checks needs attention · checked %3$s</item>
+        <item quantity="other">%1$d of %2$d checks need attention · checked %3$s</item>
+    </plurals>
     <plurals name="workspace_health_checks_passed">
         <item quantity="one">%1$d check passed</item>
         <item quantity="other">%1$d checks passed</item>
@@ -218,7 +227,10 @@
 
     <!-- Workspace: Linux packages -->
     <string name="workspace_packages_title">Packages</string>
-    <string name="workspace_packages_subtitle">%1$d you installed · %2$d total</string>
+    <plurals name="workspace_packages_subtitle">
+        <item quantity="one">%1$d you installed · %2$d total</item>
+        <item quantity="other">%1$d you installed · %2$d total</item>
+    </plurals>
     <string name="workspace_packages_not_installed_title">Linux isn\'t installed</string>
     <string name="workspace_packages_not_installed_body">Packages show here once Linux is set up.</string>
     <string name="workspace_packages_set_up">Set up Linux</string>
@@ -230,7 +242,10 @@
     <string name="workspace_packages_uninstall_title">Uninstall %1$s?</string>
     <string name="workspace_packages_uninstall_message">Runs `apk del %1$s`. Packages it pulled in that nothing else needs go too. Your workspace files stay, and you can install it again.</string>
     <string name="workspace_packages_uninstall">Uninstall</string>
-    <string name="workspace_packages_search_all">Search all %1$d packages</string>
+    <plurals name="workspace_packages_search_all">
+        <item quantity="one">Search the %1$d package</item>
+        <item quantity="other">Search all %1$d packages</item>
+    </plurals>
     <string name="workspace_packages_search_yours">Search packages you installed</string>
     <string name="workspace_packages_filter_yours">You installed (%1$d)</string>
     <string name="workspace_packages_filter_yours_description">Show packages you installed, %1$d</string>
@@ -246,7 +261,10 @@
         <item quantity="one">%1$d update available</item>
         <item quantity="other">%1$d updates available</item>
     </plurals>
-    <string name="workspace_packages_updates_more">and %1$d more</string>
+    <plurals name="workspace_packages_updates_more">
+        <item quantity="one">and %1$d more</item>
+        <item quantity="other">and %1$d more</item>
+    </plurals>
     <string name="workspace_packages_updates_install">Install them with `apk upgrade` in the terminal.</string>
     <string name="workspace_packages_open_terminal">Open terminal</string>
     <string name="workspace_packages_expanded">Expanded</string>
@@ -348,9 +366,18 @@
     <string name="workspace_preview_image_size_animated">%1$d × %2$d · animated</string>
     <string name="workspace_preview_table_empty">No rows found.</string>
     <string name="workspace_preview_table_rows_cut">Showing the first %1$s of %2$s rows.</string>
-    <string name="workspace_preview_table_columns_cut">Showing the first %1$d of %2$d columns.</string>
-    <string name="workspace_preview_table_size">%1$s rows × %2$d columns</string>
-    <string name="workspace_preview_code_lines_cut">%1$d long line(s) are cut at %2$s characters here.</string>
+    <plurals name="workspace_preview_table_columns_cut">
+        <item quantity="one">Showing the first %1$d of %2$d columns.</item>
+        <item quantity="other">Showing the first %1$d of %2$d columns.</item>
+    </plurals>
+    <plurals name="workspace_preview_table_size">
+        <item quantity="one">%1$s rows × %2$d column</item>
+        <item quantity="other">%1$s rows × %2$d columns</item>
+    </plurals>
+    <plurals name="workspace_preview_code_lines_cut">
+        <item quantity="one">%1$d long line is cut at %2$s characters here.</item>
+        <item quantity="other">%1$d long lines are cut at %2$s characters here.</item>
+    </plurals>
     <string name="workspace_preview_code_plain">Too large to colour; shown plain.</string>
 
     <!-- Workspace: messages the view models make -->
@@ -388,11 +415,17 @@
     <string name="workspace_health_service_didnt_start">Didn\'t start</string>
     <string name="workspace_health_service_stopped_by_restart">Stopped by restart</string>
     <string name="workspace_health_service_finished">Finished</string>
-    <string name="workspace_health_packages_line">%1$d you installed · %2$d total</string>
+    <plurals name="workspace_health_packages_line">
+        <item quantity="one">%1$d you installed · %2$d total</item>
+        <item quantity="other">%1$d you installed · %2$d total</item>
+    </plurals>
     <string name="workspace_health_packages_unreadable">Can\'t read apk\'s package database</string>
     <string name="workspace_health_memory_low">%1$s of %2$s available. Android may stop Linux programs, especially while Locus is in the background.</string>
     <string name="workspace_health_processes_none">None running</string>
-    <string name="workspace_health_processes">%1$d running · %2$s</string>
+    <plurals name="workspace_health_processes">
+        <item quantity="one">%1$d running · %2$s</item>
+        <item quantity="other">%1$d running · %2$s</item>
+    </plurals>
     <string name="workspace_packages_database_unreadable">apk\'s package database can\'t be read. Reinstalling Linux fixes it.</string>
     <string name="workspace_packages_removed">Removed %1$s.</string>
     <string name="workspace_packages_remove_failed">Couldn\'t remove %1$s: %2$s</string>

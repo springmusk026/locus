@@ -45,8 +45,16 @@
     <string name="analytics_cost_try_again">Reintentar</string>
     <string name="analytics_cost_chart_day">Gasto estimado por día, %1$s en este periodo</string>
     <string name="analytics_cost_chart_week">Gasto estimado por semana, %1$s en este periodo</string>
-    <string name="analytics_cost_row_unpriced">%1$d de %2$d sin precio</string>
-    <string name="analytics_row_requests_short">%1$d sol.</string>
+    <plurals name="analytics_cost_row_unpriced">
+        <item quantity="one">%1$d de %2$d sin precio</item>
+        <item quantity="many">%1$d de %2$d sin precio</item>
+        <item quantity="other">%1$d de %2$d sin precio</item>
+    </plurals>
+    <plurals name="analytics_row_requests_short">
+        <item quantity="one">%1$d sol.</item>
+        <item quantity="many">%1$d sol.</item>
+        <item quantity="other">%1$d sol.</item>
+    </plurals>
     <string name="analytics_models_via">vía %1$s</string>
     <string name="analytics_share_description">Proporción respecto al mayor</string>
     <string name="analytics_source_chat">Respuestas del chat</string>
@@ -64,8 +72,16 @@
     <string name="analytics_tools_succeeded">Correctas</string>
     <string name="analytics_tools_failed">Con error</string>
     <string name="analytics_tools_success_rate">%1$d%%</string>
-    <string name="analytics_tools_chart_day">Llamadas a herramientas por día: %1$d, %2$d con error</string>
-    <string name="analytics_tools_chart_week">Llamadas a herramientas por semana: %1$d, %2$d con error</string>
+    <plurals name="analytics_tools_chart_day">
+        <item quantity="one">Llamadas a herramientas por día: %1$d, %2$d con error</item>
+        <item quantity="many">Llamadas a herramientas por día: %1$d, %2$d con error</item>
+        <item quantity="other">Llamadas a herramientas por día: %1$d, %2$d con error</item>
+    </plurals>
+    <plurals name="analytics_tools_chart_week">
+        <item quantity="one">Llamadas a herramientas por semana: %1$d, %2$d con error</item>
+        <item quantity="many">Llamadas a herramientas por semana: %1$d, %2$d con error</item>
+        <item quantity="other">Llamadas a herramientas por semana: %1$d, %2$d con error</item>
+    </plurals>
     <plurals name="analytics_tools_caption">
         <item quantity="one">%1$d llamada</item>
         <item quantity="many">%1$d llamadas</item>
@@ -85,9 +101,17 @@
         <item quantity="many">%1$s · %2$d llamadas</item>
         <item quantity="other">%1$s · %2$d llamadas</item>
     </plurals>
-    <string name="analytics_slow_failed">%1$d con error</string>
+    <plurals name="analytics_slow_failed">
+        <item quantity="one">%1$d con error</item>
+        <item quantity="many">%1$d con error</item>
+        <item quantity="other">%1$d con error</item>
+    </plurals>
     <string name="analytics_slow_average">prom. %1$s</string>
-    <string name="analytics_chats_summary">%1$s tokens · %2$d sol. · %3$d herram.</string>
+    <plurals name="analytics_chats_summary">
+        <item quantity="one">%1$s tokens · %2$d sol. · %3$d herram.</item>
+        <item quantity="many">%1$s tokens · %2$d sol. · %3$d herram.</item>
+        <item quantity="other">%1$s tokens · %2$d sol. · %3$d herram.</item>
+    </plurals>
     <plurals name="analytics_tasks_runs">
         <item quantity="one">%1$d ejecución</item>
         <item quantity="many">%1$d ejecuciones</item>

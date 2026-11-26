@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -120,8 +121,8 @@ internal fun TableViewer(text: String, separator: Char, modifier: Modifier = Mod
     val allNotices = buildList {
         addAll(notices)
         if (t.totalRows > MAX_ROWS) add(stringResource(R.string.workspace_preview_table_rows_cut, "%,d".format(MAX_ROWS), "%,d".format(t.totalRows)))
-        if (t.totalCols > MAX_COLS) add(stringResource(R.string.workspace_preview_table_columns_cut, MAX_COLS, t.totalCols))
-        add(stringResource(R.string.workspace_preview_table_size, "%,d".format(t.totalRows - 1), t.totalCols))
+        if (t.totalCols > MAX_COLS) add(pluralStringResource(R.plurals.workspace_preview_table_columns_cut, MAX_COLS, MAX_COLS, t.totalCols))
+        add(pluralStringResource(R.plurals.workspace_preview_table_size, t.totalCols, "%,d".format(t.totalRows - 1), t.totalCols))
     }
     val hairline = Locus.colors.hairline
 

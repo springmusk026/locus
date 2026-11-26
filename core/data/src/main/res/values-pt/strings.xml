@@ -25,7 +25,11 @@
     <string name="data_linux_update_failed">%1$s Verifique a conexão com a internet e tente de novo.</string>
     <string name="data_linux_package_timed_out">Tempo esgotado. O agente pode terminar isso depois com apk add.</string>
     <string name="data_linux_package_exit">O apk terminou com %1$s</string>
-    <string name="data_linux_packages_failed">Não foi possível instalar %1$d de %2$d. Veja abaixo; você pode tentar de novo.</string>
+    <plurals name="data_linux_packages_failed">
+        <item quantity="one">Não foi possível instalar %1$d de %2$d. Veja abaixo; você pode tentar de novo.</item>
+        <item quantity="many">Não foi possível instalar %1$d de %2$d. Veja abaixo; você pode tentar de novo.</item>
+        <item quantity="other">Não foi possível instalar %1$d de %2$d. Veja abaixo; você pode tentar de novo.</item>
+    </plurals>
     <string name="data_linux_estimate_under_a_minute">Cerca de %1$d MB para baixar e %2$d MB no telefone. No Wi-Fi, costuma levar menos de um minuto.</string>
     <plurals name="data_linux_estimate_minutes">
         <item quantity="one">Cerca de %1$d MB para baixar e %2$d MB no telefone. No Wi-Fi, costuma levar cerca de %3$d minuto.</item>
@@ -37,7 +41,11 @@
     <string name="data_linux_notification_title">Instalando o Linux</string>
     <string name="data_linux_notification_cancel">Cancelar</string>
 
-    <string name="data_heat_services_more">%1$s e mais %2$d</string>
+    <plurals name="data_heat_services_more">
+        <item quantity="one">%1$s e mais %2$d</item>
+        <item quantity="many">%1$s e mais %2$d</item>
+        <item quantity="other">%1$s e mais %2$d</item>
+    </plurals>
     <plurals name="data_heat_message">
         <item quantity="one">O telefone está muito quente e %1$d serviço do Linux está em execução (%2$s). Pará-lo ajudaria a esfriar; o agente pode iniciá-lo de novo depois.</item>
         <item quantity="many">O telefone está muito quente e %1$d serviços do Linux estão em execução (%2$s). Pará-los ajudaria a esfriar; o agente pode iniciá-los de novo depois.</item>
@@ -107,7 +115,11 @@
         <item quantity="many">%1$s: %2$d verificações aprovadas.</item>
         <item quantity="other">%1$s: %2$d verificações aprovadas.</item>
     </plurals>
-    <string name="data_selftest_linux_attention">%1$s. %2$d de %3$d verificações precisam de atenção; cada uma tem sua correção na tela do Linux.</string>
+    <plurals name="data_selftest_linux_attention">
+        <item quantity="one">%1$s. %2$d de %3$d verificações precisa de atenção; ela tem sua correção na tela do Linux.</item>
+        <item quantity="many">%1$s. %2$d de %3$d verificações precisam de atenção; cada uma tem sua correção na tela do Linux.</item>
+        <item quantity="other">%1$s. %2$d de %3$d verificações precisam de atenção; cada uma tem sua correção na tela do Linux.</item>
+    </plurals>
     <string name="data_selftest_provider_not_checked">Não verificado: %1$s</string>
     <plurals name="data_selftest_provider_listed">
         <item quantity="one">Acessível com a chave: %1$d modelo listado.</item>

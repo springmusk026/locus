@@ -292,7 +292,7 @@ internal fun RemoteBackendSheet(
 /** One line of the preview, with up to five of its paths. */
 @Composable
 private fun PreviewRow(title: String, summary: String, paths: List<String>) {
-    val shown = paths.take(5).joinToString("\n") + if (paths.size > 5) "\n" + stringResource(R.string.chat_remote_and_more, paths.size - 5) else ""
+    val shown = paths.take(5).joinToString("\n") + if (paths.size > 5) "\n" + pluralStringResource(R.plurals.chat_remote_and_more, paths.size - 5, paths.size - 5) else ""
     ListRow(title = title, subtitle = if (paths.isEmpty()) summary else "$summary\n$shown", subtitleMaxLines = 7)
 }
 

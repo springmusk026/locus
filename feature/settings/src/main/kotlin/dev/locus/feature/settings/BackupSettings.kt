@@ -295,7 +295,7 @@ internal fun NewPasswordSheet(includesVault: Boolean, onDismiss: () -> Unit, onD
             label = stringResource(R.string.settings_backup_password_label),
             isError = firstFieldError,
             supportingText = when {
-                !firstFieldError -> stringResource(R.string.settings_backup_password_hint, MIN_PASSWORD)
+                !firstFieldError -> pluralStringResource(R.plurals.settings_backup_password_hint, MIN_PASSWORD, MIN_PASSWORD)
                 problem == PasswordProblem.TooWeak -> stringResource(R.string.settings_backup_password_weak)
                 else -> stringResource(R.string.settings_backup_password_too_short, MIN_PASSWORD)
             },

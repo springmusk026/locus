@@ -335,7 +335,9 @@
     </plurals>
     <string name="chat_screen_hide_steps">隐藏步骤</string>
     <string name="chat_screen_show_steps">显示步骤</string>
-    <string name="chat_screen_n_failed">%1$d 个失败</string>
+    <plurals name="chat_screen_n_failed">
+        <item quantity="other">%1$d 个失败</item>
+    </plurals>
     <string name="chat_screen_working">工作中</string>
     <string name="chat_screen_temporary_title">临时对话</string>
     <string name="chat_screen_welcome">我们做点什么？</string>
@@ -446,7 +448,9 @@
     <string name="chat_home_tasks">任务</string>
     <string name="chat_home_tasks_none">任务，暂无</string>
     <string name="chat_home_tasks_paused">任务，全部已暂停</string>
-    <string name="chat_home_tasks_scheduled">任务，%1$d 个已设置定时</string>
+    <plurals name="chat_home_tasks_scheduled">
+        <item quantity="other">任务，%1$d 个已设置定时</item>
+    </plurals>
     <string name="chat_home_files">文件</string>
     <string name="chat_home_files_description">工作区文件和 Linux</string>
     <string name="chat_home_activity">活动</string>
@@ -500,8 +504,12 @@
     <string name="chat_home_new">新建</string>
     <string name="chat_home_project_no_chats">还没有对话</string>
     <string name="chat_home_project_needs_approval">需要批准</string>
-    <string name="chat_home_project_n_need_approval">%1$d 个需要批准</string>
-    <string name="chat_home_project_n_working">%1$d 个工作中</string>
+    <plurals name="chat_home_project_n_need_approval">
+        <item quantity="other">%1$d 个需要批准</item>
+    </plurals>
+    <plurals name="chat_home_project_n_working">
+        <item quantity="other">%1$d 个工作中</item>
+    </plurals>
     <string name="chat_home_project_spoken">%1$s，项目</string>
     <string name="chat_home_project_last_active">上次活动：%1$s</string>
     <plurals name="chat_home_project_spoken_approvals">
@@ -526,8 +534,12 @@
     <string name="chat_heat_body_hot">设备端模型生成回复时会让处理器持续高负荷运转，手机会变得更烫，Android 也会降低其速度。</string>
     <string name="chat_heat_body_battery_saver">设备端模型生成回复会消耗大量电量。</string>
     <string name="chat_heat_body_critical">在这个温度下，Locus 会提前停止设备端回复，让手机降温；已写出的内容会保留。</string>
-    <string name="chat_heat_light_cpu">轻量模式会把回复限制在约 %1$d 个令牌，并让模型只用 %2$d 个处理器核心运行，因此手机升温更慢，但回答也更慢。手机恢复正常后，它会自动关闭。</string>
-    <string name="chat_heat_light">轻量模式会把回复限制在约 %1$d 个令牌，因此工作量更少。手机恢复正常后，它会自动关闭。</string>
+    <plurals name="chat_heat_light_cpu">
+        <item quantity="other">轻量模式会把回复限制在约 %1$d 个令牌，并让模型只用 %2$d 个处理器核心运行，因此手机升温更慢，但回答也更慢。手机恢复正常后，它会自动关闭。</item>
+    </plurals>
+    <plurals name="chat_heat_light">
+        <item quantity="other">轻量模式会把回复限制在约 %1$d 个令牌，因此工作量更少。手机恢复正常后，它会自动关闭。</item>
+    </plurals>
     <string name="chat_heat_use_light">使用轻量模式</string>
     <string name="chat_heat_not_now">暂不</string>
     <string name="chat_heat_send_anyway">仍然发送</string>
@@ -572,7 +584,9 @@
     <string name="chat_composer_thinking_change">更改思考强度</string>
     <string name="chat_composer_tools">工具</string>
     <string name="chat_composer_tools_none">此对话中没有</string>
-    <string name="chat_composer_tools_off">已关闭 %1$d 个</string>
+    <plurals name="chat_composer_tools_off">
+        <item quantity="other">已关闭 %1$d 个</item>
+    </plurals>
     <string name="chat_composer_tools_all">全部开启</string>
     <string name="chat_composer_stop">停止</string>
     <string name="chat_composer_speak">说话</string>
@@ -625,7 +639,9 @@
     <string name="chat_modelsheet_collapsed">已收起</string>
     <string name="chat_modelsheet_load_failed">无法加载模型列表：%1$s</string>
     <string name="chat_modelsheet_loading">正在加载模型…</string>
-    <string name="chat_modelsheet_more">还有 %1$d 个；请搜索以缩小范围。</string>
+    <plurals name="chat_modelsheet_more">
+        <item quantity="other">还有 %1$d 个；请搜索以缩小范围。</item>
+    </plurals>
     <string name="chat_modelsheet_chat_only_started">此对话开始时使用的模型无法使用工具，因此没有工具。切换模型后仍然如此；要使用工具，请开始新对话。</string>
     <string name="chat_modelsheet_chat_only_new">标有“仅聊天”的模型会让此对话没有工具：它们太小，或不支持使用工具。</string>
     <string name="chat_modelsheet_default">默认</string>
@@ -671,7 +687,9 @@
     <string name="chat_projecteditor_snapshots_note">每条命令运行前，Locus 会把项目文件复制到它自己的存储中；没有变化的文件只保存一份。当文件夹中的文件超过 %1$s 个、大小超过 %2$s，或读取用时超过 %3$s 秒时，会跳过快照并加以说明。不包括：链接，以及 .git、node_modules、build、dist、.venv 和 __pycache__ 等文件夹。快照保留最近 %4$s 轮，最长 %5$s 天。</string>
     <string name="chat_projecteditor_permissions">权限</string>
     <string name="chat_projecteditor_permissions_hint">这些设置在此项目中只能让工具更严格；“允许”需要你确认。更改立即生效，正在进行的对话也一样。其他地方的工具遵循</string>
-    <string name="chat_projecteditor_set">已设置 %1$d 项</string>
+    <plurals name="chat_projecteditor_set">
+        <item quantity="other">已设置 %1$d 项</item>
+    </plurals>
     <string name="chat_projecteditor_connectors">连接器</string>
     <string name="chat_projecteditor_connector_allowed">在此项目中允许</string>
     <string name="chat_projecteditor_connector_denied">在此项目中不使用</string>
@@ -687,9 +705,15 @@
     <plurals name="chat_projecteditor_tools">
         <item quantity="other">%1$d 个工具</item>
     </plurals>
-    <string name="chat_projecteditor_n_ask">%1$d 个需询问</string>
-    <string name="chat_projecteditor_n_denied">%1$d 个已拒绝</string>
-    <string name="chat_projecteditor_n_allowed">%1$d 个已允许</string>
+    <plurals name="chat_projecteditor_n_ask">
+        <item quantity="other">%1$d 个需询问</item>
+    </plurals>
+    <plurals name="chat_projecteditor_n_denied">
+        <item quantity="other">%1$d 个已拒绝</item>
+    </plurals>
+    <plurals name="chat_projecteditor_n_allowed">
+        <item quantity="other">%1$d 个已允许</item>
+    </plurals>
     <string name="chat_projecteditor_policy">全局：%1$s · 此处：%2$s</string>
     <string name="chat_projecteditor_policy_same">相同</string>
     <string name="chat_projecteditor_policy_ask">询问</string>
@@ -751,7 +775,9 @@
     <string name="chat_receipt_cost_unknown">未知：models.dev 没有列出这些模型的价格</string>
     <string name="chat_receipt_cost_estimate">%1$s · 按 models.dev 价格估算</string>
     <string name="chat_receipt_files">文件</string>
-    <string name="chat_receipt_files_changed">已更改 %1$d 个</string>
+    <plurals name="chat_receipt_files_changed">
+        <item quantity="other">已更改 %1$d 个</item>
+    </plurals>
     <string name="chat_receipt_checks">检查</string>
     <string name="chat_receipt_approvals">批准</string>
     <string name="chat_receipt_outside">外部内容</string>
@@ -816,7 +842,9 @@
     <string name="chat_remote_unlink_title">改回在这部手机上运行？</string>
     <string name="chat_remote_unlink_body">新命令将在手机上的 Linux 中运行。%1$s 上的副本会保留在那里；Locus 不会删除它。</string>
     <string name="chat_remote_unlink_confirm">在这部手机上运行</string>
-    <string name="chat_remote_and_more">…还有 %1$d 个</string>
+    <plurals name="chat_remote_and_more">
+        <item quantity="other">…还有 %1$d 个</item>
+    </plurals>
     <plurals name="chat_remote_files">
         <item quantity="other">%1$d 个文件</item>
     </plurals>
@@ -845,7 +873,9 @@
     <string name="chat_sentfile_no_app_share">没有应用可以分享 %1$s</string>
     <string name="chat_sent_title">已发送的内容</string>
     <string name="chat_sent_loading">正在加载…</string>
-    <string name="chat_sent_missing">此回复没有保留。Locus 只在内存中保留最近对话的最后 %1$d 次请求，绝不写入磁盘，因此更早的回复，以及应用上次启动之前的回复都无法显示。</string>
+    <plurals name="chat_sent_missing">
+        <item quantity="other">此回复没有保留。Locus 只在内存中保留最近对话的最后 %1$d 次请求，绝不写入磁盘，因此更早的回复，以及应用上次启动之前的回复都无法显示。</item>
+    </plurals>
     <string name="chat_sent_copied">已复制</string>
     <string name="chat_sent_copy_text">复制文本</string>
     <string name="chat_sent_copy_json">复制 JSON</string>
@@ -879,7 +909,9 @@
     <string name="chat_side_caption">不会加入对话。</string>
     <string name="chat_side_clear">清除</string>
     <string name="chat_side_close">关闭插问</string>
-    <string name="chat_side_older">更早的 %1$d 条</string>
+    <plurals name="chat_side_older">
+        <item quantity="other">更早的 %1$d 条</item>
+    </plurals>
     <string name="chat_side_answering">正在回答…</string>
     <string name="chat_side_tried_tools">它尝试使用工具；插问无法运行工具，所以没有运行任何内容。</string>
     <string name="chat_helper_steer">引导</string>
@@ -932,7 +964,9 @@
     <string name="chat_checks_show_runs">显示所有运行</string>
     <string name="chat_checks_show_output">显示输出</string>
     <string name="chat_checks_hide_output">隐藏输出</string>
-    <string name="chat_checks_and_more">还有 %1$d 个</string>
+    <plurals name="chat_checks_and_more">
+        <item quantity="other">还有 %1$d 个</item>
+    </plurals>
     <string name="chat_checks_output">输出</string>
     <plurals name="chat_checks_runs_in_turn">
         <item quantity="other">本轮运行了 %1$d 次</item>
@@ -1046,8 +1080,12 @@
     <string name="chat_budget_cost_off">估算费用需要模型价格：请在设置 → 模型中开启模型详情（models.dev）。</string>
     <string name="chat_budget_cost_not_loaded">模型价格尚未加载；打开一次模型列表即可获取。</string>
     <string name="chat_budget_cost_no_price">models.dev 没有列出 %1$s 的价格，因此无法估算费用。</string>
-    <string name="chat_checklist_progress">已完成 %1$d/%2$d</string>
-    <string name="chat_checklist_progress_current">已完成 %1$d/%2$d · %3$s</string>
+    <plurals name="chat_checklist_progress">
+        <item quantity="other">已完成 %1$d/%2$d</item>
+    </plurals>
+    <plurals name="chat_checklist_progress_current">
+        <item quantity="other">已完成 %1$d/%2$d · %3$s</item>
+    </plurals>
     <string name="chat_thought_label">已思考</string>
     <string name="chat_thought_moment">思考了片刻</string>
     <string name="chat_thought_seconds">思考了 %1$d 秒</string>
@@ -1121,7 +1159,9 @@
     <string name="chat_sent_row_cache">缓存</string>
     <string name="chat_sent_on_this_phone">在这部手机上</string>
     <string name="chat_sent_format_chatgpt">Responses（ChatGPT 套餐）</string>
-    <string name="chat_sent_reported">已上报 %1$,d</string>
+    <plurals name="chat_sent_reported">
+        <item quantity="other">已上报 %1$,d</item>
+    </plurals>
     <string name="chat_sent_row_cleared">较早的工具结果</string>
     <plurals name="chat_sent_cleared">
         <item quantity="other">已清除 %1$d 个 · 节省约 %2$s 个令牌</item>
@@ -1211,7 +1251,9 @@
     <string name="chat_rewind_changed_since_title">之后在 Locus 之外被修改过</string>
     <string name="chat_rewind_gone_title">无法恢复</string>
     <string name="chat_rewind_effects_title">保持不变</string>
-    <string name="chat_rewind_more">还有 %1$d 项</string>
+    <plurals name="chat_rewind_more">
+        <item quantity="other">还有 %1$d 项</item>
+    </plurals>
     <string name="chat_rewind_agent_note">Locus 会在智能体下次回复前告诉它发生了哪些变化。</string>
     <string name="chat_rewind_action">回退</string>
     <string name="chat_later_branch">之后的消息在另一个分支上。</string>
@@ -1420,7 +1462,9 @@
     <string name="chat_rules_delete_confirm">删除</string>
     <string name="chat_projecteditor_rules">规则</string>
     <string name="chat_projecteditor_rules_none">还没有规则</string>
-    <string name="chat_projecteditor_rules_suspended">%1$s · %2$d 条已暂停</string>
+    <plurals name="chat_projecteditor_rules_suspended">
+        <item quantity="other">%1$s · %2$d 条已暂停</item>
+    </plurals>
     <string name="chat_projecteditor_rules_note">编辑后或智能体完成前要运行的命令，以及要阻止的命令。</string>
     <plurals name="chat_projecteditor_rules_count">
         <item quantity="other">%1$d 条规则</item>

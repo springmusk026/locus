@@ -222,8 +222,8 @@ internal fun ModelsSettings(
                     title = stringResource(R.string.settings_models_on_device_title),
                     subtitle = summaryJoin(
                         listOfNotNull(
-                            if (installed == 0) stringResource(R.string.settings_models_none_installed) else stringResource(R.string.settings_models_installed, installed, gb(used)),
-                            if (downloading > 0) stringResource(R.string.settings_models_downloading, downloading) else null,
+                            if (installed == 0) stringResource(R.string.settings_models_none_installed) else pluralStringResource(R.plurals.settings_models_installed, installed, installed, gb(used)),
+                            if (downloading > 0) pluralStringResource(R.plurals.settings_models_downloading, downloading, downloading) else null,
                         ),
                     ),
                     onClick = onOpenOnDeviceModels,

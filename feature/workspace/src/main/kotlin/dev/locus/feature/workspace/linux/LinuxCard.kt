@@ -203,7 +203,7 @@ private fun Installed(
                 if (panel.running.isEmpty()) {
                     stringResource(R.string.workspace_linux_services_none)
                 } else {
-                    stringResource(R.string.workspace_linux_services_running, panel.running.size)
+                    pluralStringResource(R.plurals.workspace_linux_services_running, panel.running.size, panel.running.size)
                 },
                 dense = true,
                 tone = if (panel.running.isEmpty()) null else Tone.Live,

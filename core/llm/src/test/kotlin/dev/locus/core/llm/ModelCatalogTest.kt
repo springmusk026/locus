@@ -70,6 +70,26 @@ class ModelCatalogTest {
         assertNull(index.lookup("", ApiFormat.ON_DEVICE, "gpt-5"))
     }
 
+    @Test
+    fun `a local server never gets the catalogue's entry for the same model id`() {
+        val index = ModelCatalogIndex.parseModelsDev(sample)
+        // A remote proxy still matches by id, so the test would catch a lookup that ignores the host.
+        assertEquals(400_000, index.lookup("https://proxy.example/v1", ApiFormat.OPENAI_CHAT, "openai/gpt-5")?.context)
+        listOf(
+            "http://192.168.1.5:1234/v1", "http://localhost:1234/v1", "http://127.0.0.1:1234/v1", "http://10.0.0.2/v1",
+            "http://172.20.1.1/v1", "http://100.101.102.103:1234/v1", "http://100.64.0.1/v1", "http://100.127.255.254/v1",
+            "http://nas.lan:1234/v1", "http://box.home.arpa/v1", "http://host.docker.internal:11434/v1", "http://mac.local:1234/v1",
+            "http://[::1]:1234/v1", "http://[fd12:3456:789a::1]:1234/v1", "http://[fe80::1]/v1", "http://169.254.1.1/v1",
+        ).forEach { url ->
+            assertNull(index.lookup(url, ApiFormat.OPENAI_CHAT, "openai/gpt-5"), url)
+            assertNull(index.lookup(url, ApiFormat.OPENAI_CHAT, "gpt-5"), url)
+        }
+        // Just outside the private ranges: public hosts.
+        listOf("http://100.63.0.1/v1", "http://100.128.0.1/v1", "http://172.32.0.1/v1", "http://172.15.0.1/v1", "http://[2001:db8::1]/v1", "http://lan.example.com/v1").forEach { url ->
+            assertEquals(400_000, index.lookup(url, ApiFormat.OPENAI_CHAT, "gpt-5")?.context, url)
+        }
+    }
+
     private val requests = mutableListOf<HttpRequestData>()
     private var status = HttpStatusCode.OK
     private val http = HttpClient(

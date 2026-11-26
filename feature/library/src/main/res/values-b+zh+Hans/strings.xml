@@ -227,6 +227,7 @@
     <string name="library_workflows_schedule_read_only">定时运行是只读的，而且没有人在场批准任何操作。</string>
     <string name="library_workflows_schedule_need_you">需要你的批准，因此定时运行时会被拒绝：%1$s。</string>
     <string name="library_workflows_schedule_changes">会更改内容，因此定时运行时会被拒绝：%1$s。</string>
+    <string name="library_workflows_schedule_no_tools">未列出任何工具，因此定时运行时会拒绝任何会更改内容的步骤。</string>
     <string name="library_workflows_schedule_only_reads">此工作流所做的一切都只是读取，因此可以无人值守地运行。</string>
     <string name="library_workflows_schedule_run_from_chat">请在对话中运行它以执行这些步骤。</string>
     <string name="library_mcp_picker_subtitle">选择已知的服务器，或添加任意其他服务器。密钥会加密保存在这部手机上；AI 永远看不到。</string>

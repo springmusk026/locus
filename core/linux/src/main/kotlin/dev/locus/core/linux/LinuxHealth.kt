@@ -165,7 +165,7 @@ object LinuxHealth {
         if (integrity.missing.isNotEmpty() || !integrity.apkDbReadable) {
             val missing = integrity.missing.takeIf { it.isNotEmpty() }?.let { files ->
                 val named = files.take(MISSING_NAMED).joinToString(", ")
-                if (files.size > MISSING_NAMED) res(R.string.linux_health_files_more, named, files.size - MISSING_NAMED) else EngineText.Plain(named)
+                if (files.size > MISSING_NAMED) EngineText.Plural(R.plurals.linux_health_files_more, files.size - MISSING_NAMED, named, files.size - MISSING_NAMED) else EngineText.Plain(named)
             }
             val detail = when {
                 missing != null && !integrity.apkDbReadable -> res(R.string.linux_health_files_damaged_missing_and_db, missing)
@@ -217,7 +217,7 @@ object LinuxHealth {
             out += when {
                 p.monitorOff == true -> HealthCheck("phantom", res(R.string.linux_health_phantom_off_title), HealthLevel.Ok, res(R.string.linux_health_phantom_off_detail))
                 killed || report.processes.size >= PROCESS_WARNING -> {
-                    val limit = res(R.string.linux_health_phantom_warning_detail, report.processes.size)
+                    val limit = EngineText.Plural(R.plurals.linux_health_phantom_warning_detail, report.processes.size, report.processes.size)
                     HealthCheck(
                         "phantom", res(R.string.linux_health_phantom_warning_title), HealthLevel.Warning,
                         report.lastKill?.let { res(R.string.linux_health_two_sentences, it.stoppedSentence(), limit) } ?: limit,

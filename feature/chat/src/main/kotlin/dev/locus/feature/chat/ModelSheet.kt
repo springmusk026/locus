@@ -27,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -248,7 +249,7 @@ private fun ProviderCard(
             when (val list = section.list) {
                 is ModelList.Failed -> SectionNote(stringResource(R.string.chat_modelsheet_load_failed, list.message), Modifier.padding(top = Spacing.sm))
                 null, ModelList.Loading -> SectionNote(stringResource(R.string.chat_modelsheet_loading), Modifier.padding(top = Spacing.sm))
-                is ModelList.Loaded -> if (section.more > 0) SectionNote(stringResource(R.string.chat_modelsheet_more, section.more), Modifier.padding(top = Spacing.sm))
+                is ModelList.Loaded -> if (section.more > 0) SectionNote(pluralStringResource(R.plurals.chat_modelsheet_more, section.more, section.more), Modifier.padding(top = Spacing.sm))
             }
         }
     }

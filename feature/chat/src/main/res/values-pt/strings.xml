@@ -375,7 +375,11 @@
     </plurals>
     <string name="chat_screen_hide_steps">Ocultar passos</string>
     <string name="chat_screen_show_steps">Mostrar passos</string>
-    <string name="chat_screen_n_failed">%1$d com falha</string>
+    <plurals name="chat_screen_n_failed">
+        <item quantity="one">%1$d com falha</item>
+        <item quantity="many">%1$d com falha</item>
+        <item quantity="other">%1$d com falha</item>
+    </plurals>
     <string name="chat_screen_working">trabalhando</string>
     <string name="chat_screen_temporary_title">Um chat temporário</string>
     <string name="chat_screen_welcome">No que vamos trabalhar?</string>
@@ -496,7 +500,11 @@
     <string name="chat_home_tasks">Tarefas</string>
     <string name="chat_home_tasks_none">Tarefas, nenhuma ainda</string>
     <string name="chat_home_tasks_paused">Tarefas, todas pausadas</string>
-    <string name="chat_home_tasks_scheduled">Tarefas, %1$d agendadas</string>
+    <plurals name="chat_home_tasks_scheduled">
+        <item quantity="one">Tarefas, %1$d agendada</item>
+        <item quantity="many">Tarefas, %1$d agendadas</item>
+        <item quantity="other">Tarefas, %1$d agendadas</item>
+    </plurals>
     <string name="chat_home_files">Arquivos</string>
     <string name="chat_home_files_description">Arquivos do espaço de trabalho e Linux</string>
     <string name="chat_home_activity">Atividade</string>
@@ -552,8 +560,16 @@
     <string name="chat_home_new">Novo</string>
     <string name="chat_home_project_no_chats">Nenhum chat ainda</string>
     <string name="chat_home_project_needs_approval">Precisa de aprovação</string>
-    <string name="chat_home_project_n_need_approval">%1$d precisam de aprovação</string>
-    <string name="chat_home_project_n_working">%1$d trabalhando</string>
+    <plurals name="chat_home_project_n_need_approval">
+        <item quantity="one">%1$d precisa de aprovação</item>
+        <item quantity="many">%1$d precisam de aprovação</item>
+        <item quantity="other">%1$d precisam de aprovação</item>
+    </plurals>
+    <plurals name="chat_home_project_n_working">
+        <item quantity="one">%1$d trabalhando</item>
+        <item quantity="many">%1$d trabalhando</item>
+        <item quantity="other">%1$d trabalhando</item>
+    </plurals>
     <string name="chat_home_project_spoken">%1$s, projeto</string>
     <string name="chat_home_project_last_active">última atividade: %1$s</string>
     <plurals name="chat_home_project_spoken_approvals" tools:ignore="ImpliedQuantity">
@@ -582,8 +598,16 @@
     <string name="chat_heat_body_hot">Uma resposta do modelo no dispositivo exige muito do processador por um tempo, então o telefone vai esquentar mais e o Android vai deixá-lo mais lento.</string>
     <string name="chat_heat_body_battery_saver">Uma resposta do modelo no dispositivo consome muita bateria.</string>
     <string name="chat_heat_body_critical">Nesta temperatura, o Locus interrompe as respostas no dispositivo mais cedo para o telefone esfriar; o que foi escrito é mantido.</string>
-    <string name="chat_heat_light_cpu">O modo leve limita as respostas a cerca de %1$d tokens e roda o modelo em %2$d núcleos do processador, então esquenta o telefone mais devagar, mas também responde mais devagar. Ele se desativa sozinho quando o telefone volta ao normal.</string>
-    <string name="chat_heat_light">O modo leve limita as respostas a cerca de %1$d tokens, então há menos trabalho. Ele se desativa sozinho quando o telefone volta ao normal.</string>
+    <plurals name="chat_heat_light_cpu">
+        <item quantity="one">O modo leve limita as respostas a cerca de %1$d tokens e roda o modelo em %2$d núcleo do processador, então esquenta o telefone mais devagar, mas também responde mais devagar. Ele se desativa sozinho quando o telefone volta ao normal.</item>
+        <item quantity="many">O modo leve limita as respostas a cerca de %1$d tokens e roda o modelo em %2$d núcleos do processador, então esquenta o telefone mais devagar, mas também responde mais devagar. Ele se desativa sozinho quando o telefone volta ao normal.</item>
+        <item quantity="other">O modo leve limita as respostas a cerca de %1$d tokens e roda o modelo em %2$d núcleos do processador, então esquenta o telefone mais devagar, mas também responde mais devagar. Ele se desativa sozinho quando o telefone volta ao normal.</item>
+    </plurals>
+    <plurals name="chat_heat_light">
+        <item quantity="one">O modo leve limita as respostas a cerca de %1$d token, então há menos trabalho. Ele se desativa sozinho quando o telefone volta ao normal.</item>
+        <item quantity="many">O modo leve limita as respostas a cerca de %1$d tokens, então há menos trabalho. Ele se desativa sozinho quando o telefone volta ao normal.</item>
+        <item quantity="other">O modo leve limita as respostas a cerca de %1$d tokens, então há menos trabalho. Ele se desativa sozinho quando o telefone volta ao normal.</item>
+    </plurals>
     <string name="chat_heat_use_light">Usar modo leve</string>
     <string name="chat_heat_not_now">Agora não</string>
     <string name="chat_heat_send_anyway">Enviar mesmo assim</string>
@@ -630,7 +654,11 @@
     <string name="chat_composer_thinking_change">Mudar esforço de raciocínio</string>
     <string name="chat_composer_tools">Ferramentas</string>
     <string name="chat_composer_tools_none">Nenhuma neste chat</string>
-    <string name="chat_composer_tools_off">%1$d desativadas</string>
+    <plurals name="chat_composer_tools_off">
+        <item quantity="one">%1$d desativada</item>
+        <item quantity="many">%1$d desativadas</item>
+        <item quantity="other">%1$d desativadas</item>
+    </plurals>
     <string name="chat_composer_tools_all">Todas ativas</string>
     <string name="chat_composer_stop">Parar</string>
     <string name="chat_composer_speak">Falar</string>
@@ -685,7 +713,11 @@
     <string name="chat_modelsheet_collapsed">Recolhido</string>
     <string name="chat_modelsheet_load_failed">Não foi possível carregar a lista de modelos: %1$s</string>
     <string name="chat_modelsheet_loading">Carregando modelos…</string>
-    <string name="chat_modelsheet_more">Mais %1$d; pesquise para filtrar.</string>
+    <plurals name="chat_modelsheet_more">
+        <item quantity="one">Mais %1$d; pesquise para filtrar.</item>
+        <item quantity="many">Mais %1$d; pesquise para filtrar.</item>
+        <item quantity="other">Mais %1$d; pesquise para filtrar.</item>
+    </plurals>
     <string name="chat_modelsheet_chat_only_started">Este chat começou com um modelo que não pode usar ferramentas, então não tem nenhuma. Trocar de modelo mantém assim; inicie um chat novo para ter ferramentas.</string>
     <string name="chat_modelsheet_chat_only_new">Modelos marcados como Só chat iniciam este chat sem ferramentas: são pequenos demais, ou não foram feitos, para usá-las.</string>
     <string name="chat_modelsheet_default">Padrão</string>
@@ -715,7 +747,7 @@
     <string name="chat_projecteditor_instructions_hint">Como trabalhar neste projeto: objetivos, convenções, o que evitar. Como um arquivo AGENTS.md.</string>
     <string name="chat_projecteditor_new_chats_note">As instruções e a memória valem para os chats novos; os chats existentes mantêm suas configurações.</string>
     <string name="chat_projecteditor_memory">Memória</string>
-    <string name="chat_projecteditor_memory_both">Os chats leem primeiro a memória deste projeto e depois sua memória geral. O que aprendem é salvo no projeto.</string>
+    <string name="chat_projecteditor_memory_both" tools:ignore="Typos">Os chats leem primeiro a memória deste projeto e depois sua memória geral. O que aprendem é salvo no projeto.</string>
     <string name="chat_projecteditor_memory_only">Os chats veem só a memória e os chats deste projeto, nada de fora.</string>
     <string name="chat_projecteditor_models">Modelos</string>
     <string name="chat_projecteditor_default_model">Modelo padrão</string>
@@ -733,7 +765,11 @@
     <string name="chat_projecteditor_snapshots_note">Antes de cada comando, o Locus copia os arquivos do projeto para o próprio armazenamento; um arquivo que não mudou é guardado uma vez só. Ele pula o snapshot, e avisa, quando a pasta tem mais de %1$s arquivos ou %2$s, ou quando lê-la leva mais de %3$s segundos. Ficam de fora: links e pastas como .git, node_modules, build, dist, .venv e __pycache__. Os snapshots são mantidos para os últimos %4$s turnos, por até %5$s dias.</string>
     <string name="chat_projecteditor_permissions">Permissões</string>
     <string name="chat_projecteditor_permissions_hint">Estas só podem tornar uma ferramenta mais restrita neste projeto; Permitir exige sua confirmação. As alterações valem na hora, inclusive para chats em andamento. Nos demais lugares, as ferramentas seguem</string>
-    <string name="chat_projecteditor_set">%1$d definidas</string>
+    <plurals name="chat_projecteditor_set">
+        <item quantity="one">%1$d definida</item>
+        <item quantity="many">%1$d definidas</item>
+        <item quantity="other">%1$d definidas</item>
+    </plurals>
     <string name="chat_projecteditor_connectors">Conectores</string>
     <string name="chat_projecteditor_connector_allowed">Permitido neste projeto</string>
     <string name="chat_projecteditor_connector_denied">Não usado neste projeto</string>
@@ -751,9 +787,21 @@
         <item quantity="many">%1$d ferramentas</item>
         <item quantity="other">%1$d ferramentas</item>
     </plurals>
-    <string name="chat_projecteditor_n_ask">%1$d perguntam</string>
-    <string name="chat_projecteditor_n_denied">%1$d negadas</string>
-    <string name="chat_projecteditor_n_allowed">%1$d permitidas</string>
+    <plurals name="chat_projecteditor_n_ask">
+        <item quantity="one">%1$d pergunta</item>
+        <item quantity="many">%1$d perguntam</item>
+        <item quantity="other">%1$d perguntam</item>
+    </plurals>
+    <plurals name="chat_projecteditor_n_denied">
+        <item quantity="one">%1$d negada</item>
+        <item quantity="many">%1$d negadas</item>
+        <item quantity="other">%1$d negadas</item>
+    </plurals>
+    <plurals name="chat_projecteditor_n_allowed">
+        <item quantity="one">%1$d permitida</item>
+        <item quantity="many">%1$d permitidas</item>
+        <item quantity="other">%1$d permitidas</item>
+    </plurals>
     <string name="chat_projecteditor_policy">Em todo lugar: %1$s · aqui: %2$s</string>
     <string name="chat_projecteditor_policy_same">Igual</string>
     <string name="chat_projecteditor_policy_ask">Perguntar</string>
@@ -819,7 +867,11 @@
     <string name="chat_receipt_cost_unknown">Desconhecido: o models.dev não lista preço para esses modelos</string>
     <string name="chat_receipt_cost_estimate">%1$s · estimativa com preços do models.dev</string>
     <string name="chat_receipt_files">Arquivos</string>
-    <string name="chat_receipt_files_changed">%1$d alterados</string>
+    <plurals name="chat_receipt_files_changed">
+        <item quantity="one">%1$d alterado</item>
+        <item quantity="many">%1$d alterados</item>
+        <item quantity="other">%1$d alterados</item>
+    </plurals>
     <string name="chat_receipt_checks">Verificações</string>
     <string name="chat_receipt_approvals">Aprovações</string>
     <string name="chat_receipt_outside">Conteúdo externo</string>
@@ -886,7 +938,11 @@
     <string name="chat_remote_unlink_title">Executar neste telefone de novo?</string>
     <string name="chat_remote_unlink_body">Os comandos novos executam no Linux do telefone. A cópia em %1$s fica lá; o Locus não a exclui.</string>
     <string name="chat_remote_unlink_confirm">Executar neste telefone</string>
-    <string name="chat_remote_and_more">…e mais %1$d</string>
+    <plurals name="chat_remote_and_more">
+        <item quantity="one">…e mais %1$d</item>
+        <item quantity="many">…e mais %1$d</item>
+        <item quantity="other">…e mais %1$d</item>
+    </plurals>
     <plurals name="chat_remote_files">
         <item quantity="one">%1$d arquivo</item>
         <item quantity="many">%1$d arquivos</item>
@@ -917,7 +973,11 @@
     <string name="chat_sentfile_no_app_share">Nenhum app aqui pode compartilhar %1$s</string>
     <string name="chat_sent_title">O que foi enviado</string>
     <string name="chat_sent_loading">Carregando…</string>
-    <string name="chat_sent_missing">Não foi guardado para esta resposta. O Locus guarda as últimas %1$d solicitações dos chats recentes só na memória, nunca no disco, então respostas antigas e as de antes da última vez que o app iniciou não podem ser mostradas.</string>
+    <plurals name="chat_sent_missing">
+        <item quantity="one">Não foi guardado para esta resposta. O Locus guarda a última solicitação (%1$d) dos chats recentes só na memória, nunca no disco, então respostas antigas e as de antes da última vez que o app iniciou não podem ser mostradas.</item>
+        <item quantity="many">Não foi guardado para esta resposta. O Locus guarda as últimas %1$d solicitações dos chats recentes só na memória, nunca no disco, então respostas antigas e as de antes da última vez que o app iniciou não podem ser mostradas.</item>
+        <item quantity="other">Não foi guardado para esta resposta. O Locus guarda as últimas %1$d solicitações dos chats recentes só na memória, nunca no disco, então respostas antigas e as de antes da última vez que o app iniciou não podem ser mostradas.</item>
+    </plurals>
     <string name="chat_sent_copied">Copiado</string>
     <string name="chat_sent_copy_text">Copiar texto</string>
     <string name="chat_sent_copy_json">Copiar JSON</string>
@@ -951,7 +1011,11 @@
     <string name="chat_side_caption">Não entra no chat.</string>
     <string name="chat_side_clear">Limpar</string>
     <string name="chat_side_close">Fechar pergunta paralela</string>
-    <string name="chat_side_older">%1$d anteriores</string>
+    <plurals name="chat_side_older">
+        <item quantity="one">%1$d anterior</item>
+        <item quantity="many">%1$d anteriores</item>
+        <item quantity="other">%1$d anteriores</item>
+    </plurals>
     <string name="chat_side_answering">Respondendo…</string>
     <string name="chat_side_tried_tools">Tentou usar uma ferramenta; perguntas paralelas não podem executar ferramentas, então nada foi executado.</string>
     <string name="chat_helper_steer">Orientar</string>
@@ -1006,7 +1070,11 @@
     <string name="chat_checks_show_runs">Mostrar todas as execuções</string>
     <string name="chat_checks_show_output">Mostrar saída</string>
     <string name="chat_checks_hide_output">Ocultar saída</string>
-    <string name="chat_checks_and_more">e mais %1$d</string>
+    <plurals name="chat_checks_and_more">
+        <item quantity="one">e mais %1$d</item>
+        <item quantity="many">e mais %1$d</item>
+        <item quantity="other">e mais %1$d</item>
+    </plurals>
     <string name="chat_checks_output">Saída</string>
     <plurals name="chat_checks_runs_in_turn">
         <item quantity="one">%1$d execução neste turno</item>
@@ -1134,8 +1202,16 @@
     <string name="chat_budget_cost_off">Para calcular o custo, são necessários os preços dos modelos: ative os detalhes de modelos (models.dev) em Configurações → Modelos.</string>
     <string name="chat_budget_cost_not_loaded">Os preços dos modelos ainda não carregaram; abra a lista de modelos uma vez para buscá-los.</string>
     <string name="chat_budget_cost_no_price">O models.dev não tem preço para %1$s, então não é possível estimar o custo.</string>
-    <string name="chat_checklist_progress">%1$d de %2$d concluídas</string>
-    <string name="chat_checklist_progress_current">%1$d de %2$d concluídas · %3$s</string>
+    <plurals name="chat_checklist_progress">
+        <item quantity="one">%1$d de %2$d concluída</item>
+        <item quantity="many">%1$d de %2$d concluídas</item>
+        <item quantity="other">%1$d de %2$d concluídas</item>
+    </plurals>
+    <plurals name="chat_checklist_progress_current">
+        <item quantity="one">%1$d de %2$d concluída · %3$s</item>
+        <item quantity="many">%1$d de %2$d concluídas · %3$s</item>
+        <item quantity="other">%1$d de %2$d concluídas · %3$s</item>
+    </plurals>
     <string name="chat_thought_label">Pensou</string>
     <string name="chat_thought_moment">Pensou por um instante</string>
     <string name="chat_thought_seconds">Pensou por %1$d s</string>
@@ -1219,7 +1295,11 @@
     <string name="chat_sent_row_cache">Cache</string>
     <string name="chat_sent_on_this_phone">Neste telefone</string>
     <string name="chat_sent_format_chatgpt">Responses (plano do ChatGPT)</string>
-    <string name="chat_sent_reported">%1$,d informados</string>
+    <plurals name="chat_sent_reported">
+        <item quantity="one">%1$,d informado</item>
+        <item quantity="many">%1$,d informados</item>
+        <item quantity="other">%1$,d informados</item>
+    </plurals>
     <string name="chat_sent_row_cleared">Resultados de ferramentas anteriores</string>
     <plurals name="chat_sent_cleared">
         <item quantity="one">%1$d limpo · ≈%2$s tokens economizados</item>
@@ -1311,7 +1391,11 @@
     <string name="chat_rewind_changed_since_title">Alterado fora do Locus desde então</string>
     <string name="chat_rewind_gone_title">Não dá para restaurar</string>
     <string name="chat_rewind_effects_title">Fica como está</string>
-    <string name="chat_rewind_more">e mais %1$d</string>
+    <plurals name="chat_rewind_more">
+        <item quantity="one">e mais %1$d</item>
+        <item quantity="many">e mais %1$d</item>
+        <item quantity="other">e mais %1$d</item>
+    </plurals>
     <string name="chat_rewind_agent_note">O Locus conta ao agente o que mudou antes da próxima resposta dele.</string>
     <string name="chat_rewind_action">Voltar</string>
     <string name="chat_later_branch">As mensagens seguintes estão em outro ramo.</string>
@@ -1556,7 +1640,11 @@
     <string name="chat_rules_delete_confirm">Excluir</string>
     <string name="chat_projecteditor_rules">Regras</string>
     <string name="chat_projecteditor_rules_none">Nenhuma regra ainda</string>
-    <string name="chat_projecteditor_rules_suspended">%1$s · %2$d suspensas</string>
+    <plurals name="chat_projecteditor_rules_suspended">
+        <item quantity="one">%1$s · %2$d suspensa</item>
+        <item quantity="many">%1$s · %2$d suspensas</item>
+        <item quantity="other">%1$s · %2$d suspensas</item>
+    </plurals>
     <string name="chat_projecteditor_rules_note">Comandos para rodar após uma edição ou antes de o agente terminar, e comandos a bloquear.</string>
     <plurals name="chat_projecteditor_rules_count">
         <item quantity="one">%1$d regra</item>
@@ -1695,7 +1783,7 @@
     <string name="chat_plan_run_confirm_over">A primeira solicitação dele deve custar mais que o normal.</string>
     <string name="chat_plan_run_confirm_run_role">Executa o plano · a primeira solicitação grava o cache dele</string>
     <string name="chat_plan_run_confirm_chat_role">Modelo deste chat · se o cache dele ainda estiver ativo</string>
-    <string name="chat_plan_run_confirm_covers">Entrada estimada da primeira solicitação (cerca de %1$s tokens), pelos preços do models.dev. Os passos seguintes leem quase tudo do cache; respostas e passos com ferramentas custam mais.</string>
+    <string name="chat_plan_run_confirm_covers" tools:ignore="Typos">Entrada estimada da primeira solicitação (cerca de %1$s tokens), pelos preços do models.dev. Os passos seguintes leem quase tudo do cache; respostas e passos com ferramentas custam mais.</string>
     <string name="chat_plan_run_confirm_back">Quando a tarefa do plano terminar, o chat volta para %1$s na sua próxima mensagem.</string>
     <string name="chat_run_plan_run_done">O plano foi executado em %1$s. Este chat voltou para %2$s na sua próxima mensagem.</string>
     <string name="chat_run_plan_run_unavailable">Não foi possível executar o plano em %1$s: %2$s. Escolha outro modelo ou execute no modelo deste chat.</string>

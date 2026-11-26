@@ -177,7 +177,7 @@ fun ProjectEditorRoute(
                     CardGroup {
                         ListRow(
                             title = stringResource(R.string.chat_rules_title),
-                            subtitle = if (state.rulesSuspended > 0) stringResource(R.string.chat_projecteditor_rules_suspended, count, state.rulesSuspended) else count,
+                            subtitle = if (state.rulesSuspended > 0) pluralStringResource(R.plurals.chat_projecteditor_rules_suspended, state.rulesSuspended, count, state.rulesSuspended) else count,
                             leading = { Icon(LocusIcons.Shield, null) },
                             trailing = { Icon(LocusIcons.ChevronRight, null) },
                             onClick = { state.project?.id?.let(onOpenRules) },
@@ -218,7 +218,7 @@ fun ProjectEditorRoute(
                                 // What applies here in words; each tool is named when the group opens.
                                 subtitle = toolGroupSummary(rows),
                                 icon = accentFor(rows.first().name).second,
-                                badge = if (changed > 0) stringResource(R.string.chat_projecteditor_set, changed) else null,
+                                badge = if (changed > 0) pluralStringResource(R.plurals.chat_projecteditor_set, changed, changed) else null,
                                 badgeTone = Tone.Brand,
                             ) {
                                 rows.forEach { row -> ToolPolicyRow(row, onSet = { p -> if (p == ToolPolicy.ALLOW) confirmWiden = row else viewModel.setToolPolicy(row.name, p) }) }
@@ -311,9 +311,9 @@ private fun snapshotsNote(): String {
 @Composable
 internal fun toolGroupSummary(rows: List<ProjectToolRow>): String = listOfNotNull(
     pluralStringResource(R.plurals.chat_projecteditor_tools, rows.size, rows.size),
-    rows.count { it.effective == ToolPolicy.ASK }.takeIf { it > 0 }?.let { stringResource(R.string.chat_projecteditor_n_ask, it) },
-    rows.count { it.effective == ToolPolicy.DENY }.takeIf { it > 0 }?.let { stringResource(R.string.chat_projecteditor_n_denied, it) },
-    rows.count { it.effective == ToolPolicy.ALLOW }.takeIf { it > 0 }?.let { stringResource(R.string.chat_projecteditor_n_allowed, it) },
+    rows.count { it.effective == ToolPolicy.ASK }.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.chat_projecteditor_n_ask, it, it) },
+    rows.count { it.effective == ToolPolicy.DENY }.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.chat_projecteditor_n_denied, it, it) },
+    rows.count { it.effective == ToolPolicy.ALLOW }.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.chat_projecteditor_n_allowed, it, it) },
 ).joinToString(" · ")
 
 /** One tool: same as everywhere, or Ask / Deny / Allow in this project, with what applies. */

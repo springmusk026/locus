@@ -135,7 +135,7 @@ fun WorkflowEditorSheet(
 
             Header(stringResource(R.string.ui_workflow_tools))
             if (tools.isEmpty()) {
-                SectionNote(stringResource(R.string.ui_workflow_tools_no_limit))
+                SectionNote(stringResource(R.string.ui_workflow_tools_none))
             } else {
                 SectionNote(stringResource(R.string.ui_workflow_tools_note))
                 CardGroup {

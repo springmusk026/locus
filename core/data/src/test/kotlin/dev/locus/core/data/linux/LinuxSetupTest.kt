@@ -143,7 +143,7 @@ class LinuxSetupTest {
             failed.detail,
         )
         assertEquals(PackageState.Installed, s.packages[LinuxPackage.Curl])
-        assertEquals(EngineText.Res(R.string.data_linux_packages_failed, 1, 2), s.error)
+        assertEquals(EngineText.Plural(R.plurals.data_linux_packages_failed, 1, 1, 2), s.error)
     }
 
     @Test

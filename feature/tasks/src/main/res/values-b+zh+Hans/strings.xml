@@ -130,7 +130,9 @@
     <string name="tasks_test_placeholder_app">发生了什么，例如：手机离开了家里的 Wi-Fi</string>
     <string name="tasks_test_note">运行时会像对待真实事件一样，将其视为不可信的外部文本：它可以查找信息，但不能发送内容、存入记忆，也不能打开你没有指定的地址。</string>
     <string name="tasks_history_title">历史记录</string>
-    <string name="tasks_history_subtitle">到达“%1$s”的事件及其处理结果。保留最近 %2$d 个事件。</string>
+    <plurals name="tasks_history_subtitle">
+        <item quantity="other">到达“%1$s”的事件及其处理结果。保留最近 %2$d 个事件。</item>
+    </plurals>
     <string name="tasks_history_empty_app">暂无内容。其他应用发送的事件会显示在这里，无论是否触发了运行。</string>
     <string name="tasks_history_empty">暂无内容。Locus 发现的事件会显示在这里，无论是否触发了运行。</string>
     <string name="tasks_history_event_done">%1$s · 已完成</string>

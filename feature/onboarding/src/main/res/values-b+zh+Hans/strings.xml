@@ -156,7 +156,9 @@
     <string name="onboarding_identity_editor_title">直接编辑文件</string>
     <string name="onboarding_identity_editor_body">可选。智能体在每次对话开始时读取的 Markdown。</string>
     <string name="onboarding_identity_editor_done">完成</string>
-    <string name="onboarding_identity_editor_over_budget">共 %1$d 个字符；仅使用前 %2$d 个</string>
+    <plurals name="onboarding_identity_editor_over_budget">
+        <item quantity="other">共 %1$d 个字符；仅使用前 %2$d 个</item>
+    </plurals>
     <string name="onboarding_identity_editor_budget">%1$d / %2$d</string>
     <string name="onboarding_identity_editor_name_hint">请保留一行“- Name: …”：智能体用它来称呼自己。</string>
     <string name="onboarding_identity_route_title">智能体身份</string>

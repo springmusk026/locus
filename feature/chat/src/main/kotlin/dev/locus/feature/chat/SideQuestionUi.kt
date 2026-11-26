@@ -1,5 +1,6 @@
 package dev.locus.feature.chat
 
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import dev.locus.core.ui.largeFont
 import androidx.compose.animation.animateContentSize
@@ -96,7 +97,7 @@ internal fun SideQuestionCard(
             val earlier = thread.earlier.takeLast(EARLIER_SHOWN)
             val older = thread.earlier.size - earlier.size
             // Earlier questions: muted, but still readable.
-            if (older > 0) SupportingText(stringResource(R.string.chat_side_older, older))
+            if (older > 0) SupportingText(pluralStringResource(R.plurals.chat_side_older, older, older))
             earlier.forEach { e -> SupportingText(e.question, maxLines = 1) }
             SupportingText(current.question, style = LocusType.rowSupporting)
             Column(Modifier.semantics { liveRegion = LiveRegionMode.Polite }) {

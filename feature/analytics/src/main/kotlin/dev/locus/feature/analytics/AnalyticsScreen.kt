@@ -364,9 +364,9 @@ private fun CostRows(rows: List<Pair<String, CostEstimate>>, modifier: Modifier 
                         Text(costLabel(LocalResources.current, c), style = RowFigure)
                         SupportingText(
                             if (c.unpriced > 0 && c.priced > 0) {
-                                stringResource(R.string.analytics_cost_row_unpriced, c.unpriced, c.requests)
+                                pluralStringResource(R.plurals.analytics_cost_row_unpriced, c.unpriced, c.unpriced, c.requests)
                             } else {
-                                stringResource(R.string.analytics_row_requests_short, c.requests)
+                                pluralStringResource(R.plurals.analytics_row_requests_short, c.requests, c.requests)
                             },
                             style = LocusType.mono,
                         )
@@ -402,7 +402,7 @@ private fun ModelsCard(report: AnalyticsReport, catalog: ModelCatalogIndex?, lis
                 trailing = {
                     Column(horizontalAlignment = Alignment.End) {
                         Text(compactCount(m.tokens), style = RowFigure)
-                        SupportingText(stringResource(R.string.analytics_row_requests_short, m.requests), style = LocusType.mono)
+                        SupportingText(pluralStringResource(R.plurals.analytics_row_requests_short, m.requests, m.requests), style = LocusType.mono)
                     }
                 },
             )
@@ -423,7 +423,7 @@ private fun SourcesCard(report: AnalyticsReport, modifier: Modifier = Modifier) 
                 trailing = {
                     Column(horizontalAlignment = Alignment.End) {
                         Text(compactCount(s.tokens), style = RowFigure)
-                        SupportingText(stringResource(R.string.analytics_row_requests_short, s.requests), style = LocusType.mono)
+                        SupportingText(pluralStringResource(R.plurals.analytics_row_requests_short, s.requests, s.requests), style = LocusType.mono)
                     }
                 },
             )
@@ -465,7 +465,7 @@ private fun ToolsCard(report: AnalyticsReport, modifier: Modifier = Modifier) {
             colors = listOf(neutral, critical),
             selected = selected,
             onSelect = { selected = it },
-            description = stringResource(if (report.bucketDays == 1) R.string.analytics_tools_chart_day else R.string.analytics_tools_chart_week, tools.calls, tools.failures),
+            description = pluralStringResource(if (report.bucketDays == 1) R.plurals.analytics_tools_chart_day else R.plurals.analytics_tools_chart_week, tools.failures, tools.calls, tools.failures),
             modifier = Modifier.padding(top = Spacing.lg),
             size = ChartSize.Compact,
         )
@@ -504,7 +504,7 @@ private fun SlowestTools(tools: ToolStats, modifier: Modifier = Modifier) {
             if (i > 0) GroupDivider(inset = Spacing.lg + IconSize.tileSmall + Spacing.md)
             val (accent, icon) = accentFor(t.name)
             val callsText = pluralStringResource(R.plurals.analytics_slow_calls, t.calls, t.name, t.calls)
-            val failedText = if (t.failures > 0) stringResource(R.string.analytics_slow_failed, t.failures) else ""
+            val failedText = if (t.failures > 0) pluralStringResource(R.plurals.analytics_slow_failed, t.failures, t.failures) else ""
             ListRow(
                 title = slowToolTitle(LocalResources.current, t.name),
                 leading = { AccentTile(accent, icon) },
@@ -538,7 +538,7 @@ private fun BusiestChats(report: AnalyticsReport, onOpen: (String) -> Unit, modi
                 onClick = { onOpen(c.conversationId) },
                 meta = {
                     SupportingText(
-                        stringResource(R.string.analytics_chats_summary, compactCount(c.tokens), c.requests, c.toolCalls),
+                        pluralStringResource(R.plurals.analytics_chats_summary, c.toolCalls, compactCount(c.tokens), c.requests, c.toolCalls),
                         style = LocusType.mono,
                         maxLines = 1,
                     )

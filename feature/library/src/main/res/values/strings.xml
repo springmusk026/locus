@@ -252,6 +252,7 @@
     <string name="library_workflows_schedule_read_only">Scheduled runs are read-only and nobody is there to approve anything.</string>
     <string name="library_workflows_schedule_need_you">Needs your approval, so it\'s refused on a schedule: %1$s.</string>
     <string name="library_workflows_schedule_changes">Changes things, so it\'s refused on a schedule: %1$s.</string>
+    <string name="library_workflows_schedule_no_tools">It lists no tools, so any step that changes something is refused on a schedule.</string>
     <string name="library_workflows_schedule_only_reads">Everything this workflow does only reads, so it can run unattended.</string>
     <string name="library_workflows_schedule_run_from_chat">Run it from a chat to do those steps.</string>
 
@@ -259,8 +260,8 @@
     <string name="library_mcp_picker_subtitle">Pick a known server, or add any other. Keys stay encrypted on this phone; the AI never sees them.</string>
     <string name="library_mcp_picker_custom_title">Custom server</string>
     <string name="library_mcp_picker_custom_subtitle">Any MCP server: its URL, or a command to run in Linux</string>
-    <string name="library_mcp_sheet_sign_in">Locus opens %1$s\'s sign-in in your browser and keeps the sign-in encrypted on this phone.</string>
-    <string name="library_mcp_sheet_sign_in_or_paste">Locus opens %1$s\'s sign-in in your browser and keeps the sign-in encrypted on this phone. Or paste a %2$s instead.</string>
+    <string name="library_mcp_sheet_sign_in">Locus opens %1$s\'s sign-in page in your browser and keeps the sign-in encrypted on this phone.</string>
+    <string name="library_mcp_sheet_sign_in_or_paste">Locus opens %1$s\'s sign-in page in your browser and keeps the sign-in encrypted on this phone. Or paste a %2$s instead.</string>
     <string name="library_mcp_sheet_key_optional">%1$s (optional)</string>
     <string name="library_mcp_sheet_key_sent_as">Sent as %1$s.</string>
     <string name="library_mcp_sheet_key_sent_as_needs">Sent as %1$s. Needs: %2$s.</string>

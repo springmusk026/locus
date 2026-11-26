@@ -642,7 +642,7 @@ private fun Launcher(counts: HomeCounts, actions: HomeActions, modifier: Modifie
             when {
                 counts.tasksTotal == 0 -> stringResource(R.string.chat_home_tasks_none)
                 counts.tasksActive == 0 -> stringResource(R.string.chat_home_tasks_paused)
-                else -> stringResource(R.string.chat_home_tasks_scheduled, counts.tasksActive)
+                else -> pluralStringResource(R.plurals.chat_home_tasks_scheduled, counts.tasksActive, counts.tasksActive)
             },
         ),
         Door(stringResource(R.string.chat_home_files), LocusIcons.Folder, actions.onOpenWorkspace, stringResource(R.string.chat_home_files_description)),
@@ -1065,9 +1065,9 @@ private fun projectLine(p: HomeProject): ProjectLine {
     val chats = if (p.chats == 0) stringResource(R.string.chat_home_project_no_chats) else pluralStringResource(R.plurals.chat_home_chats, p.chats, p.chats)
     val (status, tone) = when {
         p.approvals == 1 -> stringResource(R.string.chat_home_project_needs_approval) to Tone.Caution
-        p.approvals > 1 -> stringResource(R.string.chat_home_project_n_need_approval, p.approvals) to Tone.Caution
+        p.approvals > 1 -> pluralStringResource(R.plurals.chat_home_project_n_need_approval, p.approvals, p.approvals) to Tone.Caution
         p.running == 1 -> stringResource(R.string.chat_home_working_status) to Tone.Live
-        p.running > 1 -> stringResource(R.string.chat_home_project_n_working, p.running) to Tone.Live
+        p.running > 1 -> pluralStringResource(R.plurals.chat_home_project_n_working, p.running, p.running) to Tone.Live
         else -> null to Tone.Neutral
     }
     val meta = if (p.chats == 0) chats else "$chats · ${shortRelativeTime(p.lastActive)}"

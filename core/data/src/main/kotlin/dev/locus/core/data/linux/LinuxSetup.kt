@@ -242,7 +242,7 @@ class LinuxSetup(
             val failed = chosen.count { _state.value.packages[it] is PackageState.Failed }
             _state.update {
                 when {
-                    failed > 0 -> it.copy(error = EngineText.Res(R.string.data_linux_packages_failed, failed, chosen.size))
+                    failed > 0 -> it.copy(error = EngineText.Plural(R.plurals.data_linux_packages_failed, failed, failed, chosen.size))
                     request.reinstall -> it.copy(message = EngineText.Res(R.string.data_linux_reinstalled_with, chosen.joinToString { p -> p.label }))
                     else -> it.copy(message = EngineText.Res(R.string.data_linux_installed, chosen.joinToString { p -> p.label }))
                 }

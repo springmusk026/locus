@@ -1,5 +1,7 @@
 package dev.locus.feature.library
 
+import androidx.compose.runtime.mutableIntStateOf
+import dev.locus.core.designsystem.SecretContent
 import dev.locus.core.designsystem.PasswordField
 import dev.locus.core.designsystem.asString
 import androidx.compose.ui.platform.LocalResources
@@ -82,7 +84,7 @@ fun LibraryRoute(
     viewModel: LibraryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var tab by rememberSaveable { mutableStateOf(if (initialTemplate != null) 2 else initialTab) }
+    var tab by rememberSaveable { mutableIntStateOf(if (initialTemplate != null) 2 else initialTab) }
     // Where Add an MCP server is: null (closed), the picker, the custom form, or a template's id.
     var addingMcp by rememberSaveable {
         mutableStateOf(
@@ -537,7 +539,7 @@ private fun ConnectorsTab(
         )
     }
     if (addingMcp == McpStep.CUSTOM) {
-        var local by rememberSaveable { mutableStateOf(0) }
+        var local by rememberSaveable { mutableIntStateOf(0) }
         // Saved across rotation, like the Remote/Local choice.
         var name by rememberSaveable { mutableStateOf("") }
         var url by rememberSaveable { mutableStateOf("https://") }

@@ -250,7 +250,7 @@ internal fun extrasSummary(state: SettingsUiState): String {
     val helperText = helper?.let { stringResource(R.string.settings_hub_extras_helper_named, it.name) }
         ?: if (state.helperAutomatic) stringResource(R.string.settings_hub_extras_helper_automatic) else stringResource(R.string.settings_hub_extras_helper_chat_model)
     val extras = listOf(state.autoTitle, state.suggestFollowUps, state.reflectAfterTasks)
-    return summaryJoin(helperText, stringResource(R.string.settings_hub_extras_count, extras.count { it }, extras.size))
+    return summaryJoin(helperText, pluralStringResource(R.plurals.settings_hub_extras_count, extras.count { it }, extras.count { it }, extras.size))
 }
 
 @Composable
@@ -269,7 +269,7 @@ internal fun integrationsSummary(state: SettingsUiState): String {
     return when {
         connected.isEmpty() -> stringResource(R.string.settings_hub_integrations_none)
         connected.size <= 2 -> stringResource(R.string.settings_hub_integrations_names, connected.joinToString(", "))
-        else -> stringResource(R.string.settings_hub_integrations_count, connected.size)
+        else -> pluralStringResource(R.plurals.settings_hub_integrations_count, connected.size, connected.size)
     }
 }
 

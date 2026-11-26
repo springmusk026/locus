@@ -261,12 +261,14 @@ object BackupArchive {
     }
 
     /**
-     * A newer file format or a newer database than this app knows is refused: Room can migrate an
-     * older database up, never a newer one down.
+     * A newer file format, a newer database or newer content (settings and agent-home layout, which
+     * this app would silently drop what it doesn't know of) than this app knows is refused: Room can
+     * migrate an older database up, never a newer one down.
      */
-    fun checkVersions(manifest: BackupManifest, maxSchema: Int) {
+    fun checkVersions(manifest: BackupManifest, maxSchema: Int, maxContent: Int = CONTENT_VERSION) {
         if (manifest.format > BackupCrypto.FORMAT) throw BackupException(BackupError.NewerFormat)
         if (manifest.schemaVersion > maxSchema) throw BackupException(BackupError.NewerSchema, message = "Database v${manifest.schemaVersion}, this app knows v$maxSchema")
+        if (manifest.contentVersion > maxContent) throw BackupException(BackupError.NewerContent, message = "Content v${manifest.contentVersion}, this app knows v$maxContent")
         if (manifest.schemaVersion < 1 || manifest.format < 1) throw BackupException(BackupError.Damaged)
     }
 

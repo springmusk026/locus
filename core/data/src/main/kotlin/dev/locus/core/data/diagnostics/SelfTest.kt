@@ -262,7 +262,7 @@ object SelfTestRules {
         val detail = if (bad == 0) {
             EngineText.Plural(R.plurals.data_selftest_linux_passed, checks.size, LinuxHealth.headline(checks), checks.size)
         } else {
-            res(R.string.data_selftest_linux_attention, LinuxHealth.headline(checks), bad, checks.size)
+            EngineText.Plural(R.plurals.data_selftest_linux_attention, bad, LinuxHealth.headline(checks), bad, checks.size)
         }
         return SelfTestResult(SelfTest.LINUX, LINUX_TITLE, level, detail, SelfTestFix.OpenLinux.takeIf { bad > 0 })
     }

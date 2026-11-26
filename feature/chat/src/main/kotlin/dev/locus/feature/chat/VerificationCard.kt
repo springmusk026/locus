@@ -151,7 +151,7 @@ internal fun CheckGroupRow(group: CheckGroup, running: (ChatItem.ToolCall) -> Bo
                         // A failing test's name is what to fix: two lines rather than cut mid-name.
                         lines.take(INLINE_LINES).forEach { line -> Text(line, style = CodeTextStyle, maxLines = 2, overflow = TextOverflow.Ellipsis) }
                         val more = maxOf(lines.size, o.failureCount) - INLINE_LINES
-                        if (more > 0) SupportingText(stringResource(R.string.chat_checks_and_more, more), style = LocusType.mono)
+                        if (more > 0) SupportingText(pluralStringResource(R.plurals.chat_checks_and_more, more, more), style = LocusType.mono)
                     }
                 }
                 // Pulled back by the button's own padding, so "Output" starts on the column's edge.

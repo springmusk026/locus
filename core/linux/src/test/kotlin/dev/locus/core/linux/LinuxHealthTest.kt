@@ -99,7 +99,7 @@ class LinuxHealthTest {
             EngineText.Res(
                 R.string.linux_health_two_sentences,
                 EngineText.Res(R.string.linux_health_phantom_killed_other, "a command"),
-                EngineText.Res(R.string.linux_health_phantom_warning_detail, 2),
+                EngineText.Plural(R.plurals.linux_health_phantom_warning_detail, 2, 2),
             ),
             commandKilled.detail,
         )

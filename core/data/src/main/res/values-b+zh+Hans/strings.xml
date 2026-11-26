@@ -25,7 +25,9 @@
     <string name="data_linux_update_failed">%1$s请检查网络连接后重试。</string>
     <string name="data_linux_package_timed_out">已超时。智能体稍后可以用 apk add 完成。</string>
     <string name="data_linux_package_exit">apk 退出，代码 %1$s</string>
-    <string name="data_linux_packages_failed">%2$d 个中有 %1$d 个无法安装。详见下方；可以重试。</string>
+    <plurals name="data_linux_packages_failed">
+        <item quantity="other">%2$d 个中有 %1$d 个无法安装。详见下方；可以重试。</item>
+    </plurals>
     <string name="data_linux_estimate_under_a_minute">下载约 %1$d MB，在手机上占用 %2$d MB。使用 Wi-Fi 通常不到一分钟。</string>
     <plurals name="data_linux_estimate_minutes">
         <item quantity="other">下载约 %1$d MB，在手机上占用 %2$d MB。使用 Wi-Fi 通常约需 %3$d 分钟。</item>
@@ -35,7 +37,9 @@
     <string name="data_linux_notification_title">正在安装 Linux</string>
     <string name="data_linux_notification_cancel">取消</string>
 
-    <string name="data_heat_services_more">%1$s 等另外 %2$d 个</string>
+    <plurals name="data_heat_services_more">
+        <item quantity="other">%1$s 等另外 %2$d 个</item>
+    </plurals>
     <plurals name="data_heat_message">
         <item quantity="other">手机温度很高，且有 %1$d 个 Linux 服务正在运行（%2$s）。停止它们有助于降温；智能体稍后可以重新启动它们。</item>
     </plurals>
@@ -97,7 +101,9 @@
     <plurals name="data_selftest_linux_passed">
         <item quantity="other">%1$s：%2$d 项检查通过。</item>
     </plurals>
-    <string name="data_selftest_linux_attention">%1$s。%3$d 项检查中有 %2$d 项需要处理；每项的解决方法都在 Linux 页面上。</string>
+    <plurals name="data_selftest_linux_attention">
+        <item quantity="other">%1$s。%3$d 项检查中有 %2$d 项需要处理；每项的解决方法都在 Linux 页面上。</item>
+    </plurals>
     <string name="data_selftest_provider_not_checked">未检查：%1$s</string>
     <plurals name="data_selftest_provider_listed">
         <item quantity="other">使用其密钥可以连接：列出了 %1$d 个模型。</item>

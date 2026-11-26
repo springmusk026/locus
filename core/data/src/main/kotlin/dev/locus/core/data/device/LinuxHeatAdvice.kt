@@ -76,7 +76,7 @@ class LinuxHeatAdvice @Inject constructor(
         /** [message] for the screen, in the app's language. */
         fun messageText(names: List<String>): EngineText {
             val shown = names.take(3).joinToString(", ")
-            val list = if (names.size > 3) EngineText.Res(R.string.data_heat_services_more, shown, names.size - 3) else EngineText.Plain(shown)
+            val list = if (names.size > 3) EngineText.Plural(R.plurals.data_heat_services_more, names.size - 3, shown, names.size - 3) else EngineText.Plain(shown)
             return EngineText.Plural(R.plurals.data_heat_message, names.size, names.size, list)
         }
 

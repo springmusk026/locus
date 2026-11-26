@@ -63,11 +63,13 @@ is a sibling of the old one and the usual ‹ 1/2 › switcher appears. A cut th
 
 **What can't be rewound.** `Rewind.effects` lists every call after the cut that ran (its result's decision says
 it wasn't denied) and isn't a tracked file tool or a read: shell commands (EXECUTE: run_command, Linux, SSH),
-calls outside the phone (NETWORK: connectors, mail, deploys, `call_tool`, a `fetch_url` that isn't a GET),
+calls outside the phone (NETWORK: connectors, mail, deploys, MCP tools, a `fetch_url` that isn't a GET),
 helpers (`agent_spawn`, `agent_send`: their file edits are in the parent's turn, so they are put back; anything
 else stays), and other changes (WRITE tools that aren't workspace files: memory, browser, phone, `git_commit`;
 calls run anyway). The sheet says so per kind ("3 shell commands ran after this; their effects stay.") with the
 first few commands by name.
+
+A `call_tool` is classified by the tool it names (`DiscoveryTools.unwrap`, as the task receipt does), and listed under that tool's name: a discovered `ssh_exec` is a command, `git_commit` another change, and an MCP server's tool (`mcp__<server>__<tool>`) outside the phone. A web search, the weather, a mailbox or a page read, which reach a service but change nothing there, are left out, whether called by name or through `call_tool`. A `call_tool` that named no tool ran nothing and isn't listed.
 
 **The agent is told** the way Undo turn tells it (`noteUndo`): a `<locus_mode>` note (`ModeNote.rewound`) rides on
 the user's next message, or joins at the next step boundary. It says the chat was rewound, that what came after is

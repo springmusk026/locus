@@ -245,7 +245,7 @@ internal fun RewindSheet(preview: RewindPreview, onConfirm: () -> Unit, onDismis
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                     Text(line, style = LocusType.rowSupporting, color = MaterialTheme.colorScheme.onSurface)
                     names.take(EFFECTS_SHOWN).forEach { SupportingText(it, style = LocusType.mono, maxLines = 2) }
-                    if (names.size > EFFECTS_SHOWN) SupportingText(stringResource(R.string.chat_rewind_more, names.size - EFFECTS_SHOWN), style = LocusType.mono)
+                    if (names.size > EFFECTS_SHOWN) SupportingText(pluralStringResource(R.plurals.chat_rewind_more, names.size - EFFECTS_SHOWN, names.size - EFFECTS_SHOWN), style = LocusType.mono)
                 }
             }
         }

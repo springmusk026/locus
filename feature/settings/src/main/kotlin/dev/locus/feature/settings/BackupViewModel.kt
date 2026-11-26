@@ -216,6 +216,7 @@ class BackupViewModel @Inject constructor(private val manager: BackupManager) : 
         BackupError.DatabaseDamaged -> UiText.Res(R.string.settings_backup_error_database_damaged)
         BackupError.NewerFormat -> UiText.Res(R.string.settings_backup_error_newer_format)
         BackupError.NewerSchema -> UiText.Res(R.string.settings_backup_error_newer_schema)
+        BackupError.NewerContent -> UiText.Res(R.string.settings_backup_error_newer_content)
         BackupError.RunActive -> UiText.Res(R.string.settings_backup_error_run_active)
         BackupError.NoSpace -> UiText.Res(R.string.settings_backup_error_no_space)
         // The system's own reason, as it gave it.

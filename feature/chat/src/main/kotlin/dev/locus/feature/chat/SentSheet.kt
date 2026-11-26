@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import dev.locus.core.agent.SentBlock
@@ -72,7 +73,7 @@ internal fun WhatWasSentSheet(state: SentState, onDismiss: () -> Unit) {
         }
         SentState.Missing -> LocusSheet(title = stringResource(R.string.chat_sent_title), onDismiss = onDismiss) {
             SupportingText(
-                stringResource(R.string.chat_sent_missing, dev.locus.core.agent.SentRequestLog.PER_CHAT),
+                pluralStringResource(R.plurals.chat_sent_missing, dev.locus.core.agent.SentRequestLog.PER_CHAT, dev.locus.core.agent.SentRequestLog.PER_CHAT),
                 style = LocusType.rowSupporting,
             )
         }
@@ -256,7 +257,7 @@ internal fun requestRows(resources: Resources, view: SentView): List<Pair<String
     add(resources.getString(R.string.chat_sent_row_format) to formatLabel(resources, view.format, view.model))
     // The settings are the request's own parameter names (temperature, max_tokens…), as sent.
     view.params.filter { it.first != "model" }.forEach { (k, v) -> add(k to v.take(400)) }
-    view.reportedInputTokens?.let { add(resources.getString(R.string.chat_sent_row_prompt_tokens) to resources.getString(R.string.chat_sent_reported, it)) }
+    view.reportedInputTokens?.let { add(resources.getString(R.string.chat_sent_row_prompt_tokens) to resources.getQuantityString(R.plurals.chat_sent_reported, it, it)) }
     // Old tool results this request sent as a short note, past a cold-cache gap (docs/design/cold-cache-clearing.md).
     view.cleared?.let { c ->
         add(resources.getString(R.string.chat_sent_row_cleared) to resources.getQuantityString(R.plurals.chat_sent_cleared, c.count, c.count, compactCount(resources, c.tokens.toLong())))

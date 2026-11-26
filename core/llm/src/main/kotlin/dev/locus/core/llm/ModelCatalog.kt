@@ -82,13 +82,15 @@ class ModelCatalogIndex(val providers: Map<String, CatalogProvider>) {
      * The entry for [modelId] as served by the provider at [baseUrl]: that provider's own listing
      * when the endpoint is a known one, else the same id anywhere in the catalogue (proxies and
      * aggregators usually serve models under their makers' ids), else the id without a `vendor/`
-     * prefix. Null when the catalogue doesn't know it.
+     * prefix. Null when the catalogue doesn't know it, and always null for a local server, which serves
+     * whatever the user loaded (LM Studio's `openai/gpt-oss-20b` at 8K is not the catalogue's 131K).
      */
     fun lookup(baseUrl: String, format: ApiFormat, modelId: String): CatalogModel? {
         if (format == ApiFormat.ON_DEVICE) return null
         val id = modelId.trim().removePrefix("models/").lowercase()
         if (id.isEmpty()) return null
         providersFor(baseUrl, format).forEach { pid -> byProviderLower[pid]?.get(id)?.let { return it } }
+        if (hostOf(baseUrl)?.let(::isLocal) == true) return null
         return global[id] ?: id.substringAfterLast('/').takeIf { it != id }?.let { global[it] }
     }
 
@@ -137,9 +139,26 @@ class ModelCatalogIndex(val providers: Map<String, CatalogProvider>) {
 
         private fun hostOf(url: String): String? = runCatching { URI(url.trim()).host?.lowercase()?.removePrefix("www.") }.getOrNull()
 
-        /** Local servers (LM Studio, Ollama, vLLM on the LAN) serve whatever the user loaded; no guessing. */
-        private fun isLocal(host: String) = host == "localhost" || host.endsWith(".local") || host.startsWith("127.") || host.startsWith("10.") ||
-            host.startsWith("192.168.") || Regex("""^172\.(1[6-9]|2\d|3[01])\.""").containsMatchIn(host)
+        /**
+         * Local servers (LM Studio, Ollama, vLLM on the LAN, a NAS, a Tailscale node) serve whatever the user
+         * loaded; no guessing. Covers loopback, RFC 1918, link-local, Tailscale/CGNAT (`100.64.0.0/10`),
+         * IPv6 loopback, unique-local (`fc00::/7`) and link-local (`fe80::/10`) addresses, and the names
+         * `localhost`, `*.local`, `*.lan`, `*.home.arpa` and `host.docker.internal`.
+         */
+        internal fun isLocal(host: String): Boolean {
+            val h = host.trim().lowercase().removeSurrounding("[", "]").trimEnd('.')
+            if (h == "localhost" || h == "host.docker.internal" || h == "0.0.0.0") return true
+            if (h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".lan") || h.endsWith(".home.arpa")) return true
+            if (':' in h) {
+                if (h == "::1" || h == "::") return true
+                val first = h.substringBefore(':').toIntOrNull(16) ?: return false
+                return first and 0xfe00 == 0xfc00 || first and 0xffc0 == 0xfe80
+            }
+            val octets = h.split('.').map { it.toIntOrNull() ?: return false }
+            if (octets.size != 4 || octets.any { it !in 0..255 }) return false
+            val (a, b) = octets
+            return a == 127 || a == 10 || (a == 192 && b == 168) || (a == 172 && b in 16..31) || (a == 169 && b == 254) || (a == 100 && b in 64..127)
+        }
 
         private val sourceJson = Json { ignoreUnknownKeys = true }
 

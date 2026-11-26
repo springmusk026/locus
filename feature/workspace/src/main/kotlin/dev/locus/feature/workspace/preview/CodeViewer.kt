@@ -29,6 +29,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -128,7 +129,7 @@ internal fun CodeViewer(text: String, syntax: SyntaxLanguage?, modifier: Modifie
 
     val allNotices = buildList {
         addAll(notices)
-        if (m.cutLines > 0) add(stringResource(R.string.workspace_preview_code_lines_cut, m.cutLines, "%,d".format(MAX_LINE_CHARS)))
+        if (m.cutLines > 0) add(pluralStringResource(R.plurals.workspace_preview_code_lines_cut, m.cutLines, m.cutLines, "%,d".format(MAX_LINE_CHARS)))
         if (syntax != null && m.text.length > MAX_HIGHLIGHT_CHARS) add(stringResource(R.string.workspace_preview_code_plain))
     }
     val codeColor = MaterialTheme.colorScheme.onSurface

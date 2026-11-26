@@ -59,7 +59,11 @@
         <item quantity="many">%1$d ações</item>
         <item quantity="other">%1$d ações</item>
     </plurals>
-    <string name="activity_run_failed">%1$d com falha</string>
+    <plurals name="activity_run_failed">
+        <item quantity="one">%1$d com falha</item>
+        <item quantity="many">%1$d com falha</item>
+        <item quantity="other">%1$d com falha</item>
+    </plurals>
     <plurals name="activity_run_approvals">
         <item quantity="one">%1$d aprovação</item>
         <item quantity="many">%1$d aprovações</item>

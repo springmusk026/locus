@@ -45,14 +45,22 @@
     <string name="settings_hub_extras_helper_named">Auxiliar: %1$s</string>
     <string name="settings_hub_extras_helper_automatic">Auxiliar: automático</string>
     <string name="settings_hub_extras_helper_chat_model">Auxiliar: o modelo de cada chat</string>
-    <string name="settings_hub_extras_count">%1$d de %2$d extras</string>
+    <plurals name="settings_hub_extras_count">
+        <item quantity="one">%1$d de %2$d extra</item>
+        <item quantity="many">%1$d de %2$d extras</item>
+        <item quantity="other">%1$d de %2$d extras</item>
+    </plurals>
     <string name="settings_hub_agent_summary">Identidade, instruções e orçamento de tarefas</string>
     <string name="settings_hub_agent_custom">Instruções personalizadas definidas</string>
     <string name="settings_hub_permissions_summary">Quais ações são executadas sem perguntar</string>
     <string name="settings_hub_permissions_reviewer_on">Revisor ativado</string>
     <string name="settings_hub_integrations_none">Nada conectado ainda</string>
     <string name="settings_hub_integrations_names">%1$s conectado</string>
-    <string name="settings_hub_integrations_count">%1$d conectados</string>
+    <plurals name="settings_hub_integrations_count">
+        <item quantity="one">%1$d conectado</item>
+        <item quantity="many">%1$d conectados</item>
+        <item quantity="other">%1$d conectados</item>
+    </plurals>
     <string name="settings_hub_ssh_none">Nenhuma máquina ainda</string>
     <plurals name="settings_hub_models_drafts">
         <item quantity="one">%1$d rascunho para revisar</item>
@@ -109,12 +117,36 @@
     <string name="settings_permissions_collapse">Recolher</string>
     <string name="settings_permissions_expand">Expandir</string>
     <string name="settings_permissions_all_tools">Todas (%1$d)</string>
-    <string name="settings_permissions_all_allowed">Todas permitidas (%1$d)</string>
-    <string name="settings_permissions_all_ask">As %1$d perguntam antes</string>
-    <string name="settings_permissions_all_blocked">Todas bloqueadas (%1$d)</string>
-    <string name="settings_permissions_count_allowed">%1$d permitidas</string>
-    <string name="settings_permissions_count_ask">%1$d perguntam antes</string>
-    <string name="settings_permissions_count_blocked">%1$d bloqueadas</string>
+    <plurals name="settings_permissions_all_allowed">
+        <item quantity="one">Todas permitidas (%1$d)</item>
+        <item quantity="many">Todas permitidas (%1$d)</item>
+        <item quantity="other">Todas permitidas (%1$d)</item>
+    </plurals>
+    <plurals name="settings_permissions_all_ask">
+        <item quantity="one">A %1$d pergunta antes</item>
+        <item quantity="many">As %1$d perguntam antes</item>
+        <item quantity="other">As %1$d perguntam antes</item>
+    </plurals>
+    <plurals name="settings_permissions_all_blocked">
+        <item quantity="one">Todas bloqueadas (%1$d)</item>
+        <item quantity="many">Todas bloqueadas (%1$d)</item>
+        <item quantity="other">Todas bloqueadas (%1$d)</item>
+    </plurals>
+    <plurals name="settings_permissions_count_allowed">
+        <item quantity="one">%1$d permitida</item>
+        <item quantity="many">%1$d permitidas</item>
+        <item quantity="other">%1$d permitidas</item>
+    </plurals>
+    <plurals name="settings_permissions_count_ask">
+        <item quantity="one">%1$d pergunta antes</item>
+        <item quantity="many">%1$d perguntam antes</item>
+        <item quantity="other">%1$d perguntam antes</item>
+    </plurals>
+    <plurals name="settings_permissions_count_blocked">
+        <item quantity="one">%1$d bloqueada</item>
+        <item quantity="many">%1$d bloqueadas</item>
+        <item quantity="other">%1$d bloqueadas</item>
+    </plurals>
 
     <!-- Settings → Agent -->
     <string name="settings_agent_title">Agente</string>
@@ -414,9 +446,21 @@
     <string name="settings_selftest_all_good">Tudo o que foi verificado funciona</string>
     <string name="settings_selftest_progress_description">Autoteste, %1$s concluído</string>
     <string name="settings_selftest_starting">Iniciando</string>
-    <string name="settings_selftest_progress">%1$d de %2$d concluídas</string>
-    <string name="settings_selftest_passed">%1$d aprovadas</string>
-    <string name="settings_selftest_skipped">%1$d ignoradas</string>
+    <plurals name="settings_selftest_progress">
+        <item quantity="one">%1$d de %2$d concluída</item>
+        <item quantity="many">%1$d de %2$d concluídas</item>
+        <item quantity="other">%1$d de %2$d concluídas</item>
+    </plurals>
+    <plurals name="settings_selftest_passed">
+        <item quantity="one">%1$d aprovada</item>
+        <item quantity="many">%1$d aprovadas</item>
+        <item quantity="other">%1$d aprovadas</item>
+    </plurals>
+    <plurals name="settings_selftest_skipped">
+        <item quantity="one">%1$d ignorada</item>
+        <item quantity="many">%1$d ignoradas</item>
+        <item quantity="other">%1$d ignoradas</item>
+    </plurals>
     <string name="settings_selftest_checked">verificado %1$s</string>
     <string name="settings_selftest_run_again">Executar de novo</string>
     <string name="settings_selftest_waiting">Aguardando</string>
@@ -665,7 +709,11 @@
     <string name="settings_backup_password_subtitle">Protege o arquivo.</string>
     <string name="settings_backup_password_action">Escolher onde salvar</string>
     <string name="settings_backup_password_label">Senha</string>
-    <string name="settings_backup_password_hint">Pelo menos %1$d caracteres. Algumas palavras aleatórias são fáceis de digitar e difíceis de adivinhar.</string>
+    <plurals name="settings_backup_password_hint">
+        <item quantity="one">Pelo menos %1$d caractere. Algumas palavras aleatórias são fáceis de digitar e difíceis de adivinhar.</item>
+        <item quantity="many">Pelo menos %1$d caracteres. Algumas palavras aleatórias são fáceis de digitar e difíceis de adivinhar.</item>
+        <item quantity="other">Pelo menos %1$d caracteres. Algumas palavras aleatórias são fáceis de digitar e difíceis de adivinhar.</item>
+    </plurals>
     <string name="settings_backup_password_again">Repita a senha</string>
     <string name="settings_backup_password_mismatch">As senhas não coincidem.</string>
     <string name="settings_backup_password_too_short">Curta demais: use pelo menos %1$d caracteres.</string>
@@ -788,8 +836,16 @@
     <string name="settings_models_phone_section">Neste telefone</string>
     <string name="settings_models_on_device_title">Modelos no dispositivo</string>
     <string name="settings_models_none_installed">Nenhum instalado</string>
-    <string name="settings_models_installed">%1$d instalados · %2$s GB</string>
-    <string name="settings_models_downloading">%1$d baixando</string>
+    <plurals name="settings_models_installed">
+        <item quantity="one">%1$d instalado · %2$s GB</item>
+        <item quantity="many">%1$d instalados · %2$s GB</item>
+        <item quantity="other">%1$d instalados · %2$s GB</item>
+    </plurals>
+    <plurals name="settings_models_downloading">
+        <item quantity="one">%1$d baixando</item>
+        <item quantity="many">%1$d baixando</item>
+        <item quantity="other">%1$d baixando</item>
+    </plurals>
     <string name="settings_models_backup_position">%1$d. %2$s</string>
     <string name="settings_models_backup_earlier">Tentar %1$s antes</string>
     <string name="settings_models_backup_remove">Remover %1$s</string>
@@ -1146,6 +1202,7 @@
     <string name="settings_backup_error_database_damaged">O banco de dados deste backup (chats, tarefas e projetos) está danificado, então o Locus não vai restaurá-lo. Nada mudou neste telefone. Tente um backup mais antigo.</string>
     <string name="settings_backup_error_newer_format">Este backup foi feito por uma versão mais nova do Locus. Atualize o Locus e tente de novo.</string>
     <string name="settings_backup_error_newer_schema">Os dados deste backup são de uma versão mais nova do Locus. Atualize o Locus e tente de novo.</string>
+    <string name="settings_backup_error_newer_content">As configurações e os arquivos deste backup são de uma versão mais nova do Locus, que perderia alguns deles. Atualize o Locus e tente de novo.</string>
     <string name="settings_backup_error_run_active">Uma tarefa está em execução. Pare-a primeiro e depois restaure.</string>
     <string name="settings_backup_error_no_space">Não há espaço livre suficiente neste telefone para restaurar este backup. Libere espaço e tente de novo.</string>
     <string name="settings_backup_error_read">Não foi possível ler o arquivo: %1$s</string>
