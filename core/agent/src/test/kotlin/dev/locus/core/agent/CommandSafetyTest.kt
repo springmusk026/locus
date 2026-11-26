@@ -273,4 +273,67 @@ class CommandSafetyTest {
             "echo" to "echo hi there",
         ).forEach { (rule, cmd) -> assertTrue(CommandSafety.matches(rule, cmd), "rule `$rule` should match: $cmd") }
     }
+
+    @Test
+    fun `a path written straight after a short option or = is still outside the workspace`() {
+        // #360: the value of `-t`, `-C` and the like needs no space before it.
+        assertRefused(
+            "cp" to "cp -t/usr/local/bin evil/git",
+            "cp" to "cp -t/etc/x a",
+            "tar xzf a.tgz" to "tar xzf a.tgz -C/usr/local/bin",
+            "tar xzf a.tgz" to "tar xzf a.tgz -C..",
+            "unzip a.zip" to "unzip a.zip -d~/x",
+            "cp" to "cp -rt../x a",
+        )
+        listOf("cp -t/usr/local/bin evil/git", "tar xzf a.tgz -C..", "gcc -I/usr/include a.c", "cp --target-directory=.. a").forEach {
+            assertNotNull(CommandSafety.dangerReason(it), it)
+        }
+        // Options with plain values inside the workspace still match.
+        assertTrue(CommandSafety.matches("tar xzf a.tgz", "tar xzf a.tgz -C out"))
+        assertTrue(CommandSafety.matches("make build", "make build -j4"))
+    }
+
+    @Test
+    fun `an option before the subcommand doesn't hide a fetch or a push`() {
+        // #361: `-C .` takes `.` as its value, so `.` isn't the subcommand.
+        listOf("git -C . fetch", "git -C . pull", "git -C sub clone x", "go -C sub get x", "pip --proxy p install x").forEach {
+            assertTrue(CommandSafety.mayFetch(it), it)
+        }
+        listOf("git -C . push", "git -C sub push origin main", "npm --prefix x publish", "docker --context x run alpine").forEach {
+            assertNotNull(CommandSafety.dangerReason(it), it)
+        }
+        // Without options in front, the subcommand is read as before.
+        assertFalse(CommandSafety.mayFetch("git status --short"))
+        assertFalse(CommandSafety.mayFetch("npm --version"))
+        assertNull(CommandSafety.dangerReason("git log -n 5"))
+    }
+
+    @Test
+    fun `a rule never writes into git's or Locus's own folder`() {
+        // #379: every row of the audit's table.
+        assertRefused(
+            "cp" to "cp evil.sh .git/hooks/pre-commit",
+            "cp evil.sh .git/hooks/pre-commit" to "cp evil.sh .git/hooks/pre-commit",
+            "cp" to "cp -r src build evil.sh .git/hooks/pre-commit",
+            "mv old.txt new.txt" to "mv old.txt new.txt .git/hooks",
+            "mkdir out" to "mkdir out .git/hooks",
+            "touch notes.md" to "touch notes.md .locus/settings",
+            "tar xzf a.tgz" to "tar xzf a.tgz -C .git/hooks",
+            "unzip a.zip" to "unzip a.zip -d .git/hooks",
+            "git status" to "git status -C .git",
+            // Written straight after the option, in a sub-folder, or as its own segment only.
+            "unzip a.zip" to "unzip a.zip -d.git/hooks",
+            "tar xzf a.tgz" to "tar xzf a.tgz -C.git",
+            "cp" to "cp x app/.git/config",
+            "cp" to "cp x ./.locus",
+            "cp" to "cp x .GIT/hooks/pre-commit",
+        )
+        listOf("cp evil.sh .git/hooks/pre-commit", "touch .locus/x", "cat .git/config").forEach {
+            assertNull(CommandSafety.rememberablePrefix(it), it)
+            assertNotNull(CommandSafety.protectedReason(it), it)
+        }
+        // Names that only start like them are fine.
+        assertTrue(CommandSafety.matches("cat", "cat .gitignore .github/workflows/ci.yml .locusrc"))
+        assertNull(CommandSafety.protectedReason("git status"))
+    }
 }
