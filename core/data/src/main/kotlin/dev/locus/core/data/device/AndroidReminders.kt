@@ -18,6 +18,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dev.locus.core.data.R
+import dev.locus.core.data.agent.NotificationIntents
 import dev.locus.core.data.agent.OpenChatLink
 import dev.locus.core.data.di.ApplicationScope
 import dev.locus.core.data.lock.AppLock
@@ -26,6 +27,7 @@ import dev.locus.core.model.AppLockSettings
 import dev.locus.core.model.Reminder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import java.net.URLEncoder
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -98,6 +100,7 @@ class AndroidReminderNotifier @Inject constructor(
             },
         )
         val open = context.packageManager.getLaunchIntentForPackage(context.packageName)?.let { launch ->
+            NotificationIntents.forActivity(launch, "reminder", reminder.id)
             reminder.conversationId?.let { OpenChatLink.attach(context, launch, it) }
             PendingIntent.getActivity(context, ("reminder-open:" + reminder.id).hashCode(), launch, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         }
@@ -122,8 +125,8 @@ class AndroidReminderNotifier @Inject constructor(
                 .setWhen(reminder.at)
                 .setShowWhen(true)
                 .setAutoCancel(true)
-                .addAction(0, "Snooze 10 min", ReminderIntents.broadcast(context, ReminderIntents.ACTION_SNOOZE, reminder.id))
-                .addAction(0, "Done", ReminderIntents.broadcast(context, ReminderIntents.ACTION_DONE, reminder.id))
+                .addAction(0, context.getString(R.string.data_reminder_snooze), ReminderIntents.broadcast(context, ReminderIntents.ACTION_SNOOZE, reminder.id))
+                .addAction(0, context.getString(R.string.data_reminder_done), ReminderIntents.broadcast(context, ReminderIntents.ACTION_DONE, reminder.id))
                 .build(),
         )
     }
@@ -160,17 +163,28 @@ object ReminderIntents {
      */
     fun intent(context: Context, action: String, id: String): Intent = Intent(context, ReminderReceiver::class.java)
         .setAction(action)
-        .setData("locus-reminder://$id/${action.substringAfterLast('.').lowercase()}".toUri())
+        .setData(dataUri(action, id).toUri())
         .putExtra(EXTRA_ID, id)
 
+    /**
+     * What tells two reminders' intents apart. The request code is a hash, so two ids can share one; Android
+     * treats intents with the same action, data and component as the same PendingIntent whatever the request
+     * code and extras, so the id is in the data.
+     */
+    internal fun dataUri(action: String, id: String): String =
+        "locus-reminder://${URLEncoder.encode(id, "UTF-8")}/${action.substringAfterLast('.').lowercase()}"
+
+    internal fun requestCode(action: String, id: String): Int = ("$action:$id").hashCode()
+
     fun broadcast(context: Context, action: String, id: String): PendingIntent =
-        PendingIntent.getBroadcast(context, ("$action:$id").hashCode(), intent(context, action, id), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        PendingIntent.getBroadcast(context, requestCode(action, id), intent(context, action, id), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
 }
 
 /**
  * The reminder alarm, Snooze and Done, and the moments Android asks apps to set alarms again: after a
  * reboot ("all alarms are canceled when a device shuts down"), after an update, and when exact alarms are
- * granted (ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED). Not exported: the system's broadcasts
+ * granted (ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED). Also when the time zone or the clock
+ * changes, so a reminder set for a wall-clock time moves with the phone. Not exported: the system's broadcasts
  * reach it anyway, and no other app can send it one. Never starts an activity (Android 12's trampoline rule).
  */
 @AndroidEntryPoint
@@ -191,6 +205,7 @@ class ReminderReceiver : BroadcastReceiver() {
                     ReminderIntents.ACTION_DONE -> id?.let { reminders.done(it) }
                     Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_MY_PACKAGE_REPLACED,
                     AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED,
+                    Intent.ACTION_TIMEZONE_CHANGED, Intent.ACTION_TIME_CHANGED,
                     -> reminders.rescheduleAll()
                 }
             } finally {

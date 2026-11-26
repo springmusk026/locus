@@ -185,6 +185,8 @@
     <string name="data_lock_public_text">Desbloquea el teléfono para ver los detalles</string>
     <string name="data_lock_chat_waiting">Un chat bloqueado te espera. Abre Locus para verlo.</string>
     <string name="data_lock_reminder_text">Recordatorio de un chat bloqueado</string>
+    <string name="data_reminder_snooze">Posponer 10 min</string>
+    <string name="data_reminder_done">Hecho</string>
     <string name="data_reachme_token_missing">Pega el token de aplicación de Gotify (Apps → Create Application).</string>
     <string name="data_reachme_token_invalid">No parece un token de aplicación de Gotify: cópialo entero, sin espacios.</string>
     <string name="data_reachme_token_again">La dirección cambió, así que pega el token de nuevo. Locus solo envía un token guardado al servidor para el que se guardó.</string>

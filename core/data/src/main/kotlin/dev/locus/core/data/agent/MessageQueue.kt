@@ -8,6 +8,8 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
 import java.util.UUID
 
 /** A message the user sent while the agent was working, waiting for the next step boundary. */
@@ -48,6 +50,11 @@ class MessageQueue(
      * writes land in order; each write is a snapshot taken under the lock. Tests write directly.
      */
     private val writer: (Runnable) -> Unit = Runnable::run,
+    /**
+     * Told (title, details) when the queue can't be saved or a saved file can't be read. The app passes
+     * the Diagnostics log; the default drops it.
+     */
+    private val report: (title: String, details: String) -> Unit = { _, _ -> },
 ) {
     private val json = Json { ignoreUnknownKeys = true }
     private val serializer = ListSerializer(QueuedMessage.serializer())
@@ -68,9 +75,12 @@ class MessageQueue(
         val files = dir.listFiles { f -> f.isFile && f.name.endsWith(SUFFIX) }.orEmpty()
         val loaded = files.mapNotNull { file ->
             val chat = file.name.removeSuffix(SUFFIX)
-            val list = runCatching { json.decodeFromString(serializer, file.readText()) }.getOrNull()
+            val list = runCatching { json.decodeFromString(serializer, file.readText()) }
+                .onFailure { setAside(file, it) }
+                .getOrNull()
             if (list.isNullOrEmpty()) {
-                file.delete()
+                // A file holding an empty list is just an old, finished queue; an unreadable one was set aside above.
+                if (list != null) file.delete()
                 null
             } else {
                 chat to list
@@ -158,23 +168,44 @@ class MessageQueue(
         // Chat ids are UUIDs; anything else never becomes a path.
         if (!SAFE_ID.matches(chatId)) return
         val file = File(dir, chatId + SUFFIX)
-        runCatching {
+        try {
             if (all.isEmpty()) {
                 file.delete()
                 return
             }
             dir.mkdirs()
             val tmp = File(dir, "$chatId$SUFFIX.tmp")
-            tmp.writeText(json.encodeToString(serializer, all))
-            if (!tmp.renameTo(file)) {
-                file.delete()
-                tmp.renameTo(file)
+            // Flushed to the disk before the rename, so a power cut leaves the old file or the new one,
+            // never an empty one. Renaming over the old file is atomic; there is no delete-then-rename.
+            FileOutputStream(tmp).use { out ->
+                out.write(json.encodeToString(serializer, all).toByteArray(Charsets.UTF_8))
+                out.fd.sync()
+            }
+            if (!tmp.renameTo(file)) throw IOException("Couldn't rename ${tmp.name} to ${file.name}")
+            failing = false
+        } catch (e: Exception) {
+            // Once per streak of failures, so a full disk doesn't fill the log with one entry per message.
+            if (!failing) {
+                failing = true
+                report("Queued messages couldn't be saved", "Chat $chatId, ${all.size} message(s) in memory only: ${e.javaClass.simpleName}: ${e.message}")
             }
         }
     }
 
+    /** Keeps an unreadable queue file as `<chat>.json.corrupt` (never deleted) and says so. */
+    private fun setAside(file: File, cause: Throwable) {
+        val kept = File(file.parentFile, file.name + CORRUPT)
+        val moved = runCatching { file.renameTo(kept) }.getOrDefault(false)
+        val where = if (moved) "kept as ${kept.name}" else "left as ${file.name}; it couldn't be renamed"
+        report("Queued messages couldn't be read", "${file.name} $where: ${cause.javaClass.simpleName}: ${cause.message}")
+    }
+
+    /** True from a failed write until the next one succeeds. Only the writer's thread touches it. */
+    @Volatile private var failing = false
+
     companion object {
         private const val SUFFIX = ".json"
+        private const val CORRUPT = ".corrupt"
         private val SAFE_ID = Regex("[A-Za-z0-9_-]{1,100}")
     }
 }

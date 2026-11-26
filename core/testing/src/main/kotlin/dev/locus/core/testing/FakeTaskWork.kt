@@ -30,9 +30,14 @@ class FakeTaskWork : TaskWork {
     /** The first-run delay each schedule asked for. */
     val initialDelays = mutableMapOf<String, Long>()
 
-    override fun schedule(taskId: String, intervalMinutes: Long, conditions: TaskConditions, initialDelayMillis: Long) {
+    /** The time of day (minutes after local midnight) each task was asked to run at, when it was. */
+    val timesOfDay = mutableMapOf<String, Int>()
+
+    override fun schedule(taskId: String, intervalMinutes: Long, conditions: TaskConditions, initialDelayMillis: Long, timeOfDay: Int?) {
         scheduled[taskId] = Scheduled(intervalMinutes, conditions)
         initialDelays[taskId] = initialDelayMillis
+        // A schedule set again without a time keeps the one it had, as the real one does.
+        if (timeOfDay != null) timesOfDay[taskId] = timeOfDay
     }
 
     override fun cancel(taskId: String) {
@@ -41,6 +46,7 @@ class FakeTaskWork : TaskWork {
 
     override fun cancelAll() {
         scheduled.clear()
+        timesOfDay.clear()
         watched.clear()
     }
 

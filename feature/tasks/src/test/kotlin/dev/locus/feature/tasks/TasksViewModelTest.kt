@@ -282,6 +282,8 @@ class TasksViewModelTest {
             val id = g.taskWork.scheduled.keys.single()
             val delay = g.taskWork.initialDelays.getValue(id)
             assertTrue(delay in 1..86_400_000, "$delay")
+            // The time itself goes to the schedule, so it holds through daylight saving.
+            assertEquals(7 * 60, g.taskWork.timesOfDay[id])
         } finally {
             host.clear()
         }

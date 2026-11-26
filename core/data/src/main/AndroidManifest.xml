@@ -82,7 +82,7 @@
             android:exported="false" />
 
         <!-- Reminder alarms, Snooze and Done, and setting the alarms again after a reboot, an update or an
-             exact-alarm grant (docs/design/phone-integrations.md). Not exported: system broadcasts still arrive. -->
+             exact-alarm grant, and a time-zone or clock change (docs/design/phone-integrations.md). Not exported: system broadcasts still arrive. -->
         <receiver
             android:name=".device.ReminderReceiver"
             android:exported="false">
@@ -90,6 +90,8 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
                 <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.TIME_SET" />
             </intent-filter>
         </receiver>
 

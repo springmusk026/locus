@@ -6,8 +6,11 @@ import dev.locus.core.datastore.SecretStore
 import dev.locus.core.database.AuditEntity
 import dev.locus.core.model.ApprovalDecision
 import dev.locus.core.model.AuditEntry
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.transform
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -31,6 +34,15 @@ data class AuditQuery(
     val withHelpers: Boolean = false,
 )
 
+/**
+ * Each value as it comes, then nothing for [ms] while newer ones are replaced by the latest, which follows. A
+ * burst (a run writing a chat every few tokens) is shown as its first and last result, not each in turn.
+ */
+internal fun <T> Flow<T>.throttleLatest(ms: Long): Flow<T> = conflate().transform { value ->
+    emit(value)
+    delay(ms)
+}
+
 /** Calls in a slice of the log, and how many of them failed (declined and blocked calls aren't failures). */
 data class AuditCounts(val total: Int, val failed: Int)
 
@@ -47,20 +59,35 @@ class ActivityRepository @Inject constructor(private val audit: AuditDao, privat
         // Room expands an empty list to `IN ()`; a placeholder that no tool or decision is called keeps the SQL plain.
         fun List<String>.orNone() = ifEmpty { listOf("\u0000") }
         val text = query.text?.trim()?.takeIf { it.isNotEmpty() }
-        return audit.observeFiltered(
-            since = query.since,
-            conversationId = query.conversationId,
-            allTools = query.tools == null,
-            tools = query.tools.orEmpty().toList().orNone(),
-            allDecisions = query.decisions == null,
-            decisions = query.decisions.orEmpty().map { it.name }.orNone(),
-            onlyErrors = query.onlyErrors,
-            pattern = text?.let { "%${like(it)}%" },
-            textTools = query.textTools.toList().orNone(),
-            limit = limit,
-            until = query.until,
-            withHelpers = query.withHelpers && query.conversationId != null,
-        ).map { list ->
+        val tools = query.tools.orEmpty().toList().orNone()
+        val decisions = query.decisions.orEmpty().map { it.name }.orNone()
+        val chat = query.conversationId
+        // Text search reads chat titles too, so Room runs it again on every chat write: it is the one query
+        // that waits between answers. Without text, one of three queries that read the log alone (or, for a
+        // task's receipt, its chat's helpers too) and never need to be held back.
+        val rows = if (text != null) {
+            audit.observeFiltered(
+                since = query.since,
+                conversationId = chat,
+                allTools = query.tools == null,
+                tools = tools,
+                allDecisions = query.decisions == null,
+                decisions = decisions,
+                onlyErrors = query.onlyErrors,
+                pattern = "%${like(text)}%",
+                textTools = query.textTools.toList().orNone(),
+                limit = limit,
+                until = query.until,
+                withHelpers = query.withHelpers && chat != null,
+            ).throttleLatest(SEARCH_REFRESH_MS)
+        } else if (chat == null) {
+            audit.observeBrowse(query.since, query.until, query.tools == null, tools, query.decisions == null, decisions, query.onlyErrors, limit)
+        } else if (query.withHelpers) {
+            audit.observeBrowseChatAndHelpers(chat, query.since, query.until, query.tools == null, tools, query.decisions == null, decisions, query.onlyErrors, limit)
+        } else {
+            audit.observeBrowseChat(chat, query.since, query.until, query.tools == null, tools, query.decisions == null, decisions, query.onlyErrors, limit)
+        }
+        return rows.map { list ->
             val redactor = AuditRedactor(runCatching { secrets.valuesForScrubbing() }.getOrDefault(emptyList()))
             list.mapNotNull { it.toModel()?.let(redactor::entry) }
         }
@@ -73,6 +100,9 @@ class ActivityRepository @Inject constructor(private val audit: AuditDao, privat
         audit.observeCounts(since, conversationId).map { AuditCounts(it.total, it.failed) }
 
     private companion object {
+        /** A search that reads chat titles is shown at most this often while chats are being written. */
+        const val SEARCH_REFRESH_MS = 500L
+
         fun like(s: String) = s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
         /** Rows with a decision this build doesn't know are skipped rather than crashing the screen. */

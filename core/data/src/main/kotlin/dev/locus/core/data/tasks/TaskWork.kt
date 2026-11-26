@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import java.time.Instant
+import java.time.ZoneId
 import java.util.concurrent.TimeUnit
 
 /** Where a "Run now" stands, from its WorkManager work (see [runNowStatus]). */
@@ -60,8 +62,12 @@ interface TaskWork {
     /**
      * Schedules [taskId] every [intervalMinutes] under [conditions], replacing its current schedule. The
      * first run waits [initialDelayMillis] (a template's "every morning at 7").
+     *
+     * With a [timeOfDay] (minutes after local midnight) and a period of whole days, the task instead runs at
+     * that wall-clock time every period, in the user's zone: it keeps its hour when the clocks change.
+     * A task set up that way keeps its time when it is scheduled again without one (a changed condition).
      */
-    fun schedule(taskId: String, intervalMinutes: Long, conditions: TaskConditions, initialDelayMillis: Long = 0)
+    fun schedule(taskId: String, intervalMinutes: Long, conditions: TaskConditions, initialDelayMillis: Long = 0, timeOfDay: Int? = null)
 
     /** Stops [taskId]'s schedule. */
     fun cancel(taskId: String)
@@ -103,8 +109,28 @@ interface TaskWork {
 /** [TaskWork] on WorkManager. */
 internal class WorkManagerTaskWork(private val context: Context) : TaskWork {
     private val work get() = WorkManager.getInstance(context)
+    private val times by lazy { TaskTimes(context) }
+    internal var clock: () -> Long = System::currentTimeMillis
+    internal var zone: () -> ZoneId = ZoneId::systemDefault
 
-    override fun schedule(taskId: String, intervalMinutes: Long, conditions: TaskConditions, initialDelayMillis: Long) {
+    override fun schedule(taskId: String, intervalMinutes: Long, conditions: TaskConditions, initialDelayMillis: Long, timeOfDay: Int?) {
+        val daily = intervalMinutes % TaskTiming.DAY_MINUTES == 0L
+        val at = timeOfDay?.takeIf { daily } ?: times.timeOfDay(taskId)?.takeIf { daily }
+        if (at != null) {
+            // One run at a time, enqueued for the next wall-clock time (a periodic request would keep its 24 hours
+            // across a clock change). Each run enqueues the next when it ends (TaskWorker).
+            val now = Instant.ofEpochMilli(clock())
+            val planned = if (timeOfDay == null) times.planned(taskId)?.let(Instant::ofEpochMilli) else null
+            val due = TaskTiming.resume(at, planned, now, zone())
+            times.setDaily(taskId, at, due.toEpochMilli())
+            enqueueDailyRun(work, taskId, at, due, now, conditions, ExistingWorkPolicy.REPLACE)
+            return
+        }
+        if (times.timeOfDay(taskId) != null) {
+            // Back to a plain period: the one-time run under this name can't be updated into a periodic one.
+            times.forgetDaily(taskId)
+            work.cancelUniqueWork(workName(taskId))
+        }
         work.enqueueUniquePeriodicWork(
             workName(taskId),
             ExistingPeriodicWorkPolicy.UPDATE,
@@ -116,12 +142,14 @@ internal class WorkManagerTaskWork(private val context: Context) : TaskWork {
         )
     }
 
+    // A paused task keeps its time of day (in [times]) for when it is turned on again.
     override fun cancel(taskId: String) {
         work.cancelUniqueWork(workName(taskId))
     }
 
     // WorkManager tags each request with its worker's class name.
     override fun cancelAll() {
+        times.clear()
         work.cancelAllWorkByTag(TaskWorker::class.java.name)
         work.cancelAllWorkByTag(TriggerWorker::class.java.name)
     }
@@ -137,7 +165,14 @@ internal class WorkManagerTaskWork(private val context: Context) : TaskWork {
         )
     }
 
+    @Synchronized
     override fun checkSoon(taskId: String, delayMillis: Long, needsNetwork: Boolean) {
+        val now = clock()
+        val due = now + delayMillis.coerceAtLeast(0)
+        // A check already waiting for an earlier time stays: it works out when to look again. Replacing it
+        // with a later one would hold back an event that is due sooner.
+        if (!TaskTiming.replacesCheck(times.checkDue(taskId), due, now)) return
+        times.setCheckDue(taskId, due)
         work.enqueueUniqueWork(
             "${watchName(taskId)}-soon",
             ExistingWorkPolicy.REPLACE,
@@ -150,6 +185,7 @@ internal class WorkManagerTaskWork(private val context: Context) : TaskWork {
     }
 
     override fun unwatch(taskId: String) {
+        times.setCheckDue(taskId, null)
         work.cancelUniqueWork(watchName(taskId))
         work.cancelUniqueWork("${watchName(taskId)}-soon")
     }
@@ -207,7 +243,40 @@ internal class WorkManagerTaskWork(private val context: Context) : TaskWork {
             .map { infos -> infos.lastOrNull().let { runNowStatus(it?.state, it?.outputData?.getString(TaskWorker.KEY_RESULT)) } }
             .distinctUntilChanged()
 
-    private fun workName(id: String) = "task-$id"
+    private fun workName(id: String) = taskWorkName(id)
 
     private fun runNowName(id: String) = "${workName(id)}-now"
+}
+
+/** The unique work name of [id]'s schedule: a periodic request, or the one run due next of a task at a time of day. */
+internal fun taskWorkName(id: String) = "task-$id"
+
+/**
+ * Enqueues the run of [taskId] due at [due], carrying what its worker needs to enqueue the one after
+ * (see [TaskTiming.next]): the time of day and when this one was due.
+ */
+internal fun enqueueDailyRun(
+    work: WorkManager,
+    taskId: String,
+    minuteOfDay: Int,
+    due: Instant,
+    now: Instant,
+    conditions: TaskConditions,
+    policy: ExistingWorkPolicy,
+) {
+    work.enqueueUniqueWork(
+        taskWorkName(taskId),
+        policy,
+        OneTimeWorkRequestBuilder<TaskWorker>()
+            .setInputData(
+                workDataOf(
+                    TaskWorker.KEY_TASK_ID to taskId,
+                    TaskWorker.KEY_AT_MINUTE to minuteOfDay,
+                    TaskWorker.KEY_DUE to due.toEpochMilli(),
+                ),
+            )
+            .setConstraints(TaskConstraints.of(conditions))
+            .setInitialDelay((due.toEpochMilli() - now.toEpochMilli()).coerceAtLeast(0), TimeUnit.MILLISECONDS)
+            .build(),
+    )
 }

@@ -208,7 +208,7 @@ class AgentService : LifecycleService() {
             PendingIntent.getBroadcast(
                 this,
                 (callId + approve).hashCode(),
-                Intent(this, ApprovalReceiver::class.java).putExtra(EXTRA_CALL_ID, callId).putExtra(EXTRA_APPROVE, approve),
+                Intent(this, ApprovalReceiver::class.java).setData(NotificationIntents.data("approval", callId, approve.toString())).putExtra(EXTRA_CALL_ID, callId).putExtra(EXTRA_APPROVE, approve),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             ),
         )
@@ -229,7 +229,7 @@ class AgentService : LifecycleService() {
             PendingIntent.getBroadcast(
                 this,
                 (conversationId + "#budget" + continueTask).hashCode(),
-                Intent(this, BudgetReceiver::class.java).putExtra(EXTRA_CHAT_ID, conversationId).putExtra(EXTRA_CONTINUE, continueTask),
+                Intent(this, BudgetReceiver::class.java).setData(NotificationIntents.data("budget", conversationId, continueTask.toString())).putExtra(EXTRA_CHAT_ID, conversationId).putExtra(EXTRA_CONTINUE, continueTask),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             ),
         )
@@ -302,13 +302,13 @@ class AgentService : LifecycleService() {
     private fun questionActions(question: UserQuestion): List<NotificationCompat.Action> {
         val actions = mutableListOf<NotificationCompat.Action>()
         question.options.take(questionButtons(question)).forEachIndexed { i, option ->
-            val intent = Intent(this, QuestionReceiver::class.java).putExtra(EXTRA_CALL_ID, question.callId).putExtra(EXTRA_OPTION, i)
+            val intent = Intent(this, QuestionReceiver::class.java).setData(NotificationIntents.data("question", question.callId, i.toString())).putExtra(EXTRA_CALL_ID, question.callId).putExtra(EXTRA_OPTION, i)
             val pending = PendingIntent.getBroadcast(this, (question.callId + "#" + i).hashCode(), intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
             actions += NotificationCompat.Action.Builder(0, option.take(40), pending).setAuthenticationRequired(LockedNotifications.authenticationRequired(lock, false)).build()
         }
         if (!allOptionsAsButtons(question)) {
             val input = RemoteInput.Builder(KEY_REPLY).setLabel("Your answer").build()
-            val intent = Intent(this, QuestionReceiver::class.java).putExtra(EXTRA_CALL_ID, question.callId)
+            val intent = Intent(this, QuestionReceiver::class.java).setData(NotificationIntents.data("reply", question.callId)).putExtra(EXTRA_CALL_ID, question.callId)
             // Mutable so the system can add the typed text; the intent is explicit (our own receiver).
             // A holder's fill-in can't change EXTRA_CALL_ID: Intent.fillIn copies an extra only where this
             // intent has no value under that name (developer.android.com/reference/android/content/Intent#fillIn).
@@ -326,7 +326,8 @@ class AgentService : LifecycleService() {
 
     /** Opens Locus on [conversationId]'s chat; one request code per chat, so each notification keeps its own chat. */
     private fun openAppIntent(conversationId: String?): PendingIntent? = packageManager.getLaunchIntentForPackage(packageName)?.let {
-        if (conversationId != null) OpenChatLink.attach(this, it, conversationId)
+        // Without a chat every notification opens the same thing, so they share request code 0 and one intent.
+        if (conversationId != null) OpenChatLink.attach(this, NotificationIntents.forActivity(it, "open", conversationId), conversationId)
         PendingIntent.getActivity(this, conversationId?.hashCode() ?: 0, it, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
     }
 
@@ -362,7 +363,7 @@ class AgentService : LifecycleService() {
                 },
             )
             val open = context.packageManager.getLaunchIntentForPackage(context.packageName)?.let {
-                OpenChatLink.attach(context, it, conversationId)
+                OpenChatLink.attach(context, NotificationIntents.forActivity(it, "continue", conversationId), conversationId)
                 PendingIntent.getActivity(context, (conversationId + "#continue").hashCode(), it, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
             }
             @Suppress("MissingPermission")
@@ -393,7 +394,7 @@ class AgentService : LifecycleService() {
                 },
             )
             val open = context.packageManager.getLaunchIntentForPackage(context.packageName)?.let {
-                OpenChatLink.attach(context, it, conversationId)
+                OpenChatLink.attach(context, NotificationIntents.forActivity(it, "finished", conversationId), conversationId)
                 PendingIntent.getActivity(context, (conversationId + "#finished").hashCode(), it, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
             }
             @Suppress("MissingPermission")

@@ -243,6 +243,9 @@ class ScheduledRun @Inject constructor(
         }
     }
 
+    /** [taskId]'s task while it exists and is turned on, as it is now; null otherwise. */
+    suspend fun enabledTask(taskId: String): dev.locus.core.database.ScheduledTaskEntity? = tasks.get(taskId)?.takeIf { it.enabled }
+
     /** Records a run whose prompt went out but whose end was never recorded (the process died), and tells the user. */
     private suspend fun closeInterrupted(taskId: String, title: String, marker: RunMarker, notify: ((String, String, String) -> Unit)?) {
         val task = tasks.get(taskId) ?: return
