@@ -717,8 +717,10 @@ class AgentLoop(
                 ),
             )
             val replied = assistant.parts.isNotEmpty() || assistant.rawPayload != null
+            // What effort the turn was asked for, for adapters that change it mid-chat per message (hidden).
+            val stored = turn.turnEffort?.takeIf { replied }?.let { assistant.copy(parts = assistant.parts + it) } ?: assistant
             config.onRequest?.invoke(request, assistant.id.takeIf { replied })
-            if (replied) appendAndEmit(assistant, transcript)
+            if (replied) appendAndEmit(stored, transcript)
 
             if (turn.toolCalls.isEmpty()) {
                 // The project's before-finishing rules first (docs/design/rules.md): a failing one sends the agent back, a bounded number of times.

@@ -91,6 +91,12 @@ data class AssistantTurn(
     val servedModel: String? = null,
     /** Billed attempts by other models that declined before this turn was produced, each at its own model's rates. */
     val declinedAttempts: List<AttemptUsage> = emptyList(),
+    /**
+     * The effort this turn was requested at and the top-level value its request carried, on models that
+     * change effort mid-chat per message ([MidChatEffort]); stored on the turn so later requests rebuild
+     * this one exactly. Null elsewhere.
+     */
+    val turnEffort: Part.TurnEffort? = null,
 )
 
 /** One billed model attempt within a request: [model] and its own token counts. */
