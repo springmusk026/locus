@@ -63,7 +63,7 @@ tools/render-screens.sh build/screens xhdpi    # every screen at 2x, for a perso
 
 CI runs the same commands, plus the screenshot render guard and a release build with R8, as parallel jobs behind one `build` check. Draft PRs, and PRs that change only `docs/` or top-level Markdown files, skip the Gradle jobs. See [docs/design/ci.md](docs/design/ci.md). If you changed behaviour, try it on a real device or emulator and say what you tried.
 
-- Add a line for anything a user would notice to [CHANGELOG.md](CHANGELOG.md) under `[Unreleased]` ([Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format). Say if it hasn't been tried on a phone.
+- Add an entry for anything a user would notice as a new file in [changelog.d/](changelog.d/README.md) (not in CHANGELOG.md directly, so pull requests don't conflict), in [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) form. Say if it hasn't been tried on a phone.
 - Fill in the pull request template's checklist.
 
 ## Commits and pull requests

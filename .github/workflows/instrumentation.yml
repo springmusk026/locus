@@ -19,7 +19,28 @@ permissions:
   contents: read
 
 jobs:
+  # The nightly run boots an emulator (the costliest minutes here), so it runs only when main changed in
+  # the last day; manual runs always go ahead.
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" != schedule ]; then echo "run=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          since=$(date -u -d '25 hours ago' +%Y-%m-%dT%H:%M:%SZ)
+          n=$(gh api "repos/$GITHUB_REPOSITORY/commits?sha=${GITHUB_REF_NAME}&since=$since&per_page=1" --jq length)
+          if [ "$n" = 0 ]; then echo "No commits on main since $since: skipping."; echo "run=false" >> "$GITHUB_OUTPUT"
+          else echo "run=true" >> "$GITHUB_OUTPUT"; fi
+
   emulator:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 75
     env:
