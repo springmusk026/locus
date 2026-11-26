@@ -142,7 +142,7 @@ object SkillScope {
         if (!manifest.declared || isBaseline(toolName)) return null
         val caps = manifest.capabilities.toSet()
         if (toolName in URL_TOOLS) {
-            val host = args.str("url")?.let(LocalNetwork::hostOf)?.lowercase()
+            val host = args.str("url")?.let(LocalNetwork::plainHostOf)?.lowercase()
             if (host == null || !hostAllowed(host, manifest.network)) return if (host == null) "an address it didn't list" else "the host $host"
             // Pages and fetches are covered by the host itself; the browser and other apps also need their group.
             return when (toolName) {

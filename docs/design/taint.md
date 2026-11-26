@@ -44,9 +44,11 @@ Once a run is tainted, these calls are **gated**:
 
 "Named" hosts are:
 
-- hosts in what the user typed in this chat, whether full links or bare domains such as `bbc.co.uk`, plus their subdomains (`www.` is ignored);
+- hosts in what the user typed in this chat, whether full links or bare domains such as `bbc.co.uk`, plus their subdomains (`www.` is ignored). A shared hosting name (`github.io`, `vercel.app`, `pages.dev`, `co.uk`, …: `PublicSuffixes`, a compact snapshot of the Public Suffix List) is never named by typing it and never covers subdomains, since `attacker.github.io` is someone else's site; `docs.github.com` is still covered by `github.com`, and `myname.github.io` by the link the user typed;
 - hosts the user set up in Locus (model providers, MCP servers and connectors);
 - the phone's own loopback, for servers the agent started in Linux.
+
+A host is read by `LocalNetwork.plainHostOf`, the one parser behind these decisions. It reads http(s) like a browser, OkHttp and Ktor do: `\` ends the authority like `/`, the host is what follows the last `@`, `https:evil.com` has the host `evil.com`, and an IPv4-mapped IPv6 address (`[::ffff:7f00:1]`) is its IPv4 address. A URL the parsers could read differently has no host at all (a backslash, user info, a scheme without `//`, an escaped or numeric host such as `2130706433`, a bad port, a control character), so it counts as "an address it chose" and asks. `https://evil.com\@github.com/` therefore no longer passes as github.com.
 
 Text the agent read never adds a host. For a helper, only the parent chat's user messages count, because the helper's task was written by the agent.
 
@@ -80,13 +82,14 @@ Taint is a policy decision inside `AgentLoop`. The system prompt, the tool list 
 
 - **Private addresses.** The host is resolved, and the request is refused when the host is (or resolves to) any of these:
   - loopback, link-local or site-local (RFC 1918) addresses;
-  - CGNAT 100.64/10, IPv6 unique-local fc00::/7, multicast, 0.0.0.0/8 or broadcast;
+  - CGNAT 100.64/10, IPv6 unique-local fc00::/7, multicast, 0.0.0.0/8, 192.0.0.0/24, benchmarking 198.18/15, reserved 240/4 (with broadcast);
+  - IPv6 forms of an IPv4 address that is itself private: NAT64 `64:ff9b::/96` (and the local-use `64:ff9b:1::/48`), IPv4-compatible `::a.b.c.d` and 6to4 `2002::/16` (the embedded IPv4 address is checked);
   - `.local`, `.lan` and `.home.arpa` names, and single-label names (`LocalNetwork.isLocalHost`).
 
-  The exception is a host the user set up in Locus: a provider's base URL (Ollama on the LAN) or an MCP server or connector. The refusal tells the agent to use `run_command` with `curl` for servers it started in Linux.
-- **Redirects** are followed by hand, at most 5 hops, and every hop is checked like the first. 301, 302 and 303 turn a POST into a GET without a body. An https to http downgrade is refused. Headers the agent set (an API key, say) go only to the host it named.
+  The exception is an origin the user set up in Locus: a provider's or connector's base URL (Ollama on the LAN), by scheme, host and port (`FetchGuard.originOf`). `http://192.168.1.5:11434` opens that port only, not `:22`, `:8080` or the router's admin page on the same host. The refusal tells the agent to use `run_command` with `curl` for servers it started in Linux.
+- **Redirects** are followed by hand, at most 5 hops, and every hop is checked like the first. 301, 302 and 303 turn a POST into a GET without a body. An https to http downgrade is refused. Headers the agent set (an API key, say) go only to the origin it named (same scheme, host and port), not to another port of the same host.
 - **Body cap.** The body is streamed and kept to at most 2 MB, whatever the server sends or claims. The result says when it stopped reading. The whole request has a 60 s limit.
-- **DNS rebinding.** The check resolves the name before the request, and OkHttp resolves it again to connect, so a rebinding server could answer differently the second time. fetch_url therefore has a client of its own (`FetchDns`, core/data) whose OkHttp `Dns` runs every answer through `FetchGuard.checkAnswer`. Any private address, for a host the user didn't set up, fails the connection, and each redirect hop is a new checked lookup. See [network](network.md), "fetch_url and DNS rebinding".
+- **DNS rebinding.** The check resolves the name before the request, and OkHttp resolves it again to connect, so a rebinding server could answer differently the second time. fetch_url therefore has a client of its own (`FetchDns`, core/data) whose OkHttp `Dns` runs every answer through `FetchGuard.checkAnswer`. Any private address, for a host the user didn't set up (a DNS answer has no port, so a configured origin counts there by its host; the port is held by `FetchGuard.refusal`), fails the connection, and each redirect hop is a new checked lookup. See [network](network.md), "fetch_url and DNS rebinding".
 
 ## Memory provenance
 
@@ -294,7 +297,7 @@ Only to tool-result text from now on. The frozen system prompt and the declared 
 
 | Entry point | Where |
 |---|---|
-| Every marked tool result: `fetch_url`, `web_search`, `web_read`, `wikipedia`, email lists, bodies and subjects, GitHub issues, deploy logs, DNS records, `connector_call`, MCP results and `mcp_list_tools`, `find_tools`' MCP descriptions, command and SSH output, calendar entries, events, imported skills loaded with `skill_use` | `UntrustedContent.wrap`. It strips first and then defuses, so `</untrusted<ZWSP>_web_content>` with a zero-width space can't become a real closing tag once stripped. |
+| Every marked tool result: `fetch_url`, `web_search`, `web_read`, `wikipedia`, email lists, bodies and subjects, GitHub issues, deploy logs, DNS records, `connector_call`, MCP results and `mcp_list_tools`, `find_tools`' MCP descriptions, command and SSH output, calendar entries, events, imported skills loaded with `skill_use` | `UntrustedContent.wrap`. It strips first and then defuses, so `</untrusted<ZWSP>_web_content>` with a zero-width space can't become a real closing tag once stripped. Defusing finds tags in the NFKC-folded text, so the fullwidth `＜/untrusted_web_content＞` (U+FF1C, U+FF1E), the small-form `﹤…﹥` (U+FE64, U+FE65) and fullwidth letters can't close the block either; only the brackets are replaced, by `‹` and `›`. The same applies to `<locus_mode>` and `<locus_result>`. |
 | Web pages, snapshots, tabs and console logs | core:browser's `Untrusted.wrap`, which now calls `UntrustedContent.wrap` |
 | MCP tool descriptions and argument schemas offered as deferred tools (provider-side tool search) | `McpSchemas.description` and `McpSchemas.compact`. These are outside any marked block, so every string in them is stripped. |
 | File reads | `read_file`, line by line, with a note that names the lines. `edit_file`'s whole-line matching compares lines without hidden characters, so the model can edit a line exactly as it read it. |
@@ -318,6 +321,7 @@ A reply can carry data out without any tool call. The model writes `[details](ht
 The Markdown renderer (mikepenz multiplatform-markdown-renderer 0.46.0) opens a `LinkAnnotation.Url` through `LocalUriHandler` in its default `annotatorSettings` (checked in the v0.46.0 source, `AnnotatorSettings.kt`). `GuardedLinks` replaces that handler around every chat Markdown view: saved replies, streaming replies and kept reasoning. Each tap goes through `LinkGuard.check`:
 
 - **Asks if the reply came after outside content** and the link's host isn't one the user named. "After outside content" means any reply after the chat's first taint source (`LinkGuard.repliesAfterOutsideContent`), since taint carries over to every later run. "Named" means hosts the user typed in the chat, or hosts set up in Locus as model providers or connectors; subdomains count, `www.` is ignored, and loopback always counts. This is taint's own trusted-host rule.
+- **Asks if the link's host can't be read the same way by every parser** (a backslash or user info in the address): there is no host to trust, so it asks like an unnamed one after outside content.
 - **Asks if the query and fragment are longer than 40 characters**, in any reply and on any host: room for a key or a sentence of someone's data, more than a search or an anchor needs.
 - **Asks if it isn't a web, mail or phone link** (`intent:`, `file:` …).
 - **Otherwise it opens in one tap.** That includes every plain link in a reply written before the chat read anything, and links to named hosts.
@@ -343,7 +347,7 @@ Limits:
 - Taint is per run, not per value. A tainted run asks for every outward call, including ones that only use the user's own data. That's the price of not tracking values.
 - `run_command` can reach the network by itself (`curl`), and it is a LOCAL tool, so it isn't gated by taint. Its normal Ask/Allow policy applies.
 - For remembered approvals only, the output of a plain local command that fetches nothing (`npm test`, `ls`) isn't counted as outside content, so a coding chat can still be offered "Don't ask again" after its first command. It still counts for every gate here. See [remembered approvals](remembered-approvals.md), "Taint".
-- The host check is textual. `docs.example.org` is trusted when the user typed `example.org`.
+- The host check is textual. `docs.example.org` is trusted when the user typed `example.org`. `PublicSuffixes` is a compact snapshot, not the whole list: a hosting name missing from it is treated like any other domain.
 - A host typed in the browser's address bar is named for that chat until the app restarts; it widens taint's trusted hosts the same way typing it in the chat does.
 - On a named site, a tainted run can click and type without a card. Submits still ask, but a page's own script can send on `input` events, so what is typed on a named site reaches that site. That is the site the user chose; typing after a private read still asks ("Typing after a private read").
 - Disclosure is per run too: after one `read_file`, a link with a path to any host the user didn't name asks. In practice that's per URL, since the first page read taints the run, and then taint asks for every unnamed address. **Allow site** on the card stops it for one host until the task ends ("Allowing a site for the rest of a task"). Hosts the user named or set up never ask.

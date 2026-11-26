@@ -101,6 +101,54 @@ class FetchUrlTest {
     }
 
     @Test
+    fun `a redirect to another port of the same host loses the caller's headers`() = runTest {
+        val fetch = tool { request ->
+            if (request.url.port == 443) respond("", HttpStatusCode.Found, headersOf(HttpHeaders.Location, "https://example.com:8443/api"))
+            else respond("ok", headers = headersOf(HttpHeaders.ContentType, "text/plain"))
+        }
+        fetch.execute(args("https://example.com/go") { putJsonObject("headers") { put("X-Api-Key", "secret") } })
+        assertEquals("secret", seen[0].headers["X-Api-Key"])
+        assertEquals(null, seen[1].headers["X-Api-Key"])
+        // The same origin keeps them, with the default port spelled out or not.
+        seen.clear()
+        val same = tool { request ->
+            if (request.url.encodedPath == "/go") respond("", HttpStatusCode.Found, headersOf(HttpHeaders.Location, "https://EXAMPLE.com:443/api"))
+            else respond("ok", headers = headersOf(HttpHeaders.ContentType, "text/plain"))
+        }
+        same.execute(args("https://example.com/go") { putJsonObject("headers") { put("X-Api-Key", "secret") } })
+        assertEquals("secret", seen[1].headers["X-Api-Key"])
+    }
+
+    @Test
+    fun `a configured origin opens that port only`() = runTest {
+        val origins = setOf(FetchGuard.originOf("http://192.168.1.20:11434/v1")!!, FetchGuard.originOf("http://ollama.home:11434")!!)
+        val fetch = tool(allowed = origins, handler = ok)
+        assertFalse(fetch.execute(args("http://192.168.1.20:11434/api/tags")).isError)
+        assertFalse(fetch.execute(args("http://ollama.home:11434/api/tags")).isError)
+        listOf(
+            "http://192.168.1.20:22/", "http://192.168.1.20:8080/admin", "http://192.168.1.20/", "https://192.168.1.20:11434/",
+            "http://ollama.home:8080/", "http://ollama.home/",
+        ).forEach { url ->
+            val e = assertFailsWith<ToolException>(url) { fetch.execute(args(url)) }
+            assertTrue("Blocked" in e.message.orEmpty(), url)
+        }
+        assertEquals(2, seen.size)
+        assertEquals("http://192.168.1.20:11434", FetchGuard.originOf("HTTP://192.168.1.20:11434/v1"))
+        assertEquals("https://api.example.com:443", FetchGuard.originOf("https://api.example.com/v1"))
+        assertEquals("http://[fd00::1]:80", FetchGuard.originOf("http://[fd00::1]"))
+        assertEquals(null, FetchGuard.originOf("ftp://example.com"))
+        // A bare host name still means every port.
+        assertFalse(tool(allowed = setOf("192.168.1.20"), handler = ok).execute(args("http://192.168.1.20:8080/")).isError)
+    }
+
+    @Test
+    fun `the DNS check treats a configured origin as its host`() {
+        val lan = listOf(InetAddress.getByName("192.168.1.20"))
+        assertEquals(lan, FetchGuard.checkAnswer("ollama.home", lan, setOf("http://ollama.home:11434")))
+        assertFailsWith<java.net.UnknownHostException> { FetchGuard.checkAnswer("other.home", lan, setOf("http://ollama.home:11434")) }
+    }
+
+    @Test
     fun `https never downgrades to http on a redirect`() = runTest {
         val fetch = tool { respond("", HttpStatusCode.Found, headersOf(HttpHeaders.Location, "http://example.com/plain")) }
         assertFailsWith<ToolException> { fetch.execute(args("https://example.com/")) }
@@ -136,5 +184,28 @@ class FetchUrlTest {
         listOf("127.0.0.1", "10.1.2.3", "172.16.0.1", "192.168.0.1", "169.254.1.1", "100.100.0.1", "0.0.0.0", "::1", "fe80::1", "fc00::1", "::ffff:192.168.1.1", "224.0.0.1")
             .forEach { assertTrue(FetchGuard.isPrivate(InetAddress.getByName(it)), it) }
         listOf("93.184.215.14", "8.8.8.8", "100.128.0.1", "2606:4700::1111").forEach { assertFalse(FetchGuard.isPrivate(InetAddress.getByName(it)), it) }
+    }
+
+    @Test
+    fun `reserved ranges and embedded IPv4 addresses are private`() {
+        listOf(
+            "192.0.0.1", "192.0.0.170", "198.18.0.1", "198.19.255.254", "240.0.0.1", "250.1.2.3", "255.255.255.255",
+            "64:ff9b::7f00:1", "64:ff9b::192.168.1.1", "64:ff9b::a00:1", "64:ff9b:1::1",
+            "::7f00:1", "::192.168.1.1", "::a00:1", "::c0a8:101",
+            "2002:7f00:1::1", "2002:c0a8:101::1", "2002:a00:1::", "2002:a9fe:a9fe::1",
+        ).forEach { assertTrue(FetchGuard.isPrivate(InetAddress.getByName(it)), it) }
+        listOf(
+            "192.0.1.1", "192.1.0.1", "198.17.255.255", "198.20.0.1", "223.255.255.255",
+            "64:ff9b::808:808", "::808:808", "2002:808:808::1", "2001:4860:4860::8888",
+        ).forEach { assertFalse(FetchGuard.isPrivate(InetAddress.getByName(it)), it) }
+    }
+
+    @Test
+    fun `urls that resolve to the new ranges are refused`() = runTest {
+        val fetch = tool(handler = ok)
+        listOf("http://192.0.0.8/", "http://198.18.0.5/", "http://240.0.0.1/", "http://[64:ff9b::7f00:1]/", "http://[::7f00:1]/", "http://[2002:c0a8:101::1]/").forEach { url ->
+            assertTrue("Blocked" in assertFailsWith<ToolException>(url) { fetch.execute(args(url)) }.message.orEmpty(), url)
+        }
+        assertTrue(seen.isEmpty())
     }
 }

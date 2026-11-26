@@ -40,8 +40,9 @@ import java.net.InetAddress
 
 /**
  * Where fetch_url may connect. [resolve] looks a host name up (the system resolver in the app, a fake in
- * tests); [allowedHosts] are hosts the user set up in Locus themselves (a model provider such as Ollama on
- * the LAN, an MCP server), the only local addresses the agent may reach.
+ * tests); [allowedHosts] are what the user set up in Locus themselves (a model provider such as Ollama on
+ * the LAN, an MCP server), the only local addresses the agent may reach: origins (`http://192.168.1.5:11434`,
+ * [FetchGuard.originOf]) that allow that scheme, host and port only, or bare host names (every port).
  */
 class FetchNetwork(
     val resolve: suspend (String) -> List<InetAddress> = { host -> withContext(Dispatchers.IO) { InetAddress.getAllByName(host).toList() } },
@@ -71,22 +72,74 @@ object FetchGuard {
         }
         val b = address.address.map { it.toInt() and 0xff }
         return when (address) {
-            is Inet4Address -> b[0] == 0 || (b[0] == 100 && b[1] in 64..127) || b.all { it == 255 }
-            // Unique local fc00::/7; IPv4-mapped addresses come back from Java as Inet4Address.
-            is Inet6Address -> b[0] and 0xfe == 0xfc
+            is Inet4Address -> isPrivateV4(b)
+            // IPv4-mapped addresses come back from Java as Inet4Address; the forms below stay IPv6.
+            is Inet6Address -> isPrivateV6(b)
             else -> false
         }
     }
 
+    private fun isPrivateV4(b: List<Int>): Boolean =
+        b[0] == 0 || // "this network" 0/8
+            (b[0] == 100 && b[1] in 64..127) || // carrier-grade NAT 100.64/10
+            (b[0] == 192 && b[1] == 0 && b[2] == 0) || // IETF protocol assignments 192.0.0.0/24
+            (b[0] == 198 && b[1] in 18..19) || // benchmarking 198.18/15
+            b[0] >= 240 // reserved 240/4, including the broadcast address
+
+    private fun isPrivateV6(b: List<Int>): Boolean {
+        if (b[0] and 0xfe == 0xfc) return true // unique local fc00::/7
+        fun embedded(at: Int) = isPrivate(InetAddress.getByAddress(ByteArray(4) { b[at + it].toByte() }))
+        return when {
+            // NAT64 64:ff9b::/96 reaches the IPv4 address in the last 32 bits; 64:ff9b:1::/48 is local-use.
+            b.take(12) == NAT64 -> embedded(12)
+            b.take(6) == NAT64_LOCAL -> true
+            // IPv4-compatible ::a.b.c.d (the two-group prefix keeps :: and ::1 to the checks above).
+            b.take(12).all { it == 0 } -> embedded(12)
+            // 6to4 2002::/16 carries the IPv4 address in bits 16..47.
+            b[0] == 0x20 && b[1] == 0x02 -> embedded(2)
+            else -> false
+        }
+    }
+
+    private val NAT64 = listOf(0x00, 0x64, 0xff, 0x9b, 0, 0, 0, 0, 0, 0, 0, 0)
+    private val NAT64_LOCAL = listOf(0x00, 0x64, 0xff, 0x9b, 0x00, 0x01)
+
+    /**
+     * The origin of [url] as [allowedHosts][FetchNetwork.allowedHosts] writes it, `https://host:443`
+     * (lower-case, the default port spelled out), or null for a URL that isn't http(s) or has no host.
+     */
+    fun originOf(url: String): String? {
+        val t = LocalNetwork.parse(url) ?: return null
+        val scheme = t.scheme?.takeIf { it == "http" || it == "https" } ?: return null
+        return origin(scheme, t.host, t.port ?: defaultPort(scheme))
+    }
+
+    private fun origin(url: Url) = origin(url.protocol.name, url.host, url.port)
+
+    private fun origin(scheme: String, host: String, port: Int): String {
+        val h = host.lowercase().removePrefix("[").removeSuffix("]").trimEnd('.')
+        return "$scheme://${if (':' in h) "[$h]" else h}:$port"
+    }
+
+    private fun defaultPort(scheme: String) = if (scheme == "https") 443 else 80
+
+    /** Whether [a] and [b] are the same scheme, host and port: where a request's own headers may be sent. */
+    fun sameOrigin(a: Url, b: Url): Boolean = origin(a) == origin(b)
+
+    /** The host names in [allowed]: bare ones as they are, origins reduced to their host. */
+    private fun allowedNames(allowed: Set<String>): Set<String> =
+        allowed.mapNotNull { if ("://" in it) LocalNetwork.hostOf(it) else it.lowercase() }.toSet()
+
     /**
      * The addresses a connection to [host] may use, from a DNS answer: all of them for a host the user
-     * set up in Locus ([allowed]), otherwise all of them only when none is private. Throws
+     * set up in Locus ([allowed]; a DNS answer has no port, so an origin counts by its host and
+     * [refusal] holds the port), otherwise all of them only when none is private. Throws
      * [java.net.UnknownHostException] (what an HTTP client's DNS reports) when the answer is empty or
      * any address is private, so a rebinding answer fails the connection instead of reaching the LAN.
      */
     fun checkAnswer(host: String, addresses: List<InetAddress>, allowed: Set<String>): List<InetAddress> {
         val name = host.lowercase().removePrefix("[").removeSuffix("]")
-        if (name in allowed) return addresses
+        if (name in allowedNames(allowed)) return addresses
         if (addresses.isEmpty()) throw java.net.UnknownHostException(host)
         if (addresses.any(::isPrivate)) {
             throw java.net.UnknownHostException("Blocked: $host resolved to a local or private network address, which fetch_url doesn't reach.")
@@ -96,13 +149,15 @@ object FetchGuard {
 
     /**
      * Why [url] may not be fetched, or null when it may. Only http(s); a host that is (or resolves to) a
-     * private address must be one of [allowed]. A name that doesn't resolve is left to the request to fail.
+     * private address must be on [allowed]: its origin (scheme, host and port, [originOf]) or, for a bare
+     * host name, any port. A configured origin doesn't open the host's other ports. A name that doesn't
+     * resolve is left to the request to fail.
      */
     suspend fun refusal(url: Url, allowed: Set<String>, resolve: suspend (String) -> List<InetAddress>): String? {
         if (url.protocol.name != "http" && url.protocol.name != "https") return "Only http(s) URLs are supported."
         val host = url.host.lowercase().removePrefix("[").removeSuffix("]")
         if (host.isEmpty()) return "The URL has no host."
-        if (host in allowed) return null
+        if (host in allowed || origin(url) in allowed) return null
         val local = LocalNetwork.isLocalHost(host) || host == "localhost" || host.endsWith(".localhost")
         val addresses = if (local) emptyList() else runCatching { resolve(host) }.getOrDefault(emptyList())
         if (!local && addresses.none(::isPrivate)) return null
@@ -172,12 +227,12 @@ private class FetchUrl(private val http: HttpClient, private val network: FetchN
         var body = firstBody
         repeat(MAX_REDIRECTS + 1) {
             FetchGuard.refusal(url, allowed, network.resolve)?.let { throw ToolException(it) }
-            val sameHost = url.host.equals(start.host, ignoreCase = true)
+            val sameOrigin = FetchGuard.sameOrigin(url, start)
             val outcome = noRedirects.prepareRequest(url) {
                 this.method = method
                 header("User-Agent", USER_AGENT)
-                // The caller's headers (an API key, say) only ever go to the host it named.
-                if (sameHost) extra.forEach { (k, v) -> header(k, v) }
+                // The caller's headers (an API key, say) only ever go to the origin it named: not another port or scheme.
+                if (sameOrigin) extra.forEach { (k, v) -> header(k, v) }
                 body?.let { setBody(it) }
             }.execute { response ->
                 val status = response.status.value

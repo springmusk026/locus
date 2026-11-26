@@ -25,17 +25,99 @@ object LocalNetwork {
     /** [target] is a URL (`http://192.168.1.5:11434/v1`), `host:port`, or a bare host. */
     fun isLocalTarget(target: String): Boolean = hostOf(target)?.let(::isLocalHost) ?: false
 
-    /** The host part of a URL, `host:port` or bare host, without brackets or an IPv6 zone. */
-    fun hostOf(target: String): String? {
-        var rest = target.trim().substringAfter("://")
-        rest = rest.substringBefore('/').substringBefore('?').substringBefore('#').substringAfterLast('@')
-        if (rest.isEmpty()) return null
-        val host = when {
-            rest.startsWith("[") -> rest.substringAfter('[').substringBefore(']')
-            rest.count { it == ':' } == 1 -> rest.substringBefore(':')
-            else -> rest // bare IPv6 or plain host
+    /**
+     * A target taken apart the way a browser, OkHttp and Ktor read it. [host] is lower-case, without
+     * brackets, a zone or a trailing dot, with an IPv4-mapped IPv6 address written as its IPv4 address.
+     * [plain] is false when the text is one a security decision shouldn't rely on: it has a backslash,
+     * user info, a control character, a scheme without its `//`, a port that isn't digits, an escaped
+     * host or a number written as something other than four decimal parts (`2130706433`, `0x7f.1`).
+     * Parsers disagree about those, so a host read from them is a guess.
+     */
+    class Target(val scheme: String?, val host: String, val port: Int?, val plain: Boolean)
+
+    /**
+     * The one parser behind every host decision (Taint, LinkGuard, fetch_url's origins). For http(s) and
+     * the other special schemes it reads like the WHATWG URL standard: `\` ends the authority like `/`,
+     * the host is what follows the last `@` of the authority, and any number of slashes (or none)
+     * follows `https:`. Without a scheme (`host:port`, a bare host) the text up to the first `/`, `\`,
+     * `?` or `#` is the authority.
+     */
+    fun parse(target: String): Target? {
+        val trimmed = target.trim()
+        var plain = trimmed.none { it == '\\' || it < ' ' || it == '\u007f' }
+        // Parsers drop tabs and line breaks anywhere in a URL; so does this, but the text isn't plain then.
+        val text = trimmed.filterNot { it == '\t' || it == '\n' || it == '\r' }
+        if (text.isEmpty()) return null
+        var scheme: String? = null
+        var rest = text
+        SCHEME.matchEntire(text)?.let { m ->
+            val name = m.groupValues[1].lowercase()
+            val after = m.groupValues[2]
+            when {
+                name in SPECIAL_SCHEMES -> {
+                    scheme = name
+                    if (!after.startsWith("//") || after.startsWith("///")) plain = false
+                    rest = after.dropWhile { it == '/' || it == '\\' }
+                }
+                after.startsWith("//") -> { scheme = name; rest = after.drop(2) }
+                // "nas:11434" and "localhost:8080" are host:port, not a scheme.
+            }
         }
-        return host.substringBefore('%').trimEnd('.').lowercase().ifEmpty { null }
+        // A backslash ends the authority for http(s); other schemes don't read it as a separator (and it makes the text not plain).
+        val backslashEnds = scheme == null || scheme in SPECIAL_SCHEMES
+        var authority = rest.takeWhile { it != '/' && it != '?' && it != '#' && !(backslashEnds && it == '\\') }
+        if ('@' in authority) {
+            plain = false
+            authority = authority.substringAfterLast('@')
+        }
+        if (authority.isEmpty()) return null
+        var port: Int? = null
+        var host = when {
+            authority.startsWith("[") -> {
+                val after = authority.substringAfter(']', "")
+                if (after.isNotEmpty()) {
+                    port = after.removePrefix(":").takeIf { after.startsWith(":") }?.toIntOrNull()?.takeIf { it in 0..65535 }
+                    if (port == null && after != ":") plain = false
+                }
+                authority.substringAfter('[').substringBefore(']')
+            }
+            authority.count { it == ':' } == 1 -> {
+                val p = authority.substringAfter(':')
+                if (p.isNotEmpty()) {
+                    port = p.takeIf { it.length <= 5 && it.all(Char::isDigit) }?.toInt()?.takeIf { it in 0..65535 }
+                    if (port == null) plain = false
+                }
+                authority.substringBefore(':')
+            }
+            else -> authority // bare IPv6 or plain host
+        }
+        if ('%' in host && ':' !in host) plain = false
+        host = host.substringBefore('%').trimEnd('.').lowercase()
+        if (host.isEmpty()) return null
+        if (':' in host) mappedIpv4(host)?.let { host = it }
+        else if (host.substringAfterLast('.').all(Char::isDigit) || host.split('.').any { it.startsWith("0x") }) {
+            // A number-looking host: only the canonical dotted quad means the same to every parser.
+            val parts = host.split('.')
+            if (!(parts.size == 4 && parts.all { p -> p.isNotEmpty() && p.length <= 3 && p.all(Char::isDigit) && p.toInt() <= 255 })) plain = false
+        }
+        return Target(scheme, host, port, plain)
+    }
+
+    /** The host part of a URL, `host:port` or bare host, without brackets or an IPv6 zone. */
+    fun hostOf(target: String): String? = parse(target)?.host
+
+    /**
+     * [hostOf], but only for text every parser reads the same way ([Target.plain]); null otherwise. Use it
+     * where the host decides whether something may go ahead unasked: a URL with a backslash or user info
+     * is then "an address the model chose", which asks.
+     */
+    fun plainHostOf(target: String): String? = parse(target)?.takeIf { it.plain }?.host
+
+    /** The IPv4 address of an IPv4-mapped IPv6 address (`::ffff:7f00:1`, `::ffff:127.0.0.1`), or null. */
+    private fun mappedIpv4(h: String): String? {
+        val g = ipv6(h) ?: return null
+        if (!(g.take(5).all { it == 0 } && g[5] == 0xffff)) return null
+        return "${g[6] shr 8}.${g[6] and 0xff}.${g[7] shr 8}.${g[7] and 0xff}"
     }
 
     /**
@@ -70,6 +152,8 @@ object LocalNetwork {
         return isLoopbackName(h) || h == "::1" || ipv4(h)?.get(0) == 127
     }
 
+    private val SCHEME = Regex("([A-Za-z][A-Za-z0-9+.-]*):(.*)", RegexOption.DOT_MATCHES_ALL)
+    private val SPECIAL_SCHEMES = setOf("http", "https", "ws", "wss", "ftp")
     private val LOCAL_SUFFIXES = listOf(".local", ".home.arpa", ".lan")
     private val HOST_NAME = Regex("[a-z0-9_-]+(\\.[a-z0-9_-]+)*")
 

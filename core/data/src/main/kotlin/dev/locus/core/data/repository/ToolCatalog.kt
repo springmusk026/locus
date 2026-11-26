@@ -144,11 +144,11 @@ class ToolCatalog @Inject constructor(
         }
 
         /**
-         * fetch_url's reach: local addresses only for hosts the user set up themselves (model providers,
+         * fetch_url's reach: local addresses only for the origins (host and port) the user set up themselves (model providers,
          * MCP servers and connectors), read fresh for every call.
          */
         internal fun fetchNetwork(settings: SettingsRepository, home: AgentHome, http: HttpClient? = null): dev.locus.core.agent.tools.FetchNetwork {
-            val allowed: suspend () -> Set<String> = { configuredHosts(settings.current(), home) }
+            val allowed: suspend () -> Set<String> = { configuredOrigins(settings.current(), home) }
             // The app's client is OkHttp: fetch_url gets its own from it, with the DNS check pinned to the connection.
             val okHttp = (http?.engine?.config as? io.ktor.client.engine.okhttp.OkHttpConfig)?.preconfigured
             return dev.locus.core.agent.tools.FetchNetwork(
@@ -156,6 +156,12 @@ class ToolCatalog @Inject constructor(
                 client = okHttp?.let { dev.locus.core.data.network.FetchDns.client(it, allowed) },
             )
         }
+
+        /** The origins (scheme, host, port) of those addresses: all that fetch_url may reach on a local host. */
+        private fun configuredOrigins(settings: AppSettings, home: AgentHome): Set<String> =
+            (settings.providers.map { it.baseUrl } + home.connectors().map { it.baseUrl })
+                .mapNotNull(dev.locus.core.agent.tools.FetchGuard::originOf)
+                .toSet()
 
         private fun configuredHosts(settings: AppSettings, home: AgentHome): Set<String> =
             (settings.providers.map { it.baseUrl } + home.connectors().map { it.baseUrl })

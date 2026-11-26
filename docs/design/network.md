@@ -115,7 +115,7 @@ signed by a test CA; fixtures made with keytool in `src/test/resources/network`)
 
 ## fetch_url and DNS rebinding
 
-`fetch_url` refuses private, loopback, link-local and other non-public addresses unless the host is one the user set up in Locus: a model provider or MCP server (`FetchGuard.refusal`). That check resolves the name itself, and the HTTP client used to resolve it again when connecting. A server controlling its DNS could answer with a public address for the check and with `127.0.0.1` or `192.168.1.1` for the connection (DNS rebinding).
+`fetch_url` refuses private, loopback, link-local and other non-public addresses unless the address is an origin (scheme, host and port) the user set up in Locus: a model provider or connector base URL (`FetchGuard.refusal`). Other ports of that host stay refused. That check resolves the name itself, and the HTTP client used to resolve it again when connecting. A server controlling its DNS could answer with a public address for the check and with `127.0.0.1` or `192.168.1.1` for the connection (DNS rebinding).
 
 The check is now pinned to the connection:
 

@@ -96,7 +96,9 @@ object WorkflowRender {
             if (p.required) throw WorkflowInputException(p.name, "${p.title} is required.")
             return@associate p.name to ""
         }
-        RESERVED_TAGS.firstOrNull { raw.contains(it, ignoreCase = true) }?.let {
+        // Folded first: fullwidth ＜locus_mode＞ reads as the real tag to a model.
+        val folded = java.text.Normalizer.normalize(raw, java.text.Normalizer.Form.NFKC)
+        RESERVED_TAGS.firstOrNull { folded.contains(it, ignoreCase = true) }?.let {
             throw WorkflowInputException(p.name, "${p.title} can't contain “$it”.")
         }
         val problem = when (p.type) {

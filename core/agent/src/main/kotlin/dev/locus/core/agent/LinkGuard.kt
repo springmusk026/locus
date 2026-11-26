@@ -39,7 +39,8 @@ object LinkGuard {
     fun check(url: String, outsideContent: Boolean, namedHosts: Set<String>): Confirm? {
         val scheme = url.substringBefore(':', "").lowercase()
         val host = when (scheme) {
-            "http", "https" -> LocalNetwork.hostOf(url)
+            // A link whose parsers disagree (a backslash, user info) has no host to trust: it asks.
+            "http", "https" -> LocalNetwork.plainHostOf(url)
             // mailto:someone@host: the domain the mail goes to.
             "mailto" -> url.substringAfter(':').substringBefore('?').substringAfterLast('@').takeIf { '.' in it }
             else -> null

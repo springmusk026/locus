@@ -125,10 +125,11 @@ object Taint {
      */
     fun hostsIn(userMessages: List<String>): Set<String> = buildSet {
         userMessages.forEach { text ->
-            URL.findAll(text).forEach { m -> LocalNetwork.hostOf(m.value)?.let { add(normal(it)) } }
+            URL.findAll(text).forEach { m -> LocalNetwork.plainHostOf(m.value)?.let(::normal)?.takeUnless(PublicSuffixes::isPublicSuffix)?.let(::add) }
             DOMAIN.findAll(text.lowercase()).forEach { m ->
                 val host = m.value.trimEnd('.')
-                if (host.substringAfterLast('.') !in FILE_EXTENSIONS) add(normal(host))
+                // A shared hosting domain ("github.io") isn't one site: naming it would trust everyone's subdomain.
+                if (host.substringAfterLast('.') !in FILE_EXTENSIONS) normal(host).takeUnless(PublicSuffixes::isPublicSuffix)?.let(::add)
             }
         }
     }
@@ -145,7 +146,7 @@ object Taint {
         if (name in PERSISTENT) return "$prefix This would keep something for later chats."
         val observation = tool.isObservation(args)
         if (name in URL_OBSERVATIONS && observation) {
-            val host = args.str("url")?.let(LocalNetwork::hostOf)?.let(::normal) ?: return "$prefix This opens an address it chose."
+            val host = args.str("url")?.let(LocalNetwork::plainHostOf)?.let(::normal) ?: return "$prefix This opens an address it chose."
             if (trusted(host, trustedHosts)) return null
             return "$prefix This opens $host, which you haven't named; the address itself can carry data out."
         }
@@ -241,7 +242,7 @@ object Taint {
     /** The host a URL observation opens, normalised, or null when [tool] isn't one or has no host. */
     suspend fun urlHost(tool: Tool, args: JsonObject): String? {
         if (tool.spec.name !in URL_OBSERVATIONS || !tool.isObservation(args)) return null
-        return args.str("url")?.let(LocalNetwork::hostOf)?.let(::normal)
+        return args.str("url")?.let(LocalNetwork::plainHostOf)?.let(::normal)
     }
 
     /**
@@ -267,7 +268,7 @@ object Taint {
         val from = privateReads.sorted().let { s -> s.take(3).joinToString() + if (s.size > 3) " and ${s.size - 3} more" else "" }
         val prefix = "This task has read your private data (with $from)."
         val url = args.str("url")?.trim().orEmpty()
-        val host = LocalNetwork.hostOf(url)?.let(::normal) ?: return "$prefix This opens an address it chose."
+        val host = LocalNetwork.plainHostOf(url)?.let(::normal) ?: return "$prefix This opens an address it chose."
         if (trusted(host, trustedHosts) || safeDestination(host, url) || host in reached) return null
         if (!carriesData(url)) return null
         return "$prefix This opens $host, which you haven't named, and the address itself could carry that data out."
@@ -288,11 +289,15 @@ object Taint {
         return SAFE_DESTINATIONS.any { (h, prefixes) -> (host == h || host.endsWith(".$h")) && prefixes.any { path.startsWith(it) } }
     }
 
-    /** [host] is one of [trustedHosts] or a subdomain of one; the phone's own loopback always is. */
+    /**
+     * [host] is one of [trustedHosts] or a subdomain of one; the phone's own loopback always is. A trusted
+     * host that is a public suffix ("github.io", "co.uk": [PublicSuffixes]) covers only itself, never the
+     * sites others run under it.
+     */
     fun trusted(host: String, trustedHosts: Set<String>): Boolean {
         val h = normal(host)
         if (h == "localhost" || h.endsWith(".localhost") || h == "127.0.0.1" || h == "::1") return true
-        return trustedHosts.any { t -> h == t || h.endsWith(".$t") }
+        return trustedHosts.any { t -> h == t || (h.endsWith(".$t") && !PublicSuffixes.isPublicSuffix(t)) }
     }
 
     private fun normal(host: String) = host.lowercase().trimEnd('.').removePrefix("www.")
