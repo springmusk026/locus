@@ -16,7 +16,10 @@ package dev.locus.core.agent
  *   `tar -I`, `zip -TT`, `find -exec`, `rg --pre`, `go test -exec`), are never remembered or matched,
  *   in any spelling GNU tools and git accept: `--opt=value`, `--opt value`, an abbreviation
  *   (`--open-files`), or a letter inside a short-option bundle (`-nO`).
- * - No argument may point outside the workspace: no absolute path, `~` or `..`.
+ * - No argument may point outside the workspace: no absolute path, `~` or `..`, also as a value
+ *   written straight after `=` or a short option's letter (`-t/usr/bin`, `-C..`).
+ * - No remembered rule names git's or Locus's own folder (`.git`, `.locus`): writing there runs code
+ *   ([protectedReason]).
  *
  * Matching is strict ([matches]): the words after a rule's own words may only be plain path or word
  * tokens (no quotes, `=`, globs or shell syntax), and options there are accepted only for tools whose
@@ -193,7 +196,12 @@ object CommandSafety {
             return "“${args.first()}” can make $name run another program"
         }
         val sub = args.firstOrNull { !it.startsWith("-") }
-        NEVER_SUBCOMMANDS[name]?.let { banned -> if (sub != null && sub in banned) return "$name $sub is never remembered" }
+        NEVER_SUBCOMMANDS[name]?.let { banned ->
+            if (sub != null && sub in banned) return "$name $sub is never remembered"
+            // `git -C . push`: an option before the subcommand may take the next word as its value, so the
+            // subcommand can't be told. Only for tools with subcommands that are never remembered.
+            if (sub != null && banned.isNotEmpty() && optionBefore(args, sub)) return "an option before $name's subcommand hides which one it runs"
+        }
         if (name in INTERPRETERS && (args.isEmpty() || args.first().startsWith("-"))) return "$name runs inline code or anything it is given"
         return null
     }
@@ -222,9 +230,46 @@ object CommandSafety {
 
     private fun isShortFlagWith(arg: String, c: Char) = arg.length > 1 && arg[0] == '-' && arg[1] != '-' && c in arg.substring(1)
 
-    private fun outside(word: String): Boolean =
+    /** Whether an option comes before [sub], the first non-option word of [args]. */
+    private fun optionBefore(args: List<String>, sub: String) = args.takeWhile { it != sub }.any { it.startsWith("-") }
+
+    /**
+     * Whether [word] points outside the workspace, also through a value written straight after `=`
+     * (`--dir=..`) or after a short option's letter (`-t/usr/local/bin`, `-C..`). A short option
+     * longer than its letter with `/`, `~` or `..` in it is refused outright, since a bundle (`-xvf/x`)
+     * can hide where its value starts. A false "dangerous" only means one more card.
+     */
+    private fun outside(word: String): Boolean {
+        if (pathOutside(word)) return true
+        if ('=' in word && pathOutside(word.substringAfter('='))) return true
+        return word.length > 2 && word[0] == '-' && word[1] != '-' && ('/' in word || '~' in word || ".." in word)
+    }
+
+    private fun pathOutside(word: String): Boolean =
         word.startsWith("/") || word.startsWith("~") || word == ".." || word.startsWith("../") || word.contains("/../") ||
             word.endsWith("/..") || word.contains("=/") || word.contains("=~") || word.contains(":/") && !word.contains("://")
+
+    /** Git's and Locus's own folders: hooks and config there run code, and Locus keeps its state there. */
+    private val PROTECTED_SEGMENTS = setOf(".git", ".locus")
+
+    /**
+     * Why [command] may not be remembered or matched because a word names a path in `.git` or `.locus`
+     * (`cp x .git/hooks/pre-commit`, `tar xzf a.tgz -C .git/hooks`, `unzip a.zip -d.git`), or null. The
+     * file tools never write there and folder rules never cover them; a command rule mustn't either. The
+     * value after `=` or a short option's letter counts too. Unlike [dangerReason] this doesn't make the
+     * command's output count as fetched: reading `.git` is fine, it just always asks.
+     */
+    fun protectedReason(command: String): String? {
+        val words = words(command.trim()) ?: return null
+        return words.drop(1).firstOrNull { word ->
+            val values = listOfNotNull(
+                word,
+                word.substringAfter('=').takeIf { '=' in word },
+                word.drop(2).takeIf { word.length > 2 && word[0] == '-' && word[1] != '-' },
+            )
+            values.any { v -> v.split('/').any { it.lowercase() in PROTECTED_SEGMENTS } }
+        }?.let { "“$it” is in git's or Locus's own folder (.git, .locus), where writing can run code" }
+    }
 
     /**
      * The prefix to offer for "Always allow" for [command]: its first words while they are plain
@@ -232,7 +277,7 @@ object CommandSafety {
      * dangerous, or the prefix would be only an interpreter (`python3` alone allows any script).
      */
     fun rememberablePrefix(command: String): String? {
-        if (dangerReason(command) != null) return null
+        if (dangerReason(command) != null || protectedReason(command) != null) return null
         val words = words(command.trim()) ?: return null
         val prefix = words.takeWhile { PLAIN.matches(it) }.take(MAX_PREFIX_WORDS)
         if (prefix.isEmpty()) return null
@@ -250,10 +295,11 @@ object CommandSafety {
      * - each word after them must be a plain path or word token ([EXTRA]): no `=` option values, no
      *   globs (`*` can expand to a file named `--checkpoint-action=exec=…`), nothing the shell reads;
      * - an option there is accepted only for a tool in [OPTIONS_VETTED];
-     * - and no word there may name a never-remembered program (a shell, a wrapper like `env` or `xargs`).
+     * - and no word there may name a never-remembered program (a shell, a wrapper like `env` or `xargs`);
+     * - and no word anywhere may name a path in `.git` or `.locus` ([protectedReason]).
      */
     fun matches(prefix: String, command: String): Boolean {
-        if (dangerReason(command) != null) return false
+        if (dangerReason(command) != null || protectedReason(command) != null) return false
         val trimmed = command.trim()
         if ('\'' in trimmed || '"' in trimmed) return false
         val want = words(prefix.trim()) ?: return false
@@ -303,8 +349,12 @@ object CommandSafety {
         if (words.any { "://" in it }) return true
         val name = words.first().substringAfterLast('/')
         if (name in FETCHING) return true
-        val sub = words.drop(1).firstOrNull { !it.startsWith("-") } ?: return false
-        return FETCHING_SUBCOMMANDS[name]?.contains(sub) == true
+        val fetching = FETCHING_SUBCOMMANDS[name] ?: return false
+        val args = words.drop(1)
+        val sub = args.firstOrNull { !it.startsWith("-") } ?: return false
+        // `git -C . fetch`, `go -C sub get`: an option before the subcommand may take the next word as its
+        // value, so which word is the subcommand can't be told. Count it as fetching.
+        return sub in fetching || optionBefore(args, sub)
     }
 
     /** A word the prefix may hold: letters, digits and `._/:+@=,-`, not starting with `-`. */
