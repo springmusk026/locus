@@ -28,9 +28,17 @@ class GgufTransfer(private val http: ModelHttp) {
 
     /**
      * Downloads [target] into [part], from where [part] ends. [freeBytes] is the space left on the
-     * volume; [onProgress] gets (bytes on disk, total when known). Returns the file's SHA-256.
+     * volume; [onProgress] gets (bytes on disk, total when known); [onVerifying] is called once every
+     * byte is on disk, before the SHA-256 pass (which takes tens of seconds for a large model and
+     * stops as soon as the caller is cancelled). Returns the file's SHA-256.
      */
-    suspend fun download(target: Target, part: File, freeBytes: () -> Long, onProgress: suspend (Long, Long?) -> Unit): String {
+    suspend fun download(
+        target: Target,
+        part: File,
+        freeBytes: () -> Long,
+        onVerifying: suspend () -> Unit = {},
+        onProgress: suspend (Long, Long?) -> Unit,
+    ): String {
         val path = part.toPath()
         if (Files.isSymbolicLink(path)) Files.delete(path) // never a link at our own name: start over
         var have = if (Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) Files.size(path) else 0L
@@ -46,7 +54,9 @@ class GgufTransfer(private val http: ModelHttp) {
         if (expected != null && size != expected) {
             throw DownloadException("The download stopped early (${mb(size)} of ${mb(expected)} MB). Resume to carry on.")
         }
-        val actual = sha256(part)
+        onVerifying()
+        val context = coroutineContext
+        val actual = withContext(Dispatchers.IO) { sha256(part) { context.ensureActive() } }
         if (target.sha256 != null && !actual.equals(target.sha256, ignoreCase = true)) {
             Files.deleteIfExists(path)
             throw DownloadException(
@@ -76,6 +86,14 @@ class GgufTransfer(private val http: ModelHttp) {
                     total = r.header("Content-Length")?.toLongOrNull()
                 }
                 416 -> {
+                    // Asked for bytes past the end. When the server's size is what's already on
+                    // disk (the app died while hashing a finished file), the file is complete: keep it.
+                    if (start > 0 && unsatisfiedTotal(r.header("Content-Range")) == start &&
+                        (target.sizeBytes == null || target.sizeBytes == start)
+                    ) {
+                        onProgress(start, start)
+                        return@withContext
+                    }
                     Files.deleteIfExists(part.toPath())
                     throw DownloadException("The server couldn't resume this download. Try again to start over.")
                 }
@@ -127,6 +145,10 @@ class GgufTransfer(private val http: ModelHttp) {
                 out.force(false)
                 onProgress(have, limit)
             }
+            // A body that ends before the size the server announced is a broken connection, not a file.
+            if (limit != null && have != limit) {
+                throw DownloadException("The download stopped early (${mb(have)} of ${mb(limit)} MB). Resume to carry on.")
+            }
         } }
     }
 
@@ -169,11 +191,18 @@ class GgufTransfer(private val http: ModelHttp) {
             return m.groupValues[1].toLong() to m.groupValues[3].toLongOrNull()
         }
 
-        fun sha256(file: File): String {
+        /** The size in a 416's Content-Range (`bytes`, a star, a slash, the size); null when absent or another form. */
+        fun unsatisfiedTotal(header: String?): Long? =
+            Regex("""^\s*bytes\s+\*/(\d+)\s*$""").find(header ?: return null)?.groupValues?.get(1)?.toLongOrNull()
+
+        /** The file's SHA-256; [check] runs before every 1 MiB read and may throw to stop early. */
+        fun sha256(file: File, check: () -> Unit = {}): String {
             val digest = MessageDigest.getInstance("SHA-256")
             FileChannel.open(file.toPath(), StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS).use { ch ->
                 val buf = ByteBuffer.allocate(1 shl 20)
-                while (ch.read(buf) >= 0) {
+                while (true) {
+                    check()
+                    if (ch.read(buf) < 0) break
                     buf.flip()
                     digest.update(buf)
                     buf.clear()
