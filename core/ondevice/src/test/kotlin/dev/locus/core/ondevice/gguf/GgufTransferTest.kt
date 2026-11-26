@@ -1,5 +1,7 @@
 package dev.locus.core.ondevice.gguf
 
+import kotlinx.coroutines.job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
@@ -163,11 +165,69 @@ class GgufTransferTest {
         assertEquals(sha, transfer { serve(it) }.download(GgufTransfer.Target("https://files.example/m.gguf", null, null), part(), plenty) { _, _ -> })
     }
 
+    private val unverified = GgufTransfer.Target("https://files.example/m.gguf", null, null)
+
+    @Test
+    fun aCompleteFileAnswered416IsKeptAndHashed() = runTest {
+        // The app died while hashing a finished unverified download; Resume asks for bytes past the end.
+        val part = part().apply { writeBytes(content) }
+        val got = transfer { FakeResponse(416, headers = mapOf("Content-Range" to "bytes */${content.size}")) }
+            .download(unverified, part, plenty) { _, _ -> }
+        assertEquals(sha, got)
+        assertEquals("bytes=${content.size}-", requests.single().headers["Range"])
+        assertTrue(content.contentEquals(part.readBytes()), "the finished file is kept, not deleted")
+    }
+
+    @Test
+    fun a416ForAnotherSizeStillStartsOver() = runTest {
+        val part = part().apply { writeBytes(content.copyOfRange(0, 1000)) }
+        assertFailsWith<DownloadException> {
+            transfer { FakeResponse(416, headers = mapOf("Content-Range" to "bytes */${content.size}")) }.download(unverified, part, plenty) { _, _ -> }
+        }
+        assertFalse(part.exists())
+    }
+
+    @Test
+    fun pausingWhileVerifyingStopsTheChecksum() = runTest {
+        val part = part()
+        var finished = false
+        val job = launch {
+            // Pause pressed as the hash starts (the worker's coroutine is cancelled).
+            transfer { serve(it) }.download(target, part, plenty, onVerifying = { coroutineContext.job.cancel() }) { _, _ -> }
+            finished = true
+        }
+        job.join()
+        assertTrue(job.isCancelled)
+        assertFalse(finished, "a paused download never returns a checksum to install")
+        assertTrue(content.contentEquals(part.readBytes()), "the downloaded file is kept for Resume")
+    }
+
+    @Test
+    fun verifyingIsReportedBeforeTheChecksum() = runTest {
+        val events = mutableListOf<String>()
+        transfer { serve(it) }.download(target, part(), plenty, onVerifying = { events += "verifying" }) { b, _ -> events += "$b" }
+        assertEquals("verifying", events.last())
+        assertEquals("${content.size}", events[events.size - 2])
+    }
+
+    @Test
+    fun aBodyShorterThanItsLengthIsNotAccepted() = runTest {
+        val part = part()
+        val e = assertFailsWith<DownloadException> {
+            transfer { FakeResponse(200, content.copyOfRange(0, 1000), mapOf("Content-Length" to "${content.size}")) }.download(unverified, part, plenty) { _, _ -> }
+        }
+        assertTrue("stopped early" in e.message.orEmpty(), e.message)
+        assertTrue(e.retryable)
+        assertEquals(1000, part.length(), "what arrived is kept for Resume")
+    }
+
     @Test
     fun parsesContentRange() {
         assertEquals(100L to 1000L, GgufTransfer.parseContentRange("bytes 100-999/1000"))
         assertEquals(5L to null, GgufTransfer.parseContentRange("bytes 5-9/*"))
         assertEquals(null, GgufTransfer.parseContentRange("garbage"))
+        assertEquals(1000L, GgufTransfer.unsatisfiedTotal("bytes */1000"))
+        assertEquals(null, GgufTransfer.unsatisfiedTotal("bytes 0-9/1000"))
     }
 
     @Test

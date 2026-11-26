@@ -46,6 +46,7 @@ static void __android_log_write(int prio, const char * tag, const char * text) {
 #include "json.h"
 #include "llama.h"
 #include "sampling.h"
+#include "stop_strings.h"
 
 #define TAG "LocusLlama"
 
@@ -146,23 +147,6 @@ std::string from_jstring(JNIEnv * env, jstring s) {
     std::string out(chars != nullptr ? chars : "");
     if (chars != nullptr) env->ReleaseStringUTFChars(s, chars);
     return out;
-}
-
-// Length of the longest prefix of s that ends on a complete UTF-8 sequence. A token can end in the
-// middle of a multi-byte character; the rest comes with the next token.
-size_t complete_utf8_prefix(const std::string & s) {
-    const size_t n = s.size();
-    // Look back at most 3 bytes for the lead byte of an unfinished sequence.
-    for (size_t back = 1; back <= 4 && back <= n; ++back) {
-        const unsigned char c = static_cast<unsigned char>(s[n - back]);
-        if ((c & 0xC0) == 0x80) continue; // continuation byte
-        size_t need = 1;
-        if ((c & 0xE0) == 0xC0) need = 2;
-        else if ((c & 0xF0) == 0xE0) need = 3;
-        else if ((c & 0xF8) == 0xF0) need = 4;
-        return back >= need ? n : n - back;
-    }
-    return n;
 }
 
 struct Session {
@@ -521,11 +505,16 @@ jbyteArray generate(JNIEnv * env, Session * s, jbyteArray jrequest, jint max_tok
     const double prefill_ms = now_ms() - t_prefill;
 
     Streamer streamer;
-    common_chat_input pending;     // pieces not yet fed: they end inside a UTF-8 character
-    std::string generated;         // everything fed so far, to look for the template's stop strings
+    // Pieces not yet fed: they end inside a UTF-8 character or could be the start of a stop string
+    // (stop_strings.h). pending_pieces/pending_ids are the same tokens, to split pending between them.
+    common_chat_input pending;
+    std::vector<std::string> pending_pieces;
+    std::vector<llama_token> pending_ids;
+    std::string generated;         // everything fed so far
     int n_generated = 0;
     std::string parse_error;
-    const auto & stops = chat->additional_stops();
+    const auto & template_stops = chat->additional_stops();
+    const std::vector<std::string> stops(template_stops.begin(), template_stops.end());
     const double t_decode = now_ms();
 
     auto feed = [&](const common_chat_input & chunk) -> bool {
@@ -553,29 +542,41 @@ jbyteArray generate(JNIEnv * env, Session * s, jbyteArray jrequest, jint max_tok
             // Control tokens are only rendered when the template's parser needs them (<tool_call> in
             // models where it's a special token), as llama-server does.
             const bool special = sp.preserved_tokens.count(id) > 0;
-            pending.append(common_token_to_piece(s->ctx, id, special), id);
+            const std::string piece = common_token_to_piece(s->ctx, id, special);
+            pending.append(piece, id);
+            pending_pieces.push_back(piece);
+            pending_ids.push_back(id);
 
-            bool stopped_by_string = false;
-            const size_t complete = complete_utf8_prefix(pending.text);
-            if (complete == pending.size()) {
-                common_chat_input chunk = pending;
+            // Everything fed before pending was checked not to start a stop string, so only the
+            // held text is searched: it is never longer than the longest stop string plus a token.
+            const locus::HoldDecision hold = locus::decide(pending_pieces, pending.text, stops);
+            if (hold.stop_at != std::string::npos) {
                 // A template stop string ends the turn; it isn't part of the reply.
-                const std::string candidate = generated + chunk.text;
-                for (const auto & st : stops) {
-                    if (st.empty()) continue;
-                    const size_t at = candidate.find(st, generated.size() > st.size() ? generated.size() - st.size() : 0);
-                    if (at != std::string::npos) {
-                        const size_t keep = at > generated.size() ? at - generated.size() : 0;
-                        chunk.truncate(keep);
-                        stopped_by_string = true;
-                        break;
+                common_chat_input chunk = pending;
+                chunk.truncate(hold.stop_at);
+                pending = common_chat_input();
+                pending_pieces.clear();
+                pending_ids.clear();
+                generated += chunk.text;
+                if (!chunk.empty() && !feed(chunk)) stop = "cancelled";
+                break;
+            }
+            if (hold.release > 0) {
+                common_chat_input chunk;
+                common_chat_input rest;
+                if (hold.release == pending_pieces.size()) {
+                    chunk = pending;
+                } else {
+                    for (size_t i = 0; i < pending_pieces.size(); ++i) {
+                        (i < hold.release ? chunk : rest).append(pending_pieces[i], pending_ids[i]);
                     }
                 }
-                pending = common_chat_input();
+                pending = rest;
+                pending_pieces.erase(pending_pieces.begin(), pending_pieces.begin() + static_cast<long>(hold.release));
+                pending_ids.erase(pending_ids.begin(), pending_ids.begin() + static_cast<long>(hold.release));
                 generated += chunk.text;
-                if (!chunk.empty() && !feed(chunk)) { stop = "cancelled"; break; }
+                if (!feed(chunk)) { stop = "cancelled"; break; }
             }
-            if (stopped_by_string) break;
 
             llama_token next = id;
             const int rc = llama_decode(s->ctx, llama_batch_get_one(&next, 1));

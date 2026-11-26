@@ -147,6 +147,13 @@ The bridge streams the parsed content and reasoning as they grow. Each tool call
 once the call is known. Special tokens are rendered only when the parser needs them (the preserved
 tokens), as llama-server does.
 
+A template's extra stop strings (`<|im_end|>`, `<end_of_turn>`) can arrive over several tokens. The
+bridge holds back the tokens whose text could be the start of one, and only feeds the parser once
+the next tokens show they aren't, so no fragment (`<|im_`) is ever streamed or kept. Only the held
+text, never longer than the longest stop string plus a token, is searched, so a token costs the same
+however long the reply is (`stop_strings.h`; `core/ondevice/src/test/cpp/stop_strings_test.cpp` runs
+with any C++17 compiler, outside Gradle).
+
 ### Which models get tools
 
 At import, `GgufTemplate.supportsTools` checks whether the template's Jinja code reads a tools
@@ -351,6 +358,11 @@ downloads' "Model downloads" notification channel, so it carries on in the backg
 - shows progress, speed and time left in Settings and the notification;
 - pauses (the job is cancelled, the `.part` file kept), resumes with `Range: bytes=N-` (a `200` starts
   over; a `206` at another offset is never spliced in), and cancels (the `.part` file is deleted);
+- keeps a finished file of unknown size whose resume gets `416` with `Content-Range: bytes */N` equal
+  to the file's length (Locus was stopped while checking it), and goes straight to the check; a body
+  that ends before the length the server announced is a broken download, resumed, never installed;
+- shows "Checking" from the moment the last byte is on disk, and stops the SHA-256 pass as soon as the
+  download is paused (nothing is installed after a pause);
 - waits for an unmetered network unless Settings → Battery & heat allows mobile data, with "Use
   mobile data" on a waiting download, as for LiteRT-LM;
 - writes `files/gguf-downloads/<id>.part` opened with `O_NOFOLLOW`, and a new one with `O_CREAT|O_EXCL`

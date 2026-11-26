@@ -15,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,6 +34,7 @@ import java.io.File
 import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.coroutineContext
 
 /** Where a GGUF download is. */
 sealed interface GgufDownloadState {
@@ -239,12 +241,13 @@ class GgufDownloads @Inject constructor(
                 GgufTransfer.Target(d.offer.url, d.offer.sizeBytes, d.offer.sha256),
                 part,
                 freeBytes = { dir.usableSpace },
+                onVerifying = { setState(id) { GgufDownloadState.Verifying } },
             ) { bytes, total ->
                 val running = rate.sample(System.nanoTime(), bytes, total)
                 setState(id) { running }
                 onProgress(running)
             }
-            setState(id) { GgufDownloadState.Verifying }
+            coroutineContext.ensureActive() // paused while the checksum ran: keep the file, don't install
             val already = models.withSha(sha) != null // an unverified URL can turn out to be a file already here
             val model = try {
                 models.adopt(part, d.offer.fileName, d.offer.source, sha, verified = d.offer.sha256 != null)

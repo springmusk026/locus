@@ -10,8 +10,6 @@ import android.os.Process
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.async
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.coroutineScope
@@ -23,7 +21,6 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
-import java.io.InputStream
 import java.net.URL
 import java.security.MessageDigest
 import java.util.zip.GZIPInputStream
@@ -315,27 +312,20 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
                 process.outputStream.close()
                 val output = BoundedBuffer(maxChars)
                 coroutineScope {
-                    val reader = async(Dispatchers.IO) { spool?.let { pumpAndKeep(process.inputStream, output, it) } ?: pump(process.inputStream, output) }
-                    val exited = try {
-                        withTimeoutOrNull(timeoutMs) {
-                            while (process.isAliveCompat()) kotlinx.coroutines.delay(100)
-                            true
-                        } ?: false
-                    } catch (e: CancellationException) {
-                        // Cancelled (the user cancelled a package install, say): stop the process rather
-                        // than leave it running, which also ends the reader this scope waits for.
-                        withContext(NonCancellable) { stop(process) }
-                        throw e
+                    val ended = CommandOutput.awaitEnd(process, timeoutMs, OUTPUT_GRACE_MS, stop = { stop(it) }) { input ->
+                        spool?.let { CommandOutput.pumpAndKeep(input, output, it, MAX_SAVED_BYTES) } ?: CommandOutput.pump(input, output)
                     }
-                    if (!exited) stop(process)
-                    val capped = reader.await() == true
+                    val exited = ended.exited
+                    val read = ended.read
+                    val capped = read == true
                     val code = if (exited) process.exitValue() else null
                     val result = CommandResult(
                         code, redactor.scrub(output.text()), timedOut = !exited, truncated = output.truncated,
                         killedByAndroid = AndroidKill.applies(code, inBackground()),
                     )
                     if (result.killedByAndroid) noteAndroidKill("A command", AndroidKillNotice.Kind.Command)
-                    if (spool == null || saveFullOutputTo == null || !output.truncated) return@coroutineScope result
+                    // A reader still going may not have written all it read; the full output isn't saved then.
+                    if (spool == null || saveFullOutputTo == null || !output.truncated || read == null) return@coroutineScope result
                     // The output folder is in /workspace, where Linux can leave a link at the name; replace, never write through.
                     // A folder on the way that Linux made a link is refused; the result is then just not saved.
                     try {
@@ -543,15 +533,7 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
         (services[name]?.log ?: File(base, "logs/$name.log").takeIf { records.all().any { it.name == name } })
             ?.takeIf { it.exists() }?.let { tail(it, maxChars) }?.let(redactor::scrub)
 
-    /** About the last [maxChars] characters of [file], read from its end so a large log isn't loaded whole. */
-    private fun tail(file: File, maxChars: Int): String = java.io.RandomAccessFile(file, "r").use { raf ->
-        val length = raf.length()
-        val start = (length - maxChars.toLong() * 2).coerceAtLeast(0)
-        val bytes = ByteArray((length - start).toInt())
-        raf.seek(start)
-        raf.readFully(bytes)
-        String(bytes, Charsets.UTF_8).takeLast(maxChars)
-    }
+    private fun tail(file: File, maxChars: Int): String = CommandOutput.tail(file, maxChars)
 
     /** Stops a service, or forgets one a restart already ended. False if there's no such service. */
     suspend fun stopService(name: String): Boolean {
@@ -756,7 +738,13 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
             process.destroyForcibly()
             return
         }
-        pidOf(process)?.let { Process.sendSignal(it, 3) }
+        val pid = ProcessIds.of(process)
+        if (pid != null) {
+            Process.sendSignal(pid, 3)
+        } else {
+            // Without SIGQUIT proot can't end what it traces; the SIGKILL below may leave programs running.
+            android.util.Log.w("Locus/Linux", "No pid for a Linux process; stopping it without SIGQUIT")
+        }
         withTimeoutOrNull(2_000) { while (process.isAliveCompat()) kotlinx.coroutines.delay(100) }
         process.destroyForcibly()
     }
@@ -844,74 +832,7 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
         }
     }
 
-    private fun pump(input: InputStream, into: BoundedBuffer) {
-        val buf = ByteArray(8 * 1024)
-        input.use {
-            while (true) {
-                val n = it.read(buf)
-                if (n < 0) break
-                into.append(String(buf, 0, n, Charsets.UTF_8))
-            }
-        }
-    }
-
-    /** [pump], also keeping the raw bytes in [keep] up to [MAX_SAVED_BYTES]. True when that cap cut it short. */
-    private fun pumpAndKeep(input: InputStream, into: BoundedBuffer, keep: File): Boolean {
-        val buf = ByteArray(8 * 1024)
-        var kept = 0L
-        var capped = false
-        keep.outputStream().buffered().use { out ->
-            input.use {
-                while (true) {
-                    val n = it.read(buf)
-                    if (n < 0) break
-                    into.append(String(buf, 0, n, Charsets.UTF_8))
-                    if (kept + n <= MAX_SAVED_BYTES) {
-                        out.write(buf, 0, n)
-                        kept += n
-                    } else {
-                        capped = true
-                    }
-                }
-            }
-        }
-        return capped
-    }
-
-    private fun java.lang.Process.isAliveCompat(): Boolean = runCatching { exitValue(); false }.getOrDefault(true)
-
-    private fun pidOf(process: java.lang.Process): Int? =
-        runCatching { process.javaClass.getDeclaredField("pid").apply { isAccessible = true }.getInt(process) }.getOrNull()
-
-    /** Keeps the first and last parts of long output, which is where errors and results usually are. */
-    private class BoundedBuffer(private val max: Int) {
-        private val head = StringBuilder()
-        private val tail = StringBuilder()
-        var truncated = false
-            private set
-
-        @Synchronized
-        fun append(s: String) {
-            if (head.length < max / 2) {
-                val take = minOf(s.length, max / 2 - head.length)
-                head.append(s, 0, take)
-                if (take < s.length) appendTail(s.substring(take))
-            } else {
-                appendTail(s)
-            }
-        }
-
-        private fun appendTail(s: String) {
-            tail.append(s)
-            if (tail.length > max / 2) {
-                truncated = true
-                tail.delete(0, tail.length - max / 2)
-            }
-        }
-
-        @Synchronized
-        fun text(): String = if (truncated) "$head\n…[output truncated]…\n$tail" else "$head$tail"
-    }
+    private fun pidOf(process: java.lang.Process): Int? = ProcessIds.of(process)
 
     private enum class Arch(val url: String, val sha256: String) {
         AARCH64(
@@ -950,6 +871,9 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
 
         /** The most of one command's output [run] saves to a file. */
         const val MAX_SAVED_BYTES = 8L * 1024 * 1024
+
+        /** How long [run] keeps reading output after the command ended or was stopped. */
+        const val OUTPUT_GRACE_MS = 2_000L
         private const val ALPINE_VERSION = "3.24.3"
         private val FAKE_PROC = listOf("stat", "loadavg", "uptime", "vmstat")
     }
