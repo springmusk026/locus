@@ -200,7 +200,7 @@ Approving the same scope again renews it. "This chat" rules don't expire; they e
 
 ### Revoke
 
-Settings → Permissions → Remembered lists every live rule. Each row shows the tool and scope, whether it's for one chat or always, and the days left, with a Revoke button. Rules are read fresh for every call, so a revoke applies to the very next one.
+Settings → Permissions → Remembered lists every live rule. Each row shows the tool and scope, whether it's for one chat or always, and the days left, with a Revoke button. Rules are read fresh for every call, so a revoke applies to the very next one. Revoke is at once, with Undo on the message after it ("Revoked. Locus will ask again."): putting the rule back is exact (same id, scope and expiry), so there's nothing to confirm.
 
 ## Deny with a reason
 

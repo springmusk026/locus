@@ -250,9 +250,14 @@ fun TextArea(
 }
 
 /**
- * A password or app-password field: masked, with a show/hide button, a password keyboard that doesn't
- * learn or correct what's typed, and the autofill hint for a password. Its window is secure while it
- * shows ([SecretContent]).
+ * A field for a secret: a password, an API key, a token, a header value. Masked, with a show/hide
+ * button (to check a paste), a password keyboard that doesn't learn or correct what's typed, and the
+ * autofill hint for a password. Its window is secure while it shows ([SecretContent]). Every masked
+ * field outside the design system is one of these (`DesignGuardTest`, rule `raw-secret-field`).
+ *
+ * [placeholder] shows muted while it's empty ("Leave blank to keep the saved token"). [compact] is for
+ * a field that shares a row with others (an environment variable's name and value): it doesn't fill
+ * the width (the caller's modifier sizes it) and its show/hide button is the small one.
  */
 @Composable
 fun PasswordField(
@@ -263,15 +268,20 @@ fun PasswordField(
     supportingText: String? = null,
     isError: Boolean = false,
     enabled: Boolean = true,
+    placeholder: String? = null,
+    compact: Boolean = false,
     imeAction: ImeAction = ImeAction.Next,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
 ) {
     var shown by rememberSaveable { mutableStateOf(false) }
     SecretContent()
+    val toggle = stringResource(if (shown) R.string.designsystem_password_hide else R.string.designsystem_password_show)
+    val icon = if (shown) LocusIcons.EyeOff else LocusIcons.Eye
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         label = { Text(label) },
+        placeholder = placeholder?.let { { Text(it) } },
         supportingText = supportingText?.let { { Text(it) } },
         isError = isError,
         enabled = enabled,
@@ -280,15 +290,15 @@ fun PasswordField(
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false, imeAction = imeAction),
         keyboardActions = keyboardActions,
         trailingIcon = {
-            IconButton(onClick = { shown = !shown }) {
-                Icon(
-                    if (shown) LocusIcons.EyeOff else LocusIcons.Eye,
-                    contentDescription = stringResource(if (shown) R.string.designsystem_password_hide else R.string.designsystem_password_show),
-                    modifier = Modifier.size(IconSize.medium),
-                )
+            if (compact) {
+                CompactIconButton(icon, contentDescription = toggle, onClick = { shown = !shown }, enabled = enabled)
+            } else {
+                IconButton(onClick = { shown = !shown }, enabled = enabled) {
+                    Icon(icon, contentDescription = toggle, modifier = Modifier.size(IconSize.medium))
+                }
             }
         },
-        modifier = modifier.fillMaxWidth().semantics { contentType = ContentType.Password },
+        modifier = (if (compact) modifier else modifier.fillMaxWidth()).semantics { contentType = ContentType.Password },
     )
 }
 
@@ -311,6 +321,13 @@ internal fun SearchFieldPreview() {
                 PasswordField("", {}, "App password", supportingText = "Leave blank to keep the saved password")
                 PasswordField("abcdefghijklmnop", {}, "App password")
                 PasswordField("x", {}, "App password", supportingText = "Mail server turned it down", isError = true)
+                val keep = "Leave blank to keep the saved token"
+                PasswordField("", {}, "Access token", placeholder = keep)
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
+                    val name = "Name"
+                    OutlinedTextField("GITHUB_TOKEN", {}, label = { Text(name) }, singleLine = true, modifier = Modifier.weight(1f))
+                    PasswordField("ghp_example", {}, "Value", compact = true, modifier = Modifier.weight(1f))
+                }
                 LocusCard { TextArea("", {}, placeholder = "e.g. Reply briefly. Keep notes in notes/.") }
                 LocusCard { TextArea("Title this chat in five words:\n{{chat}}", {}, size = TextAreaSize.Tall, mono = true) }
             }

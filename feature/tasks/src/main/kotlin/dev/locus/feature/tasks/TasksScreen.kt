@@ -26,7 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -73,6 +73,7 @@ import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.StatusLine
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.SwitchRow
+import dev.locus.core.designsystem.TimeSheet
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.UiText
 import dev.locus.core.designsystem.asString
@@ -100,13 +101,37 @@ fun TasksRoute(onBack: () -> Unit, onOpenChat: (String) -> Unit, viewModel: Task
     }
 }
 
-/** What sheet is open over the list. */
+/**
+ * What sheet is open over the list. It names tasks by id, so it can be saved ([SheetTargetSaver]) and
+ * the open sheet, with what was typed, comes back after a rotation.
+ */
 internal sealed interface SheetTarget {
     data class New(val draft: TaskDraft? = null) : SheetTarget
-    data class Edit(val task: ScheduledTask, val draft: TaskDraft) : SheetTarget
-    data class Test(val task: ScheduledTask) : SheetTarget
-    data class History(val task: ScheduledTask) : SheetTarget
+    data class Edit(val taskId: String, val title: String, val draft: TaskDraft) : SheetTarget
+    data class Test(val taskId: String) : SheetTarget
+    data class History(val taskId: String) : SheetTarget
 }
+
+internal val SheetTargetSaver = listSaver<SheetTarget?, Any>(
+    save = { t ->
+        when (t) {
+            null -> emptyList()
+            is SheetTarget.New -> listOf("new") + t.draft?.let(TaskDraftState::toList).orEmpty()
+            is SheetTarget.Edit -> listOf("edit", t.taskId, t.title) + TaskDraftState.toList(t.draft)
+            is SheetTarget.Test -> listOf("test", t.taskId)
+            is SheetTarget.History -> listOf("history", t.taskId)
+        }
+    },
+    restore = { v ->
+        when (v.firstOrNull()) {
+            "new" -> SheetTarget.New(v.drop(1).takeIf { it.size == TaskDraftState.SIZE }?.let(TaskDraftState::fromList))
+            "edit" -> SheetTarget.Edit(v[1] as String, v[2] as String, TaskDraftState.fromList(v.drop(3)))
+            "test" -> SheetTarget.Test(v[1] as String)
+            "history" -> SheetTarget.History(v[1] as String)
+            else -> null
+        }
+    },
+)
 
 /**
  * Calendar access as the screen asks for it: only when a calendar trigger or the digest needs it, once
@@ -129,7 +154,8 @@ private fun rememberCalendarAccess(viewModel: TasksViewModel, onGranted: () -> U
 @Composable
 private fun TasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit, viewModel: TasksViewModel, snackbarHost: @Composable () -> Unit) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var sheet by remember { mutableStateOf<SheetTarget?>(null) }
+    // Saved (with the draft it holds), so a half-written task survives a rotation or a theme change.
+    var sheet by rememberSaveable(stateSaver = SheetTargetSaver) { mutableStateOf<SheetTarget?>(null) }
     val feedback = Locus.feedback
     val openChat by rememberUpdatedState(onOpenChat)
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -148,7 +174,7 @@ private fun TasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit, viewMo
             }
         }
     }
-    val edit: (ScheduledTask) -> Unit = { task -> scope.launch { sheet = SheetTarget.Edit(task, viewModel.draftOf(task)) } }
+    val edit: (ScheduledTask) -> Unit = { task -> scope.launch { sheet = SheetTarget.Edit(task.id, task.title, viewModel.draftOf(task)) } }
     val reminders by viewModel.reminders.collectAsStateWithLifecycle()
     val zone = remember { java.time.ZoneId.systemDefault() }
     Scaffold(
@@ -207,8 +233,8 @@ private fun TasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit, viewMo
                                 TaskRow(
                                     item, viewModel,
                                     onEdit = { edit(item.task) },
-                                    onTest = { sheet = SheetTarget.Test(item.task) },
-                                    onHistory = { sheet = SheetTarget.History(item.task) },
+                                    onTest = { sheet = SheetTarget.Test(item.task.id) },
+                                    onHistory = { sheet = SheetTarget.History(item.task.id) },
                                     onOpenChat = onOpenChat,
                                 )
                             }
@@ -241,6 +267,7 @@ private fun TasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit, viewMo
             }
         }
     }
+    val taskOf = { id: String -> (state as? TasksUiState.Ready)?.tasks?.firstOrNull { it.task.id == id }?.task }
     when (val target = sheet) {
         null -> Unit
         is SheetTarget.New -> {
@@ -255,19 +282,21 @@ private fun TasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit, viewMo
         }
         is SheetTarget.Edit -> TaskSheet(
             initial = target.draft,
-            editing = target.task.title,
+            editing = target.title,
             viewModel = viewModel,
             onDismiss = { sheet = null },
-            onSave = { viewModel.update(target.task.id, it); sheet = null },
+            onSave = { viewModel.update(target.taskId, it); sheet = null },
         )
-        is SheetTarget.Test -> TestEventSheet(
-            target.task,
-            onDismiss = { sheet = null },
-            onSend = { viewModel.sendTestEvent(target.task.id, target.task.title, it); sheet = null },
-        )
-        is SheetTarget.History -> {
-            val events by remember(target.task.id) { viewModel.history(target.task.id) }.collectAsState(initial = null)
-            HistorySheet(target.task, events, onDismiss = { sheet = null }, onOpenChat = { sheet = null; onOpenChat(it) })
+        is SheetTarget.Test -> taskOf(target.taskId)?.let { task ->
+            TestEventSheet(
+                task,
+                onDismiss = { sheet = null },
+                onSend = { viewModel.sendTestEvent(task.id, task.title, it); sheet = null },
+            )
+        }
+        is SheetTarget.History -> taskOf(target.taskId)?.let { task ->
+            val events by remember(task.id) { viewModel.history(task.id) }.collectAsStateWithLifecycle(initialValue = null)
+            HistorySheet(task, events, onDismiss = { sheet = null }, onOpenChat = { sheet = null; onOpenChat(it) })
         }
     }
 }
@@ -439,7 +468,8 @@ internal fun lastRunProblem(task: ScheduledTask): UiText? = when (task.lastOutco
  */
 @Composable
 internal fun TaskSheet(initial: TaskDraft, editing: String?, viewModel: TasksViewModel, onDismiss: () -> Unit, onSave: (TaskDraft) -> Unit) {
-    var draft by remember(initial) { mutableStateOf(initial) }
+    var draft by rememberSaveable(initial, stateSaver = TaskDraftSaver) { mutableStateOf(initial) }
+    var pickingStart by rememberSaveable { mutableStateOf(false) }
     val setup by viewModel.setup.collectAsStateWithLifecycle()
     val calendar = rememberCalendarAccess(viewModel)
     LaunchedEffect(Unit) { viewModel.refreshSetup() }
@@ -474,9 +504,9 @@ internal fun TaskSheet(initial: TaskDraft, editing: String?, viewModel: TasksVie
             if (ScheduleIntervals.indexOf(draft.intervalMinutes) < 0) {
                 SupportingText(stringResource(R.string.tasks_sheet_custom_interval, scheduleLabel(draft.intervalMinutes).lowercase()))
             }
-            draft.firstRunAt?.takeIf { editing == null }?.let { at ->
-                SupportingText(stringResource(R.string.tasks_sheet_first_run, QuietHours.clock(at)))
-            }
+            // When a new task starts: a time of day ("every day at 07:30") or right after saving. An edit keeps
+            // its timing, so only a new task asks.
+            if (editing == null) StartingAt(draft, viewModel.zone(), viewModel.clock(), onPick = { pickingStart = true })
             if (digest) {
                 if (initial.readsCalendar && !setup.calendarAllowed) CalendarAccessBanner(stringResource(R.string.tasks_sheet_digest_calendar), calendar.denied, calendar.request)
                 if (setup.ntfyResults) {
@@ -491,7 +521,53 @@ internal fun TaskSheet(initial: TaskDraft, editing: String?, viewModel: TasksVie
         Text(stringResource(R.string.tasks_sheet_only_run), style = LocusType.cardTitle)
         CardGroup { ConditionSwitches(draft.conditions) { draft = draft.copy(conditions = it) } }
     }
+    if (pickingStart) {
+        TimeSheet(
+            title = stringResource(R.string.tasks_sheet_start_title),
+            subtitle = stringResource(R.string.tasks_sheet_start_zone, zoneName(viewModel.zone())),
+            minuteOfDay = draft.firstRunAt ?: nextWholeHour(viewModel.clock(), viewModel.zone()),
+            onPick = { draft = draft.copy(firstRunAt = it); pickingStart = false },
+            onDismiss = { pickingStart = false },
+            clearLabel = stringResource(R.string.tasks_sheet_start_now),
+            onClear = { draft = draft.copy(firstRunAt = null); pickingStart = false },
+        )
+    }
 }
+
+/**
+ * "Starting at 07:30" for a new scheduled task, as a row that opens the time picker, and the next three
+ * runs in the phone's time zone under it ("Thu 07:30, Fri 07:30, Sat 07:30 · Nepal Time").
+ */
+@Composable
+private fun StartingAt(draft: TaskDraft, zone: java.time.ZoneId, now: Long, onPick: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val at = draft.firstRunAt
+    val runs = nextRuns(at, draft.intervalMinutes, java.time.Instant.ofEpochMilli(now).atZone(zone))
+    // In the phone's 12- or 24-hour format, with the weekday for the list.
+    fun format(run: java.time.ZonedDateTime, flags: Int) =
+        android.text.format.DateUtils.formatDateTime(context, run.toInstant().toEpochMilli(), android.text.format.DateUtils.FORMAT_SHOW_TIME or flags)
+    CardGroup {
+        ListRow(
+            stringResource(R.string.tasks_sheet_start_title),
+            subtitle = if (at != null) format(runs.first(), 0) else stringResource(R.string.tasks_sheet_start_now),
+            leading = { IconTile(LocusIcons.Clock) },
+            trailing = { dev.locus.core.designsystem.RowChevron() },
+            onClick = onPick,
+        )
+    }
+    val times = runs.joinToString(", ") { format(it, android.text.format.DateUtils.FORMAT_SHOW_WEEKDAY or android.text.format.DateUtils.FORMAT_ABBREV_WEEKDAY) }
+    SupportingText(stringResource(R.string.tasks_sheet_next_runs, times, zoneName(zone)))
+}
+
+/** The time zone as people say it ("Nepal Time", "Central European Standard Time"), in the app's language. */
+@Composable
+private fun zoneName(zone: java.time.ZoneId): String {
+    val locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
+    return java.util.TimeZone.getTimeZone(zone).getDisplayName(false, java.util.TimeZone.LONG, locale)
+}
+
+/** Where the picker starts for a task with no start time yet: the next whole hour. */
+internal fun nextWholeHour(now: Long, zone: java.time.ZoneId): Int = (java.time.Instant.ofEpochMilli(now).atZone(zone).hour + 1) % 24 * 60
 
 /** The three run conditions, as WorkManager constraints (docs/design/battery-thermal.md). */
 @Composable

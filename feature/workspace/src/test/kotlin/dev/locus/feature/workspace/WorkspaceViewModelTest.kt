@@ -113,4 +113,43 @@ class WorkspaceViewModelTest {
             host.clear()
         }
     }
+
+    @Test
+    fun `deleting from a connected folder asks first, a workspace file goes to Trash at once`() = runTest {
+        try {
+            val g = TestGraph(backgroundScope, dispatcher = StandardTestDispatcher(testScheduler))
+            val dir = java.io.File(g.root, "phone/Download/Receipts").apply { mkdirs() }
+            val receipt = java.io.File(dir, "march.pdf").apply { writeText("%PDF-1.7") }
+            val uri = g.folderGrants.uriOf(dir)
+            g.connectedFolders.connect(uri, "receipts", readOnly = false, source = g.connectedFolders.describe(uri).source)
+            val vm = host.add(WorkspaceViewModel(g.workspaceRepository, g.workspace, g.io, folders = g.connectedFolders))
+            vm.uiState.first { s -> s.connected.any { it.folder.name == "receipts" } }
+
+            // It's the person's own file: nothing is deleted until they confirm.
+            vm.requestDelete("folders/receipts/march.pdf")
+            val asking = assertNotNull(vm.uiState.value.confirmingDelete)
+            assertEquals("march.pdf", asking.name)
+            assertEquals("Phone storage › Documents/Receipts", asking.folder)
+            assertTrue(receipt.exists())
+            vm.cancelDelete()
+            assertNull(vm.uiState.value.confirmingDelete)
+            assertTrue(receipt.exists())
+
+            vm.requestDelete("folders/receipts/march.pdf")
+            vm.confirmDelete()
+            val deleted = vm.uiState.first { it.undoTrashId != null }
+            assertFalse(receipt.exists())
+            assertEquals(UiText.Res(R.string.workspace_files_deleted_connected), deleted.message)
+            vm.messageShown()
+
+            // A workspace file has Trash and Undo, so it doesn't ask.
+            val notes = g.workspace.resolve("notes.txt").apply { parentFile?.mkdirs(); writeText("buy milk") }
+            vm.requestDelete("notes.txt")
+            assertNull(vm.uiState.value.confirmingDelete)
+            vm.uiState.first { it.undoTrashId != null }
+            assertFalse(notes.exists())
+        } finally {
+            host.clear()
+        }
+    }
 }

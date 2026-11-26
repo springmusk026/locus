@@ -350,6 +350,8 @@
     </plurals>
     <string name="workspace_files_exported">%1$s exportado.</string>
     <string name="workspace_files_deleted_connected">Excluído da pasta conectada; há uma cópia na lixeira.</string>
+    <string name="workspace_files_delete_connected_title">Excluir %1$s?</string>
+    <string name="workspace_files_delete_connected_message">Ele é excluído de %1$s neste telefone e de tudo que sincroniza essa pasta. O Locus guarda uma cópia na Lixeira, para você poder restaurá-lo.</string>
     <string name="workspace_files_moved_to_trash">Movido para a lixeira. Você pode restaurá-lo pela lixeira.</string>
     <string name="workspace_files_restored">%1$s restaurado.</string>
     <string name="workspace_files_folder_unreadable">Não é possível ler esta pasta.</string>

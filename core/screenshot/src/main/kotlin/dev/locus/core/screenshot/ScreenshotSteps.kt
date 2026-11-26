@@ -86,61 +86,72 @@ internal class StepsOption(private val steps: List<Step>) : RoborazziComposeActi
     }
 
     override fun beforeCapture() {
-        settle()
+        settleScreen()
         for (step in steps) {
-            // Every window's Compose root, the activity's first: a sheet is a window of its own.
-            val roots = windows().mapNotNull(::composeRoot)
-            check(roots.isNotEmpty()) { "No Compose root to take $step on" }
-            val nodes = buildList { roots.forEach { collect(it.semanticsOwner.rootSemanticsNode, this) } }
-            when (step) {
-                is Step.Act -> step.block()
-                is Step.Tap -> {
-                    val matches = nodes.filter { it.config.getOrNull(SemanticsActions.OnClick) != null && it.labels().any { l -> l == step.label } }
-                        .ifEmpty { nodes.filter { it.config.getOrNull(SemanticsActions.OnClick) != null && it.labels().any { l -> l.contains(step.label) } } }
-                    val node = matches.getOrNull(step.index)
-                        ?: error("Nothing clickable says \"${step.label}\"; found: ${nodes.flatMap { it.labels() }.distinct().take(60)}")
-                    node.config[SemanticsActions.OnClick].action!!.invoke()
-                }
-                is Step.Type -> {
-                    val node = nodes.filter { it.config.getOrNull(SemanticsActions.SetText) != null }.getOrNull(step.index)
-                        ?: error("No text field #${step.index}")
-                    node.config[SemanticsActions.SetText].action!!.invoke(AnnotatedString(step.text))
-                }
-            }
-            settle()
+            takeStep(step)
+            settleScreen()
         }
     }
 
     override fun afterCapture() = Unit
+}
 
-    private fun settle() {
-        repeat(3) {
-            Snapshot.sendApplyNotifications()
-            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(400))
+/** Lets Compose and the main looper catch up: recompositions, effects, a sheet's entrance. */
+internal fun settleScreen() {
+    repeat(3) {
+        Snapshot.sendApplyNotifications()
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(400))
+    }
+}
+
+/** Every semantics node on screen, in every window's Compose root (the activity's first: a sheet is a window of its own). */
+internal fun screenNodes(): List<SemanticsNode> {
+    val roots = windows().mapNotNull(::composeRoot)
+    check(roots.isNotEmpty()) { "No Compose root on screen" }
+    return buildList { roots.forEach { collect(it.semanticsOwner.rootSemanticsNode, this) } }
+}
+
+/** Takes [step] on what's on screen now. */
+internal fun takeStep(step: Step) {
+    val nodes = screenNodes()
+    when (step) {
+        is Step.Act -> step.block()
+        is Step.Tap -> {
+            val matches = nodes.filter { it.config.getOrNull(SemanticsActions.OnClick) != null && it.labels().any { l -> l == step.label } }
+                .ifEmpty { nodes.filter { it.config.getOrNull(SemanticsActions.OnClick) != null && it.labels().any { l -> l.contains(step.label) } } }
+            val node = matches.getOrNull(step.index)
+                ?: error("Nothing clickable says \"${step.label}\"; found: ${nodes.flatMap { it.labels() }.distinct().take(60)}")
+            node.config[SemanticsActions.OnClick].action!!.invoke()
+        }
+        is Step.Type -> {
+            val node = nodes.filter { it.config.getOrNull(SemanticsActions.SetText) != null }.getOrNull(step.index)
+                ?: error("No text field #${step.index}")
+            node.config[SemanticsActions.SetText].action!!.invoke(AnnotatedString(step.text))
         }
     }
+}
 
-    @Suppress("UNCHECKED_CAST")
-    private fun windows(): List<View> {
-        val global = Class.forName("android.view.WindowManagerGlobal")
-        val instance = global.getMethod("getInstance").invoke(null)
-        val views = global.getDeclaredField("mViews").apply { isAccessible = true }.get(instance) as List<View>
-        return views.filter { it.isAttachedToWindow }
-    }
+@Suppress("UNCHECKED_CAST")
+private fun windows(): List<View> {
+    val global = Class.forName("android.view.WindowManagerGlobal")
+    val instance = global.getMethod("getInstance").invoke(null)
+    val views = global.getDeclaredField("mViews").apply { isAccessible = true }.get(instance) as List<View>
+    return views.filter { it.isAttachedToWindow }
+}
 
-    private fun SemanticsNode.labels(): List<String> =
-        config.getOrNull(SemanticsProperties.Text).orEmpty().map { it.text } + config.getOrNull(SemanticsProperties.ContentDescription).orEmpty()
+/** A node's text and content description, as a person (or TalkBack) would find it. */
+internal fun SemanticsNode.labels(): List<String> =
+    config.getOrNull(SemanticsProperties.Text).orEmpty().map { it.text } + config.getOrNull(SemanticsProperties.ContentDescription).orEmpty()
 
-    private fun collect(node: SemanticsNode, out: MutableList<SemanticsNode>) {
-        out += node
-        node.children.forEach { collect(it, out) }
-    }
+private fun collect(node: SemanticsNode, out: MutableList<SemanticsNode>) {
+    out += node
+    node.children.forEach { collect(it, out) }
+}
 
-    private fun composeRoot(view: View): ViewRootForTest? {
-        if (view is ViewRootForTest) return view
-        if (view is ViewGroup) for (i in 0 until view.childCount) composeRoot(view.getChildAt(i))?.let { return it }
-        return null
-    }
+private fun composeRoot(view: View): ViewRootForTest? {
+    if (view is ViewRootForTest) return view
+    if (view is ViewGroup) for (i in 0 until view.childCount) composeRoot(view.getChildAt(i))?.let { return it }
+    return null
 }
 
 /** Launches [activity] for the capture instead of Roborazzi's activity, registering it with Robolectric first. */

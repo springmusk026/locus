@@ -29,10 +29,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.text.input.ImeAction
+import dev.locus.core.designsystem.Sizes
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -58,12 +61,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.KeyboardType
-import dev.locus.core.designsystem.SecretContent
+import dev.locus.core.designsystem.PasswordField
 import dev.locus.core.designsystem.UiText
 import dev.locus.core.designsystem.asString
 import dev.locus.feature.workspace.R
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.core.graphics.createBitmap
 import dev.locus.core.designsystem.EmptyState
 import dev.locus.core.designsystem.LocusIcons
@@ -173,7 +174,9 @@ private sealed interface PdfState {
  */
 @Composable
 internal fun PdfViewer(file: File, modifier: Modifier = Modifier, onPageCount: (Int) -> Unit = {}) {
-    var password by remember(file) { mutableStateOf<String?>(null) }
+    // Kept across a rotation, like every secret in a form (docs/design/design-system.md, "Secrets"): otherwise
+    // turning the phone re-opens the file and asks for the password again.
+    var password by rememberSaveable(file.path) { mutableStateOf<String?>(null) }
     val work = LocalPreviewDispatchers.current
     val state by produceState<PdfState>(PdfState.Loading, file, password) {
         value = PdfState.Loading
@@ -222,7 +225,7 @@ private fun PasswordPrompt(wrong: Boolean, modifier: Modifier, onSubmit: (String
         )
         return
     }
-    var text by remember { mutableStateOf("") }
+    var text by rememberSaveable { mutableStateOf("") }
     EmptyState(
         stringResource(R.string.workspace_preview_pdf_protected_title),
         stringResource(if (wrong) R.string.workspace_preview_pdf_password_wrong else R.string.workspace_preview_pdf_password_prompt),
@@ -230,14 +233,13 @@ private fun PasswordPrompt(wrong: Boolean, modifier: Modifier, onSubmit: (String
         icon = LocusIcons.Key,
         action = {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                SecretContent()
-                OutlinedTextField(
+                PasswordField(
                     text,
                     { text = it },
-                    singleLine = true,
-                    label = { Text(stringResource(R.string.workspace_preview_pdf_password)) },
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    label = stringResource(R.string.workspace_preview_pdf_password),
+                    modifier = Modifier.widthIn(max = Sizes.readable),
+                    imeAction = ImeAction.Go,
+                    keyboardActions = KeyboardActions(onGo = { if (text.isNotEmpty()) onSubmit(text) }),
                 )
                 Button(onClick = { onSubmit(text) }, enabled = text.isNotEmpty()) { Text(stringResource(R.string.workspace_preview_pdf_open)) }
             }

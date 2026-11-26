@@ -90,6 +90,7 @@
     <string name="settings_permissions_remembered_empty_title">Nada lembrado</string>
     <string name="settings_permissions_remembered_empty_subtitle">Toda ação em Perguntar pergunta a você.</string>
     <string name="settings_permissions_revoke">Revogar</string>
+    <string name="settings_permissions_revoked">Revogado. O Locus vai perguntar de novo.</string>
     <string name="settings_permissions_reviewer_off">Não</string>
     <string name="settings_permissions_reviewer_asks">Ações a perguntar</string>
     <string name="settings_permissions_reviewer_all">Todas as alterações</string>
@@ -267,6 +268,7 @@
     <string name="settings_automation_app_allowed">Sempre permitido</string>
     <string name="settings_automation_app_denied">Nunca permitido</string>
     <string name="settings_automation_forget">Esquecer</string>
+    <string name="settings_automation_forgotten">Resposta para %1$s esquecida: o Locus vai perguntar na próxima vez.</string>
     <string name="settings_automation_developers_section">Para desenvolvedores de apps</string>
     <string name="settings_automation_developers_permission">Permissão</string>
     <string name="settings_automation_developers_intents">Intents</string>
@@ -346,6 +348,8 @@
     <string name="settings_ssh_checking">Verificando…</string>
     <string name="settings_ssh_check">Verificar chave de host</string>
     <string name="settings_ssh_remove">Remover máquina</string>
+    <string name="settings_ssh_remove_title">Remover %1$s?</string>
+    <string name="settings_ssh_remove_message">A chave ou senha salva e a chave de host em que você confiou são excluídas deste telefone, e o agente não poderá acessá-la. Para usá-la de novo, adicione-a outra vez e verifique a chave de host.</string>
 
     <!-- Settings → ChatGPT sign-in -->
     <string name="settings_chatgpt_signin_failed">O login não foi concluído. Tente Continuar com o ChatGPT de novo.</string>
@@ -664,6 +668,11 @@
     <string name="settings_backup_password_hint">Pelo menos %1$d caracteres. Algumas palavras aleatórias são fáceis de digitar e difíceis de adivinhar.</string>
     <string name="settings_backup_password_again">Repita a senha</string>
     <string name="settings_backup_password_mismatch">As senhas não coincidem.</string>
+    <string name="settings_backup_password_too_short">Curta demais: use pelo menos %1$d caracteres.</string>
+    <string name="settings_backup_password_weak">Fácil demais de adivinhar. Use caracteres mais variados ou algumas palavras aleatórias.</string>
+    <string name="settings_backup_strength_weak">Força: fraca</string>
+    <string name="settings_backup_strength_fair">Força: razoável. Uma senha mais longa é mais forte.</string>
+    <string name="settings_backup_strength_strong">Força: forte</string>
     <string name="settings_backup_password_forgotten">Se você esquecer esta senha, o backup não poderá ser aberto. Ninguém pode recuperá-la.</string>
     <string name="settings_backup_not_a_backup">Não é um backup</string>
     <string name="settings_backup_open_title">Abrir backup</string>

@@ -216,6 +216,8 @@
     <string name="onboarding_connectors_key_save">保存</string>
     <string name="onboarding_connectors_key_label_saved">%1$s（已保存，输入可替换）</string>
     <string name="onboarding_connectors_key_remove">移除密钥</string>
+    <string name="onboarding_connectors_key_remove_title">移除 %1$s 的密钥？</string>
+    <string name="onboarding_connectors_key_remove_message">它会从这部手机中删除，在你重新添加之前，智能体将无法使用 %1$s。</string>
     <string name="onboarding_test_title">快速检查</string>
     <string name="onboarding_test_body">向你的模型发送一条简短的测试消息；如果已安装 Linux，还会运行一条命令。</string>
     <string name="onboarding_test_model">模型</string>

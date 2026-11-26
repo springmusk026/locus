@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -241,13 +242,13 @@ internal fun certificateUse(res: Resources, cert: TrustedCertificate, users: Lis
 
 @Composable
 private fun DefaultProxySheet(proxy: ProxyConfig?, credentialsSaved: Boolean, onSave: (ProxyConfig?, Pair<String, String>?) -> Unit, onDismiss: () -> Unit) {
-    var enabled by remember { mutableStateOf(proxy != null) }
-    var type by remember { mutableStateOf(proxy?.type ?: ProxyType.HTTP) }
-    var host by remember { mutableStateOf(proxy?.host.orEmpty()) }
-    var port by remember { mutableStateOf(proxy?.port?.toString().orEmpty()) }
-    var auth by remember { mutableStateOf(proxy?.hasCredentials == true) }
-    var user by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
+    var enabled by rememberSaveable { mutableStateOf(proxy != null) }
+    var type by rememberSaveable { mutableStateOf(proxy?.type ?: ProxyType.HTTP) }
+    var host by rememberSaveable { mutableStateOf(proxy?.host.orEmpty()) }
+    var port by rememberSaveable { mutableStateOf(proxy?.port?.toString().orEmpty()) }
+    var auth by rememberSaveable { mutableStateOf(proxy?.hasCredentials == true) }
+    var user by rememberSaveable { mutableStateOf("") }
+    var password by rememberSaveable { mutableStateOf("") }
     val config = ProxyConfig(type, host.trim(), port.toIntOrNull() ?: 0, hasCredentials = auth).takeIf { it.isValid }
     val needsCredentials = auth && !credentialsSaved && user.isEmpty() && password.isEmpty()
     LocusSheet(

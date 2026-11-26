@@ -50,7 +50,10 @@
     <string name="tasks_sheet_mode_event">When…</string>
     <string name="tasks_sheet_how_often">How often</string>
     <string name="tasks_sheet_custom_interval">Now %1$s. Pick one to change it.</string>
-    <string name="tasks_sheet_first_run">First run at %1$s, then once a period. Android may run it a little later while the phone is idle.</string>
+    <string name="tasks_sheet_start_title">Starting at</string>
+    <string name="tasks_sheet_start_now">Right after saving</string>
+    <string name="tasks_sheet_start_zone">Times are in %1$s.</string>
+    <string name="tasks_sheet_next_runs">Next runs: %1$s (%2$s). Android may run it a little later while the phone is idle.</string>
     <string name="tasks_sheet_digest_calendar">The digest reads today\'s calendar entries.</string>
     <string name="tasks_sheet_digest_ntfy">The digest also goes to your ntfy topic, so it reaches your other devices.</string>
     <string name="tasks_sheet_digest_ntfy_hint">To get the digest on your other devices too, set up ntfy in</string>

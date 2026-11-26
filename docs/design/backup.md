@@ -17,6 +17,16 @@ Not included: the Linux root filesystem, on-device models, the workspace trash, 
 
 The vault's own file can't be copied: it's encrypted under a Keystore key that never leaves this phone. With the toggle on, its entries go into the zip and so are encrypted only by the backup password. The UI says so: anyone with the file and the password gets the keys. With it off, a restore keeps the keys already on the phone.
 
+## Choosing the password
+
+The password is all that protects the file wherever it's saved (and, with the keys included, the keys too), so the sheet that asks for it checks it before the file picker opens (`NewPasswordSheet`, `passwordStrength` in BackupSettings.kt):
+
+- At least 8 characters, typed twice. The too-short or too-easy message shows under the first field once something is typed and the person moves on, not at the first key.
+- **Weak, refused:** fewer than five different characters ("aaaaaaaa", "abababab"), a run up or down ("12345678", "abcdefgh"), or one of the passwords anyone tries first, with digits on the end ("password1"). "Too easy to guess. Use more different characters, or a few random words."
+- **Fair:** anything else under the strong mark. **Strong:** 16 characters or more, or 12 or more mixing three kinds of character.
+- A meter in the strength's tone (critical, caution, live) and a line ("Strength: fair. A longer password is stronger.") sit under the first field. It isn't a guess count: it turns away the obvious and nudges towards length, which PBKDF2's 600,000 iterations then multiply.
+- Both fields have show/hide (`PasswordField`), and they, the sheet and the restore password survive a rotation.
+
 ## File format (version 1)
 
 ```

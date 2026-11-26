@@ -134,4 +134,10 @@ class ConnectedFolderScreenshots : ScreenshotTest() {
             emptyList(), onSave = {}, onReconnect = {}, onDisconnect = {}, onDismiss = {},
         )
     }
+
+    /** Delete on a connected folder's file asks first: it goes from the person's own storage. */
+    @Test
+    fun deleteConfirm() = snap("connected-folder-delete-confirm", heightDp = 600) {
+        ConfirmConnectedDelete(PendingDelete("folders/receipts/march-2026.pdf", "march-2026.pdf", "Phone storage › Download/Receipts"), onConfirm = {}, onDismiss = {})
+    }
 }

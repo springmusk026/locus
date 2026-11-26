@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Alignment
-import dev.locus.core.designsystem.SecretContent
+import dev.locus.core.designsystem.PasswordField
 import dev.locus.core.designsystem.IconSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,7 +28,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import dev.locus.core.data.automation.AutomationContract
 import dev.locus.core.data.tasks.triggers.TriggerRules
 import dev.locus.core.designsystem.Banner
@@ -212,14 +211,11 @@ internal fun TriggerFields(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                 supportingText = { Text(stringResource(R.string.tasks_trigger_ntfy_topic_help)) },
             )
-            SecretContent()
-            OutlinedTextField(
+            PasswordField(
                 draft.token, { onChange(draft.copy(token = it, clearToken = false)) },
-                label = { Text(stringResource(if (draft.hasToken && !draft.clearToken) R.string.tasks_trigger_ntfy_token_saved else R.string.tasks_trigger_ntfy_token_optional)) },
-                singleLine = true, modifier = Modifier.fillMaxWidth(),
-                visualTransformation = PasswordVisualTransformation(),
-                placeholder = { Text(stringResource(if (draft.hasToken && !draft.clearToken) R.string.tasks_trigger_ntfy_token_keep else R.string.tasks_trigger_ntfy_token_placeholder)) },
-                supportingText = { Text(stringResource(R.string.tasks_trigger_ntfy_token_help)) },
+                label = stringResource(if (draft.hasToken && !draft.clearToken) R.string.tasks_trigger_ntfy_token_saved else R.string.tasks_trigger_ntfy_token_optional),
+                placeholder = stringResource(if (draft.hasToken && !draft.clearToken) R.string.tasks_trigger_ntfy_token_keep else R.string.tasks_trigger_ntfy_token_placeholder),
+                supportingText = stringResource(R.string.tasks_trigger_ntfy_token_help),
             )
             if (draft.hasToken && !draft.clearToken && draft.token.isBlank()) {
                 TextButton(onClick = { onChange(draft.copy(clearToken = true)) }) { Text(stringResource(R.string.tasks_trigger_ntfy_token_remove), color = Locus.colors.critical) }
