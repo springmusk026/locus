@@ -44,6 +44,8 @@ No schema change. A temporary chat is a row in `conversations` with `hidden = 1`
 3. The chat row goes, with its messages, branches and tracked file changes (cascade), and its "Allow for this chat" approvals.
 4. The long outputs it saved under `.locus/out/` (named in its tool results) are deleted. Other files in the workspace stay.
 
+A temporary chat's unsent composer text (docs/design/transcript-reads.md, "The composer's draft") stays in memory only and goes when the chat is left.
+
 Who calls it: `ChatViewModel` registers the open screen (`opened`) and its end (`left`, from `onCleared`, so a rotation doesn't count). The application runs `sweep()` 10 seconds after start-up.
 
 ## UI

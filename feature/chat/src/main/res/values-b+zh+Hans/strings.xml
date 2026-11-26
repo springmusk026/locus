@@ -81,6 +81,7 @@
     <string name="chat_run_background_helper">Locus 在后台时有一个助手完成了任务。要根据它的报告继续吗？</string>
     <string name="chat_run_background_queued">Locus 在后台时无法发送你排队的消息。要继续吗？</string>
     <string name="chat_run_tool_gone">无法运行：该工具已不可用。</string>
+    <string name="chat_run_busy_not_started">Locus 仍在处理此对话，因此未发送。请在完成后重试。</string>
     <string name="chat_run_no_provider">请先在“设置 → 模型”中添加模型提供商。</string>
     <string name="chat_budget_paused_reached">已暂停：已达到此任务 %1$s 的预算。</string>
     <string name="chat_budget_stopped_reached">已停止：已达到此任务 %1$s 的预算。</string>
@@ -323,6 +324,7 @@
     <string name="chat_screen_editing_body">发送会创建新分支；原消息及其回复会保留。关闭则改为作为新消息发送。</string>
     <string name="chat_screen_editing_title">正在编辑消息</string>
     <string name="chat_screen_stop_editing">停止编辑</string>
+    <string name="chat_screen_plan_change_prefix">修改计划：</string>
     <string name="chat_screen_editing_queued_body">发送会在排队的消息发出前修改它。</string>
     <string name="chat_screen_editing_queued_title">正在编辑排队的消息</string>
     <string name="chat_screen_cool_title">让手机降降温</string>
@@ -462,6 +464,7 @@
     <string name="chat_home_working_status">工作中</string>
     <string name="chat_home_stopped_early">提前停止 · 点按继续</string>
     <string name="chat_home_scheduled_task">定时任务</string>
+    <string name="chat_home_draft">草稿：%1$s</string>
     <string name="chat_home_unpin">取消置顶</string>
     <string name="chat_home_pin">置顶</string>
     <string name="chat_home_rename">重命名</string>

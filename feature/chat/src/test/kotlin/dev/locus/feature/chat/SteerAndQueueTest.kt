@@ -279,4 +279,41 @@ class SteerAndQueueTest {
         f.vm.state { !it.run.running && it.items.any { i -> i is ChatItem.Assistant } }
         assertEquals(listOf(Role.USER, Role.ASSISTANT, Role.TOOL, Role.USER, Role.ASSISTANT), f.history().map { it.role })
     }
+
+    @Test
+    fun `an answer typed after the question closed elsewhere is sent as a message, not dropped`() = runTest {
+        val f = fixture()
+        val after = Reply(ScriptedProvider.text("Blue it is."), hold = CompletableDeferred())
+        f.graph.replies(Reply(ScriptedProvider.toolCall("q1", "ask_user", """{"question":"Which colour?"}""")), after, Reply(ScriptedProvider.text("The gate too.")))
+        f.vm.send("paint the fence")
+        val asking = f.vm.state { it.pendingQuestion != null }
+
+        // Answered from the notification: the chat still shows the question until the run moves on.
+        assertTrue(f.graph.runner.answerQuestion(asking.pendingQuestion!!.callId, dev.locus.core.agent.tools.QuestionAnswer(text = "blue")))
+        assertTrue(f.graph.runner.states.value[f.chat]?.pendingQuestion != null)
+        f.vm.send("and the gate too")
+
+        // The closed question didn't swallow it (#339): it joins at the next step like any message sent mid-task.
+        after.hold!!.complete(Unit)
+        f.vm.state { !it.run.running && it.run.queued.isEmpty() }
+        assertTrue(f.history().any { it.role == Role.USER && it.userText == "and the gate too" }, f.history().map { it.userText }.toString())
+        assertTrue("blue" in f.history().flatMap { it.toolResults }.single().content)
+    }
+
+    @Test
+    fun `an edit while the agent works isn't started, and the chat says so`() = runTest {
+        val f = fixture()
+        val step = Reply(ScriptedProvider.text("On it."), hold = CompletableDeferred())
+        f.graph.replies(step)
+        f.vm.send("paint the fence")
+        step.asked.await()
+        val first = f.history().single { it.role == Role.USER }
+
+        // Branch actions wait while the agent works; an edit that slips through (the menu was open) isn't lost silently.
+        assertFalse(f.vm.edit(first.id, "paint the gate"))
+        assertEquals(dev.locus.core.data.agent.RunNote.BusyNotStarted, f.vm.state { it.run.noticeNote != null }.run.noticeNote)
+        assertEquals(listOf("paint the fence"), f.history().filter { it.role == Role.USER }.map { it.userText })
+        step.hold!!.complete(Unit)
+        f.vm.state { !it.run.running }
+    }
 }

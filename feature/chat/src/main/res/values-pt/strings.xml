@@ -81,6 +81,7 @@
     <string name="chat_run_background_helper">Um ajudante terminou enquanto o Locus estava em segundo plano. Continuar com o relatório dele?</string>
     <string name="chat_run_background_queued">O Locus não conseguiu enviar sua mensagem na fila enquanto estava em segundo plano. Continuar?</string>
     <string name="chat_run_tool_gone">Não foi possível executar: essa ferramenta não está mais disponível.</string>
+    <string name="chat_run_busy_not_started">O Locus ainda está trabalhando neste chat, então isso não foi enviado. Tente de novo quando terminar.</string>
     <string name="chat_run_no_provider">Primeiro adicione um provedor de modelos em Configurações → Modelos.</string>
     <string name="chat_budget_paused_reached">Pausada: o orçamento de %1$s desta tarefa foi atingido.</string>
     <string name="chat_budget_stopped_reached">Parada: o orçamento de %1$s desta tarefa foi atingido.</string>
@@ -361,6 +362,7 @@
     <string name="chat_screen_editing_body">Ao enviar, uma nova ramificação é criada; o original e as respostas dele permanecem. Feche para enviar como mensagem nova.</string>
     <string name="chat_screen_editing_title">Editando uma mensagem</string>
     <string name="chat_screen_stop_editing">Parar de editar</string>
+    <string name="chat_screen_plan_change_prefix">Altere o plano:</string>
     <string name="chat_screen_editing_queued_body">Ao enviar, a mensagem na fila é alterada antes de sair.</string>
     <string name="chat_screen_editing_queued_title">Editando uma mensagem na fila</string>
     <string name="chat_screen_cool_title">Deixe o telefone esfriar</string>
@@ -516,6 +518,7 @@
     <string name="chat_home_working_status">Trabalhando</string>
     <string name="chat_home_stopped_early">Parou antes · toque para continuar</string>
     <string name="chat_home_scheduled_task">Tarefa agendada</string>
+    <string name="chat_home_draft">Rascunho: %1$s</string>
     <string name="chat_home_unpin">Desafixar</string>
     <string name="chat_home_pin">Fixar no topo</string>
     <string name="chat_home_rename">Renomear</string>

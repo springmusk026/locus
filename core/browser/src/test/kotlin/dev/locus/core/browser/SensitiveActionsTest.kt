@@ -130,6 +130,24 @@ class SensitiveActionsTest {
     }
 
     @Test
+    fun cardNumbersAreRefusedButOtherLongNumbersAreNot() {
+        // Test card numbers of the main networks, together, spaced, dashed or inside other text (#318).
+        listOf(
+            "4111 1111 1111 1111", "4111111111111111", "5555-5555-5555-4444", "378282246310005", "6011111111111117",
+            "3530111333300000", "30569309025904", "2223003122003222", "6200000000000005", "4222222222222",
+            "card 4012 8888 8888 1881 exp", "4111 1111 1111 1111 12/27", "pay with 4111 1111 1111 1111 2025",
+        ).forEach { assertNotNull(SensitiveActions.refuseText(it), it) }
+        listOf(
+            "7489203456781", // a 13-digit parcel tracking number
+            "9400100000002", // one that passes the Luhn check but no card network starts with 9
+            "1732600000000", "1732600000001", // millisecond timestamps, the second passing the Luhn check
+            "+49 1512 3456 789", // a phone number written with spaces
+            "Order 2024-1121-0000-77",
+            "DE89 3704 0044 0532 0130 00", // an IBAN
+        ).forEach { assertNull(SensitiveActions.refuseText(it), it) }
+    }
+
+    @Test
     fun missingFactsFailClosed() {
         // The page didn't answer the check (or a hostile page broke the helper): the user confirms.
         assertEquals(SensitiveActions.unverified(host), SensitiveActions.clickGate(null, host))

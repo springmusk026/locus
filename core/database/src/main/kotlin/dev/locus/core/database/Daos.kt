@@ -107,6 +107,10 @@ interface ConversationDao {
     @Query("UPDATE conversations SET title = :title WHERE id = :id")
     suspend fun rename(id: String, title: String)
 
+    /** Renames the chat only while its title is still [expected]; returns the rows changed (0 or 1). */
+    @Query("UPDATE conversations SET title = :title WHERE id = :id AND title = :expected")
+    suspend fun renameIf(id: String, expected: String, title: String): Int
+
     @Query("DELETE FROM conversations WHERE id = :id")
     suspend fun delete(id: String)
 

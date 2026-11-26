@@ -49,6 +49,8 @@ data class ConversationRow(
      * "Locked chat"; it has no search hit, and renaming it waits for the unlock.
      */
     val redacted: Boolean = false,
+    /** What the user typed in this chat and hasn't sent (#319); null when nothing. */
+    val draft: String? = null,
 ) {
     /** A read-only chat imported from ChatGPT or Claude (docs/design/import-chats.md); null for Locus's own. */
     val imported: dev.locus.core.model.ChatImportSource? get() = dev.locus.core.model.ImportedChats.sourceOf(conversation.id)
@@ -65,6 +67,7 @@ internal fun redactedRow(row: ConversationRow, lock: dev.locus.core.model.AppLoc
         locked = lock.isLockedChat(id),
         redacted = redact,
         conversation = if (redact) row.conversation.copy(title = "") else row.conversation,
+        draft = if (redact) null else row.draft,
     )
 }
 
@@ -200,6 +203,10 @@ class ConversationsViewModel @Inject constructor(
     private val appLock: dev.locus.core.data.lock.AppLock? = null,
     /** Needs you (docs/design/needs-you.md); null in tests that don't need it (the section is then empty). */
     private val needsYou: dev.locus.core.data.needsyou.NeedsYou? = null,
+    /** The agent's browser, whose tabs and state for a deleted chat go with it (#338); null in tests that don't need it. */
+    private val browser: dev.locus.core.browser.AgentBrowser? = null,
+    /** Each chat's unsent composer text, shown as "Draft:" in its row (#319); null in tests that don't need it. */
+    private val drafts: dev.locus.core.data.repository.ChatDrafts? = null,
 ) : ViewModel() {
     /** Approvals, questions and budget pauses waiting now, proposals, and unread results, for home's Needs you. */
     val needsYouFeed: StateFlow<dev.locus.core.data.needsyou.NeedsYouFeed> =
@@ -424,7 +431,7 @@ class ConversationsViewModel @Inject constructor(
     val uiState: StateFlow<ConversationsUiState> = combine(
         // Chats with no messages (a "New chat" opened and left) are hidden, unless a run just started in one.
         combine(chats, conversations.emptyIds.distinctUntilChanged(), matches, query) { list, empty, ids, q -> Quad(list, empty, ids, q) },
-        runs,
+        combine(runs, drafts?.drafts ?: kotlinx.coroutines.flow.flowOf(emptyMap()), ::Pair),
         settings.settings,
         combine(
             counts,
@@ -432,7 +439,7 @@ class ConversationsViewModel @Inject constructor(
             appLock?.status ?: kotlinx.coroutines.flow.flowOf(null),
             ::Triple,
         ),
-    ) { (everything, empty, ids, q), states, s, (counts, setup, lockStatus) ->
+    ) { (everything, empty, ids, q), (states, unsent), s, (counts, setup, lockStatus) ->
         val lock = lockStatus ?: dev.locus.core.model.AppLockStatus()
         val all = everything.filter { it.id !in empty || states[it.id]?.running == true || states[it.id]?.approval == true }
         val default = s.provider(s.defaultProviderId) ?: s.providers.firstOrNull()
@@ -458,6 +465,7 @@ class ConversationsViewModel @Inject constructor(
                         provider?.name.orEmpty(), provider?.baseUrl.orEmpty(), provider?.format == ApiFormat.ON_DEVICE,
                         interrupted = state?.interrupted == true && state.running != true,
                         model = provider?.effectiveModel(c.modelOverride) ?: c.modelOverride.orEmpty(),
+                        draft = unsent[c.id],
                     ),
                     lock,
                 )
@@ -513,8 +521,15 @@ class ConversationsViewModel @Inject constructor(
         if (clean.isNotEmpty()) viewModelScope.launch { conversations.rename(id, clean) }
     }
 
+    /**
+     * Deletes chat [id]. Its run and helpers stop first, and nothing about it stays in the runner, the browser
+     * or the drafts (#338): a running task would otherwise keep spending tokens and acting for a chat that's gone.
+     */
     fun delete(id: String) {
         viewModelScope.launch {
+            runner.forget(id)
+            browser?.forget(id)
+            drafts?.clear(id)
             conversations.delete(id)
             appLock?.forgetChat(id)
         }

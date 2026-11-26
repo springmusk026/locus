@@ -3,7 +3,11 @@ package dev.locus.core.browser
 import dev.locus.core.agent.ToolException
 import dev.locus.core.agent.ToolResult
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.coroutines.CoroutineContext
 
 /**
  * Who drives a chat's browser: the agent, or the user after **Take over** (docs/design/browser.md,
@@ -132,3 +136,23 @@ suspend fun takeoverGate(
     val notice = control.takeNotice(key) ?: return result
     return result.copy(content = notice + "\n\n" + result.content)
 }
+
+/**
+ * Runs one browser action of [key]'s session: holding [lock], on [context] (the main thread, where the user's
+ * Take over also happens). When [waits] (a tool call), it first waits while the user has the browser, and checks
+ * again once it holds the lock: a call queued behind another one must not touch the page the user took over
+ * meanwhile (#340). Then it lets the lock go, waits for the hand-back and tries again.
+ */
+suspend fun <T> agentTurn(control: BrowserControl, key: String, lock: Mutex, waits: Boolean, context: CoroutineContext, block: suspend () -> T): T {
+    while (true) {
+        if (waits) control.await(key)
+        val ran = lock.withLock {
+            withContext(context) {
+                if (waits && control.inControl(key)) null else Ran(block())
+            }
+        }
+        if (ran != null) return ran.value
+    }
+}
+
+private class Ran<T>(val value: T)

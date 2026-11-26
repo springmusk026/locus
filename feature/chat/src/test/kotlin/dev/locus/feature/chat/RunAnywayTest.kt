@@ -173,6 +173,25 @@ class RunAnywayTest {
     }
 
     @Test
+    fun `when the chat is idle and a limit now refuses the call, no turn starts`() = runTest {
+        val f = fixture()
+        f.graph.replies(Reply(writePlan()), Reply(ScriptedProvider.text("I couldn't write the plan.")), Reply(ScriptedProvider.text("Should never be asked.")))
+        f.vm.send("write a plan")
+        f.vm.state { !it.run.running && it.run.reviewerBlocks.isNotEmpty() && it.items.any { i -> i is ChatItem.Assistant } }
+        val asked = f.graph.bodies().size
+        // Plan mode refuses writes, so the override is refused (#337).
+        f.graph.conversations.setPlanMode(f.chat, true)
+
+        f.vm.runAnyway("c1")
+        val refused = f.vm.state { !it.run.running && it.run.notice?.startsWith("Couldn't run it") == true }
+        runCurrent()
+        assertFalse(f.graph.workspace.resolve("plan.md").exists())
+        assertEquals(asked, f.graph.bodies().size)
+        assertEquals(listOf(Role.USER, Role.ASSISTANT, Role.TOOL, Role.ASSISTANT), f.history().map { it.role })
+        assertEquals(1, refused.items.filterIsInstance<ChatItem.Assistant>().size)
+    }
+
+    @Test
     fun `stopping before the step boundary offers the call again instead of running it`() = runTest {
         val f = fixture()
         f.graph.workspace.resolve("notes.md").writeText("buy milk")

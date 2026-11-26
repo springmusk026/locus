@@ -28,7 +28,7 @@ What happens where nobody can be asked follows the existing paths; nothing new:
 
 - **Scheduled and other read-only background runs** already refuse every memory write (they aren't observations), with or without the setting.
 - **Helpers**' approvals go to the parent chat's card, as all their asks do.
-- **Learn after tasks** (the reflection pass) has no one to ask; an asking call is refused there. With Always it would therefore save nothing, so it isn't run at all, which saves its request. The setting's note says so.
+- **Learn after tasks** (the reflection pass) has no one to ask; an asking call is refused there. With Always it would therefore save nothing, so it isn't run at all, which saves its request. The setting's note says so. The reflection reads the chat and the settings again when it starts (after a long task, or after waiting for the phone to cool), so switching to Always, turning Learn after tasks off or deleting the chat during the task applies to it (#341).
 - **Voice mode** never answers a memory change by voice (2026-11-21): it reads only the one-line summary ("Remember “coffee”"), not the note, so it says the card needs a look on the screen and leaves it pending; its card shows the whole change ([voice mode](voice-mode.md#approvals-by-voice)). **Telegram** only gets background approvals, and background runs can't write memory.
 
 ### The card

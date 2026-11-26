@@ -221,6 +221,10 @@ class ConversationRepository @Inject constructor(
 
     suspend fun rename(id: String, title: String) = conversations.rename(id, title)
 
+    /** Renames the chat to [title] only if its title is still [expected] (an automatic title never overwrites the user's). */
+    suspend fun renameIf(id: String, expected: String?, title: String): Boolean =
+        expected != null && conversations.renameIf(id, expected, title) > 0
+
     // ---- Branches ----------------------------------------------------------------------------------
 
     /** The last message of the active branch; null for an empty chat. */

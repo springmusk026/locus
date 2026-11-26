@@ -75,7 +75,8 @@ object SensitiveActions {
     // confirm('¿Eliminar cuenta?') asks too.
     private val OUTWARD = Regex(SensitiveWords.OUTWARD, RegexOption.IGNORE_CASE)
     private val LOGIN = Regex(SensitiveWords.LOGIN, RegexOption.IGNORE_CASE)
-    private val CARD_NUMBER = Regex("\\b(?:\\d[ -]?){13,19}\\b")
+    // A run of digit groups split by single spaces or dashes; [looksLikeCard] decides on each.
+    private val DIGIT_RUN = Regex("\\d+(?:[ -]\\d+)*")
 
     /**
      * Shown when the page script gave no usable facts about the element: it didn't answer, answered
@@ -163,7 +164,55 @@ object SensitiveActions {
 
     /** Why the agent may not enter [text] anywhere (a dialog's prompt answer, say), or null. */
     fun refuseText(text: String): String? =
-        if (CARD_NUMBER.containsMatchIn(text)) "That looks like a card number. Ask the user to enter it with browser_ask_user." else null
+        if (containsCardNumber(text)) "That looks like a card number. Ask the user to enter it with browser_ask_user." else null
+
+    /**
+     * Whether [text] holds a payment card number: 13 to 19 digits, written together or in groups split by
+     * single spaces or dashes, that start with a card network's prefix and pass the Luhn check. Any run of
+     * whole groups inside a longer run counts, so "4111 1111 1111 1111 12/27" is still a card. Timestamps,
+     * tracking and order numbers and phone numbers rarely pass both checks (#318).
+     */
+    internal fun containsCardNumber(text: String): Boolean = DIGIT_RUN.findAll(text).any { run ->
+        val groups = run.value.split(' ', '-')
+        groups.indices.any { from ->
+            val digits = StringBuilder()
+            var to = from
+            var found = false
+            while (!found && to < groups.size && digits.length + groups[to].length <= 19) {
+                digits.append(groups[to++])
+                found = digits.length >= 13 && looksLikeCard(digits.toString())
+            }
+            found
+        }
+    }
+
+    internal fun looksLikeCard(digits: String): Boolean = knownPrefix(digits) && luhn(digits)
+
+    /** A prefix (IIN range) of a card network that issues numbers of this length. */
+    private fun knownPrefix(d: String): Boolean {
+        val n = d.length
+        fun p(len: Int) = d.take(len).toInt()
+        return when {
+            d[0] == '4' -> true // Visa, 13 to 19 digits
+            p(2) in 51..55 || p(4) in 2221..2720 -> n == 16 // Mastercard
+            p(2) == 34 || p(2) == 37 -> n == 15 // American Express
+            p(3) in 300..305 || p(4) == 3095 || p(2) == 36 || p(2) in 38..39 -> n >= 14 // Diners Club
+            p(2) == 35 -> n >= 16 // JCB, RuPay
+            p(4) in 2200..2204 -> n >= 16 // Mir
+            p(2) == 50 || p(2) in 56..58 || d[0] == '6' -> true // Maestro, Discover, UnionPay, RuPay
+            p(2) == 81 || p(2) == 82 -> n >= 16 // UnionPay, RuPay
+            else -> false
+        }
+    }
+
+    private fun luhn(d: String): Boolean {
+        var sum = 0
+        d.reversed().forEachIndexed { i, c ->
+            val v = c - '0'
+            sum += if (i % 2 == 1) (v * 2).let { if (it > 9) it - 9 else it } else v
+        }
+        return sum % 10 == 0
+    }
 
     const val SENSITIVE_FIELD = "This is a password, card or one-time-code field, which you never type into. For a sign-in, use browser_login if the snapshot says a saved login is available; otherwise hand over with browser_ask_user."
 }

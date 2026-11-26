@@ -81,6 +81,7 @@
     <string name="chat_run_background_helper">Un ayudante terminó mientras Locus estaba en segundo plano. ¿Continuar con su informe?</string>
     <string name="chat_run_background_queued">Locus no pudo enviar tu mensaje en cola mientras estaba en segundo plano. ¿Continuar?</string>
     <string name="chat_run_tool_gone">No se pudo ejecutar: esa herramienta ya no está disponible.</string>
+    <string name="chat_run_busy_not_started">Locus sigue trabajando en este chat, así que no se envió. Vuelve a intentarlo cuando termine.</string>
     <string name="chat_run_no_provider">Primero añade un proveedor de modelos en Ajustes → Modelos.</string>
     <string name="chat_budget_paused_reached">En pausa: se alcanzó el presupuesto de %1$s de esta tarea.</string>
     <string name="chat_budget_stopped_reached">Detenida: se alcanzó el presupuesto de %1$s de esta tarea.</string>
@@ -361,6 +362,7 @@
     <string name="chat_screen_editing_body">Al enviar se crea una rama nueva; el original y sus respuestas se conservan. Cierra para enviarlo como mensaje nuevo.</string>
     <string name="chat_screen_editing_title">Editando un mensaje</string>
     <string name="chat_screen_stop_editing">Dejar de editar</string>
+    <string name="chat_screen_plan_change_prefix">Cambia el plan:</string>
     <string name="chat_screen_editing_queued_body">Al enviar se cambia el mensaje en cola antes de que salga.</string>
     <string name="chat_screen_editing_queued_title">Editando un mensaje en cola</string>
     <string name="chat_screen_cool_title">Deja que el teléfono se enfríe</string>
@@ -516,6 +518,7 @@
     <string name="chat_home_working_status">Trabajando</string>
     <string name="chat_home_stopped_early">Se detuvo antes · toca para continuar</string>
     <string name="chat_home_scheduled_task">Tarea programada</string>
+    <string name="chat_home_draft">Borrador: %1$s</string>
     <string name="chat_home_unpin">Desfijar</string>
     <string name="chat_home_pin">Fijar arriba</string>
     <string name="chat_home_rename">Renombrar</string>

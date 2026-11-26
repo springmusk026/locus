@@ -168,7 +168,16 @@ class BrowserViewModel @Inject constructor(val browser: AgentBrowser, private va
         before = browser.focusStandalone()
     }
 
-    fun takeOver() = browser.takeOver()
+    /** The chat whose browser this screen took over; handed back even when another chat is focused by then (#340). */
+    private var tookOver: String? = null
+
+    /** The chat whose browser is on screen; null in the user's own browsing. */
+    private fun shownChat(): String? = browser.focusedKey.value?.takeIf { it != AgentBrowser.STANDALONE }
+
+    fun takeOver(): Boolean {
+        val key = shownChat() ?: return false
+        return browser.takeOver(key).also { if (it) tookOver = key }
+    }
 
     /**
      * The approval card's answers, the same calls the chat's card and the notification make
@@ -197,14 +206,21 @@ class BrowserViewModel @Inject constructor(val browser: AgentBrowser, private va
      * after the browser call that was waiting), never into a tool result, which is untrusted territory.
      */
     fun handBack(note: String) {
-        val key = browser.focusedKey.value?.takeIf { it != AgentBrowser.STANDALONE }
+        // The chat on screen when it shows the handoff or the takeover, else the one this screen took over (#340).
+        val shown = shownChat()
+        val page = shown?.let { browser.stateOf(it).value }
+        val key = when {
+            shown != null && page != null && (page.handoffReason != null || page.userControl) -> shown
+            else -> tookOver?.takeIf { browser.stateOf(it).value.userControl }
+        } ?: return
         val text = note.trim()
-        if (key != null && text.isNotEmpty()) runner.send(key, text)
-        val page = browser.state.value
-        when {
-            page.handoffReason != null -> browser.completeHandoff()
-            page.userControl -> browser.handBack(noted = key != null && text.isNotEmpty())
+        if (text.isNotEmpty()) runner.send(key, text)
+        if (browser.stateOf(key).value.handoffReason != null) {
+            browser.completeHandoff(key)
+        } else {
+            browser.handBack(key, noted = text.isNotEmpty())
         }
+        if (key == tookOver) tookOver = null
     }
 
     /** Opens what the user typed in the address bar; [onError] gets a message when it can't. */
@@ -237,7 +253,9 @@ class BrowserViewModel @Inject constructor(val browser: AgentBrowser, private va
 
     override fun onCleared() {
         // Leaving the browser gives it back: nobody is left to tap Hand back, and the agent shouldn't wait out the timeout.
-        if (browser.state.value.userControl) browser.handBack(noted = false)
+        listOfNotNull(shownChat(), tookOver).distinct()
+            .filter { browser.stateOf(it).value.userControl }
+            .forEach { browser.handBack(it, noted = false) }
         if (showingStandalone) browser.restoreFocus(before)
     }
 }

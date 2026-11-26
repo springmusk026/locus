@@ -81,6 +81,7 @@
     <string name="chat_run_background_helper">A helper finished while Locus was in the background. Continue with its report?</string>
     <string name="chat_run_background_queued">Locus couldn\'t send your queued message while it was in the background. Continue?</string>
     <string name="chat_run_tool_gone">Couldn\'t run it: that tool is no longer available.</string>
+    <string name="chat_run_busy_not_started">Locus is still working in this chat, so that wasn\'t sent. Try again when it\'s done.</string>
     <string name="chat_run_no_provider">Add a model provider in Settings → Models first.</string>
     <string name="chat_budget_paused_reached">Paused: reached the %1$s budget for this task.</string>
     <string name="chat_budget_stopped_reached">Stopped: reached the %1$s budget for this task.</string>
@@ -347,6 +348,7 @@
     <string name="chat_screen_editing_body">Sending makes a new branch; the original and its replies stay. Close to send it as a new message instead.</string>
     <string name="chat_screen_editing_title">Editing a message</string>
     <string name="chat_screen_stop_editing">Stop editing</string>
+    <string name="chat_screen_plan_change_prefix">Change the plan:</string>
     <string name="chat_screen_editing_queued_body">Sending changes the queued message before it goes.</string>
     <string name="chat_screen_editing_queued_title">Editing a queued message</string>
     <string name="chat_screen_cool_title">Let the phone cool down</string>
@@ -496,6 +498,7 @@
     <string name="chat_home_working_status">Working</string>
     <string name="chat_home_stopped_early">Stopped early · tap to continue</string>
     <string name="chat_home_scheduled_task">Scheduled task</string>
+    <string name="chat_home_draft">Draft: %1$s</string>
     <string name="chat_home_unpin">Unpin</string>
     <string name="chat_home_pin">Pin to top</string>
     <string name="chat_home_rename">Rename</string>

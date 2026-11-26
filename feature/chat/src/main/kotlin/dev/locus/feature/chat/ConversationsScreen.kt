@@ -729,6 +729,11 @@ private fun ConversationRowItem(row: ConversationRow, actions: RowActions, showM
                     row.needsApproval -> StatusLine(stringResource(R.string.chat_home_needs_your_approval), Tone.Caution)
                     row.running -> StatusLine(stringResource(R.string.chat_home_working_status), Tone.Live)
                     row.interrupted -> StatusLine(stringResource(R.string.chat_home_stopped_early), Tone.Caution)
+                    // Unsent text left in the chat's composer (#319), on one line.
+                    row.draft != null -> SupportingText(
+                        stringResource(R.string.chat_home_draft, row.draft.replace(Regex("\\s+"), " ").trim()),
+                        maxLines = 1,
+                    )
                     row.imported != null -> SupportingText(
                         stringResource(R.string.chat_imported_row_meta, row.imported!!.displayName, relativeTime(row.conversation.updatedAt)),
                         maxLines = 1,
