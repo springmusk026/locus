@@ -50,8 +50,7 @@ class AndroidDeviceConditions @Inject constructor(@param:ApplicationContext priv
     private val _state = MutableStateFlow(DeviceState())
     override val state: StateFlow<DeviceState> = _state.asStateFlow()
 
-    @Volatile private var lastHeadroomAt = 0L
-    @Volatile private var lastHeadroom: Float? = null
+    private val headroomCache = HeadroomCache(HEADROOM_INTERVAL_MS)
     @Volatile private var lowMemoryAt = 0L
 
     init {
@@ -63,13 +62,10 @@ class AndroidDeviceConditions @Inject constructor(@param:ApplicationContext priv
 
     override fun headroom(forecastSeconds: Int): Float? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || power == null) return null
-        val now = SystemClock.elapsedRealtime()
-        // The ADPF guide: no more than once every 10 seconds (the API may return NaN when called too often).
-        if (now - lastHeadroomAt < HEADROOM_INTERVAL_MS) return lastHeadroom
-        lastHeadroomAt = now
-        val value = runCatching { power.getThermalHeadroom(forecastSeconds.coerceIn(0, 60)) }.getOrNull()
-        lastHeadroom = value?.takeUnless { it.isNaN() || it <= 0f }
-        return lastHeadroom
+        val seconds = forecastSeconds.coerceIn(0, 60)
+        return headroomCache.get(seconds, SystemClock.elapsedRealtime()) {
+            runCatching { power.getThermalHeadroom(seconds) }.getOrNull()
+        }
     }
 
     private fun watchThermal() {
@@ -102,7 +98,7 @@ class AndroidDeviceConditions @Inject constructor(@param:ApplicationContext priv
         val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
         val status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
         val percent = if (level >= 0 && scale > 0) level * 100 / scale else null
-        val charging = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
+        val charging = chargingFrom(status, plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1))
         _state.update { it.copy(batteryPercent = percent, charging = charging) }
     }
 
@@ -112,11 +108,15 @@ class AndroidDeviceConditions @Inject constructor(@param:ApplicationContext priv
 
     private fun watchNetwork() {
         val cm = context.getSystemService(ConnectivityManager::class.java) ?: return
+        // The callback below fires at once only when there is a default network: seed from the current
+        // one, so a phone offline at launch reads as offline, not as the default Wi-Fi.
+        val current = cm.activeNetwork?.let(cm::getNetworkCapabilities)
+        _state.update { it.copy(network = networkKindOf(current != null, current?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) == true)) }
         // Fires at once with the current default network, then on every change.
         cm.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
             override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
                 val unmetered = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
-                _state.update { it.copy(network = if (unmetered) NetworkKind.UNMETERED else NetworkKind.METERED) }
+                _state.update { it.copy(network = networkKindOf(connected = true, notMetered = unmetered)) }
             }
 
             override fun onLost(network: Network) {
@@ -158,6 +158,40 @@ class AndroidDeviceConditions @Inject constructor(@param:ApplicationContext priv
     private companion object {
         const val HEADROOM_INTERVAL_MS = 10_000L
         const val LOW_MEMORY_HOLD_MS = 3 * 60_000L
+    }
+}
+
+/**
+ * Plugged in, from `ACTION_BATTERY_CHANGED`: `EXTRA_PLUGGED` is non-zero on any power source. `STATUS_FULL`
+ * alone isn't charging: a phone unplugged at 100% can still report it. [status] decides only when the
+ * broadcast has no plug extra.
+ */
+internal fun chargingFrom(status: Int, plugged: Int): Boolean =
+    if (plugged >= 0) plugged != 0 else status == BatteryManager.BATTERY_STATUS_CHARGING
+
+/** The default network's kind: none when there is no default network. */
+internal fun networkKindOf(connected: Boolean, notMetered: Boolean): NetworkKind = when {
+    !connected -> NetworkKind.NONE
+    notMetered -> NetworkKind.UNMETERED
+    else -> NetworkKind.METERED
+}
+
+/**
+ * `getThermalHeadroom` answers, one per forecast length, each asked again at most every [intervalMs]
+ * (the ADPF guide: no more than once every 10 seconds; the API may return NaN when called too often).
+ * A forecast for another length is never answered from this one's value.
+ */
+internal class HeadroomCache(private val intervalMs: Long) {
+    private class Entry(val at: Long, val value: Float?)
+
+    private val entries = HashMap<Int, Entry>()
+
+    @Synchronized
+    fun get(forecastSeconds: Int, now: Long, read: () -> Float?): Float? {
+        entries[forecastSeconds]?.takeIf { now - it.at < intervalMs }?.let { return it.value }
+        val value = read()?.takeUnless { it.isNaN() || it <= 0f }
+        entries[forecastSeconds] = Entry(now, value)
+        return value
     }
 }
 

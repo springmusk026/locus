@@ -52,7 +52,7 @@ Sizes measured from `./gradlew :app:assembleRelease` on 2026-11-01 (0.1.3 source
    - `versionCode`: the previous code plus one. It must only ever go up; Android refuses to update to a lower code.
    - `versionName`: the new [semantic version](https://semver.org/), without a `v`. Pre-releases use a suffix, e.g. `0.2.0-beta.1`.
 2. **Write the changelogs:**
-   - `CHANGELOG.md`: rename `## [Unreleased]` to `## [<versionName>] - <YYYY-MM-DD>` and start a new empty `## [Unreleased]` above it.
+   - `CHANGELOG.md`: first run `python3 tools/changelog.py`, which moves the entries in `changelog.d/` under `## [Unreleased]`; then rename `## [Unreleased]` to `## [<versionName>] - <YYYY-MM-DD>` and start a new empty `## [Unreleased]` above it.
    - `fastlane/metadata/android/en-US/changelogs/<code>.txt`: a plain-text summary for F-Droid's "What's new", at most 500 characters ([All About Descriptions](https://f-droid.org/docs/All_About_Descriptions_Graphics_and_Screenshots/)). The file name is the APK's versionCode, with no padding, and each ABI has its own: for `versionCode = 5`, write `53.txt` and `54.txt` with the same text.
 3. **Commit** (`Release 0.1.2`) and merge to `main`.
 4. **Tag that commit** `v<versionName>` and push the tag:

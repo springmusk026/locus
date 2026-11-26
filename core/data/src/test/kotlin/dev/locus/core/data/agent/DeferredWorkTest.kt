@@ -5,16 +5,22 @@ import dev.locus.core.model.ApprovalDecision
 import dev.locus.core.model.DeviceState
 import dev.locus.core.model.DiscoveryTools
 import dev.locus.core.model.PauseReason
+import dev.locus.core.model.PowerPolicy
 import dev.locus.core.model.PowerSettings
 import dev.locus.core.model.ThermalLevel
 import dev.locus.core.testing.ScriptedProvider
 import dev.locus.core.testing.ScriptedProvider.script
 import dev.locus.core.testing.TestGraph
+import dev.locus.core.llm.DeviceConditions
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalForInheritanceCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -153,5 +159,79 @@ class DeferredWorkTest {
         // Only the side job (the title) waits for the phone to cool.
         until("its side jobs are held") { runner.states.value[chat.id]?.paused == PauseReason.HOT }
         assertEquals(2, g.chatRequests())
+    }
+
+    @Test
+    fun `work checked just before the phone cooled runs, rather than being held after the release`() = runTest {
+        val g = TestGraph(backgroundScope, settings)
+        val conditions = StaleRead(DeviceState(thermal = ThermalLevel.SEVERE))
+        val deferred = DeferredWork(backgroundScope, conditions, g.settingsRepository)
+        runCurrent()
+        // The phone cools and the (empty) hold is released...
+        conditions.flow.value = DeviceState()
+        runCurrent()
+        // ...but runOrHold read the conditions a moment before. It used to hold the block after the
+        // release had run, where nothing would ever release it.
+        conditions.stale = DeviceState(thermal = ThermalLevel.SEVERE)
+        var ran = false
+        assertFalse(deferred.runOrHold("k", "chat") { ran = true })
+        assertTrue(ran)
+        assertTrue(deferred.paused.value.isEmpty())
+    }
+
+    @Test
+    fun `work held for heat waits a minute below severe, and flapping back to severe restarts the wait`() = runTest {
+        val g = TestGraph(backgroundScope, settings)
+        g.conditions.set(DeviceState(thermal = ThermalLevel.SEVERE))
+        runCurrent()
+        val ran = mutableListOf<String>()
+        assertTrue(g.deferred.runOrHold("a/after", "a") { ran += "a" })
+
+        g.conditions.set(DeviceState(thermal = ThermalLevel.MODERATE))
+        runCurrent()
+        advanceTimeBy(40_000)
+        runCurrent()
+        assertTrue(ran.isEmpty(), "a dip to MODERATE doesn't release at once")
+        assertEquals(mapOf("a" to PauseReason.HOT), g.deferred.paused.value)
+        // New work in that minute waits too, rather than running beside the held work.
+        assertTrue(g.deferred.runOrHold("b/after", "b") { ran += "b" })
+
+        g.conditions.set(DeviceState(thermal = ThermalLevel.SEVERE))
+        runCurrent()
+        g.conditions.set(DeviceState(thermal = ThermalLevel.MODERATE))
+        runCurrent()
+        advanceTimeBy(PowerPolicy.HOT_RELEASE_AFTER_MS - 1_000)
+        runCurrent()
+        assertTrue(ran.isEmpty(), "back to SEVERE restarted the minute")
+        // Battery readings changing in the meantime don't restart it.
+        g.conditions.set(DeviceState(thermal = ThermalLevel.MODERATE, batteryPercent = 40))
+        runCurrent()
+        advanceTimeBy(2_000)
+        runCurrent()
+        assertEquals(setOf("a", "b"), ran.toSet())
+        assertTrue(g.deferred.paused.value.isEmpty())
+    }
+
+    @Test
+    fun `work held for heat is released at once below moderate`() = runTest {
+        val g = TestGraph(backgroundScope, settings)
+        g.conditions.set(DeviceState(thermal = ThermalLevel.CRITICAL))
+        runCurrent()
+        var ran = false
+        assertTrue(g.deferred.runOrHold("k", "chat") { ran = true })
+        g.conditions.set(DeviceState(thermal = ThermalLevel.LIGHT))
+        runCurrent()
+        assertTrue(ran)
+        assertTrue(g.deferred.paused.value.isEmpty())
+    }
+}
+
+/** Conditions whose next `state.value` read returns [stale] once: a read made just before a change. */
+@OptIn(ExperimentalForInheritanceCoroutinesApi::class)
+private class StaleRead(initial: DeviceState) : DeviceConditions {
+    val flow = MutableStateFlow(initial)
+    var stale: DeviceState? = null
+    override val state: StateFlow<DeviceState> = object : StateFlow<DeviceState> by flow {
+        override val value: DeviceState get() = stale?.also { stale = null } ?: flow.value
     }
 }
