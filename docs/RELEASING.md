@@ -60,8 +60,9 @@ Sizes measured from `./gradlew :app:assembleRelease` on 2026-11-01 (0.1.3 source
    git tag -a v0.1.2 -m "Locus 0.1.2"
    git push origin v0.1.2
    ```
-   Or run the Release workflow by hand with the tag as input; it tags the commit it runs on.
+   Or run the Release workflow by hand on `main` with the tag as input; it tags the commit it runs on. The workflow refuses any commit that isn't on `main` ([What the workflow enforces](#what-the-workflow-enforces)).
 5. **The Release workflow** (`.github/workflows/release.yml`, see [How the workflow signs](#how-the-workflow-signs)):
+   - fails before building if the signing key is missing or the commit isn't on `main` ([What the workflow enforces](#what-the-workflow-enforces));
    - fails unless the tag is exactly `v` + `versionName` and both per-ABI changelogs exist;
    - runs the tests and builds unsigned release APKs in one job, one ABI at a time (`:app:clean :app:assembleRelease -Plocus.abi=<abi> -Plocus.unsigned=true`, exactly as F-Droid's recipe builds them, so they reproduce). A second job signs them with Locus's key, attests their build provenance and publishes `locus-<tag>-arm64-v8a.apk` and `locus-<tag>-x86_64.apk` as a GitHub release, with `SHA256SUMS.txt` and the R8 mapping (one mapping: the code is the same in both APKs, and the job checks the two are identical).
    - publishes no debug APK. A debuggable APK lets anyone with adb read the app's data, so debug builds are never signed with the release key and are a separate app (`dev.locus.debug`, "Locus Debug") that can't install over Locus. Use the R8 mapping to read release stack traces.
@@ -70,6 +71,21 @@ Sizes measured from `./gradlew :app:assembleRelease` on 2026-11-01 (0.1.3 source
    - don't rename the release assets;
    - don't re-upload or rebuild an APK after the tag;
    - build the published APK from a clean checkout of the tag (the workflow does).
+
+## What the workflow enforces
+
+A real (not dry) run starts with a small **Release checks** job, before anything is built. It runs `tools/release_guard.py` (tests: `python3 -m unittest discover -s tools -p 'test_*.py'`) and stops the run when:
+
+- **the signing key is missing.** In `springmusk026/locus`, an empty `LOCUS_KEYSTORE_B64` is an error: the release would be signed with a throwaway key, and no existing install could update to it (Android and the in-app updater both reject a key change). The sign job checks again before signing. A fork has no key, so there it's only a warning and the fork's release is signed with a throwaway key, as before.
+- **the commit isn't on `main`.** The job fetches the history of every branch (commits only, no file contents) and runs `git merge-base --is-ancestor <commit> origin/main`. A tag on a commit that never reached `main`, or a run by hand from another branch, publishes nothing. Merge first, then tag.
+
+And for every run:
+
+- **One release per version at a time.** The concurrency group is the version (`release-v0.2.0`), from the pushed tag or the `tag` input, so a tag push and a run by hand for the same version can't both publish: the second waits, then `gh release create` fails because the release exists. A dry run keeps a group per branch (`release-dry-run-<ref>`).
+
+A dry run checks neither the key nor the branch: it reads no secrets and can run on any branch, also in a fork.
+
+These checks catch mistakes; they don't stop someone with write access. A run by hand uses `release.yml` from the branch it runs on, so a branch can change the checks themselves. What stops that is the `release` environment's rules below, once the owner has set them: with the key only in the environment and a `v*`/`main` policy, no job on another ref can get the key.
 
 ## How the workflow signs
 
@@ -88,22 +104,22 @@ So nothing the build runs (Gradle, its plugins, every dependency, the tests) can
 
 ### Signing key
 
-The workflow reads `LOCUS_KEYSTORE_B64` (the keystore, base64), `LOCUS_KEYSTORE_PASSWORD` and `LOCUS_KEY_ALIAS` as secrets, in the sign job only. Without `LOCUS_KEYSTORE_B64` (a fork), it signs with a throwaway key and says so in the release notes.
+The workflow reads `LOCUS_KEYSTORE_B64` (the keystore, base64), `LOCUS_KEYSTORE_PASSWORD` and `LOCUS_KEY_ALIAS` as secrets, in the sign job only; the Release checks job sees only whether `LOCUS_KEYSTORE_B64` is set (`secrets.LOCUS_KEYSTORE_B64 != ''`), never the key. Both jobs run in the `release` environment, so `secrets.*` finds the three either as repository secrets or as `release` environment secrets (an environment secret wins over a repository secret of the same name); moving them needs no change to the workflow. The names must stay exactly these: under any other name, Release checks stops the run. Without `LOCUS_KEYSTORE_B64` in a fork, the workflow signs with a throwaway key and says so in the release notes.
 
-The sign job runs in a `release` [environment](https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment), which GitHub creates on first use. **It exists now**: the 0.1.6 release created it on 2026-11-05. As of that day it has no protection: no protection rules, no deployment branch or tag policy, no secrets of its own (the three keystore secrets are still repository secrets, which is why 0.1.6 signed with the real key), and admins can bypass it. That works, but anything that can start the sign job can use the key. Hardening is optional and left to the owner, in Settings → Environments → `release`:
+The Release checks and sign jobs run in a `release` [environment](https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment), which GitHub creates on first use. **It exists now**: the 0.1.6 release created it on 2026-11-05. As of that day it has no protection: no protection rules, no deployment branch or tag policy, no secrets of its own (the three keystore secrets are still repository secrets, which is why 0.1.6 signed with the real key), and admins can bypass it. That works, but anything that can start the sign job can use the key. The workflow can't change repository settings; these are for the owner to do by hand, in Settings → Environments → `release` (and Settings → Secrets and variables → Actions):
 
-- [ ] Move the three secrets from repository secrets into the environment's secrets, then delete the repository copies. Repository secrets are readable by any workflow on any branch that someone with write access pushes; environment secrets only by jobs that the environment's rules let in.
+- [ ] Move the three secrets from repository secrets into the environment's secrets, under the same names, then delete the repository copies. Repository secrets are readable by any workflow on any branch that someone with write access pushes; environment secrets only by jobs that the environment's rules let in. Add the environment copies first: a real release between the two steps would otherwise stop at Release checks (nothing is published; rerun it).
 - [ ] Deployment branches and tags: "Selected branches and tags", with the tag rule `v*` and the branch `main` (a release run by hand runs on `main`).
-- [ ] Optionally, required reviewers, so each release waits for a click before the key is used.
+- [ ] Required reviewers (the owner), so each release waits for a click before the key is used. Release checks and the sign job each ask: once before the build and once before signing.
 - [ ] Optionally, untick "Allow administrators to bypass configured protection rules", so the rules above apply to the owner's account too.
 
-Check the state with `gh api repos/springmusk026/locus/environments/release` (`protection_rules`, `deployment_branch_policy`) and `gh secret list --env release`. A dry run doesn't use the environment, so only the next real release tests a change: a branch or tag policy that leaves out the ref the workflow runs on stops the sign job before it signs anything, and the release can be rerun after fixing the rule.
+Check the state with `gh api repos/springmusk026/locus/environments/release` (`protection_rules`, `deployment_branch_policy`) and `gh secret list --env release`. A dry run doesn't use the environment, so only the next real release tests a change: a branch or tag policy that leaves out the ref the workflow runs on stops Release checks before anything is built, and the release can be rerun after fixing the rule.
 
 A dry run uses no environment and reads no secrets.
 
 ### Dry run
 
-Actions → Release → Run workflow, pick a branch, tick **Dry run**. The workflow builds `v<versionName>` from that branch, signs it with a key it generates on the spot, and uploads the signed APKs, the mapping and `SHA256SUMS.txt` as the `release-dry-run` artifact. It creates no tag, no release and no attestation, and needs no environment. Use it to check changes to `release.yml`. From the command line:
+Actions → Release → Run workflow, pick a branch, tick **Dry run**. The workflow builds `v<versionName>` from that branch, signs it with a key it generates on the spot, and uploads the signed APKs, the mapping and `SHA256SUMS.txt` as the `release-dry-run` artifact. It creates no tag, no release and no attestation, and needs no environment, no key and no particular branch (Release checks only notes that it's a dry run). Use it to check changes to `release.yml`. From the command line:
 
 ```sh
 gh workflow run release.yml --ref <branch> -f dry-run=true
