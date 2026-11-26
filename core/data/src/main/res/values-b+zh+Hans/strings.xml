@@ -153,6 +153,8 @@
     <string name="data_lock_public_text">解锁手机以查看详情</string>
     <string name="data_lock_chat_waiting">有一个已锁定的对话在等你。打开 Locus 查看。</string>
     <string name="data_lock_reminder_text">来自已锁定对话的提醒</string>
+    <string name="data_reminder_snooze">推迟 10 分钟</string>
+    <string name="data_reminder_done">完成</string>
     <string name="data_reachme_token_missing">粘贴 Gotify 的应用令牌（Apps → Create Application）。</string>
     <string name="data_reachme_token_invalid">这看起来不像 Gotify 应用令牌：请完整复制，不要带空格。</string>
     <string name="data_reachme_token_again">地址已更改，请重新粘贴令牌。Locus 只会把已保存的令牌发送到保存它时对应的服务器。</string>

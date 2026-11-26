@@ -185,7 +185,14 @@ A task's conditions (Tasks → edit → Conditions) are WorkManager constraints,
 
 ## Starting at a time of day
 
-A new scheduled task's sheet has a **Starting at** row: "Right after saving" by default, or a time of day picked on a `TimeSheet` (Material's `TimePicker`, in the phone's 12- or 24-hour format). The time becomes the periodic work's initial delay (`delayUntil`: today's if it's still ahead, else tomorrow's), so "every day at 07:30" first runs at the next 07:30 and then once a period. Under the row the sheet lists the next three runs with their weekday and the phone's time zone ("Fri 07:30, Sat 07:30, Sun 07:30 (Nepal Time)", `nextRuns`), and says Android may run it a little later while the phone is idle. The morning and news digests start at 07:00 this way. An edited task keeps its timing (the row is only on a new task): WorkManager's `UPDATE` keeps a periodic request's schedule, and restarting it to move the time would cancel a run in progress. The editor, with its draft, survives a rotation or a theme change (`SheetTargetSaver`, `TaskDraftSaver`).
+A new scheduled task's sheet has a **Starting at** row: "Right after saving" by default, or a time of day picked on a `TimeSheet` (Material's `TimePicker`, in the phone's 12- or 24-hour format). Under the row the sheet lists the next three runs with their weekday and the phone's time zone ("Fri 07:30, Sat 07:30, Sun 07:30 (Nepal Time)", `nextRuns`), and says Android may run it a little later while the phone is idle. The morning and news digests start at 07:00 this way. The editor, with its draft, survives a rotation or a theme change (`SheetTargetSaver`, `TaskDraftSaver`).
+
+**Whole-day periods keep their wall-clock time (#314).** A task that starts at a time of day and repeats every N whole days (daily, weekly) isn't a periodic request: a fixed 1,440-minute period keeps its 24 hours when the clocks change, so "every morning at 7" would run at 8:00 for good after the spring change, and `UPDATE` keeps a periodic request's schedule, so it can't be realigned either. Instead it is one one-time `TaskWorker` request at a time (unique name `task-<id>`), due at `TaskTiming.first` (the next `HH:MM` in the phone's zone, from `ZonedDateTime`). When a run ends (finished, failed or skipped; not when Android stops it for WorkManager to retry, and not on a hot-phone retry), `TaskWorker.enqueueNextDaily` enqueues the next one for `TaskTiming.next`: N local days after the date this one was due, at the same `HH:MM`, and never at or before now, so a run Android held for a day doesn't make the next late too. A task turned off or deleted meanwhile isn't enqueued again, and the conditions and period come from the task as it is then.
+- A time that doesn't exist on a day (02:30 when the clocks jump from 02:00 to 03:00) runs after the jump (03:30) and the next day is at 02:30 again. A time that happens twice runs the first time.
+- The time of day isn't a database column (no schema change). `TaskTimes`, a small preferences file, keeps it with the next planned run. It is what lets a task set up again without a time (a changed condition or period, turning it on again) keep it, and a weekly task keep its day: `TaskTiming.resume` reuses the planned run while it is still ahead and still at that time here. A restored backup comes with no such file: restored tasks get a plain period of the same length.
+- Scheduling it again (new conditions, an edit) replaces the waiting request and, as any cancel does, stops a run of this task that is going at that moment; before, `UPDATE` left it alone.
+- Not realigned yet: moving to another time zone. The run already waiting stays at its instant (once, at the old zone's time); the one enqueued after it is back on the wall clock.
+- A period that isn't whole days (hourly, every 90 minutes) stays a periodic request, as before: they don't depend on the hour of day.
 
 ## Event-triggered runs
 
@@ -193,6 +200,7 @@ A task can also start when an event arrives ([event triggers](event-triggers.md)
 
 ## Tests
 
+- `TaskTimingTest`: the next run across the spring and autumn changes (New York and Lisbon), a time inside the skipped hour and one inside the repeated hour, a run held for a day, a weekly task through the change, and a later extra trigger check not replacing a nearer one.
 - `ScheduledRunTest`: a finished run; a stop by Android recorded and notified with its reason, and its
   retry not sending the prompt again; a retry after the process died; the budget; a failure; Run now
   next to a live or stale marker; the start rule and stop reason texts.

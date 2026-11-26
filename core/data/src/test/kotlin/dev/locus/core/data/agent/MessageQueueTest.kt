@@ -14,7 +14,8 @@ import kotlin.test.assertTrue
 class MessageQueueTest {
     private val dir: File = Files.createTempDirectory("queued").toFile()
     private var now = 0L
-    private fun queue() = MessageQueue(dir, clock = { now++ })
+    private val reports = mutableListOf<Pair<String, String>>()
+    private fun queue() = MessageQueue(dir, clock = { now++ }, report = { title, details -> reports += title to details })
 
     @After
     fun cleanUp() {
@@ -100,6 +101,63 @@ class MessageQueueTest {
         q.clear("chat")
         assertFalse(q.has("chat"))
         assertTrue(queue().load().isEmpty())
+    }
+
+    @Test
+    fun `an unreadable queue file is kept as corrupt and reported, not deleted`() {
+        dir.mkdirs()
+        File(dir, "chat.json").writeText("")
+        File(dir, "half.json").writeText("[{\"id\":\"a\",\"te")
+        File(dir, "good.json").writeText(
+            """[{"id":"a","text":"still here","createdAt":1}]""",
+        )
+
+        val loaded = queue().load()
+
+        assertEquals(setOf("good"), loaded)
+        assertFalse(File(dir, "chat.json").exists())
+        assertTrue(File(dir, "chat.json.corrupt").exists())
+        assertEquals("[{\"id\":\"a\",\"te", File(dir, "half.json.corrupt").readText())
+        assertEquals(2, reports.size)
+        assertTrue(reports.all { it.second.contains(".corrupt") })
+        // A second start doesn't treat the set-aside files as queues.
+        assertEquals(setOf("good"), queue().load())
+    }
+
+    @Test
+    fun `a finished queue file holding an empty list is just removed`() {
+        dir.mkdirs()
+        File(dir, "chat.json").writeText("[]")
+        assertTrue(queue().load().isEmpty())
+        assertFalse(File(dir, "chat.json").exists())
+        assertFalse(File(dir, "chat.json.corrupt").exists())
+        assertTrue(reports.isEmpty())
+    }
+
+    @Test
+    fun `a failed write is reported once per streak and the queue still works in memory`() {
+        // A plain file where the folder should be, so nothing can be written under it.
+        val blocked = File.createTempFile("queued", "file")
+        try {
+            val q = MessageQueue(blocked, clock = { now++ }, report = { title, details -> reports += title to details })
+            q.add("chat", "one")
+            q.add("chat", "two")
+            assertEquals(listOf("one", "two"), q.get("chat").map { it.text })
+            assertEquals(1, reports.size, "a full disk doesn't log once per message")
+            assertTrue(reports.single().first.contains("couldn't be saved"))
+        } finally {
+            blocked.delete()
+        }
+    }
+
+    @Test
+    fun `a write replaces the old file and leaves no temp file`() {
+        val q = queue()
+        q.add("chat", "one")
+        q.add("chat", "two")
+        assertEquals(listOf("chat.json"), dir.list().orEmpty().sorted())
+        assertEquals(listOf("one", "two"), queue().also { it.load() }.get("chat").map { it.text })
+        assertTrue(reports.isEmpty())
     }
 
     @Test

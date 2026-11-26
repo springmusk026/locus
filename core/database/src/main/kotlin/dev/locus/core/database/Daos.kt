@@ -348,6 +348,27 @@ const val SET_RUN_CONVERSATION = "UPDATE scheduled_tasks SET runConversationId =
 /** Behind [ScheduledTaskDao.releaseRun]: only the run holding the task releases it. */
 const val RELEASE_RUN = "UPDATE scheduled_tasks SET runWorkId = NULL, runConversationId = NULL, runStartedAt = NULL WHERE id = :id AND runWorkId = :workId"
 
+/**
+ * The rest of [AuditDao.observeFiltered] once there is no text to search for: tool, decision, error and time
+ * filters, newest first. Behind [AuditDao.observeBrowse] and its two chat variants.
+ */
+private const val AUDIT_BROWSE_FILTERS = "AND startedAt >= :since AND startedAt <= :until " +
+    "AND (:allTools OR toolName IN (:tools)) " +
+    // A task's budget entries carry the user's Continue / Stop as a decision, but aren't approvals.
+    "AND (:allDecisions OR (decision IN (:decisions) AND toolName != '$TASK_BUDGET_ENTRY')) " +
+    "AND (NOT :onlyErrors OR isError = 1) " +
+    "ORDER BY startedAt DESC LIMIT :limit"
+
+/** Every chat: no `conversations` table in it, so a chat being written doesn't run it again. */
+const val AUDIT_BROWSE_ALL = "SELECT * FROM audit_log WHERE 1 $AUDIT_BROWSE_FILTERS"
+
+/** One chat, found through the `conversationId` index. */
+const val AUDIT_BROWSE_CHAT = "SELECT * FROM audit_log WHERE conversationId = :conversationId $AUDIT_BROWSE_FILTERS"
+
+/** One chat and its helpers: the only browse query that reads `conversations`. */
+const val AUDIT_BROWSE_CHAT_AND_HELPERS = "SELECT * FROM audit_log WHERE (conversationId = :conversationId " +
+    "OR conversationId IN (SELECT id FROM conversations WHERE parentConversationId = :conversationId)) $AUDIT_BROWSE_FILTERS"
+
 @Dao
 interface AuditDao {
     /** Forgets a deleted temporary chat's tool calls (docs/design/temporary-chats.md). */
@@ -365,12 +386,16 @@ interface AuditDao {
     fun observeStats(since: Long): Flow<List<AuditStatRow>>
 
     /**
-     * A filtered window of the log, newest first, for the Activity screen. Read-only. Each filter is
-     * off when its flag says so: [conversationId] null means every chat, [allTools]/[allDecisions]
-     * skip the [tools]/[decisions] lists, and a null [pattern] (a LIKE pattern, `\` escapes) skips
-     * the text search, which matches arguments, result previews, chat titles, or [textTools] (tool
-     * names whose plain-language label matched). [until] ends the time span; [withHelpers] adds the
-     * helper chats [conversationId] started (a task receipt's view). The window grows by raising [limit].
+     * A filtered window of the log, newest first, for the Activity screen: the general query, used when
+     * there is text to search for. Read-only. Each filter is off when its flag says so: [conversationId]
+     * null means every chat, [allTools]/[allDecisions] skip the [tools]/[decisions] lists, and a null
+     * [pattern] (a LIKE pattern, `\` escapes) skips the text search, which matches arguments, result
+     * previews, chat titles, or [textTools] (tool names whose plain-language label matched). [until] ends
+     * the time span; [withHelpers] adds the helper chats [conversationId] started (a task receipt's view).
+     * The window grows by raising [limit].
+     *
+     * It reads `conversations` for titles, so Room runs it again on every write to that table. Browsing
+     * without text uses [observeBrowse], [observeBrowseChat] and [observeBrowseChatAndHelpers], which don't.
      */
     @Query(
         "SELECT * FROM audit_log WHERE startedAt >= :since AND startedAt <= :until " +
@@ -398,6 +423,50 @@ interface AuditDao {
         limit: Int,
         until: Long,
         withHelpers: Boolean,
+    ): Flow<List<AuditEntity>>
+
+    /**
+     * [observeFiltered] with no text to search for, across every chat. It reads only `audit_log`, in
+     * `startedAt` order, so it is run again only when a tool call is recorded, not for every chat write.
+     */
+    @Query(AUDIT_BROWSE_ALL)
+    fun observeBrowse(
+        since: Long,
+        until: Long,
+        allTools: Boolean,
+        tools: List<String>,
+        allDecisions: Boolean,
+        decisions: List<String>,
+        onlyErrors: Boolean,
+        limit: Int,
+    ): Flow<List<AuditEntity>>
+
+    /** [observeBrowse] for one chat, through the `conversationId` index. */
+    @Query(AUDIT_BROWSE_CHAT)
+    fun observeBrowseChat(
+        conversationId: String,
+        since: Long,
+        until: Long,
+        allTools: Boolean,
+        tools: List<String>,
+        allDecisions: Boolean,
+        decisions: List<String>,
+        onlyErrors: Boolean,
+        limit: Int,
+    ): Flow<List<AuditEntity>>
+
+    /** [observeBrowseChat] plus the helper chats [conversationId] started (a task receipt's view). */
+    @Query(AUDIT_BROWSE_CHAT_AND_HELPERS)
+    fun observeBrowseChatAndHelpers(
+        conversationId: String,
+        since: Long,
+        until: Long,
+        allTools: Boolean,
+        tools: List<String>,
+        allDecisions: Boolean,
+        decisions: List<String>,
+        onlyErrors: Boolean,
+        limit: Int,
     ): Flow<List<AuditEntity>>
 
     /** Every tool name that appears in the log. Read-only; lets filters map categories and labels to names. */

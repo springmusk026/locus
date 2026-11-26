@@ -63,11 +63,11 @@ Readers accept 10,000 to 10,000,000 iterations, so a crafted header can't stall 
 - Streaming means a multi-GB workspace never sits in memory or in a plaintext temp file. Each 1 MiB segment is authenticated before any of its plaintext is released. A file that's cut short fails on its last segment.
 - Tink's fork-safety note says AES-GCM-HKDF streaming can reuse a nonce if a process is forked or a VM is cloned mid-encryption. ([Tink fork safety](https://developers.google.com/tink/issues/fork-safety)) That doesn't apply here: every backup has a fresh salt, so a fresh key, and Tink adds a random per-stream salt and nonce prefix.
 
-**Database copy: `VACUUM INTO` on Room's writer connection.**
+**Database copy: `VACUUM INTO` on a connection of its own.**
 - SQLite: "The VACUUM INTO command is transactional in the sense that the generated output database is a consistent snapshot of the original database." It also purges deleted content, leaving "no forensic traces" in the backup. It was added in 3.27.0. ([VACUUM](https://www.sqlite.org/lang_vacuum.html), [3.27.0 release notes](https://www.sqlite.org/releaselog/3_27_0.html))
 - Locus uses the bundled SQLite 3.50.1 on every Android version (docs/design/search.md), so `VACUUM INTO` is always there.
 - A plain file copy is unsafe in WAL mode: "If a database file is separated from its WAL file, then transactions that were previously committed to the database might be lost, or the database file might become corrupted." ([WAL](https://www.sqlite.org/wal.html)) The alternative (checkpoint, close Room, copy) would stop the whole app. `VACUUM INTO` needs neither.
-- `DatabaseBackup` runs it through Room 3's `useWriterConnection` outside a transaction (VACUUM fails inside one), so no write lands half-way. The snapshot keeps the header's `user_version`, which is Room's schema version.
+- `DatabaseBackup` runs it outside a transaction (VACUUM fails inside one) on a new read-only connection to the same file (`DatabaseBackup.snapshotFile`, the bundled driver opened with `SQLITE_OPEN_READONLY`, closed afterwards), off the main thread. For `VACUUM INTO` SQLite begins a read transaction on the source, and in WAL mode a reader doesn't block the writer, so a chat saving streamed messages isn't held up while a large database is copied (#317). Running it on Room's writer connection, as before, made every write wait until the copy ended. The copy sees the database as of when it starts; later writes aren't in it. The file's path comes from `PRAGMA database_list`. The snapshot keeps the header's `user_version`, which is Room's schema version.
 
 ## Restore
 
@@ -161,7 +161,7 @@ Errors (as opposed to exceptions) aren't caught by `PendingRestore`: they're tre
 - a newer schema is refused and an older one accepted; a newer format is refused; the manifest must match the database;
 - unsafe zip paths, and an unconfirmed stage that is discarded.
 
-`RestoredDatabaseCheckTest.kt` makes real databases with the bundled SQLite (a table with an index and an external-content FTS5 index, in WAL mode, copied with `VACUUM INTO`) and damages them at test time, so no binary fixtures are stored:
+`SnapshotWhileWritingTest.kt` takes a snapshot of a WAL database while its writer holds a write transaction open (and while a 30,000-row copy runs against a writer inserting) and checks that nothing waits or fails and the copy holds the committed rows only. `RestoredDatabaseCheckTest.kt` makes real databases with the bundled SQLite (a table with an index and an external-content FTS5 index, in WAL mode, copied with `VACUUM INTO`) and damages them at test time, so no binary fixtures are stored:
 - a sound database passes and is left byte for byte as it was, with no `-wal` or `-shm` beside it;
 - a page overwritten with junk, a damaged FTS5 index (every b-tree still valid), a file that only has the SQLite magic, and a missing file (not created) all fail;
 - a backup with a damaged database is refused as `DatabaseDamaged`, the stage is gone and the phone's database is unchanged; one with a sound database restores it byte for byte.

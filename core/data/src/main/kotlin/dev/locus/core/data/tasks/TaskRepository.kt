@@ -50,7 +50,9 @@ class TaskRepository(
     /**
      * A new task; [conditions] are when it may run (Settings → Battery & heat has the defaults). With a
      * [trigger], events start it instead of the schedule; [token] is an ntfy topic's access token, kept in
-     * the vault. A scheduled task's first run waits [firstRunDelayMillis]. Returns the task's id.
+     * the vault. A scheduled task's first run waits [firstRunDelayMillis]. With a [firstRunMinuteOfDay]
+     * (minutes after local midnight) and a period of whole days it runs at that wall-clock time every period,
+     * through clock changes. Returns the task's id.
      */
     suspend fun create(
         title: String,
@@ -60,6 +62,7 @@ class TaskRepository(
         trigger: TaskTrigger? = null,
         token: String? = null,
         firstRunDelayMillis: Long = 0,
+        firstRunMinuteOfDay: Int? = null,
     ): String {
         trigger?.problem?.let { throw IllegalArgumentException(it) }
         val task = ScheduledTaskEntity(
@@ -81,7 +84,7 @@ class TaskRepository(
         )
         if (trigger != null) setToken(task.id, token)
         dao.upsert(task)
-        schedule(task, checkNow = true, firstRunDelayMillis = firstRunDelayMillis)
+        schedule(task, checkNow = true, firstRunDelayMillis = firstRunDelayMillis, timeOfDay = firstRunMinuteOfDay.takeIf { trigger == null })
         return task.id
     }
 
@@ -319,11 +322,11 @@ class TaskRepository(
      * every 15 minutes (nothing for another app, which sends its events in), and with [checkNow] a first
      * check straight away, so the task shows at once whether its source works.
      */
-    private fun schedule(task: ScheduledTaskEntity, checkNow: Boolean = false, firstRunDelayMillis: Long = 0) {
+    private fun schedule(task: ScheduledTaskEntity, checkNow: Boolean = false, firstRunDelayMillis: Long = 0, timeOfDay: Int? = null) {
         val trigger = TaskTrigger.fromJson(task.triggerJson)
         if (trigger == null) {
             work.unwatch(task.id)
-            work.schedule(task.id, task.intervalMinutes, task.conditions, firstRunDelayMillis)
+            work.schedule(task.id, task.intervalMinutes, task.conditions, firstRunDelayMillis, timeOfDay)
             return
         }
         work.cancel(task.id)

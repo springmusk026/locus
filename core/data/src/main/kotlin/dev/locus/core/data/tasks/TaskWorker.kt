@@ -9,7 +9,9 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
+import androidx.work.ExistingWorkPolicy
 import androidx.work.WorkInfo
+import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import dagger.assisted.Assisted
@@ -20,6 +22,11 @@ import dev.locus.core.data.lock.AppLock
 import dev.locus.core.data.lock.LockedNotifications
 import dev.locus.core.data.lock.LockedNotifications.privateWhenLocked
 import dev.locus.core.model.AppLockSettings
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ensureActive
+import java.time.Instant
+import java.time.ZoneId
+import kotlin.coroutines.coroutineContext
 
 /**
  * Runs a scheduled task: a fresh conversation, read-only tools only (it can look things up and
@@ -44,6 +51,40 @@ class TaskWorker @AssistedInject constructor(
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
+        val result = try {
+            runTask()
+        } catch (e: CancellationException) {
+            // Stopped (WorkManager runs it again) or cancelled (the task was turned off, or its schedule replaced).
+            throw e
+        } catch (e: Throwable) {
+            enqueueNextDaily()
+            throw e
+        }
+        // Held for later (a hot phone) is the same work again; anything else was this day's run.
+        if (result != Result.retry()) enqueueNextDaily()
+        return result
+    }
+
+    /**
+     * A task that runs at a time of day is one one-time run at a time (so the clocks changing can't shift it):
+     * this one ends, and the next is enqueued for the same local time on the next day it is due.
+     */
+    private suspend fun enqueueNextDaily() {
+        val taskId = inputData.getString(KEY_TASK_ID) ?: return
+        val minute = inputData.getInt(KEY_AT_MINUTE, -1).takeIf { it >= 0 } ?: return
+        // A task turned off or deleted while it ran isn't scheduled again; one edited meanwhile is, as it is now.
+        coroutineContext.ensureActive()
+        val task = scheduled.enabledTask(taskId)?.takeIf { it.intervalMinutes % TaskTiming.DAY_MINUTES == 0L } ?: return
+        if (isStopped) return
+        val days = (task.intervalMinutes / TaskTiming.DAY_MINUTES).toInt()
+        val now = Instant.ofEpochMilli(System.currentTimeMillis())
+        val due = TaskTiming.next(minute, days, Instant.ofEpochMilli(inputData.getLong(KEY_DUE, now.toEpochMilli())), now, ZoneId.systemDefault())
+        TaskTimes(applicationContext).setDaily(taskId, minute, due.toEpochMilli())
+        // REPLACE under this run's own name: it has finished its work, and nothing else is waiting under the name.
+        enqueueDailyRun(WorkManager.getInstance(applicationContext), taskId, minute, due, now, task.conditions, ExistingWorkPolicy.REPLACE)
+    }
+
+    private suspend fun runTask(): Result {
         val taskId = inputData.getString(KEY_TASK_ID) ?: return Result.failure()
         // Heat isn't a WorkManager constraint: a scheduled run that finds the phone hot (SEVERE and up)
         // tries again later with WorkManager's backoff, before it sends anything. "Run now" isn't held.
@@ -111,6 +152,10 @@ class TaskWorker @AssistedInject constructor(
 
     companion object {
         const val KEY_TASK_ID = "task_id"
+
+        /** Set on the one-time run of a task at a time of day: minutes after local midnight, and the instant it was due. */
+        const val KEY_AT_MINUTE = "at_minute"
+        const val KEY_DUE = "due"
 
         /** Another app that asked for this run through the automation intents (docs/design/android-bridge.md). */
         const val KEY_FROM_APP = "from_app"

@@ -395,6 +395,7 @@ class AgentRunner @Inject constructor(
     private val queue = MessageQueue(
         java.io.File(context.noBackupFilesDir, "queued"),
         writer = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "locus-queue").apply { isDaemon = true } }::execute,
+        report = { title, details -> dev.locus.core.datastore.DiagnosticsLog.forApp(context).record(dev.locus.core.datastore.DiagnosticsLog.Kind.STORAGE, title, details) },
     )
 
     val pendingApprovals: List<ApprovalRequest> get() = _states.value.values.flatMap { it.approvals }

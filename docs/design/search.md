@@ -118,3 +118,9 @@ test in `core/data` checks that the SQL backfill and `SearchText` produce the sa
   from the start of a run only. The `trigram` tokenizer would fix that at the cost of a larger index
   and no matches for queries under three characters.
 - Searching tool output (e.g. a file the agent read) is deliberately out; Activity searches tool calls.
+
+## Activity's queries (#316)
+
+The Activity screen reads `audit_log` through `AuditDao`. Room runs a query again whenever a table it reads is written, and the old single query read `conversations` (for chat titles and helper chats) even with no search text, so every chat write during a run (`updatedAt` moves as text streams) refreshed it, and its `:conversationId IS NULL OR conversationId = :conversationId` couldn't use the `conversationId` index. Now, without search text, `ActivityRepository.observe` picks one of three queries by filter: `observeBrowse` (every chat: the log alone, in `startedAt` order, no sort), `observeBrowseChat` (`conversationId = ?`, through its index) and `observeBrowseChatAndHelpers` (a task receipt's view, the only one that reads `conversations`). With text, `observeFiltered` is used as before and its results are shown at most every 500 ms (`throttleLatest`: the first at once, then the latest). `AuditBrowseSqlTest` checks the plans (`EXPLAIN QUERY PLAN`) on 50,000 rows, that the browse SQL doesn't mention `conversations`, and that it returns what the general query returns.
+
+Not done: the text search is still `LIKE '%x%'` over arguments, result previews and titles, a scan of the log. An FTS5 table over the audit text (as `message_fts` is for messages) is the fix, and it is a Room schema change (a new entity, a migration and a new schema file), which this change didn't make. Room still runs the search query on every chat write; the 500 ms limit holds back what is shown, not the query.

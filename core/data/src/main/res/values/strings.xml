@@ -174,6 +174,8 @@
     <string name="data_lock_public_text">Unlock your phone to see details</string>
     <string name="data_lock_chat_waiting">A locked chat is waiting for you. Open Locus to see it.</string>
     <string name="data_lock_reminder_text">Reminder from a locked chat</string>
+    <string name="data_reminder_snooze">Snooze 10 min</string>
+    <string name="data_reminder_done">Done</string>
     <string name="data_reachme_token_missing">Paste the application token from Gotify (Apps → Create Application).</string>
     <string name="data_reachme_token_invalid">That doesn\'t look like a Gotify application token: copy it whole, without spaces.</string>
     <string name="data_reachme_token_again">The address changed, so paste the token again. Locus only sends a saved token to the server it was saved for.</string>

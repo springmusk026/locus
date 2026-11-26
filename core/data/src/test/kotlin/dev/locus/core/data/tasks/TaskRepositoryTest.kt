@@ -69,6 +69,21 @@ class TaskRepositoryTest {
     }
 
     @Test
+    fun `a daily task with a time of day asks for that wall-clock time, and keeps it when edited`() = runTest {
+        val g = TestGraph(backgroundScope)
+        val id = g.tasks.create("Briefing", "What's on?", 1_440, firstRunDelayMillis = 3_600_000, firstRunMinuteOfDay = 7 * 60)
+        assertEquals(7 * 60, g.taskWork.timesOfDay[id])
+
+        // An edit schedules again without a time; the schedule keeps the one it has.
+        assertTrue(g.tasks.update(id, "Briefing", "What's on?", 1_440, TaskConditions(requiresCharging = true)))
+        assertEquals(7 * 60, g.taskWork.timesOfDay[id])
+        // Paused and turned on again, it still runs at that time.
+        g.tasks.setEnabled(id, false)
+        g.tasks.setEnabled(id, true)
+        assertEquals(7 * 60, g.taskWork.timesOfDay[id])
+    }
+
+    @Test
     fun `editing a paused task doesn't schedule it, and a deleted one reports it's gone`() = runTest {
         val g = TestGraph(backgroundScope)
         g.tasks.create("Weather", "Will it rain?", 60)

@@ -157,6 +157,58 @@ class RemindersTest {
     }
 
     @Test
+    fun `a reminder set for a wall-clock time stays at that time when the phone changes time zone`() = runBlocking<Unit> {
+        val g = graph()
+        g.reminders.zone = { zone }
+        val tools = reminderTools(g.reminders, zone = { zone }, now = { now }).associateBy { it.spec.name }
+        val remind = tools.getValue(DeviceIntegrations.REMIND_ME)
+        // "9:00 tomorrow" in Lisbon, then an exact instant and one in minutes, which don't follow the zone.
+        remind.execute(args("text" to "Wall clock", "at" to "2026-11-07T09:00"))
+        remind.execute(args("text" to "Exact", "at" to "2026-11-07T09:00+00:00"))
+        remind.execute(args("text" to "Minutes", "in_minutes" to 60))
+        val before = g.settingsRepository.current().reminders.associateBy { it.text }
+        assertEquals("2026-11-07T09:00", before.getValue("Wall clock").localAt)
+        assertNull(before.getValue("Exact").localAt)
+        assertNull(before.getValue("Minutes").localAt)
+
+        // The user flies to New York.
+        val newYork = ZoneId.of("America/New_York")
+        g.reminders.zone = { newYork }
+        g.reminders.rescheduleAll()
+
+        val after = g.settingsRepository.current().reminders.associateBy { it.text }
+        val nineInNewYork = LocalDateTime.of(2026, 11, 7, 9, 0).atZone(newYork).toInstant().toEpochMilli()
+        assertEquals(nineInNewYork, after.getValue("Wall clock").at)
+        assertEquals(nineInNewYork, g.reminderAlarms.scheduled[after.getValue("Wall clock").id])
+        assertEquals(before.getValue("Exact").at, after.getValue("Exact").at)
+        assertEquals(before.getValue("Minutes").at, after.getValue("Minutes").at)
+    }
+
+    @Test
+    fun `a snoozed or shown reminder no longer follows the zone`() = runBlocking<Unit> {
+        val g = graph()
+        g.reminders.zone = { zone }
+        val r = g.reminders.add("Call mum", now + 30 * minute, localAt = LocalDateTime.of(2026, 11, 6, 9, 30))
+        now += 30 * minute
+        g.reminders.fire(r.id)
+        g.reminders.snooze(r.id)
+        val snoozed = g.settingsRepository.current().reminders.single()
+        assertNull(snoozed.localAt)
+        g.reminders.zone = { ZoneId.of("Asia/Tokyo") }
+        g.reminders.rescheduleAll()
+        assertEquals(snoozed.at, g.settingsRepository.current().reminders.single().at)
+    }
+
+    @Test
+    fun `two reminders whose request codes collide still get different intents`() {
+        // "Aa" and "BB" have the same hashCode, so the request code is the same.
+        assertEquals(ReminderIntents.requestCode(ReminderIntents.ACTION_FIRE, "Aa"), ReminderIntents.requestCode(ReminderIntents.ACTION_FIRE, "BB"))
+        // Android tells PendingIntents apart by action, data and component, not request code or extras.
+        assertTrue(ReminderIntents.dataUri(ReminderIntents.ACTION_FIRE, "Aa") != ReminderIntents.dataUri(ReminderIntents.ACTION_FIRE, "BB"))
+        assertTrue(ReminderIntents.dataUri(ReminderIntents.ACTION_SNOOZE, "Aa") != ReminderIntents.dataUri(ReminderIntents.ACTION_DONE, "Aa"))
+    }
+
+    @Test
     fun `reminders stay on the phone, so taint doesn't hold them back`() = runBlocking<Unit> {
         val g = graph()
         val tools = reminderTools(g.reminders).associateBy { it.spec.name }

@@ -65,7 +65,7 @@ A persistent "instant" mode was rejected:
 - **What fires.** The useful event is "an entry is about to start", not "the calendar changed". Each check reads occurrences from 30 minutes ago to the warning time plus 30 minutes ahead.
   - An entry that matches the filter is due `minutesBefore` its start.
   - A due entry runs once; its "eventId:begin" key is kept for two days.
-  - An entry due before the next periodic check asks for a one-time check at its time (`checkSoon`). A 10-minute warning therefore doesn't wait for the 15-minute period, unless Doze holds it.
+  - An entry due before the next periodic check asks for a one-time check at its time (`checkSoon`). A 10-minute warning therefore doesn't wait for the 15-minute period, unless Doze holds it. A later request never replaces a nearer one that is still waiting (`TaskTiming.replacesCheck`, the due time kept in `TaskTimes`): the nearer check reads the calendar again and asks for the next one itself.
   - An entry that began more than 30 minutes ago is left alone.
   - All-day entries are skipped.
 - **Content-URI triggers.** `addContentUriTrigger` ([Constraints.Builder](https://developer.android.com/reference/androidx/work/Constraints.Builder)) can't be combined with periodic jobs at the JobScheduler level ([JobInfo.Builder](https://developer.android.com/reference/android/app/job/JobInfo.Builder#addTriggerContentUri(android.app.job.JobInfo.TriggerContentUri))). They would need re-enqueueing after each change and would wake Locus on every calendar sync. They aren't needed for "starts soon", since entries are known well ahead.

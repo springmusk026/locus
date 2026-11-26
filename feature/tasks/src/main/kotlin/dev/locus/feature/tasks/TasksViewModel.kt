@@ -336,7 +336,7 @@ class TasksViewModel @Inject constructor(
     fun create(draft: TaskDraft) = mutate(UiText.Res(R.string.tasks_failure_create)) {
         val trigger = draft.toTrigger
         val delay = if (trigger == null) draft.firstRunAt?.let { delayUntil(it, ZonedDateTime.now(zone())) } ?: 0 else 0
-        repository.create(draft.title, draft.prompt, draft.intervalMinutes, draft.conditions, trigger, draft.tokenToSave?.ifEmpty { null }, delay)
+        repository.create(draft.title, draft.prompt, draft.intervalMinutes, draft.conditions, trigger, draft.tokenToSave?.ifEmpty { null }, delay, draft.firstRunAt.takeIf { trigger == null })
     }
 
     fun update(id: String, draft: TaskDraft) = mutate(UiText.Res(R.string.tasks_failure_save)) {

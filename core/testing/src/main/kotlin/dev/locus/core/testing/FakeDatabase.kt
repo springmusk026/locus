@@ -262,6 +262,17 @@ class FakeDatabase {
                     (needle == null || e.toolName in textTools || needle in e.argumentsJson || needle in e.resultPreview)
             }.sortedByDescending { it.startedAt }.take(limit)
         }
+        /** The no-text browse queries: [observeFiltered] with no pattern. */
+        private fun browse(
+            since: Long, until: Long, conversationId: String?, withHelpers: Boolean, allTools: Boolean, tools: List<String>,
+            allDecisions: Boolean, decisions: List<String>, onlyErrors: Boolean, limit: Int,
+        ) = observeFiltered(since, conversationId, allTools, tools, allDecisions, decisions, onlyErrors, null, emptyList(), limit, until, withHelpers)
+        override fun observeBrowse(since: Long, until: Long, allTools: Boolean, tools: List<String>, allDecisions: Boolean, decisions: List<String>, onlyErrors: Boolean, limit: Int) =
+            browse(since, until, null, false, allTools, tools, allDecisions, decisions, onlyErrors, limit)
+        override fun observeBrowseChat(conversationId: String, since: Long, until: Long, allTools: Boolean, tools: List<String>, allDecisions: Boolean, decisions: List<String>, onlyErrors: Boolean, limit: Int) =
+            browse(since, until, conversationId, false, allTools, tools, allDecisions, decisions, onlyErrors, limit)
+        override fun observeBrowseChatAndHelpers(conversationId: String, since: Long, until: Long, allTools: Boolean, tools: List<String>, allDecisions: Boolean, decisions: List<String>, onlyErrors: Boolean, limit: Int) =
+            browse(since, until, conversationId, true, allTools, tools, allDecisions, decisions, onlyErrors, limit)
         override fun observeToolNames() = select { t -> t.audit.map { it.toolName }.distinct() }
         override fun observeCounts(since: Long, conversationId: String?) = select { t ->
             val rows = t.audit.filter { it.startedAt >= since && (conversationId == null || it.conversationId == conversationId) }

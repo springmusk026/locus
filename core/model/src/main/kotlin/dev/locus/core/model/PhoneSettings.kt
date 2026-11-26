@@ -38,6 +38,12 @@ data class Reminder(
     val shownAt: Long? = null,
     /** How many times it has been snoozed. */
     val snoozes: Int = 0,
+    /**
+     * For a reminder set for a wall-clock time ("9:00 tomorrow", no offset): that local date and time
+     * (ISO, `2026-11-10T09:00`). [at] is recomputed from it when the phone's time zone changes, so it stays
+     * 9:00 wherever the user is. Null for one set in minutes or at an exact instant, and after a snooze.
+     */
+    val localAt: String? = null,
 ) {
     val upcoming: Boolean get() = shownAt == null
 

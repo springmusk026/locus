@@ -69,6 +69,9 @@ class Reminders @Inject constructor(
     var clock: () -> Long = System::currentTimeMillis
     internal var ids: () -> String = { UUID.randomUUID().toString() }
 
+    /** The phone's time zone now; tests set it. */
+    internal var zone: () -> ZoneId = ZoneId::systemDefault
+
     /** Every reminder, soonest first: those still to come, then those shown and not yet answered. */
     val all: Flow<List<Reminder>> = settings.settings.map { s -> sorted(s.reminders) }.distinctUntilChanged()
 
@@ -78,14 +81,18 @@ class Reminders @Inject constructor(
 
     fun canNotify(): Boolean = notifier.canNotify()
 
-    /** A new reminder for [at]; throws [IllegalArgumentException] for a time in the past or too far ahead. */
-    suspend fun add(text: String, at: Long, conversationId: String? = null): Reminder {
+    /**
+     * A new reminder for [at]; throws [IllegalArgumentException] for a time in the past or too far ahead. With
+     * [localAt] (a wall-clock time the user gave, [at] being that time in the current zone) it stays at that
+     * wall-clock time when the zone changes.
+     */
+    suspend fun add(text: String, at: Long, conversationId: String? = null, localAt: LocalDateTime? = null): Reminder {
         val now = clock()
         val clean = text.trim().take(MAX_TEXT)
         require(clean.isNotEmpty()) { "A reminder needs some text." }
         require(at > now - GRACE_MS) { "That time has passed." }
         require(at <= now + MAX_AHEAD_MS) { "Reminders can be at most a year ahead." }
-        val reminder = Reminder(ids(), clean, at.coerceAtLeast(now), createdAt = now, conversationId = conversationId)
+        val reminder = Reminder(ids(), clean, at.coerceAtLeast(now), createdAt = now, conversationId = conversationId, localAt = localAt?.toString())
         settings.updateReminders { list ->
             require(list.count { it.upcoming } < Reminder.MAX) { "There are already ${Reminder.MAX} reminders; cancel some first." }
             prune(list + reminder, now)
@@ -121,7 +128,7 @@ class Reminders @Inject constructor(
         val now = clock()
         var next: Reminder? = null
         settings.updateReminders { list ->
-            list.map { r -> if (r.id == id) r.copy(at = now + Reminder.SNOOZE_MS, shownAt = null, snoozes = r.snoozes + 1).also { next = it } else r }
+            list.map { r -> if (r.id == id) r.copy(at = now + Reminder.SNOOZE_MS, shownAt = null, snoozes = r.snoozes + 1, localAt = null).also { next = it } else r }
         }
         notifier.dismiss(id)
         next?.let(alarms::schedule)
@@ -136,13 +143,22 @@ class Reminders @Inject constructor(
 
     /**
      * Sets every alarm again: after a reboot (Android clears alarms), an app update, the exact-alarm
-     * permission being granted, or app start. Reminders whose time passed while the phone was off fire
-     * at once, as late ones. Old shown reminders are dropped.
+     * permission being granted, a change of time or time zone, or app start. Reminders whose time passed while
+     * the phone was off fire at once, as late ones. Old shown reminders are dropped. A reminder set for a
+     * wall-clock time moves to that time in the zone the phone is in now.
      */
     suspend fun rescheduleAll() {
         val now = clock()
-        val kept = settings.updateReminders { prune(it, now) }
+        val zone = zone()
+        val kept = settings.updateReminders { list -> prune(list, now).map { it.inZone(zone) } }
         kept.filter { it.upcoming }.forEach(alarms::schedule)
+    }
+
+    /** An upcoming reminder set for a wall-clock time, at that time in [zone]; any other as it is. */
+    private fun Reminder.inZone(zone: ZoneId): Reminder {
+        val local = localAt?.takeIf { upcoming }?.let { runCatching { LocalDateTime.parse(it) }.getOrNull() } ?: return this
+        val moved = local.atZone(zone).toInstant().toEpochMilli()
+        return if (moved == at) this else copy(at = moved)
     }
 
     private fun prune(list: List<Reminder>, now: Long): List<Reminder> {
@@ -200,10 +216,10 @@ internal class RemindMe(private val reminders: Reminders, private val zone: () -
 
     override suspend fun execute(args: JsonObject): ToolResult {
         val text = args.str("text")?.trim()?.takeIf { it.isNotEmpty() } ?: throw ToolException("Give the reminder's text.")
-        val at = time(args)
+        val (at, wallClock) = time(args)
         val chat = currentCoroutineContext()[ToolCallContext]?.conversationId
         val reminder = try {
-            reminders.add(text, at, chat)
+            reminders.add(text, at, chat, wallClock)
         } catch (e: IllegalArgumentException) {
             throw ToolException(e.message ?: "Couldn't set the reminder.")
         }
@@ -214,17 +230,18 @@ internal class RemindMe(private val reminders: Reminders, private val zone: () -
         return ToolResult("Reminder set for ${reminderTime(reminder.at, zone())} (${zone().id}), id ${reminder.id.take(8)}." + notes.joinToString("") { " $it" })
     }
 
-    private fun time(args: JsonObject): Long {
+    /** The instant asked for, and the wall-clock time too when the user gave one without an offset. */
+    private fun time(args: JsonObject): Pair<Long, LocalDateTime?> {
         val minutes = args.int("in_minutes")
         val at = args.str("at")?.trim()?.takeIf { it.isNotEmpty() }
         if ((minutes == null) == (at == null)) throw ToolException("Give either at or in_minutes.")
         if (minutes != null) {
             if (minutes !in 1..525_600) throw ToolException("in_minutes must be 1–525600.")
-            return now() + minutes * 60_000L
+            return (now() + minutes * 60_000L) to null
         }
-        runCatching { return OffsetDateTime.parse(at).toInstant().toEpochMilli() }
-        runCatching { return Instant.parse(at).toEpochMilli() }
-        return runCatching { LocalDateTime.parse(at).atZone(zone()).toInstant().toEpochMilli() }.getOrNull()
+        runCatching { return OffsetDateTime.parse(at).toInstant().toEpochMilli() to null }
+        runCatching { return Instant.parse(at).toEpochMilli() to null }
+        return runCatching { LocalDateTime.parse(at).let { it.atZone(zone()).toInstant().toEpochMilli() to it } }.getOrNull()
             ?: throw ToolException("at must be a date-time like 2026-11-10T17:00 (the phone's time zone).")
     }
 }
