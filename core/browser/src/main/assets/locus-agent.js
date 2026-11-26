@@ -131,9 +131,14 @@
   var OPTION_LIKE = '[role=option],[role=menuitem],[role=menuitemradio],[role=menuitemcheckbox],[role=treeitem],[role=gridcell]';
   var POPUP_ROLES = '[role=listbox],[role=menu],[role=tree],[role=grid]';
   var MAX_POPUP_ITEMS = 50;
-  var SENSITIVE_AUTOCOMPLETE = /cc-|one-time-code|current-password|new-password/;
-  var PAYMENT = /cc-|card.?number|cardnum|cvv|cvc|security.?code|expir/i;
-  var SEARCHY = /search|query|^q$|^s$|keyword|find|suche|recherche|buscar/i;
+  // Field words in every language the app ships, shared with SensitiveActions.kt: AgentBrowser replaces
+  // the placeholder with SensitiveWords.pageScriptJson (left unreplaced, this script stops here, and every
+  // check fails closed). Case-insensitive, autocomplete tokens included ("One-Time-Code").
+  var WORDS = __LOCUS_WORDS__;
+  var SENSITIVE_AUTOCOMPLETE = new RegExp(WORDS.sensitiveAutocomplete, 'iu');
+  var PAYMENT = new RegExp(WORDS.payment, 'iu');
+  var OTP_FIELD = new RegExp(WORDS.otp, 'iu');
+  var SEARCHY = new RegExp(WORDS.search, 'iu');
   var CAPTCHA = /recaptcha|hcaptcha|challenges\.cloudflare\.com|turnstile|arkoselabs|funcaptcha|captcha/i;
 
   // ---- Elements -----------------------------------------------------------------------------------
@@ -313,7 +318,8 @@
   function sensitive(el) {
     if (el.tagName.toLowerCase() !== 'input') return false;
     var ac = el.getAttribute('autocomplete') || '';
-    return el.type === 'password' || SENSITIVE_AUTOCOMPLETE.test(ac) || PAYMENT.test((el.name || '') + ' ' + (el.id || '') + ' ' + ac);
+    var names = (el.name || '') + ' ' + (el.id || '') + ' ' + ac;
+    return el.type === 'password' || SENSITIVE_AUTOCOMPLETE.test(ac) || PAYMENT.test(names) || OTP_FIELD.test(names);
   }
 
   function describe(el, ref, isNew) {
@@ -1395,7 +1401,7 @@
     var hint = hintOf(el);
     if (PAYMENT.test(hint) || isSearchField(el)) return null;
     if (/\b(username|email)\b/.test(ac) || t === 'email') return 'username';
-    if (OTP_HINT.test(hint) && !USER_HINT.test(hint)) return 'code';
+    if ((OTP_HINT.test(hint) || OTP_FIELD.test(hint)) && !USER_HINT.test(hint)) return 'code';
     if (USER_HINT.test(hint)) return 'username';
     return null;
   }

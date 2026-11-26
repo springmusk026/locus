@@ -71,12 +71,10 @@ data class ElementFacts(
  * delete, …). Searching stays fluid. Returns the reason shown on the approval card, or null.
  */
 object SensitiveActions {
-    private val OUTWARD = Regex(
-        "\\b(pay|buy|purchase|order|checkout|check out|confirm|delete|remove|send|transfer|withdraw|donate|book|reserve|subscribe|" +
-            "unsubscribe|publish|post|submit|sign up|register|place|share|invite|approve|cancel (?:my |your )?(?:order|subscription|account))\\b",
-        RegexOption.IGNORE_CASE,
-    )
-    private val LOGIN = Regex("\\b(log ?in|sign ?in|sign on|continue)\\b", RegexOption.IGNORE_CASE)
+    // In every shipped language (SensitiveWords), not just English: a "Finalizar compra" button or a
+    // confirm('¿Eliminar cuenta?') asks too.
+    private val OUTWARD = Regex(SensitiveWords.OUTWARD, RegexOption.IGNORE_CASE)
+    private val LOGIN = Regex(SensitiveWords.LOGIN, RegexOption.IGNORE_CASE)
     private val CARD_NUMBER = Regex("\\b(?:\\d[ -]?){13,19}\\b")
 
     /**

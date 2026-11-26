@@ -95,22 +95,75 @@ object ArtifactSandbox {
     /** The host page runs no script and may only frame this origin. */
     const val HOST_CSP = "default-src 'none'; style-src 'unsafe-inline'; frame-src https://$HOST; base-uri 'none'; form-action 'none'"
 
-    /** Headers on both documents: the policy, no sniffing, nothing cached. */
+    /** Headers on both documents: the policy, no sniffing, nothing cached, no DNS prefetching. */
     fun headers(csp: String): Map<String, String> = mapOf(
         "Content-Security-Policy" to csp,
         "X-Content-Type-Options" to "nosniff",
         "Cache-Control" to "no-store",
         "Referrer-Policy" to "no-referrer",
+        // No CSP directive Chromium ships covers <link rel=dns-prefetch>, which could leak data through a
+        // DNS lookup. Asked off here and in a <meta> before the artifact; not yet checked on a device.
+        "X-DNS-Prefetch-Control" to "off",
     )
 
     /**
-     * Runs before any of the artifact's own scripts: removes WebRTC, which CSP doesn't cover and which
-     * could reach a STUN server. Defined non-configurable, so the artifact can't put it back, and nested
-     * frames (a fresh window) are blocked by frame-src.
+     * Runs before any of the artifact's own scripts and removes WebRTC, which CSP doesn't cover and which
+     * could reach a STUN server (ICE traffic never passes shouldInterceptRequest). The constructors are
+     * defined undefined and non-configurable, so the artifact can't put them back.
+     *
+     * A nested frame brings a fresh window with its own constructors, and `frame-src 'none'` doesn't stop
+     * an empty, `about:blank` or `srcdoc` frame, which shares the artifact's origin (#370). So the same
+     * is done to every frame's window the artifact can reach: through `contentWindow`, `contentDocument`
+     * or `getSVGDocument` (patched to harden first), and through `window[i]` for an empty frame, whose
+     * window fires `load` while it is being inserted (a capturing listener hardens it then). Frames can't
+     * show anything here anyway, so a MutationObserver (also on shadow roots made with `attachShadow`)
+     * takes every iframe, frame, object and embed out at the next microtask, before a `srcdoc` document
+     * could load and run its own scripts. Natives are captured first and called through `Reflect.apply`,
+     * so the artifact can't break this by replacing `Function.prototype.call` or `Array` methods.
+     *
+     * Best effort, not a wall (docs/design/artifacts.md, "Known limits"): `window[i]` of a frame inserted
+     * with a `src` is reachable in the same script turn, and a frame in a declarative shadow root is not
+     * seen.
      */
-    private const val PRELUDE = "(function(){var w=window;" +
-        "['RTCPeerConnection','webkitRTCPeerConnection','RTCDataChannel','RTCSessionDescription','RTCIceCandidate']" +
-        ".forEach(function(n){try{Object.defineProperty(w,n,{value:undefined,writable:false,configurable:false})}catch(e){}});})();"
+    private val PRELUDE = """
+        (function(){
+        var apply=Reflect.apply,def=Object.defineProperty,desc=Object.getOwnPropertyDescriptor,WS=WeakSet.prototype,
+        seen=new WeakSet(),has=WS.has,add=WS.add,FRAMES='iframe,frame,object,embed',
+        RTC=['RTCPeerConnection','webkitRTCPeerConnection','RTCDataChannel','RTCSessionDescription','RTCIceCandidate',
+        'RTCRtpSender','RTCRtpReceiver','RTCRtpTransceiver','RTCDtlsTransport','RTCIceTransport','RTCSctpTransport','RTCCertificate'];
+        function harden(w){
+        try{if(!w||apply(has,seen,[w]))return;apply(add,seen,[w]);}catch(e){return}
+        try{
+        var i;for(i=0;i<RTC.length;i++){try{def(w,RTC[i],{value:undefined,writable:false,configurable:false})}catch(e){}}
+        var wins=[],C=['HTMLIFrameElement','HTMLFrameElement','HTMLObjectElement','HTMLEmbedElement'];
+        function reach(f){for(var k=0;k<wins.length;k++){try{harden(apply(wins[k],f,[]))}catch(e){}}}
+        for(i=0;i<C.length;i++){var p=w[C[i]]&&w[C[i]].prototype;if(!p)continue;
+        (function(p){
+        var cw=desc(p,'contentWindow'),cd=desc(p,'contentDocument'),sv=p.getSVGDocument,dv=desc(w.Document.prototype,'defaultView').get;
+        if(cw&&cw.get){var g=cw.get;wins[wins.length]=g;
+        try{def(p,'contentWindow',{get:function(){var v=apply(g,this,[]);harden(v);return v},enumerable:cw.enumerable,configurable:false})}catch(e){}}
+        if(cd&&cd.get){var h=cd.get;
+        try{def(p,'contentDocument',{get:function(){var v=apply(h,this,[]);if(v)harden(apply(dv,v,[]));return v},enumerable:cd.enumerable,configurable:false})}catch(e){}}
+        if(typeof sv==='function'){
+        try{def(p,'getSVGDocument',{value:function(){var v=apply(sv,this,arguments);if(v)harden(apply(dv,v,[]));return v},writable:false,configurable:false})}catch(e){}}
+        })(p);}
+        var target=desc(w.Event.prototype,'target').get;
+        apply(w.EventTarget.prototype.addEventListener,w,['load',function(e){try{reach(apply(target,e,[]))}catch(x){}},true]);
+        var NL=w.NodeList.prototype,len=desc(NL,'length').get,item=NL.item,parent=desc(w.Node.prototype,'parentNode').get,
+        removeChild=w.Node.prototype.removeChild,qsa=w.Document.prototype.querySelectorAll,fqsa=w.DocumentFragment.prototype.querySelectorAll,
+        roots=[[w.document,qsa]];
+        function sweep(){for(var r=0;r<roots.length;r++){try{var l=apply(roots[r][1],roots[r][0],[FRAMES]),n=apply(len,l,[]);
+        for(var k=n-1;k>=0;k--){var f=apply(item,l,[k]);reach(f);var pn=apply(parent,f,[]);if(pn){try{apply(removeChild,pn,[f])}catch(e){}}}}catch(e){}}}
+        var observe=w.MutationObserver.prototype.observe,mo=new w.MutationObserver(sweep),opts={childList:true,subtree:true};
+        apply(observe,mo,[w.document,opts]);
+        var EP=w.Element.prototype,attach=EP.attachShadow;
+        if(typeof attach==='function'){def(EP,'attachShadow',{value:function(){var s=apply(attach,this,arguments);
+        roots[roots.length]=[s,fqsa];apply(observe,mo,[s,opts]);return s},writable:false,configurable:false})}
+        }catch(e){}
+        }
+        harden(window);
+        })();
+    """.trimIndent()
 
     /**
      * The host page: [background] (the card's colour) around the frame, and the artifact filling it.
@@ -260,6 +313,7 @@ object ArtifactSandbox {
     fun contentDocument(artifact: Artifact): String = buildString {
         append("<!doctype html>\n<meta charset=\"utf-8\">\n")
         append("<meta http-equiv=\"Content-Security-Policy\" content=\"").append(CONTENT_CSP).append("\">\n")
+        append("<meta http-equiv=\"x-dns-prefetch-control\" content=\"off\">\n")
         append("<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n")
         append("<script>").append(PRELUDE).append("</script>\n")
         when (artifact.kind) {
