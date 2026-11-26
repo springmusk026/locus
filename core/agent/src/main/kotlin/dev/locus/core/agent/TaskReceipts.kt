@@ -261,6 +261,9 @@ object TaskReceipts {
         COMMAND_OUTPUT("command output"),
         REMOTE_MACHINES("remote machines"),
         HELPER_REPORTS("helpers' reports"),
+
+        /** Memory notes saved after reading outside content ([dev.locus.core.agent.home.MemoryTrust]). */
+        MEMORY_NOTES("memory notes from outside content"),
         ;
 
         companion object {
@@ -275,6 +278,7 @@ object TaskReceipts {
                 source == "run_command" || source.startsWith("linux_") -> COMMAND_OUTPUT
                 source.startsWith("ssh_") -> REMOTE_MACHINES
                 SubagentTools.isAgentTool(source) || source == "a helper's report" -> HELPER_REPORTS
+                source.startsWith(dev.locus.core.agent.home.MemoryTrust.SOURCE_PREFIX) -> MEMORY_NOTES
                 else -> null
             }
 

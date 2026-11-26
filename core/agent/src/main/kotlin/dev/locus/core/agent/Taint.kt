@@ -49,6 +49,16 @@ object Taint {
         toolName in SOURCES || toolName.startsWith("browser_") || UntrustedContent.isMarked(content)
 
     /**
+     * The name a taint source is recorded under once [isSource] said so: the tool's name, except for a
+     * memory note saved after reading outside content, which is named for where its text came from
+     * ("a memory note from an imported chat", [dev.locus.core.agent.home.MemoryTrust.sourceOf]).
+     */
+    fun sourceName(toolName: String, content: String): String =
+        if (toolName in MEMORY_READS) dev.locus.core.agent.home.MemoryTrust.sourceOf(content) ?: toolName else toolName
+
+    private val MEMORY_READS = setOf("memory_read", "memory_search")
+
+    /**
      * Whether the result of [toolName] called with [args] is the workspace's own output rather than
      * outside content, for remembered approvals only (docs/design/remembered-approvals.md, "Taint"): a
      * run_command that ran one plain local command which fetches nothing ([CommandSafety.mayFetch]),
@@ -78,7 +88,7 @@ object Taint {
             when (m.role) {
                 Role.TOOL -> m.toolResults.forEach { r ->
                     val name = if (r.toolName == DiscoveryTools.CALL_TOOL) ranAs[r.callId] ?: r.toolName else r.toolName
-                    if (isSource(name, r.content) && r.callId !in local) add(name)
+                    if (isSource(name, r.content) && r.callId !in local) add(sourceName(name, r.content))
                 }
                 Role.USER -> {
                     // A run another app started through the automation intents (docs/design/android-bridge.md).

@@ -1544,10 +1544,12 @@ class AgentLoop(
         val startedAt = ran.startedAt
         // From here on the run has read whatever this call brought in. Locus's own refusals don't count.
         if (decision in RAN && Taint.isSource(call.name, result.content)) {
-            taint.sources += call.name
+            // A flagged memory note is named for where its text came from (Taint.sourceName).
+            val source = Taint.sourceName(call.name, result.content)
+            taint.sources += source
             // For remembered approvals, a plain local command's output is the workspace's own (Taint.isLocalOutput).
             val local = Taint.isLocalOutput(call.name, runCatching { LlmJson.parseToJsonElement(call.argumentsJson) as? JsonObject }.getOrNull())
-            if (!local) taint.outside += call.name
+            if (!local) taint.outside += source
         }
         // ...and whatever private data it read, and the addresses it has opened (Taint.disclosureReason).
         if (decision in RAN && !result.isError && Taint.isPrivateRead(call.name)) taint.privateReads += call.name

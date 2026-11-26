@@ -72,4 +72,9 @@ class MemoryOriginTest {
         assertEquals("web search results, some tool", taintSources(res, listOf("web_search", "some_tool")))
         assertEquals("outside content", taintSources(res, emptyList()))
     }
+
+    @Test
+    fun `a note saved after reading a flagged note says so`() {
+        assertEquals("a memory note from outside content, an email", taintSources(res, listOf("a memory note from an imported chat", "email_read")))
+    }
 }
