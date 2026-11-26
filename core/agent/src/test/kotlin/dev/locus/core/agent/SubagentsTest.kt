@@ -285,7 +285,12 @@ class SubagentsTest {
 
     private class Store : TranscriptStore {
         val messages = mutableListOf<Message>()
-        override suspend fun append(message: Message) { messages += message }
+        /** Every append after the task fails, as a full disk would. */
+        var failing = false
+        override suspend fun append(message: Message) {
+            if (failing) throw java.io.IOException("disk full")
+            messages += message
+        }
         override suspend fun record(entry: AuditEntry) = Unit
     }
 
@@ -302,6 +307,10 @@ class SubagentsTest {
         val timeout: Long? = null,
         /** Denies every helper card with this reason ("Deny with a reason"); null: plain answers through [approve]. */
         val denyReason: String? = null,
+        /** How long the user takes to answer a helper's card (virtual time). */
+        val approvalDelayMs: Long = 0,
+        /** The helper's store fails every write after its task (a full disk). */
+        var storeFails: Boolean = false,
     ) : SubagentBackend {
         override suspend fun requestReply(parentConversationId: String, request: ApprovalRequest): ApprovalReply {
             val reason = denyReason ?: return super.requestReply(parentConversationId, request)
@@ -345,6 +354,7 @@ class SubagentsTest {
             val prefix = if (request.fork) listOf(Message("fork-prefix", "parent", Role.USER, listOf(Part.Text("the parent chat")), 0)) else emptyList()
             val task = Message("t-${request.agentId}", request.agentId, Role.USER, listOf(Part.Text(request.task)), 0)
             store.append(task)
+            store.failing = storeFails
             return PreparedChild(
                 conv, prefix + task,
                 model(), "test-model", tools = registry, userPolicy = { userPolicy }, store = store, forkPrefix = prefix, compaction = compaction, price = price,
@@ -370,6 +380,7 @@ class SubagentsTest {
         }
         override suspend fun requestApproval(parentConversationId: String, request: ApprovalRequest): Boolean {
             approvals += request
+            if (approvalDelayMs > 0) kotlinx.coroutines.delay(approvalDelayMs)
             return approve
         }
         override suspend fun finished(state: SubagentState, report: String) {
@@ -389,8 +400,8 @@ class SubagentsTest {
     private val tmp: File = Files.createTempDirectory("subagents").toFile()
     private var n = 0
 
-    private fun engine(scope: CoroutineScope, backend: Backend, limits: SubagentLimits = SubagentLimits()) =
-        SubagentEngine(backend, scope, limits, newId = { "agent-${++n}" }, ids = { "id${n}-${System.nanoTime()}" }, clock = { 0L }).also { backend.engine = it }
+    private fun engine(scope: CoroutineScope, backend: Backend, limits: SubagentLimits = SubagentLimits(), clock: () -> Long = { 0L }) =
+        SubagentEngine(backend, scope, limits, newId = { "agent-${++n}" }, ids = { "id${n}-${System.nanoTime()}" }, clock = clock).also { backend.engine = it }
 
     private val ctx = ToolCallContext("parent", "call-1", depth = 0, reviewer = null)
     private val task = "Find the three cheapest flights from KTM to DEL next week; reply with a table of airline, time and price."
@@ -545,6 +556,38 @@ class SubagentsTest {
     }
 
     @Test
+    fun `a helper over its token budget runs its step's calls, then stops with a budget reason, not as cancelled by the user`() = runTest {
+        val busy = Turn("Checked airline A.", listOf(call("web_search")), TokenUsage(input = 4_000, output = 1_000))
+        val model = Scripted(listOf(busy))
+        val backend = Backend({ model })
+        val engine = engine(work(), backend, SubagentLimits(tokenBudget = 12_000))
+        val result = engine.spawn(ctx, "researcher", task)
+        // 5k a step: the third reply crosses 12k, its call still runs, and no fourth request is sent.
+        assertEquals(3, backend.webSearch.runs)
+        assertEquals(3, model.requests)
+        val messages = backend.stores.values.single().messages
+        assertEquals(Role.TOOL, messages.last().role, "every call of the last step has its result")
+        assertTrue(messages.flatMap { it.toolResults }.none { "Cancelled by the user" in it.content }, messages.flatMap { it.toolResults }.toString())
+        assertTrue("status=\"partial\" stopped=\"token_budget\"" in result.content && "token budget (15000 of 12000 tokens)" in result.content, result.content)
+        assertEquals(HelperStop.TOKEN_BUDGET, engine.states.value.values.single().stop)
+    }
+
+    @Test
+    fun `a helper counts tokens as the task budget does - cache reads at a tenth, server summaries included`() = runTest {
+        val usage = TokenUsage(input = 40_000, output = 500, cacheRead = 38_000, serverCompaction = TokenUsage(input = 3_000, output = 400))
+        val model = Scripted(listOf(Turn("Checked A.", listOf(call("web_search")), usage), Turn("## Result\nThree flights.", usage = usage)))
+        val backend = Backend({ model })
+        // Counted in full (40.5k a request) the second request would pass 50k; by the task budget's rules it's 9.7k each.
+        val engine = engine(work(), backend, SubagentLimits(tokenBudget = 50_000))
+        val budget = RunBudget(dev.locus.core.model.TaskBudget(tokens = 10_000_000))
+        val result = engine.spawn(ToolCallContext("parent", "call-1", depth = 0, reviewer = null, budget = budget), "researcher", task)
+        assertTrue("status=\"completed\"" in result.content, result.content)
+        val state = engine.states.value.values.single()
+        assertEquals(2 * dev.locus.core.model.TaskBudget.budgetTokens(usage), state.tokens)
+        assertEquals(budget.meter().tokens, state.tokens, "the helper's total and the task budget agree")
+    }
+
+    @Test
     fun `helpers count toward the task budget and stop after their current step once it's reached`() = runTest {
         val busy = Turn("Checked airline A.", listOf(call("web_search")), TokenUsage(input = 4_000, output = 1_000))
         val model = Scripted(listOf(busy))
@@ -598,6 +641,79 @@ class SubagentsTest {
         assertEquals(HelperStop.TIMEOUT, state.stop)
         assertTrue(state.partial)
         assertEquals(60_000L, currentTime, "stopped at the user's limit, not the default 30 minutes")
+    }
+
+    @Test
+    fun `time waiting for the user's approval doesn't count toward a helper's time limit`() = runTest {
+        val clock = { testScheduler.currentTime }
+        // The user answers after 10 minutes; the limit is 1 minute of work.
+        val slow = Backend(
+            { Scripted(listOf(Turn(calls = listOf(call("web_search"))), Turn("## Result\nThree flights."))) },
+            userPolicy = ToolPolicy.ASK, timeout = 60_000, approvalDelayMs = 600_000,
+        )
+        val done = engine(work(), slow, clock = clock).spawn(ctx, "researcher", task)
+        assertTrue("status=\"completed\"" in done.content && "Three flights." in done.content, done.content)
+        assertEquals(1, slow.webSearch.runs)
+        assertEquals(600_000L, currentTime)
+
+        // The time around the wait still counts: 30 s waiting, then a reply that hangs times out after 60 s of work.
+        val start = currentTime
+        val hangs = Backend(
+            { Hangs(Turn(calls = listOf(call("web_search"))), "Airline C costs") },
+            userPolicy = ToolPolicy.ASK, timeout = 60_000, approvalDelayMs = 30_000,
+        )
+        val engine = engine(work(), hangs, clock = clock)
+        val result = engine.spawn(ctx, "researcher", task)
+        assertTrue("stopped=\"timeout\"" in result.content, result.content)
+        assertEquals(90_000L, currentTime - start)
+        assertEquals(HelperStop.TIMEOUT, engine.states.value.values.single().stop)
+    }
+
+    @Test
+    fun `a helper whose store fails ends as failed, frees its slot and lets a new writer start`() = runTest {
+        val errors = mutableListOf<Throwable>()
+        val logged = CoroutineScope(StandardTestDispatcher(testScheduler) + SupervisorJob() + kotlinx.coroutines.CoroutineExceptionHandler { _, e -> errors += e })
+        val backend = Backend({ Scripted(listOf(Turn("## Result\nDone."))) }, storeFails = true)
+        val engine = engine(logged, backend)
+        assertFalse(engine.spawn(ctx, "coder", task, background = true).isError)
+        advanceUntilIdle()
+        val state = engine.states.value.getValue("agent-1")
+        assertEquals(SubagentStatus.FAILED, state.status)
+        assertEquals(0, engine.activeCount, "its slot is free")
+        assertEquals(listOf("parent"), backend.late, "the parent hears it finished")
+        assertEquals(SubagentStatus.FAILED, backend.finished.single().first.status)
+        assertTrue(errors.single() is java.io.IOException, "the error reaches the app's error log")
+        val report = engine.wait(ctx, listOf("agent-1"), 1_000).content
+        assertTrue("status=\"failed\"" in report && "FAILED before finishing: error: disk full" in report, report)
+
+        // Another writer may start now; a foreground one that fails returns its failure.
+        val failing = engine.spawn(ctx, "coder", task)
+        assertTrue(failing.isError && "disk full" in failing.content, failing.content)
+        backend.storeFails = false
+        val next = engine.spawn(ctx, "coder", task)
+        assertFalse(next.isError, next.content)
+        assertTrue("status=\"completed\"" in next.content, next.content)
+    }
+
+    @Test
+    fun `finished helpers are forgotten past a bound, and an old one still continues from its saved chat`() = runTest {
+        val backend = Backend({ Scripted(listOf(Turn("## Result\nReport."))) })
+        val engine = engine(work(), backend)
+        val total = SubagentEngine.RETAINED_FINISHED + 10
+        repeat(total) {
+            engine.beginTurn("parent")
+            assertFalse(engine.spawn(ctx, "explorer", task).isError)
+        }
+        val kept = (1..total).count { engine.isChild("agent-$it") }
+        assertTrue(kept <= SubagentEngine.RETAINED_FINISHED + 1, "kept $kept runs")
+        assertFalse(engine.isChild("agent-1"), "the oldest was forgotten")
+        assertTrue(engine.isChild("agent-$total"), "the latest is kept")
+
+        // agent_send to a forgotten helper continues it from its saved chat, as after a restart.
+        engine.beginTurn("parent")
+        val result = engine.send(ctx, "agent-1", followUp)
+        assertTrue("status=\"completed\"" in result.content && "id=\"agent-1\"" in result.content, result.content)
+        assertNull(backend.continues.single().previous)
     }
 
     @Test
