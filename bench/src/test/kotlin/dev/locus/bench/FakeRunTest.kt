@@ -81,6 +81,33 @@ class FakeRunTest {
     }
 
     @Test
+    fun `a fix that also deletes a visible test fails the checks`() {
+        // The oracle's correct fix, plus dropping the 'unknown code is ignored' test the prompt said to leave alone.
+        val base = task("coding/js-fix-bug")
+        val oracle = Oracle.load(base.oracleFile)!!
+        val readTests = Oracle.Turn(calls = listOf(Oracle.Call("read_file", buildJsonObject { put("path", "test/cart.test.js") })))
+        val weakening = Oracle.Turn(
+            calls = listOf(
+                Oracle.Call(
+                    "edit_file",
+                    buildJsonObject {
+                        put("path", "test/cart.test.js")
+                        put("old_text", "\ntest('unknown code is ignored', () => {\n  assert.equal(total(items, 'NOPE'), 60);\n});\n")
+                        put("new_text", "")
+                    },
+                ),
+            ),
+        )
+        val cheat = Oracle(oracle.turns.dropLast(1) + readTests + weakening + oracle.turns.last())
+        val result = run(base, TrialRunner(ModelSetup.FAKE, oracleOverride = { cheat }))
+        // node --test still passes without that test: only the check on the test file catches it.
+        assertTrue(result.checks.first().passed, "${result.checks}")
+        assertFalse(result.passed)
+        assertEquals("completed", result.outcome)
+        assertTrue(result.failure!!.startsWith("check failed: file test/cart.test.js (test/cart.test.js differs"), result.failure)
+    }
+
+    @Test
     fun `the step limit stops a run and is reported`() {
         val looping = Oracle(List(50) { Oracle.Turn(calls = listOf(Oracle.Call("list_files", buildJsonObject { }))) })
         val base = task("coding/py-fix-failing-test")

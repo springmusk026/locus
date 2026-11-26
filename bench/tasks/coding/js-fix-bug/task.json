@@ -4,6 +4,8 @@
   "budget": { "maxSteps": 20, "maxTokens": 300000, "timeoutMinutes": 8 },
   "checks": [
     { "type": "command", "run": "node --test 2>&1", "exit": 0, "outputContains": ["fail 0"] },
-    { "type": "file", "path": "test/cart.test.js", "contains": ["assert.equal(total(items, 'SAVE10'), 54)"] }
-  ]
+    { "type": "file", "path": "test/cart.test.js", "contains": ["assert.equal(total(items, 'SAVE10'), 54)"],
+      "equals": "'use strict';\nconst test = require('node:test');\nconst assert = require('node:assert');\nconst { total } = require('../cart.js');\n\nconst items = [\n  { price: 20, qty: 2 },\n  { price: 10, qty: 2 },\n];\n\ntest('no code', () => {\n  assert.equal(total(items), 60);\n});\n\ntest('SAVE10 takes 10% off the whole cart', () => {\n  assert.equal(total(items, 'SAVE10'), 54);\n});\n\ntest('unknown code is ignored', () => {\n  assert.equal(total(items, 'NOPE'), 60);\n});" }
+  ],
+  "notes": "The visible tests must come back exactly as they were (the prompt says not to change them): an agent that deletes or weakens one fails the file check. Hidden tests (grader/, copied in after the run) cover other carts and an unknown code."
 }

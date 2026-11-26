@@ -4,7 +4,11 @@ name: Release
 # No debug APK is published: a debuggable build lets anyone with adb read the app's data, and the R8
 # mapping already turns release stack traces back into readable names.
 #
-# Two jobs, so the signing key never meets the build (docs/RELEASING.md, "How the workflow signs"):
+# Before anything is built, "Release checks" stops a real (not dry) run that would publish something
+# wrong (tools/release_guard.py, docs/RELEASING.md "What the workflow enforces"): in Locus's own
+# repository the signing key must be set, and the commit must be on main.
+#
+# Then two jobs, so the signing key never meets the build (docs/RELEASING.md, "How the workflow signs"):
 # - "Unsigned build" runs the tests and builds unsigned release APKs. It has read-only access to the
 #   repository and no secrets, so nothing the build runs (Gradle plugins, dependencies, tests) can
 #   reach the key.
@@ -33,13 +37,45 @@ on:
 permissions:
   contents: read
 
+# One group per version, so a tag push and a run by hand for the same version can't both publish: the
+# second waits, then fails at `gh release create` because the release exists. A dry run publishes
+# nothing and keeps its per-branch group.
 concurrency:
-  group: release-${{ github.ref }}
+  group: ${{ inputs.dry-run == true && format('release-dry-run-{0}', github.ref) || format('release-{0}', inputs.tag || github.ref_name) }}
   cancel-in-progress: false
 
 jobs:
+  checks:
+    name: Release checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # The release environment, as for signing: its secrets (or the repository's) are visible here and
+    # its tag and branch rules apply before any build. Only whether the key is set reaches this job,
+    # never the key itself. A dry run uses no environment.
+    environment: ${{ inputs.dry-run != true && 'release' || '' }}
+    permissions:
+      contents: read
+    steps:
+      # Full history without file contents (blob:none), so origin/main and every commit on it are here
+      # for `git merge-base --is-ancestor`; only tools/ is checked out.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          filter: blob:none
+          sparse-checkout: tools
+
+      - name: Check the key and the branch
+        env:
+          DRY_RUN: ${{ inputs.dry-run == true }}
+          HAS_KEY: ${{ secrets.LOCUS_KEYSTORE_B64 != '' }}
+        run: |
+          python3 tools/release_guard.py --dry-run "$DRY_RUN" --repository "$GITHUB_REPOSITORY" \
+            --has-key "$HAS_KEY" --commit "$GITHUB_SHA" --main origin/main
+
   build:
     name: Unsigned build
+    needs: checks
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
@@ -166,6 +202,7 @@ jobs:
           KEYSTORE_B64: ${{ inputs.dry-run != true && secrets.LOCUS_KEYSTORE_B64 || '' }}
           KEYSTORE_PASSWORD: ${{ inputs.dry-run != true && secrets.LOCUS_KEYSTORE_PASSWORD || '' }}
           KEY_ALIAS: ${{ inputs.dry-run != true && secrets.LOCUS_KEY_ALIAS || '' }}
+          OFFICIAL: ${{ github.repository == 'springmusk026/locus' }}
         run: |
           KS="$RUNNER_TEMP/locus.jks"
           trap 'rm -f "$KS"' EXIT
@@ -175,6 +212,10 @@ jobs:
           else
             if [ "$DRY_RUN" = true ]; then
               echo "::notice::Dry run: signing with a throwaway key."
+            elif [ "$OFFICIAL" = true ]; then
+              # "Release checks" already stops this; checked again where the key is used.
+              echo "::error::LOCUS_KEYSTORE_B64 is empty; not publishing a release signed with a throwaway key."
+              exit 1
             else
               echo "::warning::LOCUS_KEYSTORE_B64 is not set; signing with a throwaway key."
             fi

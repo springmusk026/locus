@@ -281,6 +281,9 @@ to cost several times what a standard run costs, and set `bench.maxCostUsd`.
    exact file contents to answer substrings. Where the prompt allows more than one correct result
    (e.g. "sorted alphabetically" with mixed case), accept every reasonable reading, as
    `multi/organize-inbox` does with an anchored `matches`, or make the prompt say exactly what it wants.
+   When the prompt says to leave files alone ("without changing the tests"), check that: an `equals`
+   check on the whole file (`coding/js-fix-bug`), or copy the original back in `grader/` so the
+   checks run against it (`coding/two-failures`). A substring check lets the agent delete the rest.
 3. Write `oracle.json` and run `./gradlew :bench:testDebugUnitTest`. `FakeRunTest` replays every
    oracle and checks that no task passes when the agent does nothing.
 4. For a hard-tier task (`"tier": "hard"`), also write `variants/`: at least one `fail-*.json` (a

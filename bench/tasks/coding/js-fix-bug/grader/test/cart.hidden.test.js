@@ -14,3 +14,7 @@ test('empty cart', () => {
 test('rounds to cents', () => {
   assert.equal(total([{ price: 0.1, qty: 3 }], 'SAVE10'), 0.27);
 });
+
+test('unknown code on several lines', () => {
+  assert.equal(total([{ price: 4, qty: 2 }, { price: 1.5, qty: 2 }], 'SAVE20'), 11);
+});
