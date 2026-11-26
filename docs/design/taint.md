@@ -312,18 +312,24 @@ It removes:
   - Mongolian vowel separator, interlinear annotation marks, and the deprecated format characters U+206A–206F;
   - Hangul fillers and Khmer inherent vowels;
   - any other General_Category Cf character.
-- **Extra selectors.** A variation selector, combining grapheme joiner or Mongolian free variation selector is kept only directly after a visible character, one at a time.
+- **Selectors where they do nothing.** A variation selector, combining grapheme joiner or Mongolian free variation selector is kept only directly after a character it can apply to, one at a time (#393). Before, one selector after any visible character stayed, so a page could hide a byte after every letter (U+E0100 + value). Where each kind is kept, read from Unicode's StandardizedVariants, emoji-variation-sequences and the IVD, by block rather than by listed base:
+  - U+FE0E/FE0F (text or emoji style) after a symbol that has both styles: the keycap bases `#*0-9`, © ®, ‼ ⁉, U+2100–2BFF, U+3030, U+303D, U+3297, U+3299 and the emoji blocks;
+  - U+FE00–FE0D after a CJK ideograph, CJK or fullwidth punctuation, a mathematical operator, `0` (slashed zero), Myanmar, Phags-pa, Manichaean or an Egyptian hieroglyph;
+  - U+E0100–E01EF (ideographic variation sequences) after a CJK ideograph only;
+  - U+180B–180D and U+180F after a Mongolian letter;
+  - U+034F only between two combining marks, where it keeps their order (Hebrew qamats before patah).
 
 It keeps:
 
 - **ZWJ and ZWNJ** when a single joiner sits between two non-ASCII letters, marks or symbols, or a ZWJ follows an Indic virama. This is a looser reading of UTS #39's A1, A2 and B that also allows emoji ZWJ sequences. Variation selectors and skin-tone modifiers before the joiner count as part of the emoji.
 - **Joiners in context:** Persian words joined with ZWNJ, Devanagari half forms (virama plus ZWJ), Sinhala yansaya, Malayalam old-style chillus, every ZWJ emoji (families, professions with skin tones, the rainbow and transgender flags, newer emoji the JDK doesn't know), and keycaps.
 - **Visible format characters:** the Arabic number signs U+0600–0605 and Egyptian hieroglyph controls.
-- **Control characters.** Line breaks, tabs and ESC stay, so command output and files read as before.
+- **Line breaks and tabs.** `HiddenText.clean` leaves control characters alone, so files read with `read_file` keep them.
 
 It removes:
 
-- **Misplaced joiners.** A joiner next to ASCII, whitespace, another joiner, or at either end of the text. Zero-width binary between Latin letters is gone.
+- **Misplaced joiners.** A joiner next to ASCII, whitespace, another joiner, a character that is itself removed, or at either end of the text. Zero-width binary between Latin letters is gone. A joiner is judged by the character after it only when that character stays, so cleaning twice gives what cleaning once gave (#393; before, `😀 ZWNJ U+180C` lost the selector and kept a dangling ZWNJ).
+- **Control characters in marked text.** `UntrustedContent.wrap` also removes C0 and C1 controls other than tab, line feed and carriage return, and whole terminal escape sequences (CSI colours and cursor moves, OSC titles and links), each counted as one hidden character (#393). NUL and ESC from a page or a command could otherwise reach tool results and wherever they are shown. The chat's terminal panel shows the wrapped result as plain text, which never drew colours anyway; the interactive terminal reads the shell directly and is unchanged.
 
 Removing these characters is a deliberate step past UTS #55, which advises editors not to forbid them. What the model reads is not an editor: a person reviewing it can't see the characters, and the model still acts on them.
 
@@ -333,7 +339,7 @@ Only to tool-result text from now on. The frozen system prompt and the declared 
 
 | Entry point | Where |
 |---|---|
-| Every marked tool result: `fetch_url`, `web_search`, `web_read`, `wikipedia`, email lists, bodies and subjects, GitHub issues, deploy logs, DNS records, `connector_call`, MCP results and `mcp_list_tools`, `find_tools`' MCP descriptions, command and SSH output, calendar entries, events, imported skills loaded with `skill_use` | `UntrustedContent.wrap`. It strips first and then defuses, so `</untrusted<ZWSP>_web_content>` with a zero-width space can't become a real closing tag once stripped. Defusing also matches the tag in compatibility forms that NFKC turns into it (fullwidth `＜／＞` and letters, small-form `﹤﹥`; #378): each character is folded on its own to find the tag, and only the tag's brackets become `‹›`, so the rest of the text is unchanged. The safety reviewer's section tags (`<message>`, `<plan>` …) are neutralised the same way (`ReviewContext.neutralize`). |
+| Every marked tool result: `fetch_url`, `web_search`, `web_read`, `wikipedia`, email lists, bodies and subjects, GitHub issues, deploy logs, DNS records, `connector_call`, MCP results and `mcp_list_tools`, `find_tools`' MCP descriptions, command and SSH output, calendar entries, events, imported skills loaded with `skill_use` | `UntrustedContent.wrap`. It strips first and then defuses, so `</untrusted<ZWSP>_web_content>` with a zero-width space can't become a real closing tag once stripped. Defusing also matches the tag in compatibility forms that NFKC turns into it (fullwidth `＜／＞` and letters, small-form `﹤﹥`; #378): each character is folded on its own to find the tag, and only the tag's brackets become `‹›`, so the rest of the text is unchanged. The search also looks past what draws nothing of its own: Default_Ignorable code points, combining marks, U+2800 (blank braille) and controls, so `</untrusted` + U+034F + `_web_content>` is defused even where stripping keeps the selector (#393). The safety reviewer's section tags (`<message>`, `<plan>` …) are neutralised the same way (`ReviewContext.neutralize`). |
 | Web pages, snapshots, tabs and console logs | core:browser's `Untrusted.wrap`, which now calls `UntrustedContent.wrap` |
 | MCP tool descriptions and argument schemas offered as deferred tools (provider-side tool search) | `McpSchemas.description` and `McpSchemas.compact`. These are outside any marked block, so every string in them is stripped. |
 | File reads | `read_file`, line by line, with a note that names the lines. `edit_file`'s whole-line matching compares lines without hidden characters, so the model can edit a line exactly as it read it. |
@@ -344,7 +350,7 @@ Only to tool-result text from now on. The frozen system prompt and the declared 
 
 Limits:
 
-- One selector per visible character is still allowed, so a variation-selector channel of about a byte per character remains. Recovering it takes a decoder, and a model doesn't run one by itself.
+- A selector is still kept after a base it applies to, so emoji and CJK text can carry about a byte per such character (and U+FE0E/FE0F only a bit). Recovering it takes a decoder, and a model doesn't run one by itself.
 - Lookalike letters (confusables) aren't touched; that is UTS #39's skeleton, a different problem.
 - Scripts in skills keep their characters. They run in Linux and aren't instructions to the model.
 
