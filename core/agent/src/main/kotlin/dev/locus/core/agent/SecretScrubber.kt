@@ -13,7 +13,9 @@ import kotlinx.serialization.json.contentOrNull
  *
  * Two layers: the exact values the vault holds ([known], plus the parts of structured values such as
  * an MCP session's tokens or the password in an email URL), and patterns for credentials whatever
- * their source (`Bearer …`, `x-api-key: …`, `sk-…`). Attachment bytes and other base64 blobs become a
+ * their source (`Bearer …`, `x-api-key: …`, `sk-…`, Telegram, Slack, Google, GitLab, Hugging Face and Groq tokens, JWTs, AWS key ids,
+ * private key blocks). Every scrubber in Locus (the viewer, the Activity log, Diagnostics, the publish page)
+ * uses this one list, so a format added here is covered everywhere. Attachment bytes and other base64 blobs become a
  * short label such as `[image, 1.2 MB]`.
  */
 class SecretScrubber(
@@ -79,15 +81,38 @@ class SecretScrubber(
         private val DATA_URL = Regex("""data:([\w.+-]+/[\w.+-]+);base64,([A-Za-z0-9+/=\s]*)""")
         private val BASE64 = Regex("""[A-Za-z0-9+/=_\-\r\n]+""")
 
-        private val PATTERNS: List<Pair<Regex, String>> = listOf(
+        /** Credentials found by the words around them; the value after the label is replaced. */
+        private val LABELLED: List<Pair<Regex, String>> = listOf(
             Regex("""(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=\-]{8,}""") to "$1 $SECRET",
             Regex("""(?i)\b(x-api-key|x-goog-api-key|api[_-]?key|access[_-]?token|refresh[_-]?token|authorization|password|secret)(["']?\s*[:=]\s*["']?)(?!\[secret|\[redacted|(?:bearer|basic)\s)[^\s"',;&]{6,}""") to "$1$2$SECRET",
-            Regex("""\bsk-[A-Za-z0-9_\-]{16,}""") to SECRET,
-            Regex("""\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{20,}\b""") to SECRET,
-            Regex("""\bgithub_pat_[A-Za-z0-9_]{20,}\b""") to SECRET,
-            Regex("""\bxox[abprs]-[A-Za-z0-9\-]{10,}""") to SECRET,
-            Regex("""\bAIza[0-9A-Za-z_\-]{30,}""") to SECRET,
         )
+
+        /**
+         * The shapes of well-known keys and tokens, where the whole match is the secret. Public so a scrubber
+         * with its own wording (the chat export's `[redacted]`) uses the same list.
+         */
+        val TOKEN_SHAPES: List<Regex> = listOf(
+            Regex("""\bsk-[A-Za-z0-9_\-]{16,}"""),
+            Regex("""\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{20,}\b"""),
+            Regex("""\bgithub_pat_[A-Za-z0-9_]{20,}\b"""),
+            Regex("""\bxox[abprs]-[A-Za-z0-9\-]{10,}"""),
+            Regex("""\bxapp-[A-Za-z0-9\-]{10,}"""),
+            Regex("""https://hooks\.slack\.com/(?:services|workflows|triggers)/[A-Za-z0-9/_\-]{10,}"""),
+            Regex("""\bAIza[0-9A-Za-z_\-]{30,}"""),
+            Regex("""\bya29\.[A-Za-z0-9_\-]{20,}"""),
+            // Telegram bot tokens: `<bot id>:<35 characters>`, also inside `https://api.telegram.org/bot<token>/…`.
+            Regex("""(?<![0-9])[0-9]{8,12}:[A-Za-z0-9_\-]{30,}"""),
+            Regex("""\bgsk_[A-Za-z0-9]{20,}"""),
+            Regex("""\bhf_[A-Za-z0-9]{20,}"""),
+            Regex("""\bglpat-[A-Za-z0-9_\-]{20,}"""),
+            Regex("""\b(?:pk|rk)-[A-Za-z0-9_\-]{16,}"""),
+            // Private key blocks, JWTs and AWS access key ids.
+            Regex("""(?s)-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----"""),
+            Regex("""\beyJ[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}"""),
+            Regex("""\bAKIA[0-9A-Z]{16}\b"""),
+        )
+
+        private val PATTERNS: List<Pair<Regex, String>> = LABELLED + TOKEN_SHAPES.map { it to SECRET }
 
         /**
          * What to look for in the transcript for one vault value: the value itself and, for structured

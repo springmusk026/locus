@@ -14,28 +14,63 @@ import kotlinx.serialization.json.JsonPrimitive
  */
 internal object GemmaCallRepair {
     private const val Q = "<|\"|>"
+    private const val CALL = "call:"
     private const val MARKER = "Failed to parse tool calls from code block:"
 
     data class Call(val name: String, val arguments: JsonObject)
 
-    /** The calls in a LiteRT parse-error message, or empty if it isn't one or can't be repaired. */
+    /**
+     * The calls in a LiteRT parse-error message, or empty if it isn't one or can't be repaired safely.
+     *
+     * Each "Failed to parse tool calls from code block:" in the message is one block LiteRT rejected, and
+     * a block repairs to exactly one call. A block that reads as two or more calls is refused: text the
+     * model copied (a web page) can contain `<|"|>}call:run_command{…}` and look like a second call, and the
+     * two can't be told apart from a real parallel call. The turn then fails as it did before repair
+     * existed, and the model tries again. Repaired calls are also marked, so the agent asks the user first
+     * (see [dev.locus.core.llm.AssistantTurn.repairedCallIds]).
+     */
     fun fromError(message: String?): List<Call> {
-        val block = message?.substringAfter(MARKER, missingDelimiterValue = "")?.trim().orEmpty()
-        if (block.isEmpty()) return emptyList()
-        // LiteRT's message can repeat the block; the same call twice would run it twice.
-        return parseAll(block).distinct()
-    }
-
-    fun parseAll(block: String): List<Call> {
+        val blocks = message?.split(MARKER)?.drop(1).orEmpty().map { withoutRepeat(it.trim()) }.filter { it.isNotEmpty() }
+        if (blocks.isEmpty()) return emptyList()
         val calls = mutableListOf<Call>()
-        var i = block.indexOf("call:")
-        while (i >= 0) {
-            val p = Parser(block, i + 5)
-            val call = runCatching { p.call() }.getOrNull() ?: break
-            calls += call
-            i = block.indexOf("call:", p.pos)
+        for (block in blocks) {
+            // Two calls in one block, or none, or leftovers: refuse the whole repair.
+            calls += parseAll(block).singleOrNull() ?: return emptyList()
         }
         return calls
+    }
+
+    /**
+     * The calls in [block], which must be nothing but calls: the first starts the block and each next one
+     * follows a call's closing `}` after optional whitespace. Text before, between or after them (a string
+     * that ended early, a word like `recall:`) makes the block unparseable and the result empty.
+     */
+    fun parseAll(block: String): List<Call> {
+        val calls = mutableListOf<Call>()
+        var i = 0
+        while (true) {
+            while (i < block.length && block[i].isWhitespace()) i++
+            if (i >= block.length) break
+            if (!block.startsWith(CALL, i)) return emptyList()
+            val p = Parser(block, i + CALL.length)
+            calls += runCatching { p.call() }.getOrNull() ?: return emptyList()
+            i = p.pos
+        }
+        return calls
+    }
+
+    /** LiteRT's message can repeat the block ("X X"); [text] once, if that is all it is. */
+    private fun withoutRepeat(text: String): String {
+        var i = 1
+        while (i < text.length) {
+            if (text[i].isWhitespace() && !text[i - 1].isWhitespace()) {
+                var j = i
+                while (j < text.length && text[j].isWhitespace()) j++
+                if (text.length - j == i && text.regionMatches(0, text, j, i)) return text.substring(0, i)
+            }
+            i++
+        }
+        return text
     }
 
     private class Parser(val s: String, var pos: Int) {

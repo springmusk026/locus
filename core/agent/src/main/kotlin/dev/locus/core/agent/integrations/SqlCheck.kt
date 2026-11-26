@@ -29,14 +29,24 @@ internal object SqlCheck {
         "set_config", "pg_terminate_backend", "pg_cancel_backend", "pg_reload_conf", "pg_rotate_logfile", "pg_switch_wal",
         "pg_create_restore_point", "pg_promote", "pg_sleep\\w*", "pg_advisory\\w*", "pg_try_advisory\\w*", "pg_notify",
         "pg_read_file", "pg_read_binary_file", "pg_ls_\\w*", "pg_stat_file", "pg_file_\\w*", "lo_\\w*", "dblink\\w*",
-        "nextval", "setval", "query_to_xml\\w*", "cursor_to_xml\\w*", "http\\w*",
+        "nextval", "setval", "http\\w*",
+        // Functions that take a table, a schema or a whole query as text and read it themselves: the name never
+        // appears as an identifier for the checks below to see, so the functions are refused instead.
+        "(?:query|cursor|table|schema|database)_to_xml\\w*", "ts_stat",
     ).map { Regex("\\b$it\\s*\\(", RegexOption.IGNORE_CASE) }
 
     /** Extension schemas whose functions act outside the query (jobs, HTTP, secrets). */
     private val RISKY_SCHEMAS = Regex("\\b(cron|net|vault|pgsodium|extensions|dblink)\\s*\\.\\s*[A-Za-z_\"][\\w\"]*\\s*\\(", RegexOption.IGNORE_CASE)
 
-    /** Supabase Vault and pgsodium: decrypted secrets must not reach the model. */
-    private val SECRET_SCHEMAS = Regex("\\b(vault|pgsodium)\\s*\\.", RegexOption.IGNORE_CASE)
+    /**
+     * Supabase Vault and pgsodium: decrypted secrets must not reach the model. Looked for in the original text,
+     * strings, quoted names and comments included, because a function can be handed the schema or table as text
+     * (`'vault.decrypted_secrets'::regclass`). A word like `my_vault` isn't the schema and passes.
+     */
+    private val SECRET_WORDS = Regex("\\b(vault|pgsodium)\\b", RegexOption.IGNORE_CASE)
+
+    /** `U&"..."` and `U&'...'` spell a name with escapes (`U&"va\\0075lt"`), which no text check can follow. */
+    private val UNICODE_ESCAPES = Regex("\\bu&\\s*[\"']", RegexOption.IGNORE_CASE)
 
     /** A quoted name used as a function (its real name was blanked out by [strip]). */
     private val QUOTED_CALL = Regex("\"\"\\s*\\(")
@@ -57,7 +67,8 @@ internal object SqlCheck {
         val call = RISKY_CALLS.firstNotNullOfOrNull { it.find(body) } ?: RISKY_SCHEMAS.find(body)
         call?.let { return "Calling ${it.value.substringBefore('(').trim()} isn't allowed in a read-only query." }
         if (QUOTED_CALL.containsMatchIn(body)) return "Call functions by their plain name in a read-only query."
-        if (SECRET_SCHEMAS.containsMatchIn(body) || Regex("\"(vault|pgsodium)\"", RegexOption.IGNORE_CASE).containsMatchIn(sql)) return "The vault and pgsodium schemas hold secrets; they aren't read through the agent."
+        if (SECRET_WORDS.containsMatchIn(sql)) return "The vault and pgsodium schemas hold secrets; they aren't read through the agent."
+        if (UNICODE_ESCAPES.containsMatchIn(sql)) return "Names written with Unicode escapes (U&\"…\") aren't allowed in read-only queries."
         return null
     }
 

@@ -131,3 +131,18 @@ Other HTTP paths, checked for the same pattern (2026-11-02):
 - **MCP OAuth discovery** fetches URLs named in a server's metadata (`McpOAuth.fetchJson`), with the shared client. The server is one the user added, but its metadata could point at a LAN address; that's a candidate for the same client.
 - **The browser** (WebView, and `AgentBrowser.fetchTo` for downloads) opens local pages on purpose, such as servers in Linux, so it has no private-address check at all. That is a design choice, not something rebinding defeats.
 
+
+## The sign-in listener
+
+Status: unreleased. Code: `core/data/.../auth/LoopbackRedirect.kt`. Tests: `LoopbackRedirectTest`. Issue #381.
+
+ChatGPT and MCP browser sign-ins listen on `127.0.0.1` for the redirect (RFC 8252). Any app on the phone, and any program in Locus's Linux (it shares the network), can connect to that port. The listener used to take one connection at a time and read its request line byte by byte with a 3-second timeout *per read*, up to 8 KB, checking the sign-in's deadline and cancellation only between connections. One byte every 2.9 seconds kept it in that read for up to about 6.6 hours: the browser's real redirect waited in the backlog (8 slots), the sign-in timed out, and cancelling didn't stop the read. A token couldn't be stolen this way (the redirect needs the sign-in's `state`, and PKCE is used); the sign-in could only be blocked.
+
+Now `awaitRedirect` accepts on one coroutine and reads each connection on its own:
+
+- a connection gets 3 seconds **in all** to send its request line (a browser sends it at once), not per read;
+- at most 16 connections are read at the same time; more are closed on arrival;
+- accepts and reads poll every 250 ms and check for cancellation, so cancelling a sign-in returns within about a quarter of a second;
+- the five-minute limit is on the whole wait, not between connections.
+
+A request for another path or another `state` is answered with 404 and ignored, as before. Only the first valid redirect is taken.

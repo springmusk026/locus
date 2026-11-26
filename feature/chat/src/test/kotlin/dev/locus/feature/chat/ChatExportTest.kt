@@ -69,6 +69,14 @@ class ChatExportTest {
     }
 
     @Test
+    fun `tokens from other services are redacted too`() {
+        val telegram = "123456789" + ":AAH" + "k3j4h5g6f7d8s9a0qwertyuiopasdfghjk"
+        val groq = "gsk_" + "aB3dE5gH7jK9mN1pQ3sT5vW7yZ9bD1fH3jL5"
+        val out = ChatExport.redactTokens("bot $telegram and $groq")
+        assertFalse(telegram in out || groq in out, out)
+    }
+
+    @Test
     fun `file names are safe and dated`() {
         assertEquals("a b c 2026-10-31.md", ChatExport.fileName("a/b: c", 1_793_448_000_000, "md", utc))
         assertEquals("Chat.pdf", ChatExport.fileName("  ", 0, "pdf", utc))

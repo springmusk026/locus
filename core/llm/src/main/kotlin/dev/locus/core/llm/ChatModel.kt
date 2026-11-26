@@ -97,6 +97,12 @@ data class AssistantTurn(
      * this one exactly. Null elsewhere.
      */
     val turnEffort: Part.TurnEffort? = null,
+    /**
+     * Ids of [toolCalls] the adapter rebuilt from text the model runtime failed to parse (on-device
+     * `GemmaCallRepair`). Text the model copied can pass as such a call, so the agent asks the user
+     * before running one, whatever the tool's policy.
+     */
+    val repairedCallIds: Set<String> = emptySet(),
 )
 
 /** One billed model attempt within a request: [model] and its own token counts. */

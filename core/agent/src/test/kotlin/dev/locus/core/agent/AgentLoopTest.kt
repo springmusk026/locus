@@ -205,6 +205,29 @@ class AgentLoopTest {
     }
 
     @Test
+    fun `a call the on-device adapter rebuilt from unparsed text asks even when allowed`() = runTest {
+        val rebuilt = call().copy(repairedCallIds = setOf("call1"))
+        val asked = mutableListOf<ApprovalRequest>()
+        val tool = FakeTool(ToolRisk.WRITE)
+        val store = MemoryStore()
+        loop(ScriptedModel(rebuilt, done), tool, ToolPolicy.ALLOW, store, gate = { asked += it; false }).run(conversation, listOf(userMessage)).toList()
+        assertEquals(0, tool.runs)
+        assertEquals(ApprovalDecision.USER_DENIED, store.audit.single().decision)
+        assertTrue("Rebuilt call" in asked.single().summary)
+        assertEquals(setOf(ApprovalFlag.MUST_CONFIRM), asked.single().flags)
+    }
+
+    @Test
+    fun `a rebuilt call in a read-only background run is refused, not run`() = runTest {
+        val tool = object : Tool by FakeTool(ToolRisk.NETWORK) {
+            override suspend fun isObservation(args: JsonObject) = true
+        }
+        val store = MemoryStore()
+        loop(ScriptedModel(call().copy(repairedCallIds = setOf("call1")), done), tool, ToolPolicy.ALLOW, store, readOnly = true).run(conversation, listOf(userMessage)).toList()
+        assertEquals(ApprovalDecision.POLICY_DENIED, store.audit.single().decision)
+    }
+
+    @Test
     fun `a plain Ask call carries no flags, so voice may answer it`() = runTest {
         val asked = mutableListOf<ApprovalRequest>()
         loop(ScriptedModel(call(), done), FakeTool(ToolRisk.WRITE), ToolPolicy.ASK, MemoryStore(), gate = { asked += it; true }).run(conversation, listOf(userMessage)).toList()

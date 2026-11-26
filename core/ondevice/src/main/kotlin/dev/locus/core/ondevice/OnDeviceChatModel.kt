@@ -510,8 +510,10 @@ internal class OnDeviceChatModel(private val engines: OnDeviceEngines, private v
                         emit(ChatEvent.ToolCallStarted(id, call.name))
                     }
                 }
+                val repairedIds = mutableSetOf<String>()
                 repaired.forEach { call ->
                     val id = "call_${calls.size + 1}"
+                    repairedIds += id
                     calls += Part.ToolCall(id, call.name, call.arguments.toString())
                     emit(ChatEvent.ToolCallStarted(id, call.name))
                 }
@@ -530,6 +532,7 @@ internal class OnDeviceChatModel(private val engines: OnDeviceEngines, private v
                     // A cut-off tool call isn't run; the note says why the reply ends here, and stays in the chat.
                     val note = HeatStop.note(droppedCalls = calls.size + repaired.size)
                     calls.clear()
+                    repairedIds.clear()
                     repaired = emptyList()
                     text.append(note)
                     emit(ChatEvent.TextDelta(note))
@@ -560,6 +563,7 @@ internal class OnDeviceChatModel(private val engines: OnDeviceEngines, private v
                             stopReason = if (calls.isEmpty()) StopReason.END_TURN else StopReason.TOOL_USE,
                             format = ApiFormat.ON_DEVICE,
                             rawPayload = null,
+                            repairedCallIds = repairedIds,
                         ),
                     ),
                 )
