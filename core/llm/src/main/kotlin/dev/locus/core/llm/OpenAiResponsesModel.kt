@@ -51,20 +51,33 @@ class OpenAiResponsesModel(
     override fun stream(request: ChatRequest): Flow<ChatEvent> = flow {
         var withReasoning = true
         var withCacheKey = request.cacheKey != null
+        // Effort changes as configuration_update items (MidChatEffort): what this chat's earlier requests sent.
+        var plan = midChatPlan(request)
         while (true) {
             var retryWithout = false
             val token = bearer?.token() ?: apiKey
+            val sentPlan = plan?.takeIf { withReasoning }
             http.preparePost("${config.baseUrl.trimEnd('/')}/responses") {
                 if (!token.isNullOrBlank()) header("Authorization", "Bearer $token")
                 contentType(ContentType.Application.Json)
-                setBody(LlmJson.encodeToString(JsonObject.serializer(), buildBody(request, withReasoning, withCacheKey)))
+                setBody(LlmJson.encodeToString(JsonObject.serializer(), buildBody(request, withReasoning, withCacheKey, sentPlan)))
             }.execute { response ->
                 val requestId = requestIdOf(response.headers)
                 // Models without reasoning reject the reasoning settings; ask once more without them.
                 // `prompt_cache_key` is not on the ChatGPT preview's omit list, but if a server refuses it,
                 // drop it the same way rather than fail the chat.
-                if ((response.status.value == 400 || response.status.value == 422) && (withReasoning || withCacheKey)) {
+                val perMessage = sentPlan?.any == true
+                if ((response.status.value == 400 || response.status.value == 422) && (withReasoning || withCacheKey || perMessage)) {
                     val body = runCatching { response.bodyAsText() }.getOrDefault("")
+                    // A model or mode without configuration updates: once more with the effort at the top level,
+                    // and that way for this provider from now on. Before the reasoning check, which the same
+                    // error would match.
+                    if (perMessage && "configuration_update" in body) {
+                        MidChatEffort.reject(config)
+                        plan = null
+                        retryWithout = true
+                        return@execute
+                    }
                     if (withCacheKey && "prompt_cache_key" in body) {
                         withCacheKey = false
                         retryWithout = true
@@ -124,11 +137,24 @@ class OpenAiResponsesModel(
                         throw incompleteFailure(incompleteReason(response), event, requestId, responseId)
                     }
                 }
-                emit(ChatEvent.Completed(turn))
+                emit(ChatEvent.Completed(if (recordsEffort()) turn.copy(turnEffort = Part.TurnEffort(config.effort, plan?.topLevel ?: config.effort)) else turn))
             }
             if (!retryWithout) break
         }
     }
+
+    /**
+     * This request's effort plan, or null for the old request (top-level `reasoning.effort` only): a GPT-6
+     * or later model on OpenAI's own API, not refused since the app started. Never on the ChatGPT plan route.
+     */
+    internal fun midChatPlan(request: ChatRequest): MidChatEffort.Plan? =
+        if (!chatGpt && MidChatEffort.available(config)) {
+            MidChatEffort.plan(request.messages, format, config.effort, MidChatEffort.modelDefault(config))
+        } else {
+            null
+        }
+
+    private fun recordsEffort() = !chatGpt && MidChatEffort.documented(format, config.baseUrl, config.model)
 
     /**
      * A `response.failed` or `error` event as an [LlmException]: classified from wherever its code and
@@ -186,7 +212,7 @@ class OpenAiResponsesModel(
         )
     }
 
-    internal fun buildBody(request: ChatRequest, withReasoning: Boolean = true, withCacheKey: Boolean = true): JsonObject = buildJsonObject {
+    internal fun buildBody(request: ChatRequest, withReasoning: Boolean = true, withCacheKey: Boolean = true, plan: MidChatEffort.Plan? = null): JsonObject = buildJsonObject {
         put("model", config.model.trim())
         put("stream", true)
         put("store", false)
@@ -199,7 +225,7 @@ class OpenAiResponsesModel(
         if (request.system.isNotBlank()) put("instructions", request.system)
         // Normalised: a stored history that lost a call's output (or kept an item the API can't resolve)
         // is sent valid; a sound one goes as it is (ResponsesInput).
-        put("input", JsonArray(ResponsesInput.normalize(toInputItems(request.messages))))
+        put("input", JsonArray(ResponsesInput.normalize(toInputItems(request.messages, plan))))
         if (request.tools.isNotEmpty()) {
             val search = toolSearchFor(request)
             val loaded = if (search) request.tools.filter { it.name !in DISCOVERY_TOOL_NAMES } else request.tools
@@ -236,7 +262,8 @@ class OpenAiResponsesModel(
         if (withReasoning) {
             putJsonObject("reasoning") {
                 // Blank: the model's own default ("medium" on gpt-5.5, GPT-5.6 and the GPT-6 models, reasoning guide).
-                config.effort.takeIf { it.isNotBlank() }?.let { put("effort", it) }
+                // With configuration updates it stays what the chat's requests have carried (MidChatEffort).
+                (plan?.topLevel ?: config.effort).takeIf { it.isNotBlank() }?.let { put("effort", it) }
                 put("summary", "auto")
             }
             // Reasoning items come back with encrypted_content by default now, and the API still takes this
@@ -266,8 +293,22 @@ class OpenAiResponsesModel(
     internal fun toolSearchFor(request: ChatRequest): Boolean =
         !chatGpt && request.deferredTools.isNotEmpty() && supportsToolSearch(config.model)
 
-    internal fun toInputItems(messages: List<Message>): List<JsonObject> = buildList {
-        for (message in messages) {
+    /**
+     * The `input` items. With a [plan], each effort change is a `configuration_update` item "before the next
+     * user message": before the user messages that led to the turn it was first sent for, or right before
+     * that turn when it followed tool output (after Continue); the pending one likewise at the end.
+     */
+    internal fun toInputItems(messages: List<Message>, plan: MidChatEffort.Plan? = null): List<JsonObject> = buildList {
+        val updates = buildMap {
+            plan?.changes?.forEach { (i, level) -> put(userRunStart(messages, i), level) }
+            plan?.pending?.let { put(userRunStart(messages, messages.size), it) }
+        }
+        fun update(level: String) = add(buildJsonObject {
+            put("type", "configuration_update")
+            putJsonObject("reasoning") { put("effort", level) }
+        })
+        for ((index, message) in messages.withIndex()) {
+            updates[index]?.let(::update)
             when (message.role) {
                 Role.USER -> add(buildJsonObject {
                     put("type", "message")
@@ -327,6 +368,14 @@ class OpenAiResponsesModel(
                 }
             }
         }
+        updates[messages.size]?.let(::update)
+    }
+
+    /** Where the user messages right before index [end] start ([end] itself when there are none). */
+    private fun userRunStart(messages: List<Message>, end: Int): Int {
+        var i = end
+        while (i > 0 && messages[i - 1].role == Role.USER) i--
+        return i
     }
 
     private fun inputText(text: String) = buildJsonObject {
