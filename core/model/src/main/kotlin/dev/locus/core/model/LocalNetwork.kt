@@ -25,17 +25,80 @@ object LocalNetwork {
     /** [target] is a URL (`http://192.168.1.5:11434/v1`), `host:port`, or a bare host. */
     fun isLocalTarget(target: String): Boolean = hostOf(target)?.let(::isLocalHost) ?: false
 
-    /** The host part of a URL, `host:port` or bare host, without brackets or an IPv6 zone. */
+    /**
+     * The host part of a URL, `host:port` or bare host, without brackets or an IPv6 zone, lower-cased.
+     *
+     * http(s), ws(s) and ftp URLs are read the way browsers (WHATWG URL), OkHttp and Ktor read them, so the
+     * host here is the host a request goes to: tabs and line breaks are dropped, `\` counts as `/`, any run
+     * of slashes after the scheme is skipped (`https:evil.com`, `https:/\evil.com`), and the authority ends
+     * at the first `/`, `\`, `?` or `#` before user info is cut off. An IPv6 literal comes back in its short
+     * form (`::1`), and an IPv4-mapped one as the IPv4 address it reaches (`[::ffff:7f00:1]` → `127.0.0.1`).
+     * For a security decision, use [plainHostOf], which also refuses addresses written to mislead.
+     */
     fun hostOf(target: String): String? {
-        var rest = target.trim().substringAfter("://")
-        rest = rest.substringBefore('/').substringBefore('?').substringBefore('#').substringAfterLast('@')
+        val t = target.trim().filterNot { it == '\t' || it == '\n' || it == '\r' }
+        val rest = authorityOf(t).substringAfterLast('@')
         if (rest.isEmpty()) return null
         val host = when {
             rest.startsWith("[") -> rest.substringAfter('[').substringBefore(']')
             rest.count { it == ':' } == 1 -> rest.substringBefore(':')
             else -> rest // bare IPv6 or plain host
         }
-        return host.substringBefore('%').trimEnd('.').lowercase().ifEmpty { null }
+        val bare = host.substringBefore('%').trimEnd('.').lowercase()
+        val canonical = if (':' in bare) ipv6(bare)?.let(::ipv6Text) ?: bare else bare
+        return canonical.ifEmpty { null }
+    }
+
+    /**
+     * [hostOf] for a decision about where data may go (taint, links in replies, skill scopes), or null when
+     * the address is written so that people and parsers could disagree about its host: a `\`, a tab or line
+     * break, user info (`https://github.com@evil.com`, `https://evil.com\@github.com`), a `%` in the
+     * authority, or an http(s) scheme not followed by exactly `//`. Such an address counts as one the agent
+     * chose (docs/design/taint.md, "One host for every decision").
+     */
+    fun plainHostOf(url: String): String? {
+        val t = url.trim()
+        if (t.any { it == '\\' || it == '\t' || it == '\n' || it == '\r' }) return null
+        val scheme = SCHEME.find(t)?.groupValues?.get(1)?.lowercase()
+        if (scheme in SPECIAL_SCHEMES) {
+            val after = t.substring(scheme!!.length + 1)
+            if (!after.startsWith("//") || after.startsWith("///")) return null
+        }
+        val authority = authorityOf(t)
+        if ('@' in authority || '%' in authority) return null
+        return hostOf(t)
+    }
+
+    /** Schemes WHATWG URL parsing treats as "special": `\` is a path separator and extra slashes are skipped. */
+    private val SPECIAL_SCHEMES = setOf("http", "https", "ws", "wss", "ftp")
+    private val SCHEME = Regex("^([a-zA-Z][a-zA-Z0-9+.-]*):")
+
+    /** The authority of [t] (user info, host and port), or [t] up to its path for `host:port` and bare hosts. */
+    private fun authorityOf(t: String): String {
+        val scheme = SCHEME.find(t)?.groupValues?.get(1)?.lowercase()
+        if (scheme in SPECIAL_SCHEMES) {
+            return t.substring(scheme!!.length + 1).trimStart('/', '\\').takeWhile { it != '/' && it != '\\' && it != '?' && it != '#' }
+        }
+        return t.substringAfter("://").substringBefore('/').substringBefore('?').substringBefore('#')
+    }
+
+    /** RFC 5952 text for [g] (what OkHttp and browsers print), or the dotted IPv4 address an IPv4-mapped one reaches. */
+    private fun ipv6Text(g: IntArray): String {
+        if (g.take(5).all { it == 0 } && g[5] == 0xffff) return "${g[6] shr 8}.${g[6] and 0xff}.${g[7] shr 8}.${g[7] and 0xff}"
+        // The longest run of two or more zero groups, the first one on a tie, becomes "::".
+        var bestStart = -1
+        var bestLen = 1
+        var i = 0
+        while (i < 8) {
+            if (g[i] != 0) { i++; continue }
+            val start = i
+            while (i < 8 && g[i] == 0) i++
+            if (i - start > bestLen) { bestStart = start; bestLen = i - start }
+        }
+        if (bestStart < 0) return g.joinToString(":") { it.toString(16) }
+        val head = g.copyOfRange(0, bestStart).joinToString(":") { it.toString(16) }
+        val tail = g.copyOfRange(bestStart + bestLen, 8).joinToString(":") { it.toString(16) }
+        return "$head::$tail"
     }
 
     /**

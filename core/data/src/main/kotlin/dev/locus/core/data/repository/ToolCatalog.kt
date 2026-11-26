@@ -144,18 +144,23 @@ class ToolCatalog @Inject constructor(
         }
 
         /**
-         * fetch_url's reach: local addresses only for hosts the user set up themselves (model providers,
-         * MCP servers and connectors), read fresh for every call.
+         * fetch_url's reach: local addresses only at the addresses the user set up themselves (model providers,
+         * MCP servers and connectors), read fresh for every call. fetch_url allows their origins (scheme, host
+         * and port), not every port of their hosts; the DNS check, which sees only names, allows their hosts.
          */
         internal fun fetchNetwork(settings: SettingsRepository, home: AgentHome, http: HttpClient? = null): dev.locus.core.agent.tools.FetchNetwork {
-            val allowed: suspend () -> Set<String> = { configuredHosts(settings.current(), home) }
+            val origins: suspend () -> Set<String> = { configuredAddresses(settings.current(), home) }
+            val hosts: suspend () -> Set<String> = { configuredHosts(settings.current(), home) }
             // The app's client is OkHttp: fetch_url gets its own from it, with the DNS check pinned to the connection.
             val okHttp = (http?.engine?.config as? io.ktor.client.engine.okhttp.OkHttpConfig)?.preconfigured
             return dev.locus.core.agent.tools.FetchNetwork(
-                allowedHosts = allowed,
-                client = okHttp?.let { dev.locus.core.data.network.FetchDns.client(it, allowed) },
+                allowedOrigins = origins,
+                client = okHttp?.let { dev.locus.core.data.network.FetchDns.client(it, hosts) },
             )
         }
+
+        private fun configuredAddresses(settings: AppSettings, home: AgentHome): Set<String> =
+            (settings.providers.map { it.baseUrl } + home.connectors().map { it.baseUrl }).filter { it.isNotBlank() }.toSet()
 
         /**
          * The client connector_call uses: the app's OkHttp engine with its own redirects off. connector_call
@@ -174,9 +179,7 @@ class ToolCatalog @Inject constructor(
         }
 
         private fun configuredHosts(settings: AppSettings, home: AgentHome): Set<String> =
-            (settings.providers.map { it.baseUrl } + home.connectors().map { it.baseUrl })
-                .mapNotNull { dev.locus.core.model.LocalNetwork.hostOf(it) }
-                .toSet()
+            configuredAddresses(settings, home).mapNotNull { dev.locus.core.model.LocalNetwork.hostOf(it) }.toSet()
 
         /** Every tool, in one place so tests can check each is classified (see [dev.locus.core.model.ToolCapability]). */
         internal fun allTools(

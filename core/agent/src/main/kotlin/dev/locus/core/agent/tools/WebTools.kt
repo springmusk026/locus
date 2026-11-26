@@ -40,12 +40,14 @@ import java.net.InetAddress
 
 /**
  * Where fetch_url may connect. [resolve] looks a host name up (the system resolver in the app, a fake in
- * tests); [allowedHosts] are hosts the user set up in Locus themselves (a model provider such as Ollama on
- * the LAN, an MCP server), the only local addresses the agent may reach.
+ * tests); [allowedOrigins] are the addresses the user set up in Locus themselves (a model provider such as
+ * Ollama on the LAN, an MCP server or connector), as URLs. Their origins (scheme, host and port; the path
+ * doesn't matter) are the only local addresses the agent may reach: `http://192.168.1.5:11434/v1` opens
+ * `http://192.168.1.5:11434`, not the same machine's port 22 or 8080 ([FetchGuard.originOf]).
  */
 class FetchNetwork(
     val resolve: suspend (String) -> List<InetAddress> = { host -> withContext(Dispatchers.IO) { InetAddress.getAllByName(host).toList() } },
-    val allowedHosts: suspend () -> Set<String> = { emptySet() },
+    val allowedOrigins: suspend () -> Set<String> = { emptySet() },
     /**
      * The client fetch_url connects with, when the app has one whose own DNS lookup checks every answer
      * ([FetchGuard.checkAnswer]) and never follows redirects. That pins the check to the addresses actually
@@ -71,12 +73,44 @@ object FetchGuard {
         }
         val b = address.address.map { it.toInt() and 0xff }
         return when (address) {
-            is Inet4Address -> b[0] == 0 || (b[0] == 100 && b[1] in 64..127) || b.all { it == 255 }
-            // Unique local fc00::/7; IPv4-mapped addresses come back from Java as Inet4Address.
-            is Inet6Address -> b[0] and 0xfe == 0xfc
+            // 0/8, CGNAT 100.64/10, IETF protocol assignments 192.0.0/24, benchmarking 198.18/15, and
+            // reserved 240/4 (with broadcast 255.255.255.255).
+            is Inet4Address -> b[0] == 0 || (b[0] == 100 && b[1] in 64..127) || (b[0] == 192 && b[1] == 0 && b[2] == 0) ||
+                (b[0] == 198 && b[1] in 18..19) || b[0] >= 240
+            // Unique local fc00::/7, and an IPv6 address that carries an IPv4 one: what that one is. IPv4-mapped
+            // addresses come back from Java as Inet4Address.
+            is Inet6Address -> b[0] and 0xfe == 0xfc || embeddedIpv4(b)?.let { isPrivate(InetAddress.getByAddress(it)) } == true
             else -> false
         }
     }
+
+    /**
+     * The IPv4 address inside an IPv6 one that leads to it: NAT64 `64:ff9b::/96` and IPv4-compatible
+     * `::a.b.c.d` (the last 32 bits), and 6to4 `2002::/16` (bits 16 to 47). Null for any other.
+     */
+    private fun embeddedIpv4(b: List<Int>): ByteArray? {
+        fun bytes(from: Int) = ByteArray(4) { b[from + it].toByte() }
+        return when {
+            b[0] == 0x00 && b[1] == 0x64 && b[2] == 0xff && b[3] == 0x9b && (4..11).all { b[it] == 0 } -> bytes(12)
+            (0..11).all { b[it] == 0 } -> bytes(12)
+            b[0] == 0x20 && b[1] == 0x02 -> bytes(2)
+            else -> null
+        }
+    }
+
+    /**
+     * [url]'s origin as `scheme://host:port`, lower-cased, with the scheme's default port filled in and no
+     * brackets around an IPv6 host; null when it isn't an absolute http(s) URL. Two addresses with the same
+     * origin reach the same server.
+     */
+    fun originOf(url: String): String? {
+        val t = url.trim()
+        if (!t.startsWith("http://", ignoreCase = true) && !t.startsWith("https://", ignoreCase = true)) return null
+        return runCatching { originOf(Url(t)) }.getOrNull()
+    }
+
+    fun originOf(url: Url): String =
+        "${url.protocol.name.lowercase()}://${url.host.lowercase().removePrefix("[").removeSuffix("]")}:${url.port}"
 
     /**
      * The addresses a connection to [host] may use, from a DNS answer: all of them for a host the user
@@ -96,13 +130,14 @@ object FetchGuard {
 
     /**
      * Why [url] may not be fetched, or null when it may. Only http(s); a host that is (or resolves to) a
-     * private address must be one of [allowed]. A name that doesn't resolve is left to the request to fail.
+     * private address must be at one of the [allowedOrigins] ([originOf]: same scheme, host and port). A
+     * name that doesn't resolve is left to the request to fail.
      */
-    suspend fun refusal(url: Url, allowed: Set<String>, resolve: suspend (String) -> List<InetAddress>): String? {
+    suspend fun refusal(url: Url, allowedOrigins: Set<String>, resolve: suspend (String) -> List<InetAddress>): String? {
         if (url.protocol.name != "http" && url.protocol.name != "https") return "Only http(s) URLs are supported."
         val host = url.host.lowercase().removePrefix("[").removeSuffix("]")
         if (host.isEmpty()) return "The URL has no host."
-        if (host in allowed) return null
+        if (originOf(url) in allowedOrigins) return null
         val local = LocalNetwork.isLocalHost(host) || host == "localhost" || host.endsWith(".localhost")
         val addresses = if (local) emptyList() else runCatching { resolve(host) }.getOrDefault(emptyList())
         if (!local && addresses.none(::isPrivate)) return null
@@ -166,18 +201,19 @@ private class FetchUrl(private val http: HttpClient, private val network: FetchN
     }
 
     private suspend fun fetch(start: Url, firstMethod: HttpMethod, firstBody: String?, extra: List<Pair<String, String>>): Fetched {
-        val allowed = network.allowedHosts().map { it.lowercase() }.toSet()
+        val allowed = network.allowedOrigins().mapNotNull(FetchGuard::originOf).toSet()
         var url = start
         var method = firstMethod
         var body = firstBody
         repeat(MAX_REDIRECTS + 1) {
             FetchGuard.refusal(url, allowed, network.resolve)?.let { throw ToolException(it) }
-            val sameHost = url.host.equals(start.host, ignoreCase = true)
+            // The same server: scheme, host and port. A redirect to another port or to http is another server.
+            val sameOrigin = FetchGuard.originOf(url) == FetchGuard.originOf(start)
             val outcome = noRedirects.prepareRequest(url) {
                 this.method = method
                 header("User-Agent", USER_AGENT)
-                // The caller's headers (an API key, say) only ever go to the host it named.
-                if (sameHost) extra.forEach { (k, v) -> header(k, v) }
+                // The caller's headers (an API key, say) only ever go to the origin it named.
+                if (sameOrigin) extra.forEach { (k, v) -> header(k, v) }
                 body?.let { setBody(it) }
             }.execute { response ->
                 val status = response.status.value
