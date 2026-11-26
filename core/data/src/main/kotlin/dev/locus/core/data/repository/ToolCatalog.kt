@@ -157,6 +157,22 @@ class ToolCatalog @Inject constructor(
             )
         }
 
+        /**
+         * The client connector_call uses: the app's OkHttp engine with its own redirects off. connector_call
+         * follows redirects itself, one checked hop at a time (OkHttp would send a connector's custom key
+         * header to any host). Null when the engine isn't OkHttp (tests): connector_call then switches
+         * Ktor's redirects off on [http].
+         */
+        internal fun connectorClient(http: HttpClient): HttpClient? {
+            val base = (http.engine.config as? io.ktor.client.engine.okhttp.OkHttpConfig)?.preconfigured ?: return null
+            return HttpClient(io.ktor.client.engine.okhttp.OkHttp) {
+                engine { preconfigured = base.newBuilder().followRedirects(false).followSslRedirects(false).build() }
+                install(io.ktor.client.plugins.HttpTimeout) { requestTimeoutMillis = io.ktor.client.plugins.HttpTimeoutConfig.INFINITE_TIMEOUT_MS }
+                followRedirects = false
+                expectSuccess = false
+            }
+        }
+
         private fun configuredHosts(settings: AppSettings, home: AgentHome): Set<String> =
             (settings.providers.map { it.baseUrl } + home.connectors().map { it.baseUrl })
                 .mapNotNull { dev.locus.core.model.LocalNetwork.hostOf(it) }
@@ -189,7 +205,7 @@ class ToolCatalog @Inject constructor(
             commandChanges: dev.locus.core.agent.tools.CommandChangeTracker? = null,
             subagents: () -> dev.locus.core.agent.tools.SubagentEngine,
         ): List<Tool> =
-            workspaceTools(workspace, dev.locus.core.linux.LinuxSyntaxCheck(linux, workspace), reads, changes) + webTools(http, fetchNetwork(settings, home, http)) + browserTools(browser, workspace) + linuxTools(linux, workspace, remote, commandChanges) + dev.locus.core.linux.codingLinuxTools(linux, workspace, remote) + homeTools(home, http, secrets, scripts, origins = { mcp.origins.allowed(it) }, memoryWrites = memoryWrites(settings, conversations)) + integrationTools(http, secrets, workspace) + emailTools(secrets) + openDataTools(http) + mcpTools(mcp) + sshTools(ssh, settings, workspace) + deviceTools(context) + dev.locus.core.data.device.deviceIntegrationTools(phone) +
+            workspaceTools(workspace, dev.locus.core.linux.LinuxSyntaxCheck(linux, workspace), reads, changes) + webTools(http, fetchNetwork(settings, home, http)) + browserTools(browser, workspace) + linuxTools(linux, workspace, remote, commandChanges) + dev.locus.core.linux.codingLinuxTools(linux, workspace, remote) + homeTools(home, http, secrets, scripts, origins = { mcp.origins.allowed(it) }, memoryWrites = memoryWrites(settings, conversations), connectorHttp = connectorClient(http)) + integrationTools(http, secrets, workspace) + emailTools(secrets) + openDataTools(http) + mcpTools(mcp) + sshTools(ssh, settings, workspace) + deviceTools(context) + dev.locus.core.data.device.deviceIntegrationTools(phone) +
                 dev.locus.core.data.device.calendarWriteTools(phone, calendar, dev.locus.core.data.device.SettingsCalendarChoice(settings)) +
                 dev.locus.core.data.device.reminderTools(reminders ?: dev.locus.core.data.device.Reminders(settings, dev.locus.core.data.device.NoReminderAlarms, dev.locus.core.data.device.NoReminderNotifier)) +
                 dev.locus.core.data.device.phoneHandoffTools(phone, workspace) { dev.locus.core.agent.SecretScrubber(knownSecrets()) } +
