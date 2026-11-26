@@ -44,11 +44,14 @@ object LinkGuard {
             "mailto" -> url.substringAfter(':').substringBefore('?').substringAfterLast('@').takeIf { '.' in it }
             else -> null
         }?.lowercase()?.trimEnd('.')
+        // The host shown is where the link goes; it counts as named only when the address is written plainly
+        // (no `\`, user info or missing `//` that could make it read as one host and open another).
+        val plain = if (scheme == "http" || scheme == "https") LocalNetwork.plainHostOf(url) else host
         val data = dataChars(url)
         val reasons = buildSet {
             if (scheme !in WEB_SCHEMES) add(Reason.NOT_WEB)
             if (data > DATA_CHARS) add(Reason.LONG_DATA)
-            if (outsideContent && (host == null || !Taint.trusted(host, namedHosts))) add(Reason.OUTSIDE_CONTENT)
+            if (outsideContent && (plain == null || !Taint.trusted(plain, namedHosts))) add(Reason.OUTSIDE_CONTENT)
         }
         return if (reasons.isEmpty()) null else Confirm(url, host, reasons, data)
     }

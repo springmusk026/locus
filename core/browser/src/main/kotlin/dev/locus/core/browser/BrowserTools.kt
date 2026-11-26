@@ -154,7 +154,7 @@ private class Open(browser: AgentBrowser) : BrowserTool(browser) {
         val taint = currentCoroutineContext()[ToolCallContext]?.taint
         val origin = dev.locus.core.model.SiteOrigin.of(url)
         if (taint != null && origin != null &&
-            (taint.sources.isEmpty() || dev.locus.core.agent.Taint.trusted(BrowserArgs.host(url), taint.trustedHosts))
+            (taint.sources.isEmpty() || dev.locus.core.agent.Taint.trusted(dev.locus.core.model.LocalNetwork.plainHostOf(url) ?: "", taint.trustedHosts))
         ) {
             browser.vouch(origin)
         }

