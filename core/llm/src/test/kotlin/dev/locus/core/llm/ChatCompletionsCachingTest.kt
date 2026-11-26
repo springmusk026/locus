@@ -168,6 +168,43 @@ class ChatCompletionsCachingTest {
         assertTrue(retried.system()["content"] is JsonPrimitive)
     }
 
+    // ---- Usage in the stream: asked of every host -------------------------------------------
+
+    @Test
+    fun `every host is asked for usage, and Gemini's endpoint reports it`() = runTest {
+        val gemini = provider("https://generativelanguage.googleapis.com/v1beta/openai", "gemini-3-flash")
+        val stream = sse(
+            null to """{"choices":[{"index":0,"delta":{"content":"ok"},"finish_reason":"stop"}]}""",
+            null to """{"choices":[],"usage":{"prompt_tokens":1200,"completion_tokens":30,"total_tokens":1230}}""",
+            null to "[DONE]",
+        )
+        val engine = RecordingEngine(body = stream)
+        val turn = (OpenAiChatModel(engine.client, gemini, "k").stream(ChatRequest("s", turn1, emptyList())).toList().last() as ChatEvent.Completed).turn
+        assertEquals(true, LlmJson.parseToJsonElement(engine.lastBody()).jsonObject["stream_options"]?.jsonObject?.get("include_usage")?.jsonPrimitive?.content?.toBoolean())
+        assertEquals(1200, turn.usage?.input)
+        assertEquals(30, turn.usage?.output)
+        for (url in listOf("https://api.deepseek.com", "https://api.x.ai/v1", "http://localhost:11434/v1")) {
+            assertTrue("stream_options" in body(provider(url, "m")), url)
+        }
+    }
+
+    @Test
+    fun `a 400 naming the usage option is retried once without it`() = runTest {
+        val bodies = mutableListOf<String>()
+        val client = HttpClient(MockEngine { request ->
+            bodies += (request.body as OutgoingContent.ByteArrayContent).bytes().decodeToString()
+            if (bodies.size == 1) {
+                respond(ByteReadChannel("""{"error":{"message":"Unknown parameter: 'stream_options'."}}"""), HttpStatusCode.BadRequest, headersOf(HttpHeaders.ContentType, "application/json"))
+            } else {
+                respond(ByteReadChannel(done), HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "text/event-stream"))
+            }
+        })
+        val events = OpenAiChatModel(client, provider("https://llm.example.com/v1", "m"), "k").stream(ChatRequest("s", turn1, tools)).toList()
+        assertTrue(events.last() is ChatEvent.Completed)
+        assertEquals(2, bodies.size)
+        assertNull(LlmJson.parseToJsonElement(bodies[1]).jsonObject["stream_options"])
+    }
+
     // ---- Usage: what OpenRouter reports for cache reads and writes ------------------------------
 
     private suspend fun usageOf(usage: String): dev.locus.core.model.TokenUsage {

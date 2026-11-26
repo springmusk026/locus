@@ -360,6 +360,10 @@ interface AuditDao {
     @Insert
     suspend fun insert(entry: AuditEntity)
 
+    /** The entries of [callIds] in one chat: a call gets its entry once it finished (recovery after a restart). */
+    @Query("SELECT * FROM audit_log WHERE conversationId = :conversationId AND callId IN (:callIds)")
+    suspend fun forCalls(conversationId: String, callIds: List<String>): List<AuditEntity>
+
     /** Outcome and timing of every tool call since [since], without arguments or results. Read-only, for analytics. */
     @Query("SELECT conversationId, toolName, decision, isError, startedAt, finishedAt FROM audit_log WHERE startedAt >= :since")
     fun observeStats(since: Long): Flow<List<AuditStatRow>>

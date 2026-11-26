@@ -15,6 +15,7 @@ import dev.locus.core.llm.ModelCapabilities
 import dev.locus.core.llm.ModelRequirements
 import dev.locus.core.llm.PromptCacheKey
 import dev.locus.core.llm.StopReason
+import dev.locus.core.model.TokenUsage
 import dev.locus.core.model.ApprovalDecision
 import dev.locus.core.model.ApprovalScopeKind
 import dev.locus.core.model.AuditEntry
@@ -731,6 +732,8 @@ class AgentLoop(
             val stored = if (replied && records.isNotEmpty()) assistant.copy(parts = assistant.parts + records) else assistant
             config.onRequest?.invoke(request, assistant.id.takeIf { replied })
             if (replied) appendAndEmit(stored, transcript)
+            // Everything after the reply is what the next request adds beyond its reported usage (the compaction check).
+            val tailFrom = transcript.size
 
             if (turn.toolCalls.isEmpty()) {
                 // The project's before-finishing rules first (docs/design/rules.md): a failing one sends the agent back, a bounded number of times.
@@ -801,7 +804,8 @@ class AgentLoop(
                 // Compaction comes first, with every call of this step answered, so no call is cut off
                 // from its result; the user's messages then follow the summary, mid-task notes and all.
                 config.compaction?.let { setup ->
-                    val pending = results.sumOf { Compaction.estimateTokens(it.content) }
+                    // This step's results, and what came after them: the after-edit rules' output, images.
+                    val pending = Compaction.estimateTokens(transcript.drop(tailFrom))
                     val context = (turn.usage?.context ?: 0) + pending
                     // Not again right after one: if the summary alone is that big, another won't help.
                     if (step > compactedAtStep + 1 && Compaction.due(turn.usage, setup, pending)) {
@@ -822,7 +826,11 @@ class AgentLoop(
                         val ask = Message(ids(), conversation.id, Role.USER, emptyList(), clock())
                         val request = Compaction.request(conversation.systemPrompt, covered, tools.specs, cacheKey, serverBudget, setup.prompt, ask, clearingFor(serving))
                             .copy(deferredTools = tools.requestDeferred())
-                        early.start(request, serving.model, serving.servedBy, covered, context)
+                        // If it's cancelled before it comes back, its prompt is counted from this: the context plus the
+                        // question, the part the last request read or wrote in the provider's cache read from it again.
+                        val cached = turn.usage?.takeIf { it.cacheRead > 0 || it.cacheWrite > 0 }?.input ?: 0
+                        val estimate = TokenUsage(input = context + Compaction.estimateTokens(setup.prompt), output = 0, cacheRead = cached)
+                        early.start(request, serving.model, serving.servedBy, covered, context, estimate)
                     }
                 }
                 // It runs with this step's tool-call context, so a call the user runs here (Run anyway)
@@ -977,8 +985,14 @@ class AgentLoop(
         /** Steps a run gets after its budget stops it, when it has an [AgentConfig.budgetWrapUp]: enough to write, send and answer. */
         const val BUDGET_WRAP_UP_STEPS = 4
 
+        /** A call the run was cancelled before it finished (or reached). */
+        private const val CANCELLED = "Cancelled by the user before it finished."
+
+        /** A call after the one that was being handled when Locus itself failed. */
+        internal const val NOT_RUN_AFTER_ERROR = "Not run: an internal error stopped the run before this ran."
+
         /** Decisions under which a call actually ran. */
-        private val RAN = setOf(ApprovalDecision.AUTO_ALLOWED, ApprovalDecision.USER_APPROVED, ApprovalDecision.REVIEWER_ALLOWED, ApprovalDecision.REMEMBERED_ALLOWED)
+        internal val RAN = setOf(ApprovalDecision.AUTO_ALLOWED, ApprovalDecision.USER_APPROVED, ApprovalDecision.REVIEWER_ALLOWED, ApprovalDecision.REMEMBERED_ALLOWED)
         private const val MAX_RUN_DENIALS = 15
 
         /** Fewer messages than this aren't worth summarising (a task, a call and its result is the least). */
@@ -1132,7 +1146,11 @@ class AgentLoop(
         /** Whether it came back (or failed) already. */
         val done: Boolean get() = pending?.job?.isCompleted == true
 
-        fun start(request: ChatRequest, model: ChatModel, servedBy: Pair<String?, String?>, covered: List<Message>, context: Int) {
+        /**
+         * [estimate] is what the request costs if it's cancelled before its usage comes back: the provider read the
+         * prompt all the same.
+         */
+        fun start(request: ChatRequest, model: ChatModel, servedBy: Pair<String?, String?>, covered: List<Message>, context: Int, estimate: TokenUsage) {
             val startedAt = clock()
             val job = scope.async {
                 try {
@@ -1143,7 +1161,7 @@ class AgentLoop(
                     Result.failure(e)
                 }
             }
-            pending = Started(job, servedBy, covered, context)
+            pending = Started(job, servedBy, covered, context, estimate, startedAt, model.format)
         }
 
         /** Its result, waiting for it if it's still out; null when none was started. */
@@ -1153,13 +1171,17 @@ class AgentLoop(
             return Taken(started, started.job.await())
         }
 
-        /** Its result if it already came back; one still out is cancelled (nothing came back to count). */
+        /**
+         * Its result if it already came back. One still out is cancelled, and its prompt is counted from its estimate:
+         * nothing comes back to say what the provider billed, but it was billed for reading the prompt.
+         */
         suspend fun leftover(): Taken? {
             val started = pending ?: return null
             if (!started.job.isCompleted) {
                 started.job.cancel()
                 pending = null
-                return null
+                val turn = AssistantTurn("", emptyList(), StopReason.OTHER, started.format, null, usage = started.estimate)
+                return Taken(started, Result.success(turn to clock() - started.startedAt))
             }
             return take()
         }
@@ -1172,6 +1194,10 @@ class AgentLoop(
         val covered: List<Message>,
         /** How full the context was when it started, in tokens. */
         val context: Int,
+        /** What it costs if it's cancelled before its usage comes back ([EarlySummary.start]). */
+        val estimate: TokenUsage,
+        val startedAt: Long,
+        val format: dev.locus.core.model.ApiFormat,
     )
 
     private class Taken(val started: Started, val result: Result<Pair<AssistantTurn, Long>>)
@@ -1377,7 +1403,10 @@ class AgentLoop(
      * see the same step boundary as before, and the transcript is the same as a one-at-a-time run.
      *
      * If the run is cancelled midway, the calls without a result are answered as cancelled so the
-     * transcript never has an unanswered call.
+     * transcript never has an unanswered call. Anything else that fails on the way (storing an audit entry,
+     * spilling a long result to disk, a check before the tool runs) ends the run the same way: the call it
+     * was handling is answered as stopped by an internal error that may have let it run, the calls after
+     * it as not run, and the results are stored before the error goes on.
      */
     private suspend fun FlowCollector<AgentEvent>.executeAll(
         conversationId: String,
@@ -1390,6 +1419,8 @@ class AgentLoop(
         // A call_tool becomes the call of the tool it names before anything else looks at it (see
         // ToolRegistry.resolve), so it runs exactly as a direct call would.
         val resolved = calls.map { tools.resolve(it) }
+        // How many calls were started: the one being handled when something fails may have run.
+        var started = 0
         try {
             var i = 0
             while (i < resolved.size) {
@@ -1397,16 +1428,25 @@ class AgentLoop(
                 var end = i
                 while (end < resolved.size && runsTogether(resolved[end], review, taint)) end++
                 if (end - i >= 2) {
+                    started = end
                     executeTogether(conversationId, resolved.subList(i, end), transcript, review, taint, into = results)
                     i = end
                 } else {
+                    started = i + 1
                     results += execute(conversationId, resolved[i], transcript, review, taint)
                     i++
                 }
             }
-        } catch (e: CancellationException) {
+        } catch (e: Throwable) {
             withContext(NonCancellable) {
-                calls.drop(results.size).forEach { results += skipped(it, "Cancelled by the user before it finished.") }
+                calls.forEachIndexed { index, call ->
+                    if (index < results.size) return@forEachIndexed
+                    results += when {
+                        e is CancellationException -> skipped(call, CANCELLED)
+                        index < started -> skipped(call, internalError(e))
+                        else -> skipped(call, NOT_RUN_AFTER_ERROR)
+                    }
+                }
                 store.append(Message(ids(), conversationId, Role.TOOL, results, clock()))
             }
             throw e
@@ -1461,14 +1501,43 @@ class AgentLoop(
             async {
                 // A flow can only be emitted to from its own coroutine; events wait here until their turn.
                 val events = mutableListOf<AgentEvent>()
-                val ran = with(FlowCollector<AgentEvent> { events += it }) { runCall(conversationId, call, transcript, review, taint) }
-                ran to events
+                // A call that fails is reported in its turn, not by cancelling the calls beside it.
+                try {
+                    Result.success(with(FlowCollector<AgentEvent> { events += it }) { runCall(conversationId, call, transcript, review, taint) } to events)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Result.failure(e)
+                }
             }
         }
-        for (deferred in running) {
-            val (ran, events) = deferred.await()
-            events.forEach { emit(it) }
-            into += finish(conversationId, ran, taint)
+        val first = into.size
+        try {
+            for (deferred in running) {
+                val (ran, events) = deferred.await().getOrThrow()
+                events.forEach { emit(it) }
+                val (part, event) = settle(conversationId, ran, taint)
+                into += part
+                emit(event)
+            }
+        } catch (e: Throwable) {
+            // Cancelled, or failed, while waiting on one call: the calls after it that already finished keep their
+            // real results, audit entries and taint (they can't be reported to a cancelled flow, but they're stored).
+            withContext(NonCancellable) {
+                for (j in into.size - first until batch.size) {
+                    val deferred = running[j]
+                    val call = batch[j].original
+                    // A call cancelled with the run didn't finish; one that failed did, with its error.
+                    val ran = if (deferred.isCompleted && !deferred.isCancelled) runCatching { deferred.await().getOrThrow().first } else null
+                    into += when {
+                        ran?.isSuccess == true -> runCatching { settle(conversationId, ran.getOrThrow(), taint).first }.getOrElse { skipped(call, internalError(it)) }
+                        ran != null -> skipped(call, internalError(ran.exceptionOrNull()!!))
+                        e is CancellationException -> skipped(call, CANCELLED)
+                        else -> skipped(call, internalError(e))
+                    }
+                }
+            }
+            throw e
         }
     }
 
@@ -1560,6 +1629,17 @@ class AgentLoop(
     }
 
     private suspend fun FlowCollector<AgentEvent>.finish(conversationId: String, ran: Ran, taint: RunTaint): Part.ToolResult {
+        val (part, event) = settle(conversationId, ran, taint)
+        emit(event)
+        return part
+    }
+
+    /**
+     * [finish] without reporting it: applies the call's taint, bounds its result and records its audit entry, and
+     * returns the result with the [AgentEvent.ToolFinished] still to emit. A cancelled batch settles the calls that
+     * already finished this way, since a cancelled flow can't emit.
+     */
+    private suspend fun settle(conversationId: String, ran: Ran, taint: RunTaint): Pair<Part.ToolResult, AgentEvent> {
         val call = ran.call
         val decision = ran.decision
         val result = ran.result
@@ -1598,13 +1678,13 @@ class AgentLoop(
                 finishedAt = clock(),
             ),
         )
-        emit(AgentEvent.ToolFinished(call.id, call.name, bounded, decision))
+        val event = AgentEvent.ToolFinished(call.id, call.name, bounded, decision)
         // The result answers the call the model made: a call_tool's keeps that name, which providers match it by.
         // It says who let an asking call run, so the model can't tell the user "after you approved it" when the
         // reviewer or a saved rule did (approvalLine). Last, so results read by their first line (a command's exit
         // code, a helper's report) read the same.
         val content = approvalLine(decision)?.let { line -> "${bounded.content}\n\n$line" } ?: bounded.content
-        return Part.ToolResult(ran.original.id, ran.original.name, content, bounded.isError, decision, bounded.images)
+        return Part.ToolResult(ran.original.id, ran.original.name, content, bounded.isError, decision, bounded.images) to event
     }
 
     private suspend fun FlowCollector<AgentEvent>.authorizeAndRun(
@@ -2180,6 +2260,11 @@ class AgentLoop(
     }
 
     private fun skipped(call: Part.ToolCall, reason: String) = Part.ToolResult(call.id, call.name, reason, isError = true)
+
+    /** The answer for a call that was being handled when Locus itself failed: it may have run. */
+    private fun internalError(e: Throwable) =
+        "Failed: Locus hit an internal error while handling this call, so the run stopped (${e.message ?: e::class.simpleName}). " +
+            "It may have run: check before running it again."
 
     private suspend fun FlowCollector<AgentEvent>.appendAndEmit(message: Message, transcript: MutableList<Message>) {
         store.append(message)

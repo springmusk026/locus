@@ -41,7 +41,17 @@ Whether a call qualifies is decided when the loop reaches it, after every call b
 
 **Step boundary, budgets, change tracking.** All calls of a step finish before the step's tool message is stored. Budgets, compaction and the user's queued messages all act at the step boundary, so they see the same thing as before. Calls that run together only look, so they record no workspace changes (docs/design/change-tracking.md).
 
-**Cancellation.** Stop cancels every running call. Calls that finished keep their results; the rest are answered "Cancelled by the user before it finished", so the transcript has no unanswered call.
+**Cancellation.** Stop cancels every running call. Calls that finished keep their results; the rest are answered "Cancelled by the user before it finished", so the transcript has no unanswered call. That holds inside a batch too: a call that finished while the loop was still waiting on one before it keeps its real result, audit entry and taint (#302). Those calls can't be shown live (a cancelled flow can't emit), but they're stored.
+
+**Failures around a call (#300).** A call's own error is its result, but the code around it can fail too: storing the audit entry, spilling a long result to a file (a full disk), a check before the tool runs. Then the run still fails, but first every call of the step gets a result, stored like a cancelled step's: the call being handled says Locus hit an internal error (with the error) and that it may have run, calls beside it in a batch that finished keep their results, and the calls after it say "Not run: an internal error stopped the run before this ran." Before, the step was left with unanswered calls, and the next start's recovery answered them as if Locus had been closed.
+
+**After the app was killed mid-step (#301).** A step's results are stored together when it ends, so a step cut off by the process dying leaves calls without results, which `recoverTranscript` answers at the next start. It used to answer every one "Not run: Locus was closed before this ran", including the call that was running, which may have sent the email or pushed the commit; the model then often ran it again. Startup recovery now reads the audit log for those calls (`ConversationRepository.auditedDangling`; a call gets its entry when it finishes, and a turn's calls start in order):
+
+- an entry under which it ran: "Locus was closed after this ran, before its result was saved. It did run: check what it did instead of running it again.";
+- the turn's first call without an entry, the one that was running: "Locus was closed while this was running; it may have completed. Check before running it again.";
+- the calls after it, and calls that were refused: "Not run: Locus was closed before this ran."
+
+Reads that ran side by side in a batch read as not run after the first, which is harmless: they only look. An `ask_user` question and a helper call keep their own answers. Branch switches, rewinds and forks don't read the audit log and answer as before.
 
 **Not covered.** If the user changes a tool's policy while a batch runs, a call already in the batch may still ask. Its approval card then appears without the matching event until its turn. This needs a policy change during a read lasting a few seconds.
 

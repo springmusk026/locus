@@ -416,6 +416,24 @@ object Compaction {
      */
     fun estimateTokens(text: String): Int = (quarterTokens(text) + 3) / 4
 
+    /**
+     * About what [messages] add to the next request: their text, tool calls and results, summaries, and
+     * [dev.locus.core.llm.ModelRequirements.IMAGE_TOKENS] for each image (a tool's, or the user's). For the step's tail
+     * after the reply whose usage was reported, at the compaction check.
+     */
+    fun estimateTokens(messages: List<Message>): Int = messages.sumOf { m ->
+        m.parts.sumOf { p ->
+            when (p) {
+                is Part.Text -> estimateTokens(p.text)
+                is Part.ToolCall -> estimateTokens(p.name) + estimateTokens(p.argumentsJson)
+                is Part.ToolResult -> estimateTokens(p.content) + p.images.size * dev.locus.core.llm.ModelRequirements.IMAGE_TOKENS
+                is Part.Attachment -> if (dev.locus.core.llm.ModelRequirements.isImage(p)) dev.locus.core.llm.ModelRequirements.IMAGE_TOKENS else estimateTokens(p.name)
+                is Part.Checkpoint -> estimateTokens(p.summary)
+                else -> 0
+            }
+        }
+    }
+
     /** [estimateTokens] in quarter tokens: 1 for most characters, 4 for a CJK one or one outside the BMP (an emoji is several bytes). */
     private fun quarterTokens(text: String): Int {
         var total = 0

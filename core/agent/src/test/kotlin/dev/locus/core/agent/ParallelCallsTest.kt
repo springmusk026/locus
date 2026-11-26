@@ -182,4 +182,70 @@ class ParallelCallsTest {
         assertEquals("result of read_a", results[0].content)
         assertTrue(results.drop(1).all { it.isError && "Cancelled" in it.content })
     }
+
+    @Test
+    fun `cancelling while the first call runs keeps the calls beside it that finished`() = runTest {
+        val log = Log()
+        val store = Store()
+        val tools = listOf(Timed("read_a", log, 0, forever = true), Timed("read_b", log, 10), Timed("read_c", log, 20))
+        val job = launch { loop(tools, turn("read_a" to "{}", "read_b" to "{}", "read_c" to "{}"), store, log).run(conversation, listOf(user)).toList() }
+        advanceTimeBy(100)
+        assertEquals(listOf("end read_b", "end read_c"), log.lines.filter { it.startsWith("end") })
+        job.cancel()
+        job.join()
+        val results = store.results
+        assertEquals(listOf("k0", "k1", "k2"), results.map { it.callId })
+        assertTrue(results[0].isError && "Cancelled" in results[0].content)
+        // They ran: their real results and audit entries, not "Cancelled by the user".
+        assertEquals(listOf("result of read_b", "result of read_c"), results.drop(1).map { it.content })
+        assertTrue(results.drop(1).none { it.isError })
+        assertEquals(listOf("k1", "k2"), store.audit.map { it.callId })
+    }
+
+    /** Returns [size] characters, more than the chat shows inline, so the result is spilled to a file. */
+    private class Bulky(name: String, private val size: Int, override val risk: ToolRisk = ToolRisk.READ) : Tool {
+        override val spec = ToolSpec(name, "t", ObjectSchema().build())
+        override fun describe(args: JsonObject) = spec.name
+        override suspend fun execute(args: JsonObject): ToolResult = ToolResult("x".repeat(size))
+    }
+
+    @Test
+    fun `a failure around a call answers every call, says which may have run, and is stored`() = runTest {
+        val store = Store()
+        val log = Log()
+        // A full disk: spilling read_b's long output throws, after read_b ran.
+        val spill = OutputSpill { _, _ -> throw java.io.IOException("No space left on device") }
+        val tools = listOf(Timed("read_a", log, 10), Bulky("read_b", 50_000), Timed("read_c", log, 5), Bulky("write", 10, risk = ToolRisk.WRITE))
+        val calls = turn("read_a" to "{}", "read_b" to "{}", "read_c" to "{}", "write" to "{}")
+        val failure = runCatching { loop(tools, calls, store, log, config = AgentConfig(spill = spill)).run(conversation, listOf(user)).toList() }
+            .exceptionOrNull()
+
+        assertTrue(failure is java.io.IOException, "the run still fails with the error: $failure")
+        val results = store.results
+        assertEquals(listOf("k0", "k1", "k2", "k3"), results.map { it.callId })
+        assertEquals("result of read_a", results[0].content)
+        assertTrue(results[1].isError && results[1].content.startsWith("Failed: Locus hit an internal error"), results[1].content)
+        assertTrue("No space left on device" in results[1].content && "may have run" in results[1].content)
+        // read_c finished beside it: its real result.
+        assertEquals("result of read_c", results[2].content)
+        assertEquals("Not run: an internal error stopped the run before this ran.", results[3].content)
+        assertTrue(results[3].isError)
+    }
+
+    @Test
+    fun `a failure in a call run alone answers it and every call after it`() = runTest {
+        val store = Store()
+        val log = Log()
+        val spill = OutputSpill { _, _ -> throw java.io.IOException("No space left on device") }
+        val tools = listOf(Bulky("write", 50_000, risk = ToolRisk.WRITE), Timed("read_a", log, 10))
+        val calls = turn("write" to "{}", "read_a" to "{}", "read_a" to "{}")
+        assertTrue(runCatching { loop(tools, calls, store, log, config = AgentConfig(spill = spill)).run(conversation, listOf(user)).toList() }.isFailure)
+
+        val results = store.results
+        assertEquals(listOf("k0", "k1", "k2"), results.map { it.callId })
+        assertTrue("may have run" in results[0].content)
+        assertTrue(results.drop(1).all { it.isError && it.content == "Not run: an internal error stopped the run before this ran." })
+        // Nothing was started after it.
+        assertTrue(log.lines.isEmpty())
+    }
 }

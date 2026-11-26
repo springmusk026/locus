@@ -75,6 +75,25 @@ class BranchRecoveryTest {
     }
 
     @Test
+    fun `startup recovery says which call may have run, from the audit log`() = runTest {
+        val g = TestGraph(backgroundScope)
+        val repo = g.conversations
+        val chat = repo.create(null).id
+        repo.appendUserMessage(chat, "send the summary to Sam")
+        repo.append(assistant(chat, "a1", Part.ToolCall("k1", "write_file", "{}"), Part.ToolCall("k2", "email_send", "{}"), Part.ToolCall("k3", "read_file", "{}")))
+        // k1 finished before the app was killed; k2 was being sent.
+        repo.record(dev.locus.core.model.AuditEntry("e1", chat, "k1", "write_file", "{}", dev.locus.core.model.ApprovalDecision.AUTO_ALLOWED, "ok", false, clock, clock))
+        val runner = g.runner
+        runCurrent()
+
+        val results = repo.history(chat).last().toolResults.associate { it.callId to it.content }
+        assertTrue("It did run" in results.getValue("k1"))
+        assertEquals("Locus was closed while this was running; it may have completed. Check before running it again.", results["k2"])
+        assertEquals("Not run: Locus was closed before this ran.", results["k3"])
+        assertTrue(runner.states.value.getValue(chat).interrupted)
+    }
+
+    @Test
     fun `a checkpoint after a finished turn is not an interrupted run`() = runTest {
         val g = TestGraph(backgroundScope)
         val repo = g.conversations

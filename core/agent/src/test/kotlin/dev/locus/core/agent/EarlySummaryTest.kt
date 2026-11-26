@@ -226,15 +226,25 @@ class EarlySummaryTest {
 
     @Test
     fun `a run that ends first cancels a summary still out and stores nothing`() = runTest {
+        val budget = RunBudget(TaskBudget(tokens = 1_000_000))
         val model = Split(listOf(call("c1", "touch", 720), done), listOf(summary), summaryDelay = 10 * STEP_MS)
         val store = Store().apply { messages += task }
-        val events = loop(model, store).run(conversation, listOf(task)).toList()
+        val events = loop(model, store, budget = budget).run(conversation, listOf(task)).toList()
         runCurrent()
 
         assertIs<Outcome.Completed>(events.filterIsInstance<AgentEvent.Finished>().single().outcome)
         assertTrue(model.summaryCancelled)
-        assertTrue(events.none { it is AgentEvent.SummaryUnused || it is AgentEvent.Compacted })
+        assertTrue(events.none { it is AgentEvent.Compacted })
         assertTrue(store.messages.none { m -> m.parts.any { it is Part.Checkpoint } })
+        // Its prompt was billed although nothing came back: counted from an estimate (the context it started at, 770
+        // tokens plus the step's result, and the question), before the run ends, in the budget too.
+        val unused = events.filterIsInstance<AgentEvent.SummaryUnused>().single()
+        val estimate = unused.usage!!
+        assertEquals(770 + Compaction.estimateTokens("renamed") + Compaction.estimateTokens(PROMPT), estimate.input)
+        assertEquals(0, estimate.output)
+        assertTrue(events.indexOf(unused) < events.indexOfFirst { it is AgentEvent.Finished })
+        val expected = listOf(TokenUsage(720, 50), done.usage!!, estimate).sumOf { TaskBudget.budgetTokens(it) }
+        assertEquals(expected, budget.meter().tokens)
     }
 
     @Test

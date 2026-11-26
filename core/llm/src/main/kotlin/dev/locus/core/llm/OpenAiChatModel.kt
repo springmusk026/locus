@@ -28,8 +28,9 @@ import kotlinx.serialization.json.putJsonObject
 /**
  * OpenAI Chat Completions over raw HTTP + SSE. One adapter covers every server that speaks this
  * protocol (OpenAI, OpenRouter, Groq, Ollama, LM Studio, llama.cpp server, vLLM), so it sends only
- * fields they all accept: no `max_tokens` (renamed by OpenAI, unsupported elsewhere), and
- * `stream_options` and an effort field only to the hosts documented to take them.
+ * fields they all accept: no `max_tokens` (renamed by OpenAI, unsupported elsewhere), and an effort
+ * field only to the hosts documented to take it. `stream_options.include_usage` goes to every host, and
+ * a server that rejects it gets the request once more without it.
  */
 class OpenAiChatModel(
     private val http: HttpClient,
@@ -42,17 +43,24 @@ class OpenAiChatModel(
     override fun stream(request: ChatRequest): Flow<ChatEvent> = flow {
         var withEffort = effort() != null
         var withCache = cacheHints(request).any
+        var withUsage = true
         while (true) {
             var retryWithout = false
             http.preparePost("${config.baseUrl.trimEnd('/')}/chat/completions") {
                 if (!apiKey.isNullOrBlank()) header("Authorization", "Bearer $apiKey")
                 contentType(ContentType.Application.Json)
-                setBody(LlmJson.encodeToString(JsonObject.serializer(), buildBody(request, withEffort, withCache)))
+                setBody(LlmJson.encodeToString(JsonObject.serializer(), buildBody(request, withEffort, withCache, withUsage)))
             }.execute { response ->
                 val status = response.status.value
-                if ((withEffort || withCache) && (status == 400 || status == 422)) {
+                if ((withEffort || withCache || withUsage) && (status == 400 || status == 422)) {
                     val body = runCatching { response.bodyAsText() }.getOrDefault("")
                     val lower = body.lowercase()
+                    // A server that doesn't take the usage option: once more without it. The reply then has no usage.
+                    if (withUsage && USAGE_FIELDS.any { it in lower }) {
+                        withUsage = false
+                        retryWithout = true
+                        return@execute
+                    }
                     // A model that doesn't reason (or not at this level) may refuse the effort field: ask once more
                     // without it, as the Responses adapter does for its reasoning settings.
                     if (withEffort && "reasoning" in lower) {
@@ -163,12 +171,14 @@ class OpenAiChatModel(
         val any: Boolean get() = anthropicMarkers || sessionId != null || promptCacheKey != null
     }
 
-    internal fun buildBody(request: ChatRequest, withEffort: Boolean = true, withCache: Boolean = true): JsonObject = buildJsonObject {
+    internal fun buildBody(request: ChatRequest, withEffort: Boolean = true, withCache: Boolean = true, withUsage: Boolean = true): JsonObject = buildJsonObject {
         val cache = if (withCache) cacheHints(request) else CacheHints()
         put("model", config.model.trim())
         put("stream", true)
-        // Usage in the stream is opt-in on OpenAI; only ask hosts known to accept the option.
-        if (USAGE_HOSTS.any { config.baseUrl.contains(it) }) putJsonObject("stream_options") { put("include_usage", true) }
+        // Usage in the stream is opt-in on OpenAI, and without it a server reports none (cost, budgets and Insights
+        // show nothing): asked of every host. Gemini's endpoint, DeepSeek, Groq, OpenRouter, Ollama, vLLM and
+        // llama.cpp take it; one that refuses it gets the request again without it (see [stream]).
+        if (withUsage) putJsonObject("stream_options") { put("include_usage", true) }
         putJsonArray("messages") {
             if (request.system.isNotBlank()) {
                 add(buildJsonObject {
@@ -402,8 +412,8 @@ class OpenAiChatModel(
         /** In [Message.rawPayload] for this format: tool call id → the server's `extra_content` for it. */
         const val EXTRAS_KEY = "tool_call_extra_content"
 
-        /** Hosts documented to accept `stream_options.include_usage`; others may reject unknown fields. */
-        val USAGE_HOSTS = listOf("api.openai.com", "openrouter.ai", "api.groq.com")
+        /** Error text that names the usage option, for the one retry without it. */
+        private val USAGE_FIELDS = listOf("stream_options", "include_usage")
 
         /** Anthropic's default 5-minute cache lifetime. */
         private val EPHEMERAL = JsonObject(mapOf("type" to kotlinx.serialization.json.JsonPrimitive("ephemeral")))
