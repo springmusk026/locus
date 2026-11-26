@@ -1269,8 +1269,9 @@ class AgentLoop(
      *
      * A connection that drops mid-stream (an [IOException]: reset, unexpected EOF, timeout) is retried
      * with the same bounded backoff as 429/5xx, the partial output discarded through
-     * [AgentEvent.Retrying], but only while the attempt has not started a tool call. Tools never run
-     * during streaming (only after a completed turn), so a retry can't repeat one.
+     * [AgentEvent.Retrying], also when the attempt had started streaming a tool call (a long
+     * `write_file` cut off halfway on mobile data). Tools never run during streaming (only after a
+     * completed turn), so a retry can't repeat one; the half-streamed call is dropped with the rest.
      *
      * When the model can't answer (out of quota, key refused, a `retry-after` too long to wait, or
      * retries spent on rate limits and overload), the same request goes to the next model of the
@@ -1282,7 +1283,6 @@ class AgentLoop(
         var request = first
         var attempt = 0
         while (true) {
-            var toolCallStarted = false
             try {
                 val sentAt = clock()
                 var firstAt: Long? = null
@@ -1309,7 +1309,6 @@ class AgentLoop(
                         }
                         is ChatEvent.ToolCallStarted -> {
                             stopThinking()
-                            toolCallStarted = true
                             emit(AgentEvent.ToolCallStarted(event.id, event.name))
                         }
                         is ChatEvent.Completed -> completed = event.turn
@@ -1344,7 +1343,7 @@ class AgentLoop(
                 delay(wait)
             } catch (e: IOException) {
                 val reason = "$CONNECTION_DROPPED: ${e.message ?: e::class.simpleName}"
-                if (toolCallStarted || attempt >= config.maxRetries) throw LlmException(reason, cause = e)
+                if (attempt >= config.maxRetries) throw LlmException(reason, cause = e)
                 attempt++
                 val wait = Failover.backoffMs(attempt, null)
                 emit(AgentEvent.Retrying(attempt, reason, wait))

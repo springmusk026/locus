@@ -2035,7 +2035,8 @@ class AgentRunner @Inject constructor(
                             thoughtDone = false
                             resetting {
                                 stream.reset()
-                                update(conversationId) { it.copy(streamingText = "", reasoning = "", thinkingSince = null, thoughtMs = null).withProgress(progress) }
+                                // A retry also drops a tool call that had started streaming, so its name goes too.
+                                update(conversationId) { it.copy(streamingText = "", reasoning = "", thinkingSince = null, thoughtMs = null, activeTool = null).withProgress(progress) }
                             }
                         }
                         is AgentEvent.MessageAppended -> {

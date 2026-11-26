@@ -14,6 +14,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.job
+import kotlinx.serialization.json.JsonObject
 
 internal data class SseEvent(val event: String?, val data: String)
 
@@ -159,8 +160,32 @@ internal suspend fun ByteReadChannel.forEachSseEvent(
             }
         }
     }
-    if (data.isNotEmpty()) onEvent(SseEvent(event, data.toString()))
+    // An event is dispatched only at its blank line; one still open when the body ends was cut off and is
+    // dropped, as the WHATWG event-stream rules say ("If the file ends in the middle of an event, before the
+    // final empty line, the incomplete event is not dispatched"). The adapter then sees no final event.
 }
+
+/**
+ * A stream's end, checked the same way in every adapter: each names the event that only a complete reply
+ * sends (Chat Completions' `[DONE]` or a `finish_reason`, Anthropic's `message_stop`, Responses'
+ * `response.completed`). A body that ends cleanly without it (a local server that crashed, a proxy's
+ * timeout closing the chunked body) is a cut-off reply, not a finished one: it fails with this
+ * [LlmFailure.TRANSIENT] error, so the run retries it instead of saving half an answer as the reply.
+ */
+internal fun streamCutOff(provider: String, terminal: String): LlmException = LlmException(
+    "$provider's stream ended before $terminal, so the reply was cut off.",
+    retryable = true,
+    kind = LlmFailure.TRANSIENT,
+)
+
+/**
+ * One event's data as a JSON object. Anything else (a line cut in half, a proxy's page in the middle of
+ * the stream) is a retryable [LlmException] rather than a raw serialization error, which neither key
+ * rotation nor the run's retry would recognise.
+ */
+internal fun sseJson(provider: String, data: String): JsonObject =
+    runCatching { LlmJson.parseToJsonElement(data) as? JsonObject }.getOrNull()
+        ?: throw LlmException("$provider sent a stream event that isn't valid JSON, so the reply was cut off.", retryable = true, kind = LlmFailure.TRANSIENT)
 
 /**
  * The next line, or null at the end of the body; [StreamIdleException] when nothing arrives within

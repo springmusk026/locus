@@ -98,19 +98,23 @@ class StreamDropRetryTest {
         assertEquals(Outcome.Completed, (events.last() as AgentEvent.Finished).outcome)
     }
 
+    private val toolCall = chunk("""{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call2","type":"function","function":{"name":"touch","arguments":"{\"path\":\"a\"}"}}]},"finish_reason":"tool_calls"}]}""") + "data: [DONE]\n\n"
+
     @Test
-    fun `a stream that drops after a tool call started is not retried and runs nothing`() = runTest {
+    fun `a stream that drops after a tool call started is retried, and only the retry's call runs`() = runTest {
         val tool = Touch()
         val store = Store()
-        val (client, requests) = client(dropping(text("Let me") + toolStart), full(text("never") + stop))
+        val (client, requests) = client(dropping(text("Let me") + toolStart), full(toolCall), full(text("done") + stop))
         val events = loop(client, tool, store).run(conversation, listOf(user)).toList()
 
-        assertEquals(1, requests())
-        assertTrue(events.none { it is AgentEvent.Retrying })
-        assertEquals(0, tool.runs)
-        assertTrue(store.messages.isEmpty())
-        val failed = assertIs<Outcome.Failed>((events.last() as AgentEvent.Finished).outcome)
-        assertTrue("connection dropped" in failed.message.lowercase())
+        // A half-streamed write_file on mobile data: the step is asked again instead of the run failing.
+        assertEquals(3, requests())
+        val retry = events.filterIsInstance<AgentEvent.Retrying>().single()
+        assertTrue("connection dropped" in retry.reason.lowercase())
+        // The dropped attempt's call never ran; the retry's ran once.
+        assertEquals(1, tool.runs)
+        assertEquals(listOf("call2"), store.messages.flatMap { it.toolCalls }.map { it.id })
+        assertEquals(Outcome.Completed, (events.last() as AgentEvent.Finished).outcome)
     }
 
     @Test

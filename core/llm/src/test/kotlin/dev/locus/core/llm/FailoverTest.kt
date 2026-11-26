@@ -96,6 +96,32 @@ class FailoverTest {
     }
 
     @Test
+    fun `retry-after dates in the RFC 850 and asctime forms are read too`() {
+        val now = java.time.ZonedDateTime.parse("Sun, 01 Nov 2026 10:00:00 GMT", java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME).toInstant().toEpochMilli()
+        assertEquals(120_000, retryAfterMs(null, "Sunday, 01-Nov-26 10:02:00 GMT") { now })
+        assertEquals(120_000, retryAfterMs(null, "Sun Nov  1 10:02:00 2026") { now })
+        assertEquals(30_000, retryAfterMs(null, "Sun Nov 01 10:00:30 2026") { now })
+    }
+
+    @Test
+    fun `a wait of zero still waits the minimum, so retries aren't spent in milliseconds`() {
+        val asked = { ms: Long -> LlmException("r", 429, retryable = true, kind = LlmFailure.RATE_LIMIT, retryAfterMs = ms) }
+        assertEquals(Failover.MIN_WAIT_MS, Failover.backoffMs(1, asked(retryAfterMs(null, "0")!!)))
+        assertEquals(Failover.MIN_WAIT_MS, Failover.backoffMs(1, asked(0)))
+        // Gemini's `retryDelay: "0s"`.
+        val gemini = httpError("Gemini", 429, """{"error":{"code":429,"status":"RESOURCE_EXHAUSTED","details":[{"@type":"type.googleapis.com/google.rpc.RetryInfo","retryDelay":"0s"}]}}""")
+        assertTrue(Failover.backoffMs(2, gemini) >= Failover.MIN_WAIT_MS)
+    }
+
+    @Test
+    fun `backoff without a provider wait varies within 20 percent of 2^attempt seconds`() {
+        val waits = (1..50).map { Failover.backoffMs(2, null) }
+        assertTrue(waits.toSet().size > 1, "jittered: $waits")
+        assertTrue(waits.all { it in 3_200L..4_800L }, "within ±20 % of 4 s: $waits")
+        assertEquals(3_200, Failover.backoffMs(2, null, jitter = 0.0))
+    }
+
+    @Test
     fun `adapters read retry-after from the response`() = runTest {
         val client = HttpClient(MockEngine {
             respond("""{"error":{"code":"rate_limit_exceeded"}}""", HttpStatusCode.TooManyRequests, headersOf(HttpHeaders.RetryAfter, "12"))
@@ -123,9 +149,9 @@ class FailoverTest {
         // Keys rotate on errors that are about the key or its account, never on the provider's own trouble.
         assertTrue(Failover.rotatesKey(quota) && Failover.rotatesKey(auth) && Failover.rotatesKey(rate))
         assertFalse(Failover.rotatesKey(overloaded) || Failover.rotatesKey(bad))
-        // Backoff: the provider's wait when it gave one (capped), else 2^attempt seconds.
-        assertEquals(2_000, Failover.backoffMs(1, overloaded))
-        assertEquals(8_000, Failover.backoffMs(3, null))
+        // Backoff: the provider's wait when it gave one (capped), else 2^attempt seconds (at the middle of its jitter).
+        assertEquals(2_000, Failover.backoffMs(1, overloaded, jitter = 0.5))
+        assertEquals(8_000, Failover.backoffMs(3, null, jitter = 0.5))
         assertEquals(37_000, Failover.backoffMs(1, LlmException("r", 429, retryable = true, retryAfterMs = 37_000)))
         assertEquals(Failover.MAX_WAIT_MS, Failover.backoffMs(1, LlmException("r", 429, retryable = true, retryAfterMs = 600_000)))
     }

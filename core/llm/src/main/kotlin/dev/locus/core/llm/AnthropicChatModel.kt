@@ -84,9 +84,11 @@ class AnthropicChatModel(
                 val acc = StreamAccumulator()
                 response.forEachSseEvent { sse ->
                     if (sse.data.isBlank()) return@forEachSseEvent
-                    val event = LlmJson.parseToJsonElement(sse.data).jsonObject
-                    acc.handle(event)?.let { emit(it) }
+                    acc.handle(sseJson("Anthropic", sse.data))?.let { emit(it) }
                 }
+                // Streams that end early (docs/design/stream-timeouts.md): partial text, a tool call's half-sent
+                // input and output tokens that only message_delta reports would otherwise pass as a reply.
+                if (!acc.finished) throw streamCutOff("Anthropic", "its final event (message_stop)")
                 val turn = acc.finish()
                 emit(ChatEvent.Completed(if (recordsEffort()) turn.copy(turnEffort = Part.TurnEffort(config.effort, plan?.topLevel ?: config.effort)) else turn))
             }
@@ -386,6 +388,14 @@ class AnthropicChatModel(
         private var stopDetails: JsonObject? = null
         private var usage: JsonObject? = null
 
+        /**
+         * Whether the message ended: `message_stop`, or the `message_delta` with its stop reason, which comes
+         * after every content block has closed and carries the final output count. A server that leaves out
+         * only the closing `message_stop` has still sent the whole reply.
+         */
+        var finished = false
+            private set
+
         /** Anthropic reports input in message_start and the running output count in message_delta. */
         private fun mergeUsage(u: JsonObject?) {
             if (u == null) return
@@ -425,10 +435,14 @@ class AnthropicChatModel(
                 }
                 "message_delta" -> {
                     val delta = event["delta"]?.jsonObject
-                    delta?.string("stop_reason")?.let { stopReason = it }
+                    delta?.string("stop_reason")?.let {
+                        stopReason = it
+                        finished = true
+                    }
                     (delta?.get("stop_details") as? JsonObject)?.let { stopDetails = it }
                     mergeUsage(event["usage"] as? JsonObject)
                 }
+                "message_stop" -> finished = true
                 "error" -> {
                     val error = event["error"]?.jsonObject
                     val type = error?.string("type").orEmpty()

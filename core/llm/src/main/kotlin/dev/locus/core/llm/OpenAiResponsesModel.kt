@@ -93,7 +93,9 @@ class OpenAiResponsesModel(
                         retryWithout = true
                         return@execute
                     }
-                    if (withReasoning && "reasoning" in body) {
+                    // Only when the error is about the reasoning settings (refusesReasoningField), not one that
+                    // just mentions a replayed reasoning item: dropping them then would fail again or lose it.
+                    if (withReasoning && refusesReasoningField(body)) {
                         withReasoning = false
                         retryWithout = true
                         return@execute
@@ -119,7 +121,7 @@ class OpenAiResponsesModel(
                 response.forEachSseEvent { sse ->
                     val data = sse.data.trim()
                     if (data.isEmpty() || data == "[DONE]") return@forEachSseEvent
-                    val event = LlmJson.parseToJsonElement(data).jsonObject
+                    val event = sseJson(config.name, data)
                     responseIdOf(event)?.let { responseId = it }
                     when (event.string("type")) {
                         "response.output_text.delta" -> event.string("delta")?.takeIf { it.isNotEmpty() }?.let { emit(ChatEvent.TextDelta(it)) }

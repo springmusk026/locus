@@ -63,11 +63,13 @@ class StreamEdgeCasesTest {
     }
 
     @Test
-    fun `chat completions without DONE still finish, and a stream that only stops is a normal end`() = runTest {
+    fun `chat completions without DONE or a finish_reason were cut off, and fail to be retried`() = runTest {
         val body = sse(null to """{"choices":[{"delta":{"content":"partial"}}]}""")
-        val turn = completed(chat(body))
-        assertEquals("partial", turn.text)
-        assertEquals(StopReason.END_TURN, turn.stopReason)
+        val e = assertFailsWith<LlmException> { chat(body) }
+        assertTrue(e.retryable)
+        assertEquals(LlmFailure.TRANSIENT, e.kind)
+        // A finish_reason alone is a complete reply (the server just left out [DONE]).
+        assertEquals("ok", completed(chat(sse(null to """{"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}"""))).text)
     }
 
     @Test
@@ -153,14 +155,15 @@ class StreamEdgeCasesTest {
     }
 
     @Test
-    fun `anthropic maps every stop reason, and a stream without one is OTHER`() = runTest {
+    fun `anthropic maps every stop reason, and a stream without one was cut off`() = runTest {
         val expected = mapOf(
             "end_turn" to StopReason.END_TURN, "stop_sequence" to StopReason.END_TURN, "tool_use" to StopReason.TOOL_USE,
             "max_tokens" to StopReason.MAX_TOKENS, "model_context_window_exceeded" to StopReason.MAX_TOKENS,
             "refusal" to StopReason.REFUSAL, "pause_turn" to StopReason.PAUSE_TURN, "something_new" to StopReason.OTHER,
         )
         expected.forEach { (wire, reason) -> assertEquals(reason, completed(anthropic(sse(start, textStart, text("x"), stop(wire)))).stopReason, wire) }
-        assertEquals(StopReason.OTHER, completed(anthropic(sse(start, textStart, text("x")))).stopReason)
+        // A stream without a stop reason or message_stop was cut off: retried, never kept as a reply.
+        assertTrue(assertFailsWith<LlmException> { anthropic(sse(start, textStart, text("x"))) }.retryable)
     }
 
     @Test
