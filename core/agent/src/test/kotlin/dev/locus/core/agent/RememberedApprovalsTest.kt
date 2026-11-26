@@ -61,12 +61,13 @@ class RememberedApprovalsTest {
         private val output: String = "ok",
     ) : Tool {
         var runs = 0
+        var ran: JsonObject? = null
         override val spec = ToolSpec(name, name, ObjectSchema().string("command", "c", required = false).string("url", "u", required = false).build())
         override fun describe(args: JsonObject) = name
         override suspend fun isObservation(args: JsonObject) = observation
         override suspend fun mustConfirm(args: JsonObject) = confirm
         override suspend fun sendsOffPhone(args: JsonObject) = offPhone
-        override suspend fun execute(args: JsonObject) = ToolResult(output).also { runs++ }
+        override suspend fun execute(args: JsonObject) = ToolResult(output).also { runs++; ran = args }
     }
 
     /** Answers every card with [answer] and records what it was offered. */
@@ -323,5 +324,24 @@ class RememberedApprovalsTest {
         val gate = Gate()
         run(listOf(call("run_command", gradle)), listOf(Fake("run_command")), memory = null, gate = gate)
         assertNull(gate.asked.single().remember)
+    }
+
+    @Test
+    fun `git a rule runs has hooks and fsmonitor switched off, and the transcript keeps the model's call`() = runTest {
+        // #379: a remembered `git status` in a repository with core.fsmonitor or a hook set mustn't run them.
+        val tool = Fake("run_command")
+        val rule = RememberedApproval("s", "run_command", ApprovalScopeKind.COMMAND, "git status")
+        val gate = Gate()
+        val store = run(listOf(call("run_command", """{"command":"git status --short"}""")), listOf(tool), Memory(listOf(rule)), gate)
+        assertTrue(gate.asked.isEmpty())
+        assertEquals(ApprovalDecision.REMEMBERED_ALLOWED, store.audit.single().decision)
+        assertEquals("git -c core.fsmonitor=false -c core.hooksPath=/dev/null status --short", tool.ran?.str("command"))
+        val sent = store.messages.flatMap { it.parts }.filterIsInstance<Part.ToolCall>().single()
+        assertEquals("""{"command":"git status --short"}""", sent.argumentsJson)
+
+        // A command the user approved on the card runs exactly as asked.
+        val asked = Fake("run_command")
+        run(listOf(call("run_command", """{"command":"git status --short"}""")), listOf(asked), Memory(), Gate())
+        assertEquals("git status --short", asked.ran?.str("command"))
     }
 }
