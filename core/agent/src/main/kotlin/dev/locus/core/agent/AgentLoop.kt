@@ -717,8 +717,10 @@ class AgentLoop(
                 ),
             )
             val replied = assistant.parts.isNotEmpty() || assistant.rawPayload != null
+            // What effort the turn was asked for, for adapters that change it mid-chat per message (hidden).
+            val stored = turn.turnEffort?.takeIf { replied }?.let { assistant.copy(parts = assistant.parts + it) } ?: assistant
             config.onRequest?.invoke(request, assistant.id.takeIf { replied })
-            if (replied) appendAndEmit(assistant, transcript)
+            if (replied) appendAndEmit(stored, transcript)
 
             if (turn.toolCalls.isEmpty()) {
                 // The project's before-finishing rules first (docs/design/rules.md): a failing one sends the agent back, a bounded number of times.
@@ -1808,9 +1810,11 @@ class AgentLoop(
                 )
             }
         }
+        // A command a rule let run without the user (alone or with the reviewer) runs git with hooks and fsmonitor off.
+        val runArgs = if (remembered?.kind == ApprovalScopeKind.COMMAND && decision != ApprovalDecision.USER_APPROVED) ApprovalScopes.forRule(args) else args
         val context = callContext()
         val result = try {
-            withContext(context + ChatScope.element(limits.project)) { tool.execute(args) }
+            withContext(context + ChatScope.element(limits.project)) { tool.execute(runArgs) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: ToolException) {

@@ -9,6 +9,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.request.header
 import io.ktor.client.request.preparePost
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import kotlinx.coroutines.flow.Flow
@@ -48,32 +49,74 @@ class AnthropicChatModel(
     override fun stream(request: ChatRequest): Flow<ChatEvent> = flow {
         // Capabilities come from the Models API when it answers (once per model per process).
         if (firstParty) AnthropicCapabilities.ensure(http, config.baseUrl, apiKey, model)
-        val betas = buildList {
-            if (supportsProgressUpdates()) add(BETA_PROGRESS_UPDATES)
-            if (firstParty && supportsDefaultFallback()) add(BETA_SERVER_FALLBACK)
-            if (supportsCompaction()) add(BETA_COMPACTION)
-            if (taskBudgetFor(request) != null) add(BETA_TASK_BUDGETS)
-        }
-        val body = buildBody(request)
-        http.preparePost("${config.baseUrl.trimEnd('/')}/v1/messages") {
-            header("x-api-key", apiKey)
-            header("anthropic-version", API_VERSION)
-            if (betas.isNotEmpty()) header("anthropic-beta", betas.joinToString(","))
-            contentType(ContentType.Application.Json)
-            setBody(LlmJson.encodeToString(JsonObject.serializer(), body))
-        }.execute { response ->
-            response.throwIfFailed("Anthropic")
-            val acc = StreamAccumulator()
-            response.forEachSseEvent { sse ->
-                if (sse.data.isBlank()) return@forEachSseEvent
-                val event = LlmJson.parseToJsonElement(sse.data).jsonObject
-                acc.handle(event)?.let { emit(it) }
+        // Per-message effort (MidChatEffort): the plan says what this chat's earlier requests sent.
+        var plan = midChatPlan(request)
+        while (true) {
+            val perMessage = plan?.takeIf { it.any }
+            val betas = buildList {
+                if (supportsProgressUpdates()) add(BETA_PROGRESS_UPDATES)
+                if (firstParty && supportsDefaultFallback()) add(BETA_SERVER_FALLBACK)
+                if (supportsCompaction()) add(BETA_COMPACTION)
+                if (taskBudgetFor(request) != null) add(BETA_TASK_BUDGETS)
+                if (perMessage != null) add(MidChatEffort.ANTHROPIC_BETA)
             }
-            emit(ChatEvent.Completed(acc.finish()))
+            val body = buildBody(request, plan)
+            var retryOldWay = false
+            http.preparePost("${config.baseUrl.trimEnd('/')}/v1/messages") {
+                header("x-api-key", apiKey)
+                header("anthropic-version", API_VERSION)
+                if (betas.isNotEmpty()) header("anthropic-beta", betas.joinToString(","))
+                contentType(ContentType.Application.Json)
+                setBody(LlmJson.encodeToString(JsonObject.serializer(), body))
+            }.execute { response ->
+                // Refused per-message effort (no beta here, a model without it): once more the old way, and
+                // the old way for this provider from now on.
+                if (perMessage != null && response.status.value == 400) {
+                    val text = runCatching { response.bodyAsText() }.getOrDefault("")
+                    if (refusesPerMessageEffort(text)) {
+                        MidChatEffort.reject(config)
+                        retryOldWay = true
+                        return@execute
+                    }
+                    throw httpError("Anthropic", 400, text.take(2000), response.retryAfterMs())
+                }
+                response.throwIfFailed("Anthropic")
+                val acc = StreamAccumulator()
+                response.forEachSseEvent { sse ->
+                    if (sse.data.isBlank()) return@forEachSseEvent
+                    val event = LlmJson.parseToJsonElement(sse.data).jsonObject
+                    acc.handle(event)?.let { emit(it) }
+                }
+                val turn = acc.finish()
+                emit(ChatEvent.Completed(if (recordsEffort()) turn.copy(turnEffort = Part.TurnEffort(config.effort, plan?.topLevel ?: config.effort)) else turn))
+            }
+            if (!retryOldWay) break
+            plan = null
         }
     }
 
-    internal fun buildBody(request: ChatRequest): JsonObject = buildJsonObject {
+    /**
+     * This request's per-message effort plan, or null for the old request (top-level effort only): a model
+     * the per-message effort page lists, on Anthropic's own API, not refused since the app started.
+     */
+    internal fun midChatPlan(request: ChatRequest): MidChatEffort.Plan? =
+        if (supportsEffort() && MidChatEffort.available(config)) {
+            MidChatEffort.plan(request.messages, format, config.effort, MidChatEffort.modelDefault(config), resetsAfter = ::hasServerCompaction)
+        } else {
+            null
+        }
+
+    /** Turns on a model with per-message effort record their level, so later requests rebuild this one. */
+    private fun recordsEffort() = supportsEffort() && MidChatEffort.documented(format, config.baseUrl, model)
+
+    /** A server-side compaction in this turn: the API drops everything before it, effort changes included. */
+    private fun hasServerCompaction(message: Message): Boolean {
+        val raw = message.rawPayload?.takeIf { message.format == format && "compaction" in it } ?: return false
+        return runCatching { LlmJson.parseToJsonElement(raw).jsonArray }.getOrNull()
+            ?.any { (it as? JsonObject)?.string("type") == "compaction" } == true
+    }
+
+    internal fun buildBody(request: ChatRequest, plan: MidChatEffort.Plan? = null): JsonObject = buildJsonObject {
         put("model", model)
         put("max_tokens", config.maxOutputTokens)
         put("stream", true)
@@ -90,7 +133,7 @@ class AnthropicChatModel(
                 put("system", request.system)
             }
         }
-        val messages = toWireMessages(request.messages)
+        val messages = toWireMessages(request.messages, plan?.changes.orEmpty(), plan?.pending)
         put("messages", if (cache) withCacheBreakpointOnLastMessage(messages, messageCacheControl(request)) else messages)
         val search = toolSearchFor(request)
         if (request.tools.isNotEmpty()) {
@@ -126,7 +169,8 @@ class AnthropicChatModel(
                 put("display", "updates")
             }
         }
-        val effort = config.effort.takeIf { supportsEffort() && it.isNotBlank() }
+        // With per-message effort the top-level value stays what the chat's requests have carried (MidChatEffort).
+        val effort = (plan?.topLevel ?: config.effort).takeIf { supportsEffort() && it.isNotBlank() }
         val taskBudget = taskBudgetFor(request)
         if (effort != null || taskBudget != null) {
             putJsonObject("output_config") {
@@ -187,14 +231,27 @@ class AnthropicChatModel(
         JsonObject(mapOf("type" to JsonPrimitive("object"))),
     )
 
-    internal fun toWireMessages(messages: List<Message>): JsonArray {
+    /**
+     * The wire `messages`: consecutive turns of one role merged, as the API requires. [changes] and
+     * [pending] are per-message effort changes ([MidChatEffort.Plan]): an effort-only `system` message
+     * right before the assistant message at that index, and one at the end. That is after the user turn
+     * that asked for the reply, where "Claude's reply to that turn uses the new level", and it never
+     * splits a user turn (tool results and the words typed during a run stay in one).
+     */
+    internal fun toWireMessages(messages: List<Message>, changes: Map<Int, String> = emptyMap(), pending: String? = null): JsonArray {
         val wire = mutableListOf<Pair<String, MutableList<JsonElement>>>()
         fun append(role: String, blocks: List<JsonElement>) {
             if (blocks.isEmpty()) return
             val last = wire.lastOrNull()
             if (last != null && last.first == role) last.second += blocks else wire += role to blocks.toMutableList()
         }
-        for (message in messages) {
+        val efforts = mutableMapOf<Int, String>()
+        fun effortChange(level: String) {
+            efforts[wire.size] = level
+            wire += SYSTEM_ROLE to mutableListOf()
+        }
+        for ((index, message) in messages.withIndex()) {
+            changes[index]?.let(::effortChange)
             when (message.role) {
                 Role.USER -> append("user", message.attachments.map(::attachmentBlock) + message.parts.filterIsInstance<Part.Text>().map { textBlock(it.text) })
                 Role.TOOL -> append("user", message.toolResults.map { result ->
@@ -233,11 +290,14 @@ class AnthropicChatModel(
                 }
             }
         }
+        pending?.let(::effortChange)
         return buildJsonArray {
-            wire.forEach { (role, blocks) ->
+            wire.forEachIndexed { i, (role, blocks) ->
                 add(buildJsonObject {
                     put("role", role)
                     put("content", JsonArray(blocks))
+                    // {"role": "system", "content": [], "output_config": {"effort": …}} (per-message effort docs).
+                    efforts[i]?.let { level -> putJsonObject("output_config") { put("effort", level) } }
                 })
             }
         }
@@ -249,13 +309,25 @@ class AnthropicChatModel(
      * their marker on the next turn; the API still finds the entry they wrote within its lookback.
      */
     internal fun withCacheBreakpointOnLastMessage(messages: JsonArray, control: JsonObject = EPHEMERAL): JsonArray {
-        val last = messages.lastOrNull()?.jsonObject ?: return messages
+        // A trailing effort-only system message renders nothing; the breakpoint goes on the turn before it
+        // ("Append the system message after the breakpoint", mid-conversation system messages docs).
+        val at = messages.indexOfLast { (it as? JsonObject)?.string("role") != SYSTEM_ROLE }
+        if (at < 0) return messages
+        val last = messages[at].jsonObject
         val content = last["content"] as? JsonArray ?: return messages
         val index = content.indexOfLast { block -> (block as? JsonObject)?.let(::isCacheable) == true }
         if (index < 0) return messages
         val marked = JsonArray(content.mapIndexed { i, block -> if (i == index) withCacheBreakpoint(block.jsonObject, control) else block })
-        return JsonArray(messages.dropLast(1) + JsonObject(last + ("content" to marked)))
+        return JsonArray(messages.mapIndexed { i, m -> if (i == at) JsonObject(last + ("content" to marked)) else m })
     }
+
+    /**
+     * A 400 about per-message effort: without the beta, "messages.N.output_config: Extra inputs are not
+     * permitted"; on a model without it, "output_config.effort requires a model that supports per-turn
+     * effort" (per-message effort docs, Errors). Anything else is an ordinary failure.
+     */
+    internal fun refusesPerMessageEffort(body: String): Boolean =
+        MidChatEffort.ANTHROPIC_BETA in body || "per-turn effort" in body || PER_MESSAGE_OUTPUT_CONFIG.containsMatchIn(body)
 
     private fun isCacheable(block: JsonObject): Boolean = when (block.string("type")) {
         "text" -> !block.string("text").isNullOrEmpty()
@@ -519,6 +591,9 @@ class AnthropicChatModel(
         fun compactionTrigger(model: String): Int? = dev.locus.core.model.PriceSteps.documented(model)?.let(dev.locus.core.model.PriceSteps::compactBelow)
 
         const val API_VERSION = "2026-10-21"
+
+        private const val SYSTEM_ROLE = "system"
+        private val PER_MESSAGE_OUTPUT_CONFIG = Regex("messages\\.\\d+\\.output_config")
 
         /**
          * Prompt caching (https://platform.claude.com/docs/en/build-with-claude/prompt-caching):
