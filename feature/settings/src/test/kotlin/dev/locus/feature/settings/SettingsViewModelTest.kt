@@ -140,9 +140,11 @@ class SettingsViewModelTest {
     fun `the hub sees telegram remote mode while it's on`() = runTest {
         val f = fixture()
         assertEquals(null, f.vm.state { !it.loading }.telegramRemote.switchesOffAt)
+        // Not compared with the clock after the fact: a slow run would eat into the margin. It's at least 30 min after it was switched on.
+        val switchedOn = System.currentTimeMillis()
         f.vm.telegramActions.setRemoteMode(true, 30 * 60_000L)
         val on = f.vm.state { it.telegramRemote.inbound }
-        assertTrue(on.telegramRemote.switchesOffAt!! > System.currentTimeMillis())
+        assertTrue(on.telegramRemote.switchesOffAt!! >= switchedOn + 30 * 60_000L, "${on.telegramRemote.switchesOffAt} vs $switchedOn")
         f.vm.telegramActions.setRemoteMode(false, 0)
         assertEquals(null, f.vm.state { !it.telegramRemote.inbound }.telegramRemote.switchesOffAt)
     }

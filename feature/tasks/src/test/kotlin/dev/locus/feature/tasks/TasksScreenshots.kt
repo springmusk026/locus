@@ -33,8 +33,16 @@ class TasksScreenshots : ScreenshotTest() {
     @After
     fun tearDown() = scope.cancel()
 
-    /** Tasks list newest first by creation time: a millisecond apart, so their order is the same every run. */
-    private fun tick() = Thread.sleep(3)
+    /**
+     * Tasks list newest first by creation time. Each task is stamped a millisecond after the one before,
+     * not left to the clock (a fast run makes several in the same millisecond), so their order is the same every run.
+     */
+    private var lastCreated = System.currentTimeMillis()
+
+    private suspend fun TestGraph.inOrder(id: String): String {
+        database.scheduledTaskDao.upsert(database.scheduledTaskDao.get(id)!!.copy(createdAt = ++lastCreated))
+        return id
+    }
 
     private fun TasksViewModel.ready(until: (TasksUiState) -> Boolean): TasksUiState =
         runBlocking { withTimeout(10_000) { uiState.first(until) } }
@@ -43,13 +51,10 @@ class TasksScreenshots : ScreenshotTest() {
     fun populated() {
         val g = TestGraph(scope)
         runBlocking {
-            g.tasks.create("Morning weather", "Every morning, check the weather in Kathmandu and tell me if I need an umbrella.", 1_440)
-            tick()
-            g.tasks.create("Hacker News digest", "Summarise the five most discussed Hacker News stories about Kotlin or Android.", 720, TaskConditions(unmeteredOnly = true))
-            tick()
-            g.tasks.create("Flight price watch", "Check the cheapest KTM → LIS fare for 12–19 March and tell me if it drops below €700.", 360, TaskConditions(requiresCharging = true))
-            tick()
-            g.tasks.create("Server disk check", "Check free disk space on homelab over SSH and warn me below 10%.", 60)
+            g.inOrder(g.tasks.create("Morning weather", "Every morning, check the weather in Kathmandu and tell me if I need an umbrella.", 1_440))
+            g.inOrder(g.tasks.create("Hacker News digest", "Summarise the five most discussed Hacker News stories about Kotlin or Android.", 720, TaskConditions(unmeteredOnly = true)))
+            g.inOrder(g.tasks.create("Flight price watch", "Check the cheapest KTM → LIS fare for 12–19 March and tell me if it drops below €700.", 360, TaskConditions(requiresCharging = true)))
+            g.inOrder(g.tasks.create("Server disk check", "Check free disk space on homelab over SSH and warn me below 10%.", 60))
             val tasks = g.tasks.tasks.first().associateBy { it.title }
             g.tasks.recordRun(tasks.getValue("Morning weather").id, "run-1", "Light rain after 3 pm: take an umbrella.", TaskRunOutcome.DONE)
             g.tasks.recordRun(tasks.getValue("Flight price watch").id, "run-2", "Skyscanner blocked the request.", TaskRunOutcome.FAILED)

@@ -224,10 +224,12 @@ class ConversationsViewModelTest {
         runCurrent()
         assertNull(f.vm.remoteModeUntil.value)
 
+        // An hour from when it was switched on, not compared with the clock after the fact.
+        val switchedOn = System.currentTimeMillis()
         f.graph.telegram.setRemoteMode(on = true, durationMs = 60 * 60_000L)
         val until = f.vm.remoteModeUntil.first { it != null }!!
         assertEquals(f.graph.settingsRepository.current().telegramRemote.until, until)
-        assertTrue(until > System.currentTimeMillis())
+        assertTrue(until >= switchedOn + 60 * 60_000L, "$until vs $switchedOn")
 
         f.graph.telegram.setRemoteMode(on = false, durationMs = 0)
         assertNull(f.vm.remoteModeUntil.first { it == null })
@@ -386,7 +388,9 @@ class ConversationsViewModelTest {
         // A chat left empty in Portfolio site (opening it marks the project used), then, later, two
         // chats with messages in garden-app and one in no project.
         g.conversations.create(ScriptedProvider.config.id, projectId = portfolio.id)
-        Thread.sleep(5)
+        // That use is set a millisecond back, so the chats below are later than it even when a fast run
+        // makes them all in the same millisecond.
+        g.database.projectDao.get(portfolio.id)!!.let { g.database.projectDao.upsert(it.copy(updatedAt = it.updatedAt - 1)) }
         repeat(2) { g.conversations.appendUserMessage(g.conversations.create(ScriptedProvider.config.id, projectId = garden.id).id, "hi $it") }
         g.chatWith("outside")
         val shelf = vm.projects.first { list -> list.size == 2 && list.any { it.chats == 2 } }

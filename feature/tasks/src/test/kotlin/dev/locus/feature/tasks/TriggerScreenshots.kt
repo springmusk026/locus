@@ -36,7 +36,16 @@ class TriggerScreenshots : ScreenshotTest() {
     @After
     fun tearDown() = scope.cancel()
 
-    private fun tick() = Thread.sleep(3)
+    /**
+     * Tasks list newest first by creation time. Each task is stamped a millisecond after the one before,
+     * not left to the clock (a fast run makes several in the same millisecond), so their order is the same every run.
+     */
+    private var lastCreated = System.currentTimeMillis()
+
+    private suspend fun TestGraph.inOrder(id: String): String {
+        database.scheduledTaskDao.upsert(database.scheduledTaskDao.get(id)!!.copy(createdAt = ++lastCreated))
+        return id
+    }
 
     private fun vm(g: TestGraph, calendar: FakeCalendarReader = FakeCalendarReader()) = TasksViewModel(g.tasks, g.settingsRepository, g.secretResolver, calendar, g.reminders, g.io)
 
@@ -49,23 +58,18 @@ class TriggerScreenshots : ScreenshotTest() {
     fun rows() {
         val g = TestGraph(scope)
         runBlocking {
-            val standup = g.tasks.create("Standup prep", "Before standup, list what I did yesterday from my notes.", 60, trigger = TaskTrigger(TriggerSource.CALENDAR, contains = "standup"))
+            val standup = g.inOrder(g.tasks.create("Standup prep", "Before standup, list what I did yesterday from my notes.", 60, trigger = TaskTrigger(TriggerSource.CALENDAR, contains = "standup")))
             g.tasks.setTriggerState(standup, TriggerState(health = TriggerHealth.NO_PERMISSION, message = "Locus can't read the calendar. Open the task and allow calendar access."))
-            tick()
-            val backups = g.tasks.create("Backup alerts", "Say what failed and the likely cause.", 60, trigger = ntfy)
+            val backups = g.inOrder(g.tasks.create("Backup alerts", "Say what failed and the likely cause.", 60, trigger = ntfy))
             g.tasks.setTriggerState(backups, TriggerState(health = TriggerHealth.OFFLINE, message = "Couldn't reach ntfy.sh: no connection.", checkedAt = System.currentTimeMillis() - 600_000))
-            tick()
-            val invoices = g.tasks.create("Invoices", "Summarise the invoice and when it's due.", 60, trigger = TaskTrigger(TriggerSource.MAIL, from = "@billing.example"))
+            val invoices = g.inOrder(g.tasks.create("Invoices", "Summarise the invoice and when it's due.", 60, trigger = TaskTrigger(TriggerSource.MAIL, from = "@billing.example")))
             g.tasks.setTriggerState(invoices, TriggerState(health = TriggerHealth.OK, checkedAt = System.currentTimeMillis() - 120_000))
             g.tasks.recordRun(invoices, "c1", "Hetzner invoice: €8.21, due 20 Nov.", TaskRunOutcome.DONE)
-            tick()
-            val home = g.tasks.create("Left home", "Remind me what's left today.", 60, trigger = TaskTrigger(TriggerSource.APP, eventName = "left-home"))
+            val home = g.inOrder(g.tasks.create("Left home", "Remind me what's left today.", 60, trigger = TaskTrigger(TriggerSource.APP, eventName = "left-home")))
             g.taskWork.setEventRun(home, RunNowStatus.RUNNING)
-            tick()
-            val paused = g.tasks.create("Release notes", "Draft notes for the release mail.", 60, trigger = TaskTrigger(TriggerSource.APP, eventName = "release"))
+            val paused = g.inOrder(g.tasks.create("Release notes", "Draft notes for the release mail.", 60, trigger = TaskTrigger(TriggerSource.APP, eventName = "release")))
             g.tasks.setEnabled(paused, false)
-            tick()
-            g.tasks.create("Morning weather", "Will it rain in Kathmandu today?", 1_440)
+            g.inOrder(g.tasks.create("Morning weather", "Will it rain in Kathmandu today?", 1_440))
         }
         val vm = vm(g)
         vm.ready { it is TasksUiState.Ready && it.tasks.size == 6 && it.tasks.any { t -> t.active != null } }

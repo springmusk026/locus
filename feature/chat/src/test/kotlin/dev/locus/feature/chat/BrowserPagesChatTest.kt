@@ -137,9 +137,8 @@ class BrowserPagesChatTest {
         val f = fixture()
         f.graph.browserPages.save(f.chat, "call_1", PageRecord("https://shop.example/", "Shop", 5L, "text"))
         f.graph.conversations.delete(f.chat)
-        // Deleted in the background, off the caller's thread.
-        val deadline = System.currentTimeMillis() + 5_000
-        while (f.graph.browserPages.has(f.chat, "call_1") && System.currentTimeMillis() < deadline) Thread.sleep(10)
+        // Deleted in the background, off the caller's thread: wait for that deletion itself.
+        f.graph.browserPages.awaitForgetting()
         assertFalse(f.graph.browserPages.has(f.chat, "call_1"))
     }
 }

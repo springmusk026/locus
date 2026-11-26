@@ -58,13 +58,14 @@ class ProjectScreenshots : ScreenshotTest() {
 
     private fun seed(): Triple<Project, Project, Project> = runBlocking {
         val garden = graph.projects.create("garden-app", instructions = "TypeScript, Node 22. Run `npm test` before saying a change works. Never push to main.")!!
-        // A few ms apart: projects are listed by updatedAt, and a tie leaves the order to chance.
-        Thread.sleep(3)
         val portfolio = graph.projects.create("Portfolio site", folder = "projects/portfolio", memoryScope = MemoryScope.PROJECT_ONLY)!!
-        Thread.sleep(3)
         val taxes = graph.projects.create("Taxes 2026", folder = "projects/taxes-2026")!!
-        Thread.sleep(3)
         graph.projects.update(portfolio.copy(providerId = "r", model = "google/gemini-3-pro"))
+        // Projects are listed by updatedAt, and a tie leaves the order to chance: a fast run does all of the
+        // above in one millisecond. So each gets its own, in the order they were last changed.
+        listOf(garden, taxes, portfolio).forEachIndexed { i, p ->
+            graph.database.projectDao.upsert(graph.database.projectDao.get(p.id)!!.copy(updatedAt = now - 3 + i))
+        }
         chat("c1", "Fix checkout tests", garden.id, 2 * hour)
         chat("c2", "Move the API from Express to Hono", garden.id, 5 * hour)
         chat("c3", "Why is the plants search slow?", garden.id, day + 3 * hour)

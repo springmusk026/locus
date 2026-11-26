@@ -84,9 +84,12 @@ class ResearchRunTest {
         repo.refresh()
         assertEquals(ResearchWorkflow.ID, repo.all.value.first().workflow.id)
 
+        // The path carries the day it was rendered on: read before and after, so a run across midnight still matches one of them.
+        val dayBefore = LocalDate.now()
         val rendered = repo.render(research, mapOf("question" to "Do heat pumps work in cold climates?", "depth" to "quick"))
+        val dayAfter = LocalDate.now()
         val path = rendered.plan.inputs["report_path"]!!
-        assertEquals("research/heat-pumps-work-cold-climates-${LocalDate.now()}.md", path)
+        assertTrue(path in setOf(dayBefore, dayAfter).map { "research/heat-pumps-work-cold-climates-$it.md" }, path)
         assertEquals(ResearchWorkflow.Depth.QUICK.defaultBudget, rendered.plan.budget)
 
         g.script(

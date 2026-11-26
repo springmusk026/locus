@@ -60,6 +60,16 @@ class McpToolPinningTest {
 
     private suspend fun pending() = g.mcpPins.pending.value["files"].orEmpty()
 
+    /**
+     * A new chat whose start time is [at]: stamped, not taken from the clock, so it's after an approval
+     * at [at] - 1 however fast the test runs (a fast run can create both in the same millisecond).
+     */
+    private suspend fun chatStartedAt(at: Long): String {
+        val id = g.conversations.create(ScriptedProvider.config.id).id
+        g.database.conversationDao.upsert(g.database.conversationDao.get(id)!!.copy(createdAt = at))
+        return id
+    }
+
     @Test
     fun `the first list is pinned and usable in every chat`() = runBlocking<Unit> {
         connect()
@@ -146,9 +156,8 @@ class McpToolPinningTest {
             assertTrue("start a new chat" in refusal, refusal)
         }
         // A chat started after the approval gets it.
-        Thread.sleep(5)
-        val fresh = g.conversations.create(ScriptedProvider.config.id)
-        withContext(ToolCallContext(fresh.id, "c3", 0, null)) {
+        val fresh = chatStartedAt(old.createdAt + 2)
+        withContext(ToolCallContext(fresh, "c3", 0, null)) {
             val text = listed()
             assertTrue("echo [read-only] — echo tool, now better" in text, text)
             assertNull(call.precheck(args("connector" to "files", "tool" to "echo", "arguments" to args("text" to "hi"))))
@@ -171,9 +180,10 @@ class McpToolPinningTest {
         assertEquals(listOf("search"), g.library.pendingTools.value["files"].orEmpty().map { it.name })
         g.library.approveTools("files")
         assertTrue(g.library.pendingTools.value["files"].isNullOrEmpty())
-        Thread.sleep(5)
-        val fresh = g.conversations.create(ScriptedProvider.config.id)
-        withContext(ToolCallContext(fresh.id, "c", 0, null)) { assertTrue("search" in listed()) }
+        val approvedAt = pins().servers.getValue("files").getValue("search").approvedAt
+        assertTrue(approvedAt > 0, "approved now, not as part of the first list")
+        val fresh = chatStartedAt(approvedAt + 1)
+        withContext(ToolCallContext(fresh, "c", 0, null)) { assertTrue("search" in listed()) }
 
         g.library.removeConnector("files")
         assertFalse("files" in pins().servers)

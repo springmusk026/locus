@@ -42,25 +42,23 @@ class LinuxKillReasonTest {
     @Test
     fun `a service killed in the background is reported so, one Locus stopped is not`() = runBlocking {
         linux.inBackground = { true }
-        linux.startService("web", "sleep 0.3; kill -9 $$")
-        val status = waitForStop("web")
+        val web = linux.startService("web", "sleep 0.3; kill -9 $$")
+        val status = stopped(web)
+        assertFalse(status.running, "$status")
         assertTrue(status.killedByAndroid, "$status")
 
         // Stopping it is Locus's doing, even though the last resort is a SIGKILL.
         val api = linux.startService("api", "sleep 30")
         assertTrue(linux.stopService("api"))
-        api.process.waitFor()
-        Thread.sleep(100) // the exit watcher runs on its own thread
+        // The exit watcher runs on its own thread: wait until it has noted the exit, so the check below
+        // reads its verdict rather than the value from before it ran.
+        assertTrue(api.awaitExitNoted(10_000), "api's exit was never noted")
         assertFalse(api.killedByAndroid)
     }
 
-    private fun waitForStop(name: String): LinuxEnvironment.ServiceStatus {
-        val until = System.currentTimeMillis() + 10_000
-        while (System.currentTimeMillis() < until) {
-            val s = linux.serviceStatuses().first { it.name == name }
-            if (!s.running && s.killedByAndroid) return s
-            Thread.sleep(50)
-        }
-        return linux.serviceStatuses().first { it.name == name }
+    /** [service]'s status once its exit watcher has noted how it ended (a bound, not a wait: it returns as soon as it has). */
+    private fun stopped(service: LinuxEnvironment.Service): LinuxEnvironment.ServiceStatus {
+        assertTrue(service.awaitExitNoted(10_000), "${service.name}'s exit was never noted")
+        return linux.serviceStatuses().first { it.name == service.name }
     }
 }
