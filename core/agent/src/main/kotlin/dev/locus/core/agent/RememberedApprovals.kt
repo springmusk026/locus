@@ -3,6 +3,7 @@ package dev.locus.core.agent
 import dev.locus.core.model.ApprovalScopeKind
 import dev.locus.core.model.RememberedApproval
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import java.net.URI
 
 /**
@@ -165,6 +166,25 @@ object ApprovalScopes {
         return CommandCall(command, dir) to null
     }
 
+    /** Repository settings that run a program on everyday commands (`git status`, `commit`, `checkout`), switched off. */
+    private const val GIT_OFF = "-c core.fsmonitor=false -c core.hooksPath=/dev/null"
+
+    /**
+     * [args] as a remembered command rule runs them: a `git` command gets [GIT_OFF] after the program's
+     * name, so a hook or `core.fsmonitor` in the repository (put there by an extracted archive, say) can't
+     * run code under a rule the user made for `git status`. Every other command runs as given, and so does
+     * one the user approved on a card. The model's call in the transcript is unchanged.
+     */
+    fun forRule(args: JsonObject): JsonObject {
+        val call = commandCall(args) ?: return args
+        if (CommandSafety.words(call.command)?.firstOrNull()?.substringAfterLast('/') != "git") return args
+        val raw = args.str("command")?.trim() ?: return args
+        // The command starts after one leading `cd <folder> &&`, if any (parseCommand peels off no other prefix).
+        val start = LEADING_CD.matchEntire(raw)?.groups?.get(2)?.range?.first ?: 0
+        val end = raw.substring(start).indexOfFirst { it == ' ' || it == '\t' }.let { if (it < 0) raw.length else start + it }
+        return JsonObject(args + ("command" to JsonPrimitive(raw.substring(0, end) + " " + GIT_OFF + raw.substring(end))))
+    }
+
     /**
      * [path] as a folder relative to the workspace (or the project's folder, which Linux sees as
      * /workspace): "" for the top. Null when it isn't plainly inside.
@@ -190,7 +210,8 @@ object ApprovalScopes {
     fun whyNot(toolName: String, args: JsonObject): String? {
         if (derive(toolName, args) != null) return null
         return when {
-            toolName == COMMAND_TOOL -> commandRefusal(args)?.let { "this command can't be remembered: ${it.substringBefore(" (;")}." }
+            toolName == COMMAND_TOOL -> (commandRefusal(args) ?: commandCall(args)?.command?.let(CommandSafety::protectedReason))
+                ?.let { "this command can't be remembered: ${it.substringBefore(" (;")}." }
                 ?: "a program on its own (like `python3` or `npx` without a script) allows anything, so it can't be remembered."
             toolName in FOLDER_TOOLS -> "only a folder inside the workspace, outside .git and .locus, can be remembered."
             toolName in SITE_TOOLS -> "only a plain http(s) address without a login can be remembered."
