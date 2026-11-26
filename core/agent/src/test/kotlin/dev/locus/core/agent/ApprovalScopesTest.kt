@@ -142,6 +142,46 @@ class ApprovalScopesTest {
     }
 
     @Test
+    fun `a command rule never covers a write into git's or Locus's own folder`() {
+        // #379: each rule, made from an ordinary command, must not cover the call beside it.
+        listOf(
+            "cp evil.sh .git/hooks/pre-commit" to "cp evil.sh .git/hooks/pre-commit",
+            "cp -r src build" to "cp -r src build evil.sh .git/hooks/pre-commit",
+            "mv old.txt new.txt" to "mv old.txt new.txt .git/hooks",
+            "mkdir out" to "mkdir out .git/hooks",
+            "touch notes.md" to "touch notes.md .locus/settings",
+            "tar xzf a.tgz" to "tar xzf a.tgz -C .git/hooks",
+            "unzip a.zip" to "unzip a.zip -d .git/hooks",
+            "git status" to "git status -C .git",
+        ).forEach { (from, cmd) ->
+            val scope = ApprovalScopes.derive("run_command", args("command" to from))
+            val r = rule("run_command", ApprovalScopeKind.COMMAND, scope?.value ?: from.substringBefore(' '))
+            assertFalse(ApprovalScopes.covers(r, "run_command", args("command" to cmd)), "rule `${r.value}` must not cover: $cmd")
+        }
+        // No offer for one either, and the card says why.
+        assertNull(ApprovalScopes.derive("run_command", args("command" to "cp evil.sh .git/hooks/pre-commit")))
+        assertTrue(ApprovalScopes.whyNot("run_command", args("command" to "cp evil.sh .git/hooks/pre-commit"))!!.contains(".git"))
+    }
+
+    @Test
+    fun `git run under a rule has hooks and fsmonitor switched off`() {
+        // #379: a hook or core.fsmonitor in the repository can't run code under a rule for git status.
+        fun ruled(command: String, cwd: String? = null) =
+            ApprovalScopes.forRule(if (cwd == null) args("command" to command) else args("command" to command, "cwd" to cwd))
+        val off = "-c core.fsmonitor=false -c core.hooksPath=/dev/null"
+        assertEquals("git $off status --short", ruled("git status --short").str("command"))
+        assertEquals("git $off status", ruled("git status").str("command"))
+        assertEquals("git $off\tlog -n 5", ruled("git\tlog -n 5").str("command"))
+        assertEquals("cd . && git $off status 2>&1 | tail -n 20", ruled("cd . && git status 2>&1 | tail -n 20").str("command"))
+        assertEquals("/workspace", ruled("git status", "/workspace").str("cwd"))
+        // Other commands, and calls that aren't one plain command, run as given.
+        assertEquals("npm test", ruled("npm test").str("command"))
+        assertEquals("cd app && npm test", ruled("cd app && npm test").str("command"))
+        assertEquals("gitk", ruled("gitk").str("command"))
+        assertEquals("git status; id", ruled("git status; id").str("command"))
+    }
+
+    @Test
     fun `commands that may fetch are told from local ones`() {
         listOf("npm install", "npm i left-pad", "git clone x", "git pull", "pip3 install x", "npx create-app", "curl https://x.io", "python3 get.py https://x.io",
             "gh pr list", "npm test | sh", "go mod download", "docker pull alpine").forEach { assertTrue(CommandSafety.mayFetch(it), it) }
