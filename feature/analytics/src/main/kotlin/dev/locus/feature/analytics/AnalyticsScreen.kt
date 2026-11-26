@@ -90,10 +90,11 @@ import dev.locus.core.model.UsageSource
 import dev.locus.core.model.toolLabelText
 import dev.locus.core.designsystem.asString
 import dev.locus.core.designsystem.localizedToolActivity
-import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
+import dev.locus.core.designsystem.DateSkeleton
+import dev.locus.core.designsystem.formatDateTime
+import dev.locus.core.designsystem.usdEstimate
+import dev.locus.core.designsystem.usdText
 import kotlin.math.roundToInt
 
 @Composable
@@ -644,9 +645,13 @@ private fun ChartCaption(report: AnalyticsReport, selected: Int?, describe: @Com
 // Formatting
 // ---------------------------------------------------------------------------------------------
 
-// Built per call so a locale change while the app runs is picked up.
-private fun date(millis: Long): String =
-    Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().format(DateTimeFormatter.ofPattern("MMM d", Locale.getDefault()))
+/** A bar's day under a chart, "10 Nov" ("11月10日" in Chinese), in the app's language. */
+internal fun chartDate(resources: Resources, millis: Long, zone: ZoneId = ZoneId.systemDefault()): String =
+    formatDateTime(millis, DateSkeleton.DAY_MONTH, resources.configuration.locales[0], zone)
+
+// Read from the composition's resources, so a language change while the app runs is picked up.
+@Composable
+private fun date(millis: Long): String = chartDate(LocalResources.current, millis)
 
 /**
  * An estimated spend in words: "≈$1.24", "≈$1.24+" when some requests had no price, "<$0.01",
@@ -656,12 +661,12 @@ internal fun costLabel(resources: Resources, c: CostEstimate): String = when {
     c.requests == 0 -> "–"
     c.unknown -> resources.getString(R.string.analytics_cost_unknown)
     else -> {
-        val amount = when {
-            c.usd <= 0.0 -> "$0.00"
-            c.usd < 0.01 -> "<$0.01"
-            else -> "≈" + String.format(Locale.US, "$%.2f", c.usd)
+        // Money the language's way ("≈1,24 US$" in Spanish); the stored estimate stays in dollars.
+        if (c.usd <= 0.0) {
+            usdText(resources, 0.0).let { if (c.partial) resources.getString(dev.locus.core.designsystem.R.string.designsystem_money_or_more, it) else it }
+        } else {
+            usdEstimate(resources, c.usd, c.partial)
         }
-        amount + if (c.partial) "+" else ""
     }
 }
 

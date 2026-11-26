@@ -46,6 +46,7 @@ The design guard (`DesignGuardTest`, see [Guardrail](#guardrail)) enforces these
 | `material-type` | `MaterialTheme.typography.bodySmall` and the other slots a role covers | the `LocusType` role that says what the text is |
 | `raw-secret-field` | `PasswordVisualTransformation()` | `PasswordField` (`compact = true` in a row) |
 | `muted-text` | `color = …onSurfaceVariant` on a `Text`, `onSurfaceVariant.copy(alpha…)` | `SupportingText`; `Emphasis.muted` on `onSurface` for a faded icon |
+| `fixed-format` (feature modules and core/ui) | `ofPattern(…)`, `SimpleDateFormat("…")`, `"$%.2f"` | `formatDateTime` with a `DateSkeleton`; `usdText`, `usdEstimate`, `usdAmount` (docs/design/localization.md, "Formats") |
 
 A line that really needs the literal says why, on the line or the comment line above it:
 

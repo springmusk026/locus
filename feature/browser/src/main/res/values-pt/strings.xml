@@ -84,4 +84,5 @@
     <string name="browser_pick_attach">Anexar à mensagem</string>
     <string name="browser_pick_attached">Anexado à sua próxima mensagem</string>
     <string name="browser_pick_overlay">Página. Toque em um elemento para escolhê-lo.</string>
+    <string name="browser_clip_link">Link</string>
 </resources>

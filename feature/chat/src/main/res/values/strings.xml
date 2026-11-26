@@ -1624,8 +1624,8 @@
     <string name="chat_compare_kept">Kept</string>
     <string name="chat_compare_streaming">Second answer: %1$s · read-only</string>
     <string name="chat_compare_price_unknown">unknown</string>
-    <string name="chat_compare_price_tiny">&lt; $0.001</string>
-    <string name="chat_compare_price">$%1$s</string>
+    <!-- Less than an amount: %1$s is the smallest price shown, written the language's way, such as $0.001. -->
+    <string name="chat_compare_price_tiny">&lt; %1$s</string>
     <string name="chat_compare_confirm_title">Send to both models?</string>
     <string name="chat_compare_confirm_send">Send to both</string>
     <string name="chat_compare_confirm_first">Your message goes to this chat\'s model and to a second one. Both answers show as ‹ 1/2 ›, each labelled with its model; keep the one you like.</string>
@@ -1756,4 +1756,27 @@
     <string name="chat_page_not_kept_message">Locus has no copy of this page. It keeps the latest pages of each chat, not those from before this was added, from a restored backup or a copied chat. The step\'s details still show what it read.</string>
     <string name="chat_page_when">Seen %1$s</string>
     <string name="chat_page_picture">The page as it looked</string>
+    <!-- Clipboard labels: how a clipboard manager names what Copy put there. -->
+    <string name="chat_clip_request">Locus request</string>
+    <string name="chat_clip_code">Code</string>
+    <string name="chat_clip_error">Locus error</string>
+    <string name="chat_clip_link">Link</string>
+    <!-- Share chat → Markdown or PDF (ChatExport.kt): the export's own words. %1$s in dated is the chat's date; speaker takes "You" or "Locus"; field is a label and its value; provider_draft takes the provider's name, its address and the Settings page. -->
+    <string name="chat_export_untitled">Chat</string>
+    <string name="chat_export_dated">%1$s · exported from Locus</string>
+    <string name="chat_export_undated">Exported from Locus</string>
+    <string name="chat_export_speaker">%1$s:</string>
+    <string name="chat_export_summarised">Earlier messages were summarised here to save space.</string>
+    <string name="chat_export_ran_anyway">You ran the blocked call anyway: %1$s</string>
+    <string name="chat_export_approved">You approved it in Needs you: %1$s</string>
+    <string name="chat_export_sent">Sent you %1$s</string>
+    <string name="chat_export_provider_draft">Drafted provider %1$s (%2$s) for review in %3$s</string>
+    <string name="chat_export_changed">Changed %1$s (%2$s)</string>
+    <string name="chat_export_changed_undone">Changed %1$s (%2$s, undone)</string>
+    <string name="chat_export_step_failed">%1$s (failed)</string>
+    <string name="chat_export_step_not_run">%1$s (not run)</string>
+    <string name="chat_export_typed">Typed into the page</string>
+    <string name="chat_export_type">Type into the page</string>
+    <string name="chat_export_field">%1$s: %2$s</string>
+    <string name="chat_export_receipt">Task receipt: %1$s</string>
 </resources>

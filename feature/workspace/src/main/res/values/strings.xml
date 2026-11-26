@@ -431,4 +431,6 @@
     <string name="workspace_packages_remove_failed">Couldn\'t remove %1$s: %2$s</string>
     <string name="workspace_preview_language_text">Text</string>
     <string name="workspace_preview_web_blocked">%1$s, so the page may look plain.</string>
+    <!-- Clipboard label: how a clipboard manager names the copied adb command. -->
+    <string name="workspace_clip_adb_command">adb command</string>
 </resources>

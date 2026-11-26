@@ -96,7 +96,7 @@ private fun SentContent(view: SentView, onDismiss: () -> Unit) {
         action = stringResource(if (copied) R.string.chat_sent_copied else if (view.onDevice) R.string.chat_sent_copy_text else R.string.chat_sent_copy_json),
         onAction = {
             scope.launch {
-                clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(android.content.ClipData.newPlainText("Locus request", view.json)))
+                clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(android.content.ClipData.newPlainText(resources.getString(R.string.chat_clip_request), view.json)))
                 copied = true
             }
         },

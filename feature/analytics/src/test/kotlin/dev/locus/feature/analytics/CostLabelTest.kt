@@ -57,4 +57,37 @@ class CostLabelTest {
         assertTrue(costNote(res, on, catalogLoaded = false)!!.contains("haven't loaded"))
         assertNull(costAction(on, catalogLoaded = true, setup = PricesSetup.Idle))
     }
+
+    // #320: Insights wrote costs the US way and dates in a fixed order, whatever the language.
+    private fun plain(s: String) = s.replace('\u00A0', ' ').replace('\u202F', ' ')
+    private val tuesday = 1_794_301_500_000 // 10 November 2026, 09:05 UTC
+
+    @Test
+    fun `in English the chart's day and the spend read as before`() {
+        assertEquals("Nov 10", chartDate(res, tuesday, java.time.ZoneOffset.UTC))
+    }
+
+    @Test
+    @Config(qualifiers = "es")
+    fun `in Spanish costs and dates are written the Spanish way`() {
+        assertEquals("≈1,24 US$", plain(costLabel(res, CostEstimate(usd = 1.237, priced = 2))))
+        assertEquals("≈1,24 US$+", plain(costLabel(res, CostEstimate(usd = 1.237, priced = 2, unpriced = 1))))
+        assertEquals("<0,01 US$", plain(costLabel(res, CostEstimate(usd = 0.004, priced = 1))))
+        assertEquals("0,00 US$", plain(costLabel(res, CostEstimate(usd = 0.0, priced = 1))))
+        assertEquals("10 nov", chartDate(res, tuesday, java.time.ZoneOffset.UTC))
+    }
+
+    @Test
+    @Config(qualifiers = "pt")
+    fun `in Portuguese costs and dates are written the Portuguese way`() {
+        assertEquals("≈US$ 1,24", plain(costLabel(res, CostEstimate(usd = 1.237, priced = 2))))
+        assertEquals("10 de nov.", chartDate(res, tuesday, java.time.ZoneOffset.UTC))
+    }
+
+    @Test
+    @Config(qualifiers = "b+zh+Hans")
+    fun `in Chinese costs and dates are written the Chinese way`() {
+        assertEquals("约 US$1.24", plain(costLabel(res, CostEstimate(usd = 1.237, priced = 2))))
+        assertEquals("11月10日", chartDate(res, tuesday, java.time.ZoneOffset.UTC))
+    }
 }

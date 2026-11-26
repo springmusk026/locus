@@ -582,6 +582,7 @@ private fun PhantomHelpSheet(phantom: LinuxReport.Phantom?, onDismiss: () -> Uni
             // The command on its own surface, scrolling sideways rather than breaking mid-identifier, with Copy.
             val clipboard = androidx.compose.ui.platform.LocalClipboard.current
             val scope = androidx.compose.runtime.rememberCoroutineScope()
+            val clipLabel = stringResource(R.string.workspace_clip_adb_command)
             var copied by remember { mutableStateOf(false) }
             CodeSurface(Modifier.fillMaxWidth()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -593,7 +594,7 @@ private fun PhantomHelpSheet(phantom: LinuxReport.Phantom?, onDismiss: () -> Uni
                     )
                     IconButton(onClick = {
                         scope.launch {
-                            clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(android.content.ClipData.newPlainText("adb command", AndroidKill.ADB_COMMAND)))
+                            clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(android.content.ClipData.newPlainText(clipLabel, AndroidKill.ADB_COMMAND)))
                             copied = true
                         }
                     }) { Icon(if (copied) LocusIcons.Check else LocusIcons.Copy, contentDescription = stringResource(if (copied) R.string.workspace_health_phantom_copied else R.string.workspace_health_phantom_copy)) }

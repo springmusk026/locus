@@ -102,7 +102,7 @@ A rule's note is a user-role message from Locus (`ModeNote`). It's appended afte
 
 - **While it runs,** the chat's live line says a command is running (`activeTool` is `project_rule`).
 - **In the chat,** it shows as a row in the turn's steps: a pass or fail mark, the rule's name and trigger, and the exit status. A tap shows the output.
-- **In exports,** it's written in English.
+- **In exports,** it's written in the app's language, like the chat's own step labels (`ExportWords`, feature/chat `ChatExport.kt`).
 - **In Activity,** each run is an entry (`project_rule`) with the rule's name, trigger, command and files. Each block is the refused `run_command`, with the rule's message as its result. Receipts don't count rule runs as the agent's actions.
 
 ## Taint

@@ -392,4 +392,5 @@
     <string name="workspace_packages_remove_failed">无法移除 %1$s：%2$s</string>
     <string name="workspace_preview_language_text">文本</string>
     <string name="workspace_preview_web_blocked">%1$s，因此页面可能显得很简陋。</string>
+    <string name="workspace_clip_adb_command">adb 命令</string>
 </resources>

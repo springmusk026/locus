@@ -21,6 +21,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.locus.core.designsystem.ConfirmSheet
 import dev.locus.core.designsystem.GroupDivider
+import dev.locus.core.designsystem.usdAmount
 import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.LocusChip
@@ -87,8 +88,9 @@ internal fun CompareSheetHeader(onClear: (() -> Unit)?) {
 /** "$0.012", "< $0.001" or "unknown": one model's estimate, in the confirm sheet. */
 internal fun estimateLabel(resources: Resources, usd: Double?): String = when {
     usd == null -> resources.getString(R.string.chat_compare_price_unknown)
-    usd < 0.001 -> resources.getString(R.string.chat_compare_price_tiny)
-    else -> resources.getString(R.string.chat_compare_price, String.format(java.util.Locale.ROOT, if (usd < 0.1) "%.3f" else "%.2f", usd))
+    usd < 0.001 -> resources.getString(R.string.chat_compare_price_tiny, usdAmount(resources.configuration.locales[0], 0.001, fractionDigits = 3))
+    // Money the language's way ("0,012 US$" in Spanish); the estimate itself stays in dollars.
+    else -> usdAmount(resources.configuration.locales[0], usd, fractionDigits = if (usd < 0.1) 3 else 2)
 }
 
 /**

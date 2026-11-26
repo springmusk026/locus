@@ -1674,8 +1674,7 @@
     <string name="chat_compare_kept">Escolhida</string>
     <string name="chat_compare_streaming">Segunda resposta: %1$s · somente leitura</string>
     <string name="chat_compare_price_unknown">desconhecido</string>
-    <string name="chat_compare_price_tiny">&lt; US$ 0,001</string>
-    <string name="chat_compare_price">US$ %1$s</string>
+    <string name="chat_compare_price_tiny">&lt; %1$s</string>
     <string name="chat_compare_confirm_title">Enviar para os dois modelos?</string>
     <string name="chat_compare_confirm_send">Enviar para os dois</string>
     <string name="chat_compare_confirm_first">Sua mensagem vai para o modelo deste chat e para um segundo. As duas respostas aparecem como ‹ 1/2 ›, cada uma com o seu modelo; fique com a que preferir.</string>
@@ -1803,4 +1802,25 @@
     <string name="chat_page_not_kept_message">O Locus não tem uma cópia desta página. Ele guarda as páginas mais recentes de cada conversa, não as de antes deste recurso, de um backup restaurado ou de uma conversa copiada. Os detalhes da etapa ainda mostram o que ele leu.</string>
     <string name="chat_page_when">Vista %1$s</string>
     <string name="chat_page_picture">A página como estava</string>
+    <string name="chat_clip_request">Solicitação do Locus</string>
+    <string name="chat_clip_code">Código</string>
+    <string name="chat_clip_error">Erro do Locus</string>
+    <string name="chat_clip_link">Link</string>
+    <string name="chat_export_untitled">Chat</string>
+    <string name="chat_export_dated">%1$s · exportado do Locus</string>
+    <string name="chat_export_undated">Exportado do Locus</string>
+    <string name="chat_export_speaker">%1$s:</string>
+    <string name="chat_export_summarised">As mensagens anteriores foram resumidas aqui para economizar espaço.</string>
+    <string name="chat_export_ran_anyway">Você executou a chamada bloqueada mesmo assim: %1$s</string>
+    <string name="chat_export_approved">Você aprovou em Precisa de você: %1$s</string>
+    <string name="chat_export_sent">Enviou para você %1$s</string>
+    <string name="chat_export_provider_draft">Preparou o provedor %1$s (%2$s) para você revisar em %3$s</string>
+    <string name="chat_export_changed">Alterou %1$s (%2$s)</string>
+    <string name="chat_export_changed_undone">Alterou %1$s (%2$s, desfeito)</string>
+    <string name="chat_export_step_failed">%1$s (falhou)</string>
+    <string name="chat_export_step_not_run">%1$s (não executado)</string>
+    <string name="chat_export_typed">Digitou na página</string>
+    <string name="chat_export_type">Digitar na página</string>
+    <string name="chat_export_field">%1$s: %2$s</string>
+    <string name="chat_export_receipt">Recibo da tarefa: %1$s</string>
 </resources>

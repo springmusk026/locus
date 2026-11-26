@@ -24,7 +24,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.FileProvider
+import dev.locus.core.designsystem.DateSkeleton
 import dev.locus.core.designsystem.LocusIcons
+import dev.locus.core.designsystem.formatDateTime
+import dev.locus.core.designsystem.localizedToolLabel
+import dev.locus.core.designsystem.settingsPath
+import dev.locus.core.designsystem.titleRes
+import dev.locus.core.model.SettingsDestination
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.Spacing
@@ -124,7 +130,7 @@ private fun ShareChatSheet(
 /** Writes the export to cache/exports (old exports there are cleared after an hour). */
 private suspend fun exportFile(context: Context, title: String, startedAt: Long, items: List<ChatItem>, format: ExportFormat): File =
     withContext(Dispatchers.IO) {
-        val markdown = ChatExport.markdown(title, startedAt, items)
+        val markdown = ChatExport.markdown(title, startedAt, items, words = exportWords(context))
         val dir = File(context.cacheDir, "exports").apply { mkdirs() }
         val cutoff = System.currentTimeMillis() - 60 * 60 * 1000L
         dir.listFiles().orEmpty().filter { it.lastModified() < cutoff }.forEach { it.delete() }
@@ -135,6 +141,43 @@ private suspend fun exportFile(context: Context, title: String, startedAt: Long,
         }
         file
     }
+
+/**
+ * The export's words in the app's language ([context]'s resources), its date on the phone's 12/24-hour
+ * clock: the same strings the chat and the published page use where they say the same thing.
+ */
+internal fun exportWords(context: Context): ExportWords {
+    val res = context.resources
+    val locale = res.configuration.locales[0]
+    return ExportWords(
+        untitled = res.getString(R.string.chat_export_untitled),
+        dated = res.getString(R.string.chat_export_dated),
+        undated = res.getString(R.string.chat_export_undated),
+        speaker = res.getString(R.string.chat_export_speaker),
+        you = res.getString(R.string.chat_publish_page_you),
+        locus = res.getString(R.string.chat_publish_page_locus),
+        attached = res.getString(R.string.chat_publish_page_attached),
+        summarised = res.getString(R.string.chat_export_summarised),
+        ranAnyway = res.getString(R.string.chat_export_ran_anyway),
+        approved = res.getString(R.string.chat_export_approved),
+        plan = res.getString(R.string.chat_publish_page_plan),
+        sent = res.getString(R.string.chat_export_sent),
+        providerDraft = res.getString(R.string.chat_export_provider_draft),
+        modelsPage = settingsPath(res, SettingsDestination.Models),
+        changed = res.getString(R.string.chat_export_changed),
+        changedUndone = res.getString(R.string.chat_export_changed_undone),
+        failed = res.getString(R.string.chat_export_step_failed),
+        notRun = res.getString(R.string.chat_export_step_not_run),
+        typed = res.getString(R.string.chat_export_typed),
+        type = res.getString(R.string.chat_export_type),
+        field = res.getString(R.string.chat_export_field),
+        date = { millis, zone -> formatDateTime(context, millis, DateSkeleton.FULL_DATE_TIME, zone) },
+        tool = { name, args, done -> localizedToolLabel(res, name, args, done) },
+        check = { res.getString(it.titleRes()).lowercase(locale) },
+        change = { changeSummary(res, it) },
+        receipt = { receiptExportText(res, it) },
+    )
+}
 
 private fun share(context: Context, file: File, format: ExportFormat, title: String, feedback: LocusFeedback) {
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.exports", file)

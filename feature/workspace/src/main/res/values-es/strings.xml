@@ -428,4 +428,5 @@
     <string name="workspace_packages_remove_failed">No se pudo quitar %1$s: %2$s</string>
     <string name="workspace_preview_language_text">Texto</string>
     <string name="workspace_preview_web_blocked">%1$s, así que la página puede verse simple.</string>
+    <string name="workspace_clip_adb_command">Comando adb</string>
 </resources>

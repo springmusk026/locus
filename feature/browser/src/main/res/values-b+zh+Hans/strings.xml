@@ -82,4 +82,5 @@
     <string name="browser_pick_attach">附加到消息</string>
     <string name="browser_pick_attached">已附加到你的下一条消息</string>
     <string name="browser_pick_overlay">页面。轻触某个元素即可选取。</string>
+    <string name="browser_clip_link">链接</string>
 </resources>

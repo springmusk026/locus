@@ -481,6 +481,9 @@
     <string name="designsystem_duration_ms">%1$d 毫秒</string>
     <string name="designsystem_duration_seconds">%1$s 秒</string>
     <string name="designsystem_duration_minutes_seconds">%1$d 分 %2$02d 秒</string>
+    <string name="designsystem_money_about">约 %1$s</string>
+    <string name="designsystem_money_under">&lt;%1$s</string>
+    <string name="designsystem_money_or_more">%1$s+</string>
     <string name="designsystem_amount_minutes">%1$d 分钟</string>
     <string name="designsystem_amount_hours">%1$d 小时</string>
 
