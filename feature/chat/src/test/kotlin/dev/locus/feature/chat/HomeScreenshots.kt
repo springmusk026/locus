@@ -58,13 +58,12 @@ class HomeScreenshots : ScreenshotTest() {
         running: Boolean = false,
         approval: Boolean = false,
         pinned: Boolean = false,
-        tool: String? = null,
         provider: Pair<String, String> = "Anthropic" to "https://api.anthropic.com",
         model: String = "claude-opus-5-5",
         projectId: String? = null,
     ) = ConversationRow(
         Conversation(id, title, "a", "", now - ago - hour, now - ago, pinned = pinned, projectId = projectId),
-        running = running, needsApproval = approval, providerName = provider.first, providerUrl = provider.second, activeTool = tool, model = model,
+        running = running, needsApproval = approval, providerName = provider.first, providerUrl = provider.second, model = model,
     )
 
     private fun project(id: String, name: String, chats: Int, ago: Long, running: Int = 0, approvals: Int = 0) =
@@ -85,14 +84,17 @@ class HomeScreenshots : ScreenshotTest() {
     private val projects = many.take(2)
 
     private val rows = listOf(
-        row("c1", "Fix checkout tests", 2 * min, running = true, tool = "run_command", projectId = "p1"),
-        row("c2", "Book a table at Lula's", 20 * min, approval = true, tool = "browser_click", provider = "OpenRouter" to "https://openrouter.ai/api/v1", model = "openai/gpt-5"),
+        row("c1", "Fix checkout tests", 2 * min, running = true, projectId = "p1"),
+        row("c2", "Book a table at Lula's", 20 * min, approval = true, provider = "OpenRouter" to "https://openrouter.ai/api/v1", model = "openai/gpt-5"),
         row("c3", "Plan a 3-day trip to Lisbon", 3 * hour, pinned = true),
         row("c4", "Debounce a search field", 5 * hour),
         row("c5", "Summarise the March bank statement", day + 2 * hour, model = "gemini-3-pro", provider = "OpenRouter" to "https://openrouter.ai/api/v1"),
         row("c6", "Rename photos by date", 3 * day),
         row("c7", "Weekly groceries list", 6 * day),
     )
+
+    /** The tool each running chat is using (the featured card's status line). */
+    private val tools = mapOf("c1" to "run_command", "c2" to "browser_click")
 
     private val ready = ConversationsUiState.Ready(
         rows = rows,
@@ -116,7 +118,7 @@ class HomeScreenshots : ScreenshotTest() {
         remoteUntil: Long? = null,
         needsYou: NeedsYouFeed = NeedsYouFeed(),
         waiting: List<WaitingEntry> = emptyList(),
-    ) = ConversationsScreen(state, actions, composer = HomeComposer(Fx.settings), projects = projects, remoteModeUntil = remoteUntil, needsYou = needsYou, now = now, waiting = waiting)
+    ) = ConversationsScreen(state, actions, composer = HomeComposer(Fx.settings), projects = projects, remoteModeUntil = remoteUntil, needsYou = needsYou, now = now, waiting = waiting, activeTool = { tools[it] })
 
     @Test
     fun home() = snap("home") { Home(ready, projects) }

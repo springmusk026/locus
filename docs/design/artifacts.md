@@ -92,7 +92,7 @@ Open on a sent file (and a tap on an image thumbnail) goes to Locus's own viewer
 | --- | --- |
 | `.html` `.htm` `.xhtml` `.svg` | Web (locked-down WebView, JavaScript off), with Source |
 | `.md` `.markdown` `.mdown` `.mkd` | Markdown, with maths and Mermaid, with Source |
-| `.pdf` | PDF (PdfRenderer, page count) |
+| `.pdf` | PDF (PdfRenderer, page count; see below) |
 | `.png` `.jpg` `.jpeg` `.gif` `.webp` `.bmp` `.heic` `.heif` `.avif` `.ico` `.wbmp` | Image (zoom, dimensions) |
 | `.csv` `.tsv` | Table, with Source |
 | `.json` `.jsonc` `.json5` `.geojson` `.ipynb` `.webmanifest` | JSON (re-indented, highlighted) |
@@ -103,6 +103,24 @@ Open on a sent file (and a tap on an image thumbnail) goes to Locus's own viewer
 | Archives, APKs, Office documents, EPUB, fonts, databases, TIFF, PSD, AVI/WMV, keystores (`binaryExts`) | None: Open goes straight to another app |
 
 An unlisted extension is routed by its MIME type: text, JSON, XML, YAML, scripts and unknown bytes open in Locus; `image/`, `audio/`, `video/`, `font/` and other `application/` types go to another app, since the viewer chooses by extension and would only show bytes. When Open stays in Locus, the card's overflow has **Open with another app**, and the viewer's own menu has Open with…. While the file is read the Workspace shows it loading (not the folder list); a file deleted since shows the list with "isn't in the workspace any more"; big text files show their first 1 MB with a notice; Markdown over 300,000 characters opens as source.
+
+### The PDF viewer's memory
+
+Page bitmaps are ARGB_8888 and, since API 26, their pixels are native memory, outside the Java heap
+that `Runtime.maxMemory()` measures. So the limits are fixed byte counts (`PdfMemory`, unit-tested in
+`PdfMemoryTest`), not a share of the heap (#355):
+
+- **One page** is at most 16 megapixels (64 MB), 4,096 px wide and 16,384 px tall, scaled down whole
+  so it keeps its shape. An A4 page at 3× on a phone fits; before, a tall page could take 268 MB.
+- **Zoomed in**, only the pages in the part of the list on screen render at the sharper size. The
+  list is laid out unzoomed and only its top 1/zoom shows, so the pages below it, composed but not
+  visible, stay at screen width.
+- **Kept for scrolling back**: at most 64 MB of rendered pages, least recently used first, and one
+  size per page (a sharper render drops the page's smaller one).
+- **Opening** reads only the first page. Each other page's shape is read when it first renders; until
+  then it takes the first page's shape. A file that takes a moment to open shows the loading spinner.
+- Not done: rendering only the visible part of a page at high zoom (a clip `Rect` and `Matrix` per
+  tile), and a page-jump control.
 
 ## Known limits
 

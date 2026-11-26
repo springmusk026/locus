@@ -120,8 +120,13 @@ Sources were checked on 2026-11-01. Each claim below links to the page it comes 
   - `onTrimMemory` and `onLowMemory`. Since API 34 only `UI_HIDDEN` and `BACKGROUND` are delivered,
     and `BACKGROUND` or above counts as low memory. The flag clears once
     `ActivityManager.MemoryInfo.lowMemory` is false again, at least 3 minutes later.
+  - The network starts from `ConnectivityManager.activeNetwork`: the callback fires at once only
+    when there is a default network, so a phone offline at launch used to read as Wi-Fi.
+  - Charging means `EXTRA_PLUGGED` is non-zero. `BATTERY_STATUS_FULL` alone isn't charging: a
+    phone unplugged at 100% can still report it.
 - `headroom()` calls `getThermalHeadroom(10)` at most every 10 seconds, and only before an
-  on-device reply.
+  on-device reply. Its cache is per forecast length, so a different forecast is never answered
+  with the 10-second one.
 - Every decision is a pure function in `PowerPolicy` (core/model), unit-tested in `PowerPolicyTest`.
 
 ### Decisions
@@ -145,7 +150,15 @@ constraint covers scheduled tasks, and the user can see their own battery.
 - The user's own turn, approvals, helpers the agent started, and a model list the user opened
   never wait. Locus never stops a task the user is watching without saying so.
 - Held work is keyed per chat and kind, so a newer turn's side jobs replace older ones.
-- It runs by itself once the phone is back to normal, or at once on Run anyway.
+- It runs by itself once the phone is back to normal, or at once on Run anyway. Work held for heat
+  has hysteresis: it's released at once below MODERATE, but at MODERATE only after a minute below
+  SEVERE (`PowerPolicy.HOT_RELEASE_AFTER_MS`), and a return to SEVERE in that minute restarts it. A
+  phone flapping between MODERATE and SEVERE used to release everything at each dip, which heated it
+  again. New work in that minute waits too.
+- Whether to hold is decided under the same lock as the release, from the watcher's last decision.
+  It used to be read from the conditions first and held after: when the phone cooled between the
+  two, the release had already run, and the work (and its "Paused" chip) stayed held until the phone
+  next got hot and cooled.
 - It's kept in memory only. After a restart there is nothing to catch up on.
 
 ### On-device inference
