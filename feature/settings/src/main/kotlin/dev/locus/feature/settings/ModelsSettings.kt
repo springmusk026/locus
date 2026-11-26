@@ -3,7 +3,7 @@ package dev.locus.feature.settings
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import dev.locus.core.designsystem.SecretContent
+import dev.locus.core.designsystem.PasswordField
 import dev.locus.core.designsystem.ConfirmSheet
 import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.LocalNetworkNote
@@ -46,7 +46,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import dev.locus.core.data.network.NetworkSecretEdits
 import dev.locus.core.data.network.SavedNetworkSecrets
@@ -503,37 +502,22 @@ private fun ProviderEditor(
             )
             if (!signsIn) LocalNetworkNote(baseUrl, localNetwork)
             if (initial.requiresKey) {
-                SecretContent()
-                OutlinedTextField(
+                PasswordField(
                     key,
                     { key = it },
-                    label = { Text(stringResource(if (editing.hasKey) R.string.settings_models_api_key_saved else R.string.settings_models_api_key)) },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    modifier = Modifier.fillMaxWidth(),
+                    label = stringResource(if (editing.hasKey) R.string.settings_models_api_key_saved else R.string.settings_models_api_key),
                 )
                 val backupsSaved = editing.hasBackupKeys && !clearBackupKeys
-                SecretContent()
-                OutlinedTextField(
+                PasswordField(
                     backupKeys,
                     { backupKeys = it },
-                    label = { Text(stringResource(if (backupsSaved) R.string.settings_models_backup_keys_saved else R.string.settings_models_backup_keys)) },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    supportingText = {
-                        Text(
-                            stringResource(R.string.settings_models_backup_keys_hint),
-                        )
-                    },
-                    trailingIcon = if (backupsSaved && backupKeys.isEmpty()) {
-                        { TextButton(onClick = { clearBackupKeys = true }) { Text(stringResource(R.string.settings_models_backup_keys_remove)) } }
-                    } else {
-                        null
-                    },
-                    modifier = Modifier.fillMaxWidth(),
+                    label = stringResource(if (backupsSaved) R.string.settings_models_backup_keys_saved else R.string.settings_models_backup_keys),
+                    supportingText = stringResource(R.string.settings_models_backup_keys_hint),
                 )
+                // Under the field rather than in it: the field's end holds show/hide.
+                if (backupsSaved && backupKeys.isEmpty()) {
+                    TextButton(onClick = { clearBackupKeys = true }) { Text(stringResource(R.string.settings_models_backup_keys_remove)) }
+                }
             }
             ModelField(
                 model = model,

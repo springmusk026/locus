@@ -246,6 +246,8 @@
     <string name="onboarding_connectors_key_save">Save</string>
     <string name="onboarding_connectors_key_label_saved">%1$s (saved — type to replace)</string>
     <string name="onboarding_connectors_key_remove">Remove key</string>
+    <string name="onboarding_connectors_key_remove_title">Remove the %1$s key?</string>
+    <string name="onboarding_connectors_key_remove_message">It\'s deleted from this phone, and the agent can\'t use %1$s until you add one again.</string>
 
     <!-- Quick check -->
     <string name="onboarding_test_title">Quick check</string>

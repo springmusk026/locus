@@ -54,6 +54,10 @@ import dev.locus.core.designsystem.UiText
 import dev.locus.feature.workspace.R
 import java.io.File
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.withContext
+import kotlin.coroutines.cancellation.CancellationException
+import androidx.compose.runtime.saveable.rememberSaveable
 
 // ---------------------------------------------------------------------------------------------
 // Sharing and opening in other apps
@@ -187,30 +191,50 @@ internal fun VideoPlayer(file: File, modifier: Modifier = Modifier) {
     }
 }
 
-/** A MediaPlayer with play/pause and a seek bar. Released when the screen goes away. */
+/**
+ * A MediaPlayer with play/pause and a seek bar. Released when the screen goes away. The file is opened
+ * off the main thread (setDataSource reads it), and where it was and whether it was playing are saved,
+ * so turning the phone carries on from the same place instead of starting over.
+ */
 @Composable
 internal fun AudioPlayer(file: File, modifier: Modifier = Modifier) {
     var prepared by remember(file) { mutableStateOf(false) }
     var failed by remember(file) { mutableStateOf(false) }
-    var playing by remember(file) { mutableStateOf(false) }
+    var playing by rememberSaveable(file.path) { mutableStateOf(false) }
     var duration by remember(file) { mutableIntStateOf(0) }
-    var position by remember(file) { mutableFloatStateOf(0f) }
+    var position by rememberSaveable(file.path) { mutableFloatStateOf(0f) }
     var dragging by remember(file) { mutableStateOf(false) }
-    val player = remember(file) {
-        MediaPlayer().apply {
-            setOnPreparedListener { duration = it.duration; prepared = true }
-            setOnCompletionListener { playing = false; position = 0f; it.seekTo(0) }
-            setOnErrorListener { _, _, _ -> failed = true; playing = false; true }
-            runCatching {
-                setDataSource(file.absolutePath)
-                prepareAsync()
-            }.onFailure { failed = true }
+    var player by remember(file) { mutableStateOf<MediaPlayer?>(null) }
+    val io = LocalPreviewDispatchers.current.io
+    LaunchedEffect(file) {
+        var made: MediaPlayer? = null
+        try {
+            // Made on a thread without a Looper, its callbacks come on the main one.
+            val ready = withContext(io) { MediaPlayer().also { made = it; it.setDataSource(file.absolutePath) } }
+            ready.setOnPreparedListener {
+                duration = it.duration
+                if (position > 0f) it.seekTo(position.toInt())
+                if (playing) it.start()
+                prepared = true
+            }
+            ready.setOnCompletionListener { playing = false; position = 0f; it.seekTo(0) }
+            ready.setOnErrorListener { _, _, _ -> failed = true; playing = false; true }
+            ready.prepareAsync()
+            player = ready
+            awaitCancellation()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            failed = true
+        } finally {
+            player = null
+            made?.release()
         }
     }
-    DisposableEffect(player) { onDispose { player.release() } }
-    LaunchedEffect(player, playing) {
-        while (playing) {
-            if (!dragging) position = runCatching { player.currentPosition.toFloat() }.getOrDefault(position)
+    LaunchedEffect(player, prepared, playing) {
+        val p = player ?: return@LaunchedEffect
+        while (playing && prepared) {
+            if (!dragging) position = runCatching { p.currentPosition.toFloat() }.getOrDefault(position)
             delay(250)
         }
     }
@@ -228,7 +252,7 @@ internal fun AudioPlayer(file: File, modifier: Modifier = Modifier) {
         Slider(
             value = position,
             onValueChange = { dragging = true; position = it },
-            onValueChangeFinished = { player.seekTo(position.toInt()); dragging = false },
+            onValueChangeFinished = { player?.seekTo(position.toInt()); dragging = false },
             valueRange = 0f..duration.coerceAtLeast(1).toFloat(),
             enabled = prepared,
             modifier = Modifier.widthIn(max = Sizes.readable).padding(top = Spacing.xl),
@@ -239,8 +263,10 @@ internal fun AudioPlayer(file: File, modifier: Modifier = Modifier) {
         )
         FilledTonalButton(
             onClick = {
-                if (playing) player.pause() else player.start()
-                playing = !playing
+                player?.let { p ->
+                    if (playing) p.pause() else p.start()
+                    playing = !playing
+                }
             },
             enabled = prepared,
             modifier = Modifier.padding(top = Spacing.lg),

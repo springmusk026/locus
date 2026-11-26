@@ -33,6 +33,17 @@ class DesignGuardRulesTest {
     }
 
     @Test
+    fun `a masked field outside PasswordField is counted`() {
+        val code = """
+            OutlinedTextField(token, { token = it }, visualTransformation = PasswordVisualTransformation())
+            OutlinedTextField(key, { key = it }, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation( ))
+            PasswordField(token, { token = it }, label = tokenLabel)
+            // PasswordVisualTransformation() in a comment is fine
+        """.trimIndent()
+        assertEquals(2, DesignGuard.countText(code)["raw-secret-field"])
+    }
+
+    @Test
     fun `alpha literals and named colours are counted`() {
         val code = "color.copy(alpha = 0.6f); tint = Color.White; x.copy(alpha = Emphasis.muted); Color.Transparent"
         val counts = DesignGuard.countText(code)

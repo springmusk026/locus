@@ -44,7 +44,10 @@
     <string name="tasks_sheet_mode_event">当…</string>
     <string name="tasks_sheet_how_often">频率</string>
     <string name="tasks_sheet_custom_interval">当前为 %1$s。选择其他选项可更改。</string>
-    <string name="tasks_sheet_first_run">首次运行时间为 %1$s，之后每个周期运行一次。手机空闲时，Android 可能会稍晚运行。</string>
+    <string name="tasks_sheet_start_title">开始时间</string>
+    <string name="tasks_sheet_start_now">保存后立即开始</string>
+    <string name="tasks_sheet_start_zone">时间以%1$s为准。</string>
+    <string name="tasks_sheet_next_runs">接下来的运行时间：%1$s（%2$s）。手机空闲时，Android 可能会稍晚运行。</string>
     <string name="tasks_sheet_digest_calendar">摘要会读取今天的日历事件。</string>
     <string name="tasks_sheet_digest_ntfy">摘要也会发送到你的 ntfy 主题，因此会同步到你的其他设备。</string>
     <string name="tasks_sheet_digest_ntfy_hint">若要在其他设备上也收到摘要，请在以下位置设置 ntfy：</string>

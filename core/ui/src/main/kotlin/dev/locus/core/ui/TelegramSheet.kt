@@ -16,7 +16,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import dev.locus.core.agent.integrations.TelegramRemote
-import dev.locus.core.designsystem.SecretContent
+import dev.locus.core.designsystem.PasswordField
 import dev.locus.core.designsystem.ConfirmSheet
 import dev.locus.core.designsystem.R as DesignR
 import dev.locus.core.designsystem.UiText
@@ -34,12 +34,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -100,8 +100,8 @@ class TelegramActions(
 @Composable
 fun TelegramSheet(integration: Integration, hasKey: Boolean, actions: TelegramActions, onDismiss: () -> Unit) {
     val uriHandler = LocalUriHandler.current
-    var token by remember { mutableStateOf("") }
-    var chatText by remember { mutableStateOf("") }
+    var token by rememberSaveable { mutableStateOf("") }
+    var chatText by rememberSaveable { mutableStateOf("") }
     var found by remember { mutableStateOf<Telegram.Discovery?>(null) }
     /** The action running now ("find", "test" or "save"), or null. */
     var running by remember { mutableStateOf<String?>(null) }
@@ -129,13 +129,11 @@ fun TelegramSheet(integration: Integration, hasKey: Boolean, actions: TelegramAc
     ) {
         // A word joiner after the slash: "/newbot" is a command and never breaks into "/ newbot".
         Text(stringResource(R.string.ui_telegram_steps), style = LocusType.rowSupporting)
-        SecretContent()
-        OutlinedTextField(
+        PasswordField(
             token, { token = it.trim(); error = null },
-            label = { Text(if (hasKey) stringResource(R.string.ui_telegram_bot_token) else integration.keyLabelText(LocalResources.current)) },
-            supportingText = if (hasKey) { { Text(stringResource(R.string.ui_telegram_token_keep)) } } else null,
-            singleLine = true, isError = token.isNotBlank() && !Telegram.isToken(token),
-            visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
+            label = if (hasKey) stringResource(R.string.ui_telegram_bot_token) else integration.keyLabelText(LocalResources.current),
+            supportingText = if (hasKey) stringResource(R.string.ui_telegram_token_keep) else null,
+            isError = token.isNotBlank() && !Telegram.isToken(token),
         )
         // Wraps at a large font rather than breaking "@BotFather" mid-name.
         @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)

@@ -139,6 +139,7 @@ fun WorkspaceRoute(
         viewModel.messageShown()
     }
     BackHandler { if (!viewModel.up()) onBack() }
+    state.confirmingDelete?.let { pending -> ConfirmConnectedDelete(pending, viewModel::confirmDelete, viewModel::cancelDelete) }
 
     // Per-file viewer state: source/preview toggle and the top bar's fact (pages, dimensions, language).
     val openPath = state.openFile?.path
@@ -220,7 +221,7 @@ fun WorkspaceRoute(
                                     DropdownMenuItem(
                                         text = { Text(stringResource(R.string.workspace_files_delete), color = Locus.colors.critical) },
                                         leadingIcon = { Icon(LocusIcons.Trash, contentDescription = null, tint = Locus.colors.critical) },
-                                        onClick = { menuOpen = false; viewModel.delete(open.path) },
+                                        onClick = { menuOpen = false; viewModel.requestDelete(open.path) },
                                     )
                                 }
                             }
@@ -322,6 +323,22 @@ fun WorkspaceRoute(
         }
     }
     } // ProvideLocusFeedback
+}
+
+/**
+ * "Delete report.pdf?" for a file in a connected folder: it goes from the person's own storage (and
+ * whatever syncs it), so unlike a workspace file it asks first. Locus still keeps a copy in Trash.
+ */
+@Composable
+internal fun ConfirmConnectedDelete(pending: PendingDelete, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    ConfirmSheet(
+        title = stringResource(R.string.workspace_files_delete_connected_title, pending.name),
+        message = stringResource(R.string.workspace_files_delete_connected_message, pending.folder),
+        confirmLabel = stringResource(R.string.workspace_files_delete),
+        tone = Tone.Critical,
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
+    )
 }
 
 @Composable

@@ -15,16 +15,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import dev.locus.core.data.network.NetworkSecretEdits
 import dev.locus.core.data.network.SavedNetworkSecrets
-import dev.locus.core.designsystem.SecretContent
+import dev.locus.core.designsystem.PasswordField
 import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.UiText
 import dev.locus.core.designsystem.asString
@@ -280,8 +280,8 @@ internal fun ProviderNetworkSheet(
 
 @Composable
 private fun AddHeaderSheet(existing: Set<String>, onAdd: (String, String) -> Unit, onDismiss: () -> Unit) {
-    var name by remember { mutableStateOf("") }
-    var value by remember { mutableStateOf("") }
+    var name by rememberSaveable { mutableStateOf("") }
+    var value by rememberSaveable { mutableStateOf("") }
     val verdict = HeaderRules.check(name)
     val nameError = when {
         name.isBlank() -> null
@@ -311,17 +311,12 @@ private fun AddHeaderSheet(existing: Set<String>, onAdd: (String, String) -> Uni
             },
             modifier = Modifier.fillMaxWidth(),
         )
-        SecretContent()
-        OutlinedTextField(
+        PasswordField(
             value,
             { value = it },
-            label = { Text(stringResource(R.string.settings_pnet_add_value)) },
-            singleLine = true,
+            label = stringResource(R.string.settings_pnet_add_value),
             isError = valueError != null,
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            supportingText = { Text(valueError ?: stringResource(R.string.settings_pnet_add_value_hint)) },
-            modifier = Modifier.fillMaxWidth(),
+            supportingText = valueError ?: stringResource(R.string.settings_pnet_add_value_hint),
         )
     }
 }
@@ -386,15 +381,10 @@ internal fun ProxyFields(
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
-        SecretContent()
-        OutlinedTextField(
+        PasswordField(
             password,
             onPassword,
-            label = { Text(stringResource(if (credentialsSaved) R.string.settings_pnet_password_saved else R.string.settings_pnet_password)) },
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            modifier = Modifier.fillMaxWidth(),
+            label = stringResource(if (credentialsSaved) R.string.settings_pnet_password_saved else R.string.settings_pnet_password),
         )
     }
     SupportingText(

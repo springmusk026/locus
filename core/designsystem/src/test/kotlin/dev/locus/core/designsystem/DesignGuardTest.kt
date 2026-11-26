@@ -112,6 +112,13 @@ internal object DesignGuard {
             Regex("""color\s*=\s*MaterialTheme\.colorScheme\.onSurfaceVariant\b|onSurfaceVariant\.copy\(\s*alpha"""),
             "use SupportingText (or LocusType + onSurfaceVariant only inside a shared component)",
         ),
+        Rule(
+            "raw-secret-field",
+            // A masked OutlinedTextField of its own lets the keyboard learn and correct the secret, and has no
+            // way to show it to check a paste.
+            Regex("""\bPasswordVisualTransformation\s*\("""),
+            "use PasswordField (compact = true beside another field in a row): show/hide, no keyboard learning or autocorrect, a secure window",
+        ),
         // Structure (docs/design/design-system.md, "Review gate"): one screen frame, one section, theme-role text.
         Rule(
             "screen-scaffold",

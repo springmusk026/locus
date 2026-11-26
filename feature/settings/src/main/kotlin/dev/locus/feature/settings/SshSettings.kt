@@ -1,7 +1,5 @@
 package dev.locus.feature.settings
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -35,6 +33,10 @@ import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.model.SshHost
 import dev.locus.core.ui.SshAuthFields
+import dev.locus.core.ui.SshAddressFields
+import dev.locus.core.designsystem.ConfirmSheet
+import dev.locus.core.designsystem.Tone
+import androidx.compose.runtime.saveable.listSaver
 import dev.locus.core.ui.sshEditorSave
 import dev.locus.core.ui.sshHostSubtitle
 import dev.locus.core.ui.sshNeedsSecret
@@ -53,7 +55,8 @@ internal fun SshSettings(
     onSaveSsh: (SshHost, String?, String?, String?) -> Unit,
     onDeleteSsh: (String) -> Unit,
 ) {
-    var editingSsh by remember { mutableStateOf<SshHost?>(null) }
+    // Saved, so the editor stays open (with its fields) when the phone turns.
+    var editingSsh by rememberSaveable(stateSaver = SshHostSaver) { mutableStateOf<SshHost?>(null) }
 
     SettingsPageScaffold(stringResource(R.string.settings_ssh_title), onBack) {
         item { SectionLabel(stringResource(R.string.settings_ssh_section), SectionPadding) }
@@ -111,6 +114,7 @@ private fun SshHostEditor(
     var fingerprint by rememberSaveable { mutableStateOf(initial.fingerprint) }
     var checking by remember { mutableStateOf(false) }
     var probeError by remember { mutableStateOf<String?>(null) }
+    var confirmRemove by rememberSaveable { mutableStateOf(false) }
     val hostChanged = host != initial.host || port != initial.port.toString()
     val localNetwork = rememberLocalNetworkGate()
 
@@ -128,10 +132,12 @@ private fun SshHostEditor(
         },
     ) {
         OutlinedTextField(alias, { alias = it }, label = { Text(stringResource(R.string.settings_ssh_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            OutlinedTextField(host, { host = it.trim(); fingerprint = "" }, label = { Text(stringResource(R.string.settings_ssh_host)) }, singleLine = true, modifier = Modifier.weight(1f))
-            OutlinedTextField(port, { port = it.filter(Char::isDigit).take(5); fingerprint = "" }, label = { Text(stringResource(R.string.settings_ssh_port)) }, singleLine = true, modifier = Modifier.weight(0.4f))
-        }
+        SshAddressFields(
+            host, { host = it; fingerprint = "" },
+            port, { port = it; fingerprint = "" },
+            hostLabel = stringResource(R.string.settings_ssh_host),
+            portLabel = stringResource(R.string.settings_ssh_port),
+        )
         LocalNetworkNote(host, localNetwork)
         OutlinedTextField(user, { user = it.trim() }, label = { Text(stringResource(R.string.settings_ssh_user)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
         SshAuthFields(
@@ -158,6 +164,23 @@ private fun SshHostEditor(
             }) { Text(stringResource(if (checking) R.string.settings_ssh_checking else R.string.settings_ssh_check)) }
             probeError?.let { Text(it, color = Locus.colors.critical, style = LocusType.supporting) }
         }
-        if (!isNew) CriticalOutlinedButton(stringResource(R.string.settings_ssh_remove), onClick = onDelete)
+        if (!isNew) CriticalOutlinedButton(stringResource(R.string.settings_ssh_remove), onClick = { confirmRemove = true })
+    }
+    // Removing deletes the saved key or password and the trusted host key with it, which can't be undone.
+    if (confirmRemove) {
+        ConfirmSheet(
+            title = stringResource(R.string.settings_ssh_remove_title, initial.alias),
+            message = stringResource(R.string.settings_ssh_remove_message),
+            confirmLabel = stringResource(R.string.settings_ssh_remove),
+            tone = Tone.Critical,
+            onConfirm = { confirmRemove = false; onDelete() },
+            onDismiss = { confirmRemove = false },
+        )
     }
 }
+
+/** Keeps the host being edited across a rotation (its secrets are the editor's own saved fields). */
+internal val SshHostSaver = listSaver<SshHost?, Any>(
+    save = { host -> if (host == null) emptyList() else listOf(host.id, host.alias, host.host, host.port, host.user, host.auth, host.fingerprint) },
+    restore = { v -> if (v.isEmpty()) null else SshHost(v[0] as String, v[1] as String, v[2] as String, v[3] as Int, v[4] as String, v[5] as String, v[6] as String) },
+)

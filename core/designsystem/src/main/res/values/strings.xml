@@ -437,6 +437,7 @@
     <string name="common_share">Share</string>
     <string name="common_open">Open</string>
     <string name="common_remove">Remove</string>
+    <string name="common_undo">Undo</string>
     <string name="common_edit">Edit</string>
     <string name="common_search">Search</string>
     <string name="common_loading">Loading…</string>

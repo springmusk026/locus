@@ -22,13 +22,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import dev.locus.core.agent.integrations.Integration
 import dev.locus.core.data.mcp.McpTemplate
 import dev.locus.core.data.mcp.McpTemplates
 import dev.locus.core.data.mcp.SavedKeys
-import dev.locus.core.designsystem.SecretContent
+import dev.locus.core.designsystem.PasswordField
 import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.ConnectorIcon
@@ -186,19 +185,11 @@ internal fun McpTemplateSheet(
             val savedFrom = savedKeyFrom?.takeIf { template.key != null }
             if (savedFrom != null) SavedKeyChoice(savedFrom, template, form)
             template.key?.takeUnless { form.useSavedKey }?.let { key ->
-                SecretContent()
-                OutlinedTextField(
+                PasswordField(
                     form.key, { form.key = it },
-                    label = { Text(key.labelText(res).let { if (key.optional || template.signIn) stringResource(R.string.library_mcp_sheet_key_optional, it) else it }) },
-                    supportingText = {
-                        Text(
-                            template.scopesText(res)?.let { stringResource(R.string.library_mcp_sheet_key_sent_as_needs, key.sentAsText(res), it) }
-                                ?: stringResource(R.string.library_mcp_sheet_key_sent_as, key.sentAsText(res)),
-                        )
-                    },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    modifier = Modifier.fillMaxWidth(),
+                    label = key.labelText(res).let { if (key.optional || template.signIn) stringResource(R.string.library_mcp_sheet_key_optional, it) else it },
+                    supportingText = template.scopesText(res)?.let { stringResource(R.string.library_mcp_sheet_key_sent_as_needs, key.sentAsText(res), it) }
+                        ?: stringResource(R.string.library_mcp_sheet_key_sent_as, key.sentAsText(res)),
                 )
             }
         }
@@ -254,14 +245,19 @@ private fun ColumnScope.LocalTemplateFields(local: McpTemplate.Local, form: Temp
     val res = LocalResources.current
     SupportingText(stringResource(R.string.library_mcp_local_needs, local.needsText(res)))
     local.env.forEach { name ->
-        SecretContent()
-        OutlinedTextField(
-            form.env[name].orEmpty(), { v -> form.env = form.env + (name to v) },
-            label = { Text(local.fieldLabel(res, name)) },
-            supportingText = { Text(stringResource(R.string.library_mcp_local_stored)) },
-            singleLine = true,
-            visualTransformation = if (name in local.plain) androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth(),
-        )
+        val value = form.env[name].orEmpty()
+        val onValue = { v: String -> form.env = form.env + (name to v) }
+        // A setting that isn't secret (an address, a user name) shows as typed; the rest are secrets.
+        if (name in local.plain) {
+            OutlinedTextField(
+                value, onValue,
+                label = { Text(local.fieldLabel(res, name)) },
+                supportingText = { Text(stringResource(R.string.library_mcp_local_stored)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        } else {
+            PasswordField(value, onValue, label = local.fieldLabel(res, name), supportingText = stringResource(R.string.library_mcp_local_stored))
+        }
     }
 }

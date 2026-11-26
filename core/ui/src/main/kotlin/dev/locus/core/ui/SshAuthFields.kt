@@ -1,7 +1,14 @@
 package dev.locus.core.ui
 
 import android.content.res.Resources
+import dev.locus.core.designsystem.PasswordField
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.platform.LocalDensity
+import dev.locus.core.designsystem.Spacing
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -9,7 +16,6 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import dev.locus.core.designsystem.SecretContent
 import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.R as DesignR
@@ -64,25 +70,63 @@ fun SshAuthFields(
                 privateKey, onPrivateKey,
                 label = { Text(stringResource(if (needsSecret) R.string.ui_ssh_key_paste else R.string.ui_ssh_key_saved)) },
                 supportingText = note,
+                // Pasted, not typed: the keyboard mustn't learn or "correct" it.
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, autoCorrectEnabled = false),
                 minLines = 3, maxLines = 6, modifier = Modifier.fillMaxWidth(),
             )
-            SecretContent()
-            OutlinedTextField(
-                passphrase, onPassphrase, label = { Text(stringResource(R.string.ui_ssh_key_passphrase)) }, singleLine = true,
-                visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
-            )
+            PasswordField(passphrase, onPassphrase, label = stringResource(R.string.ui_ssh_key_passphrase))
         }
         SshAuth.PASSWORD -> {
-            SecretContent()
-            OutlinedTextField(
+            PasswordField(
                 password, onPassword,
-                label = { Text(stringResource(if (needsSecret) R.string.ui_ssh_auth_password else R.string.ui_ssh_password_saved)) },
-                supportingText = note,
-                singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
+                label = stringResource(if (needsSecret) R.string.ui_ssh_auth_password else R.string.ui_ssh_password_saved),
+                supportingText = secretNote,
             )
         }
     }
 }
+
+/**
+ * An SSH machine's host and port, as onboarding and Settings → SSH both ask for them: an address
+ * keyboard for the host and a number pad for the port, side by side, or stacked once a large font would
+ * squeeze "Port" into "Por / t".
+ */
+@Composable
+fun SshAddressFields(
+    host: String,
+    onHost: (String) -> Unit,
+    port: String,
+    onPort: (String) -> Unit,
+    hostLabel: String,
+    portLabel: String,
+) {
+    val hostField = @Composable { modifier: Modifier ->
+        OutlinedTextField(
+            host, { onHost(it.trim()) },
+            label = { Text(hostLabel) }, singleLine = true, modifier = modifier,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false),
+        )
+    }
+    val portField = @Composable { modifier: Modifier ->
+        OutlinedTextField(
+            port, { onPort(it.filter(Char::isDigit).take(5)) },
+            label = { Text(portLabel) }, singleLine = true, modifier = modifier,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        )
+    }
+    if (LocalDensity.current.fontScale > STACK_ADDRESS_FONT_SCALE) {
+        hostField(Modifier.fillMaxWidth())
+        portField(Modifier.fillMaxWidth())
+    } else {
+        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            hostField(Modifier.weight(3f))
+            portField(Modifier.weight(1f))
+        }
+    }
+}
+
+/** From this font scale [SshAddressFields] puts the host and the port on a line each. */
+private const val STACK_ADDRESS_FONT_SCALE = 1.3f
 
 /** "user@host:port", plus a warning when the machine logs in without authentication. */
 fun sshHostSubtitle(resources: Resources, host: SshHost): String =

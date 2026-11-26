@@ -12,7 +12,7 @@ import dev.locus.core.data.mcp.McpTemplates
 import dev.locus.core.data.mcp.McpFirstStatus
 import dev.locus.core.agent.integrations.McpFirst
 import androidx.compose.runtime.LaunchedEffect
-import dev.locus.core.designsystem.SecretContent
+import dev.locus.core.designsystem.PasswordField
 import dev.locus.core.designsystem.ConfirmSheet
 import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.LocusType
@@ -28,10 +28,10 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import dev.locus.core.agent.integrations.Integration
 import dev.locus.core.agent.integrations.Integrations
 import dev.locus.core.designsystem.CardGroup
@@ -281,7 +281,7 @@ private fun IntegrationKeySheet(
 ) {
     val uriHandler = LocalUriHandler.current
     val res = LocalResources.current
-    var value by remember { mutableStateOf("") }
+    var value by rememberSaveable { mutableStateOf("") }
     var confirmRemove by remember { mutableStateOf(false) }
     LocusSheet(
         // No subtitle: the description below starts with the same words.
@@ -294,13 +294,10 @@ private fun IntegrationKeySheet(
         SupportingText(integration.descriptionText(res))
         if (mcpFirst != null) McpFirstCard(integration, mcpFirst, onSetUseMcp)
         else officialMcp(integration.id)?.let { template -> onUseMcp?.let { UseMcpCard(integration, template, it) } }
-        SecretContent()
-        OutlinedTextField(
+        PasswordField(
             value, { value = it },
-            label = { Text(integration.keyLabelText(res).let { if (hasKey) stringResource(R.string.settings_integrations_key_saved, it) else it }) },
-            supportingText = integration.keyHelpText(res)?.let { { Text(it) } },
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
+            label = integration.keyLabelText(res).let { if (hasKey) stringResource(R.string.settings_integrations_key_saved, it) else it },
+            supportingText = integration.keyHelpText(res),
         )
         SupportingText(stringResource(R.string.settings_integrations_key_stored))
         // Side by side while they fit; at a large font "Remove key" moves to its own line instead of breaking.

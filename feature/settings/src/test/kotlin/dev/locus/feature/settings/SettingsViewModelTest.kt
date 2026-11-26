@@ -59,6 +59,23 @@ class SettingsViewModelTest {
     private suspend fun SettingsViewModel.state(until: (SettingsUiState) -> Boolean) = uiState.first { !it.loading && until(it) }
 
     @Test
+    fun `a revoked remembered approval comes back as it was when the revoke is undone`() = runTest {
+        val now = System.currentTimeMillis()
+        val rule = dev.locus.core.model.RememberedApproval(
+            id = "r1", tool = "run_command", kind = dev.locus.core.model.ApprovalScopeKind.COMMAND, value = "./gradlew test",
+            createdAt = now, expiresAt = now + dev.locus.core.model.RememberedApproval.DEFAULT_TTL_MS,
+        )
+        val f = fixture(AppSettings(rememberedApprovals = listOf(rule)))
+        assertEquals(listOf(rule), f.vm.state { it.remembered.isNotEmpty() }.remembered)
+
+        f.vm.revokeRemembered("r1")
+        assertTrue(f.vm.state { it.remembered.isEmpty() }.remembered.isEmpty())
+        // Undo on the message: the same rule, with its id, scope and expiry.
+        f.vm.restoreRemembered(rule)
+        assertEquals(listOf(rule), f.vm.state { it.remembered.isNotEmpty() }.remembered)
+    }
+
+    @Test
     fun `providers show whether their own key is saved and which is the default`() = runTest {
         val f = fixture()
         f.vm.saveProvider(anthropic, "KEY-A")

@@ -31,6 +31,7 @@ import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.KeyValueRow
 import dev.locus.core.designsystem.ListRow
+import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.RowChevron
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.SectionLabel
@@ -70,6 +71,9 @@ class AutomationViewModel @Inject constructor(
 
     /** Forgets the answer: the app is asked about again next time. */
     fun forget(pkg: String) = viewModelScope.launch { settings.setAutomationCaller(pkg, null) }
+
+    /** Puts back an answer [forget] dropped (the snackbar's Undo). */
+    fun restore(app: AutomationApp) = viewModelScope.launch { settings.setAutomationCaller(app.packageName, app.allowed) }
 }
 
 @Composable
@@ -82,7 +86,7 @@ internal fun AutomationRoute(onBack: () -> Unit, viewModel: AutomationViewModel 
         assistant = DefaultAssistant.isLocus(context)
         onPauseOrDispose { }
     }
-    AutomationSettings(state, onBack, viewModel::setEnabled, viewModel::forget, assistant) { DefaultAssistant.openSettings(context) }
+    AutomationSettings(state, onBack, viewModel::setEnabled, viewModel::forget, assistant, onRestore = viewModel::restore) { DefaultAssistant.openSettings(context) }
 }
 
 /**
@@ -120,8 +124,12 @@ internal fun AutomationSettings(
     onSetEnabled: (Boolean) -> Unit,
     onForget: (String) -> Unit,
     assistant: Boolean? = null,
+    /** Undo for Forget: the app's answer comes back. */
+    onRestore: (AutomationApp) -> Unit = {},
     onOpenAssistant: () -> Unit = {},
 ) {
+    val feedback = Locus.feedback
+    val undo = stringResource(dev.locus.core.designsystem.R.string.common_undo)
     SettingsPageScaffold(stringResource(R.string.settings_automation_title), onBack) {
         item {
             CardGroup {
@@ -172,12 +180,19 @@ internal fun AutomationSettings(
             item {
                 CardGroup {
                     state.apps.forEachIndexed { i, app ->
+                        val forgotten = stringResource(R.string.settings_automation_forgotten, app.label)
                         if (i > 0) GroupDivider(inset = Insets.iconRow)
                         ListRow(
                             title = app.label,
                             subtitle = stringResource(if (app.allowed) R.string.settings_automation_app_allowed else R.string.settings_automation_app_denied),
                             leading = { IconTile(if (app.allowed) LocusIcons.Check else LocusIcons.Close) },
-                            trailing = { TextButton(onClick = { onForget(app.packageName) }) { Text(stringResource(R.string.settings_automation_forget), maxLines = 1, overflow = TextOverflow.Ellipsis) } },
+                            trailing = {
+                                TextButton(onClick = {
+                                    onForget(app.packageName)
+                                    // Forgetting only means the app is asked again; Undo puts the answer back.
+                                    feedback.show(forgotten, action = undo, onAction = { onRestore(app) })
+                                }) { Text(stringResource(R.string.settings_automation_forget), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                            },
                         )
                     }
                 }

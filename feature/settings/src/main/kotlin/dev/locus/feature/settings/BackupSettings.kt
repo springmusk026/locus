@@ -3,7 +3,11 @@ package dev.locus.feature.settings
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import dev.locus.core.model.SettingsDestination
-import dev.locus.core.designsystem.SecretContent
+import dev.locus.core.designsystem.PasswordField
+import androidx.annotation.StringRes
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.text.input.ImeAction
 import dev.locus.core.designsystem.SettingsLink
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -12,22 +16,17 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.data.backup.BackupArchive
@@ -76,7 +75,8 @@ internal fun BackupRoute(
     val resources = LocalResources.current
     val save = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { viewModel.backup(it) }
     val open = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { viewModel.pickedRestoreFile(it) }
-    var askPassword by remember { mutableStateOf(false) }
+    // Saved, like the sheet's fields: turning the phone mid-way keeps the password sheet open and filled.
+    var askPassword by rememberSaveable { mutableStateOf(false) }
 
     BackupSettings(
         state = state,
@@ -267,12 +267,21 @@ private fun ProgressCard(progress: BackupProgress, onCancel: (() -> Unit)? = nul
     }
 }
 
-/** Choose and confirm the backup password. */
+/**
+ * Choose and confirm the backup password. Both fields survive turning the phone (rememberSaveable,
+ * docs/design/design-system.md, "Secrets"); the strength meter and a too-short or too-easy error show
+ * under the first field once something is typed in it and the person has moved on.
+ */
 @Composable
-private fun NewPasswordSheet(includesVault: Boolean, onDismiss: () -> Unit, onDone: (String) -> Unit) {
-    var password by remember { mutableStateOf("") }
-    var again by remember { mutableStateOf("") }
+internal fun NewPasswordSheet(includesVault: Boolean, onDismiss: () -> Unit, onDone: (String) -> Unit) {
+    var password by rememberSaveable { mutableStateOf("") }
+    var again by rememberSaveable { mutableStateOf("") }
+    // Whether the first field was left with something in it: its error waits until then, not the first key.
+    var leftPassword by rememberSaveable { mutableStateOf(false) }
     val problem = backupPasswordProblem(password, again)
+    val strength = passwordStrength(password)
+    val firstFieldError = (leftPassword || again.isNotEmpty()) && password.isNotEmpty() &&
+        problem in setOf(PasswordProblem.TooShort, PasswordProblem.Blank, PasswordProblem.TooWeak)
     LocusSheet(
         title = stringResource(R.string.settings_backup_password_title),
         subtitle = stringResource(if (includesVault) R.string.settings_backup_password_subtitle_keys else R.string.settings_backup_password_subtitle),
@@ -281,28 +290,36 @@ private fun NewPasswordSheet(includesVault: Boolean, onDismiss: () -> Unit, onDo
         actionEnabled = problem == null,
         onAction = { onDone(password) },
     ) {
-        SecretContent()
-        OutlinedTextField(
+        PasswordField(
             password, { password = it },
-            label = { Text(stringResource(R.string.settings_backup_password_label)) },
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            modifier = Modifier.fillMaxWidth(),
-            supportingText = { Text(stringResource(R.string.settings_backup_password_hint, MIN_PASSWORD)) },
+            label = stringResource(R.string.settings_backup_password_label),
+            isError = firstFieldError,
+            supportingText = when {
+                !firstFieldError -> stringResource(R.string.settings_backup_password_hint, MIN_PASSWORD)
+                problem == PasswordProblem.TooWeak -> stringResource(R.string.settings_backup_password_weak)
+                else -> stringResource(R.string.settings_backup_password_too_short, MIN_PASSWORD)
+            },
+            modifier = Modifier.onFocusChanged { if (!it.isFocused && password.isNotEmpty()) leftPassword = true },
         )
-        SecretContent()
-        OutlinedTextField(
+        if (password.isNotEmpty()) PasswordStrengthMeter(strength)
+        PasswordField(
             again, { again = it },
-            label = { Text(stringResource(R.string.settings_backup_password_again)) },
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            modifier = Modifier.fillMaxWidth(),
+            label = stringResource(R.string.settings_backup_password_again),
             isError = again.isNotEmpty() && again != password,
-            supportingText = if (again.isNotEmpty() && again != password) ({ Text(stringResource(R.string.settings_backup_password_mismatch)) }) else null,
+            supportingText = if (again.isNotEmpty() && again != password) stringResource(R.string.settings_backup_password_mismatch) else null,
+            imeAction = ImeAction.Done,
         )
         Banner(text = stringResource(R.string.settings_backup_password_forgotten), tone = Tone.Caution)
+    }
+}
+
+/** How hard the password looks to guess: a meter in the strength's tone and a line that says it. */
+@Composable
+private fun PasswordStrengthMeter(strength: PasswordStrength) {
+    val text = stringResource(strength.label)
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        Meter(strength.fraction, tone = strength.tone, contentDescription = text)
+        SupportingText(text, style = LocusType.rowSupporting)
     }
 }
 
@@ -312,12 +329,49 @@ internal const val MIN_PASSWORD = 8
 internal fun backupPasswordProblem(password: String, again: String): PasswordProblem? = when {
     password.length < MIN_PASSWORD -> PasswordProblem.TooShort
     password.isBlank() -> PasswordProblem.Blank
+    passwordStrength(password) == PasswordStrength.Weak -> PasswordProblem.TooWeak
     again != password -> PasswordProblem.Mismatch
     else -> null
 }
 
 /** What keeps a backup password from being used; the sheet turns Continue off (the fields say why). */
-internal enum class PasswordProblem { TooShort, Blank, Mismatch }
+internal enum class PasswordProblem { TooShort, Blank, TooWeak, Mismatch }
+
+/**
+ * A rough strength for the backup password, which is all that protects the file wherever it's saved.
+ * It isn't an estimate of guesses: it turns away the passwords anyone would try first and says when a
+ * password is long or varied enough.
+ *
+ * - **Weak** (refused): shorter than [MIN_PASSWORD]; fewer than five different characters
+ *   ("aaaaaaaa", "abababab"); a run up or down the alphabet or digits ("12345678", "abcdefgh"); or one of
+ *   the most common passwords, with digits on the end ("password1").
+ * - **Strong**: 16 characters or more, or 12 or more mixing three kinds (lower case, upper case, digits, symbols).
+ * - **Fair**: anything in between.
+ */
+internal enum class PasswordStrength(@StringRes val label: Int, val tone: Tone, val fraction: Float) {
+    Weak(R.string.settings_backup_strength_weak, Tone.Critical, 1f / 3),
+    Fair(R.string.settings_backup_strength_fair, Tone.Caution, 2f / 3),
+    Strong(R.string.settings_backup_strength_strong, Tone.Live, 1f),
+}
+
+internal fun passwordStrength(password: String): PasswordStrength {
+    if (password.length < MIN_PASSWORD || password.toSet().size < 5) return PasswordStrength.Weak
+    val steps = password.zipWithNext { a, b -> b - a }.toSet()
+    if (steps.size == 1 && steps.single() in -1..1) return PasswordStrength.Weak
+    if (password.lowercase().trimEnd(Char::isDigit) in COMMON_PASSWORDS) return PasswordStrength.Weak
+    val kinds = listOf(Char::isLowerCase, Char::isUpperCase, Char::isDigit).count { kind -> password.any(kind) } +
+        (if (password.any { !it.isLetterOrDigit() }) 1 else 0)
+    return when {
+        password.length >= 16 || (password.length >= 12 && kinds >= 3) -> PasswordStrength.Strong
+        else -> PasswordStrength.Fair
+    }
+}
+
+/** The first passwords anyone tries, lower case and without trailing digits (top of public breach lists). */
+private val COMMON_PASSWORDS = setOf(
+    "password", "passw0rd", "qwerty", "qwertyuiop", "qwertyui", "asdfghjk", "iloveyou", "letmein", "welcome",
+    "admin", "abc", "football", "baseball", "dragon", "monkey", "sunshine", "princess", "trustno1", "locus", "backup",
+)
 
 /** The restore flow in one sheet: password, checking, preview and confirm. */
 @Composable
@@ -333,7 +387,7 @@ private fun RestoreSheet(
     when (step) {
         RestoreStep.Idle -> Unit
         is RestoreStep.Password -> {
-            var password by remember(step.uri) { mutableStateOf("") }
+            var password by rememberSaveable(step.uri) { mutableStateOf("") }
             val notABackup = step.unreadable
             // A file that isn't a backup has no password to ask for: say so, and offer another file.
             LocusSheet(
@@ -347,14 +401,10 @@ private fun RestoreSheet(
                 if (step.noSpace != null) NoSpaceBanner(step.noSpace)
                 else if (step.error != null) Banner(text = step.error.asString(), tone = Tone.Critical)
                 if (!notABackup) {
-                    SecretContent()
-                    OutlinedTextField(
+                    PasswordField(
                         password, { password = it },
-                        label = { Text(stringResource(R.string.settings_backup_open_password)) },
-                        singleLine = true,
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        modifier = Modifier.fillMaxWidth(),
+                        label = stringResource(R.string.settings_backup_open_password),
+                        imeAction = ImeAction.Done,
                     )
                     SupportingText(
                         stringResource(R.string.settings_backup_open_note),

@@ -21,8 +21,7 @@ import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import dev.locus.core.designsystem.SecretContent
+import dev.locus.core.designsystem.PasswordField
 import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.LocalNetworkGate
 import dev.locus.core.designsystem.LocalNetworkNote
@@ -133,19 +132,13 @@ private fun RemoteFields(viewModel: OnboardingViewModel, localNetwork: LocalNetw
         LocalNetworkNote(draft.baseUrl, localNetwork)
     }
     if (draft.preset.requiresKey) {
-        SecretContent()
-        OutlinedTextField(
+        val host = draft.baseUrl.substringAfter("://").substringBefore('/')
+        // Trimmed as it's typed or pasted: a key copied with a trailing space or line break fails every request.
+        PasswordField(
             draft.key,
-            { v -> viewModel.editProvider { it.copy(key = v) } },
-            label = { Text(stringResource(R.string.onboarding_provider_api_key)) },
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            supportingText = {
-                val host = draft.baseUrl.substringAfter("://").substringBefore('/')
-                Text(if (host.isBlank()) stringResource(R.string.onboarding_provider_key_note_provider) else stringResource(R.string.onboarding_provider_key_note_host, host))
-            },
-            modifier = Modifier.fillMaxWidth(),
+            { v -> viewModel.editProvider { it.copy(key = v.trim()) } },
+            label = stringResource(R.string.onboarding_provider_api_key),
+            supportingText = if (host.isBlank()) stringResource(R.string.onboarding_provider_key_note_provider) else stringResource(R.string.onboarding_provider_key_note_host, host),
         )
     }
     OutlinedTextField(

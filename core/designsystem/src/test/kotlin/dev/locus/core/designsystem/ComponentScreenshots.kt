@@ -31,6 +31,11 @@ class ComponentScreenshots : ScreenshotTest() {
     @Test fun errorState() = snap("error-state", heightDp = 360) { ErrorStatePreview() }
     @Test fun errorStateRetrying() = snap("error-state-retrying", heightDp = 360) { ErrorStateRetryingPreview() }
     @Test fun confirmSheetBody() = snap("confirm-sheet-body", heightDp = 400) { ConfirmSheetPreview() }
+    @Test fun timeSheet() = snap("time-sheet", heightDp = 900) {
+        val title = "Starting at"
+        val clear = "Right after saving"
+        TimeSheet(title, minuteOfDay = 7 * 60 + 30, onPick = {}, onDismiss = {}, clearLabel = clear, onClear = {})
+    }
     @Test fun feedback() = snap("feedback", heightDp = 260) { FeedbackPreview() }
     @Test fun topBar() = snap("top-bar", heightDp = 120) { TopBarPreview() }
     @Test fun chatParts() = snap("chat-parts", heightDp = 240) { ChatPartsPreview() }

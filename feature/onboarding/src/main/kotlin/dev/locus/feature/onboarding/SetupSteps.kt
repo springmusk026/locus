@@ -1,7 +1,9 @@
 package dev.locus.feature.onboarding
 
 import androidx.compose.ui.platform.LocalResources
-import dev.locus.core.designsystem.SecretContent
+import dev.locus.core.designsystem.PasswordField
+import dev.locus.core.ui.SshAddressFields
+import dev.locus.core.designsystem.ConfirmSheet
 import dev.locus.core.designsystem.asString
 import dev.locus.core.designsystem.UiText
 import androidx.compose.foundation.clickable
@@ -32,7 +34,6 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.res.pluralStringResource
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.agent.integrations.Integration
 import dev.locus.core.agent.integrations.Integrations
@@ -211,30 +212,12 @@ internal fun ColumnScope.SshStep(state: OnboardingUiState, viewModel: Onboarding
     LocusCard {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             OutlinedTextField(d.alias, { v -> viewModel.editSsh { it.copy(alias = v) } }, label = { Text(stringResource(R.string.onboarding_ssh_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            val host = @Composable { modifier: Modifier ->
-                OutlinedTextField(
-                    d.host, { v -> viewModel.editSsh { it.copy(host = v.trim()) } },
-                    label = { Text(stringResource(R.string.onboarding_ssh_host)) }, singleLine = true, modifier = modifier,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                )
-            }
-            val port = @Composable { modifier: Modifier ->
-                OutlinedTextField(
-                    d.port, { v -> viewModel.editSsh { it.copy(port = v.filter(Char::isDigit).take(5)) } },
-                    label = { Text(stringResource(R.string.onboarding_ssh_port)) }, singleLine = true, modifier = modifier,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                )
-            }
-            // Side by side, unless a large font would squeeze Port's label into "Por / t": then stacked.
-            if (androidx.compose.ui.platform.LocalDensity.current.fontScale > 1.3f) {
-                host(Modifier.fillMaxWidth())
-                port(Modifier.fillMaxWidth())
-            } else {
-                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    host(Modifier.weight(3f))
-                    port(Modifier.weight(1f))
-                }
-            }
+            SshAddressFields(
+                d.host, { v -> viewModel.editSsh { it.copy(host = v) } },
+                d.port, { v -> viewModel.editSsh { it.copy(port = v) } },
+                hostLabel = stringResource(R.string.onboarding_ssh_host),
+                portLabel = stringResource(R.string.onboarding_ssh_port),
+            )
             LocalNetworkNote(d.host, localNetwork)
             OutlinedTextField(d.user, { v -> viewModel.editSsh { it.copy(user = v.trim()) } }, label = { Text(stringResource(R.string.onboarding_ssh_user)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
             SshAuthFields(
@@ -316,12 +299,10 @@ internal fun ColumnScope.ConnectorsStep(state: OnboardingUiState, viewModel: Onb
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri), modifier = Modifier.fillMaxWidth(),
             )
             LocalNetworkNote(url, localNetwork)
-            SecretContent()
-            OutlinedTextField(
-                token, { token = it }, label = { Text(stringResource(R.string.onboarding_connectors_mcp_token)) }, singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                supportingText = { Text(stringResource(R.string.onboarding_connectors_mcp_token_note)) },
-                modifier = Modifier.fillMaxWidth(),
+            PasswordField(
+                token, { token = it.trim() },
+                label = stringResource(R.string.onboarding_connectors_mcp_token),
+                supportingText = stringResource(R.string.onboarding_connectors_mcp_token_note),
             )
             val adding = viewModel.mcpAdd.running
             Button(
@@ -348,6 +329,8 @@ internal fun ColumnScope.ConnectorsStep(state: OnboardingUiState, viewModel: Onb
 @Composable
 private fun IntegrationKeySheet(integration: Integration, hasKey: Boolean, onSave: (String?) -> Unit, onDismiss: () -> Unit) {
     var key by rememberSaveable { mutableStateOf("") }
+    // Removing a saved key can't be undone (it isn't kept anywhere), so it asks first, as Settings does.
+    var confirmRemove by rememberSaveable { mutableStateOf(false) }
     val problem = keyProblem(integration, key)
     val uri = LocalUriHandler.current
     val res = LocalResources.current
@@ -359,25 +342,31 @@ private fun IntegrationKeySheet(integration: Integration, hasKey: Boolean, onSav
         actionEnabled = key.isNotBlank() && problem == null,
         onAction = { onSave(key) },
     ) {
-        SecretContent()
-        OutlinedTextField(
+        PasswordField(
             key,
             { key = it },
-            label = { Text(integration.keyLabelText(res).let { if (hasKey) stringResource(R.string.onboarding_connectors_key_label_saved, it) else it }) },
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            label = integration.keyLabelText(res).let { if (hasKey) stringResource(R.string.onboarding_connectors_key_label_saved, it) else it },
             isError = problem != null,
-            supportingText = (problem?.asString() ?: integration.keyHelpText(res))?.let { { Text(it) } },
-            modifier = Modifier.fillMaxWidth(),
+            supportingText = problem?.asString() ?: integration.keyHelpText(res),
         )
         Row {
             TextButton(onClick = { uri.openUri(integration.signupUrl) }) { Text(integration.linkLabelText(res)) }
             if (hasKey) {
                 androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
-                TextButton(onClick = { onSave(null) }) { Text(stringResource(R.string.onboarding_connectors_key_remove), color = Locus.colors.critical) }
+                TextButton(onClick = { confirmRemove = true }) { Text(stringResource(R.string.onboarding_connectors_key_remove), color = Locus.colors.critical) }
             }
         }
+    }
+    if (confirmRemove) {
+        val name = integration.displayName(res)
+        ConfirmSheet(
+            title = stringResource(R.string.onboarding_connectors_key_remove_title, name),
+            message = stringResource(R.string.onboarding_connectors_key_remove_message, name),
+            confirmLabel = stringResource(R.string.onboarding_connectors_key_remove),
+            tone = Tone.Critical,
+            onConfirm = { confirmRemove = false; onSave(null) },
+            onDismiss = { confirmRemove = false },
+        )
     }
 }
 
