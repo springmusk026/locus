@@ -1812,9 +1812,11 @@ class AgentLoop(
                 )
             }
         }
+        // A command a rule let run without the user (alone or with the reviewer) runs git with hooks and fsmonitor off.
+        val runArgs = if (remembered?.kind == ApprovalScopeKind.COMMAND && decision != ApprovalDecision.USER_APPROVED) ApprovalScopes.forRule(args) else args
         val context = callContext()
         val result = try {
-            withContext(context + ChatScope.element(limits.project)) { tool.execute(args) }
+            withContext(context + ChatScope.element(limits.project)) { tool.execute(runArgs) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: ToolException) {
