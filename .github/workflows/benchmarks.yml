@@ -13,7 +13,7 @@ on:
       model:
         description: "Model id, e.g. claude-haiku-4-5"
         required: false
-        default: claude-haiku-4-5
+        default: claude-haiku-5-5
       tier:
         description: "Task tier: standard (the original 38, comparable with earlier runs), hard, or all"
         required: true

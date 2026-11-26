@@ -31,6 +31,11 @@ def parse(text: str, name: str) -> dict:
 
 
 def main() -> int:
+    unknown = [a for a in sys.argv[1:] if a != "--check"]
+    if unknown:
+        # Anything else (even --help) must not fall through to folding and deleting the fragments.
+        print(__doc__.strip() + "\n\nUsage: tools/changelog.py [--check]", file=sys.stderr)
+        return 0 if unknown in (["-h"], ["--help"]) else 2
     files = sorted(p for p in FRAGMENTS.glob("*.md") if p.name != "README.md")
     try:
         parsed = [(p, parse(p.read_text(encoding="utf-8"), p.name)) for p in files]
