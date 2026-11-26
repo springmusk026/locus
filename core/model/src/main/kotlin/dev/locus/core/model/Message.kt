@@ -103,6 +103,18 @@ sealed interface Part {
     @Serializable
     @SerialName("reasoning")
     data class Reasoning(val content: String, val durationMs: Long = 0) : Part
+
+    /**
+     * On an assistant turn from a model that can change effort mid-chat without changing the cached
+     * prefix (docs/design/midchat-config.md): the level the turn was requested at ([effort]) and the
+     * top-level value its request carried ([topLevel]), both as the provider spells them, blank for the
+     * model's own default. The adapter rebuilds every earlier request from these, so per-message effort
+     * changes stay where they were first sent. Never shown and never sent as content; other adapters
+     * ignore it.
+     */
+    @Serializable
+    @SerialName("turn_effort")
+    data class TurnEffort(val effort: String, val topLevel: String) : Part
 }
 
 /**

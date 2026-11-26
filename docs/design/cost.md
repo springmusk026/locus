@@ -156,7 +156,8 @@ and they don't. It's also Claude API only, and it keeps a fingerprint at Anthrop
     back to it as the default) its current level as its own (`ConversationDao.keepEffort`,
     `ConversationRepository.moveToModelDefaultEffort`). Their next request is byte for byte what it would
     have been; the composer's effort sheet shows High chosen for them, and the user can change it there
-    (one cache miss, as any mid-chat change). New chats, and chats with nothing sent yet, use the model's
+    (one cache miss on models without per-message effort; none on those with it, see
+    [mid-chat changes](#cache-safe-mid-chat-changes)). New chats, and chats with nothing sent yet, use the model's
     default. Helper chats keep their profile's effort. No Room schema change: the column existed (v5).
 - **Side jobs.** Titles and follow-up suggestions run at `low` (`HelperModel.QUICK_EFFORT`), as the
   reviewer already did. Anthropic recommends low for "simpler tasks that need the best speed and lowest
@@ -170,6 +171,17 @@ and they don't. It's also Claude API only, and it keeps a fingerprint at Anthrop
 
   A 400 or 422 that names reasoning gets the request once more without the field, as the Responses
   adapter does. Other hosts (Groq, Ollama, local servers) never get it.
+
+## Cache-safe mid-chat changes
+
+Changing effort in a chat that has messages no longer changes the top-level config on models whose docs
+give a per-message form: Anthropic's per-message effort (beta `mid-conversation-output-config-2026-07-01`,
+an effort-only `role: "system"` message) on Opus 5.5, Opus 5, Sonnet 5.5, Haiku 5.5, Fable 5.1/5.2 and
+Mythos 5.1/5.2 on Anthropic's API, and OpenAI's `configuration_update` input item on GPT-6 and later on
+OpenAI's API. The request keeps its top-level effort and every earlier byte; a 400 naming the feature is
+retried once the old way and remembered per provider. Chat Completions has no such item and is unchanged.
+Research with sources, the request shapes, the fallback and why steering notes stay in the user message:
+[midchat-config.md](midchat-config.md).
 
 ## OpenRouter and Chat Completions caching
 

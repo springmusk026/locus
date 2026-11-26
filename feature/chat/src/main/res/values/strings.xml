@@ -279,6 +279,7 @@
     <string name="chat_effort_provider_setting">%1$s, the provider\'s own setting.</string>
     <string name="chat_effort_provider_default">Provider default</string>
     <string name="chat_effort_note">Changing this mid-chat makes the next reply a little slower and costlier, once. On current Claude models “Off” means the lowest effort, since their thinking can\'t be switched off.</string>
+    <string name="chat_effort_note_keeps_cache">On this model a change mid-chat keeps the chat\'s cache, so it costs nothing extra. It applies from your next message. On current Claude models “Off” means the lowest effort, since their thinking can\'t be switched off.</string>
     <string name="chat_effort_hint">A provider\'s default is set when you edit it in</string>
     <string name="chat_mode_title">Chat mode</string>
     <string name="chat_mode_subtitle">What Locus may change in this chat.</string>
