@@ -53,9 +53,12 @@ Written 2026-11-02. Implements [algorithms #9](../research/agent-algorithms-2026
   - Before every search, `syncIndex` compares each file's `lastModified:length:hash(summary)` with the stored fingerprint, re-reads what changed and drops what's gone. This is one directory listing, and it covers restores and files changed outside Locus.
   - `LocusApplication.onCreate` calls `openMemoryIndex()` on IO, so a missing index is rebuilt at start.
 - **Failure.** Every index call is guarded:
-  - Any SQLite error closes and deletes the file, and the search falls back to scanning the notes, with the same word rules and Unicode-correct folding.
-  - The next call rebuilds the index.
-  - After three failures in a row, the index stays off for the process.
+  - A file SQLite calls damaged (`SQLITE_CORRUPT`, `SQLITE_NOTADB`, or a missing table, column or module) is closed and deleted, and the search falls back to scanning the notes, with the same word rules and Unicode-correct folding. The next call rebuilds the index.
+  - A busy or locked file (`SQLITE_BUSY`, `SQLITE_LOCKED`, for example two quick saves racing) is never deleted. Each connection sets `busy_timeout` (3 s) first, a call that still finds it busy is tried twice more, and then that one call falls back to scanning. A busy file doesn't count as a failure.
+  - Any other error (disk full, an I/O error) keeps the file, opens a fresh connection next time, and counts as a failure.
+  - After three failures in a row (damaged or other), the index stays off for the process.
+  - A topic file that can't be read is indexed with empty text (`AgentHome.doc`); it doesn't fail the sync.
+  - The per-memory index cache is a `ConcurrentHashMap`, whose `getOrPut` stores one instance.
   - A `user_version` other than the current schema means "start over".
 - **Topic names.** `AgentHome.memorySlug` keeps letters, digits and marks of every script (NFC, lower case, at most 60 code points, never cutting a surrogate pair), so "नेपाली खाना" is saved as `नेपाली-खाना.md`.
   - For ASCII names it gives exactly what `slug` gave.

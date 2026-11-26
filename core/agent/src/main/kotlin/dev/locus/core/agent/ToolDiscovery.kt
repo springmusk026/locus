@@ -229,17 +229,89 @@ class ToolIndex(private val tools: List<ToolSpec>) {
             }
         }
 
-        /** Lowercase words, split on anything but letters and digits, stop words dropped, plural and -ing endings trimmed. */
-        fun terms(text: String): List<String> =
-            text.lowercase().split(Regex("[^\\p{L}\\p{N}]+")).filter { it.isNotEmpty() && it !in STOP }.map(::stem)
-
-        private fun stem(word: String): String = when {
-            word.length > 5 && word.endsWith("ing") -> word.dropLast(3)
-            word.length > 4 && word.endsWith("ies") -> word.dropLast(3) + "y"
-            word.length > 4 && word.endsWith("es") && (word.endsWith("ches") || word.endsWith("shes") || word.endsWith("xes") || word.endsWith("sses")) -> word.dropLast(2)
-            word.length > 3 && word.endsWith("s") && !word.endsWith("ss") -> word.dropLast(1)
-            else -> word
+        /**
+         * Lowercase words, stop words dropped, plural and -ing endings trimmed. Text is split on anything
+         * but letters, digits and combining marks, and a camelCase word (`createIssue`, `HTMLParser`) also on its case
+         * changes: its parts are terms, and so is the joined word. Runs of Chinese, Japanese, Korean or
+         * Thai, which have no spaces between words, become overlapping two-character terms (`闹钟` from
+         * `设置闹钟和提醒`); a lone character is a term of its own. Documents and queries use the same rules.
+         */
+        fun terms(text: String): List<String> = buildList {
+            for (word in NON_WORD.split(text)) {
+                if (word.isEmpty()) continue
+                for ((spaceless, segment) in segments(word)) {
+                    if (spaceless) {
+                        addAll(bigrams(segment.lowercase()))
+                    } else {
+                        val parts = CASE_CHANGE.split(segment)
+                        for (part in parts) addTerm(part)
+                        if (parts.size > 1) addTerm(segment)
+                    }
+                }
+            }
         }
+
+        private fun MutableList<String>.addTerm(word: String) {
+            val w = word.lowercase()
+            if (w.isNotEmpty() && w !in STOP) add(stem(w))
+        }
+
+        private val NON_WORD = Regex("[^\\p{L}\\p{N}\\p{M}]+")
+
+        /** Between a lower-case letter or digit and a capital (`createIssue`), and before the last capital of a run (`HTMLParser`). */
+        private val CASE_CHANGE = Regex("(?<=[\\p{Ll}\\p{N}])(?=\\p{Lu})|(?<=\\p{Lu})(?=\\p{Lu}\\p{Ll})")
+
+        /** [word] cut into runs of text written without spaces between words (true) and everything else (false). */
+        private fun segments(word: String): List<Pair<Boolean, String>> {
+            val out = mutableListOf<Pair<Boolean, String>>()
+            val run = StringBuilder()
+            var spaceless = false
+            var i = 0
+            while (i < word.length) {
+                val cp = word.codePointAt(i)
+                val now = isSpaceless(cp)
+                if (run.isNotEmpty() && now != spaceless) {
+                    out += spaceless to run.toString()
+                    run.clear()
+                }
+                spaceless = now
+                run.appendCodePoint(cp)
+                i += Character.charCount(cp)
+            }
+            if (run.isNotEmpty()) out += spaceless to run.toString()
+            return out
+        }
+
+        private fun isSpaceless(cp: Int): Boolean = cp >= 0x0E00 && when (Character.UnicodeScript.of(cp)) {
+            Character.UnicodeScript.HAN, Character.UnicodeScript.HIRAGANA, Character.UnicodeScript.KATAKANA,
+            Character.UnicodeScript.HANGUL, Character.UnicodeScript.THAI, Character.UnicodeScript.LAO,
+            Character.UnicodeScript.KHMER, Character.UnicodeScript.MYANMAR,
+            -> true
+            else -> false
+        }
+
+        /** Every pair of neighbouring characters (code points) in [run]; the run itself when it has just one. */
+        private fun bigrams(run: String): List<String> {
+            val points = run.codePoints().toArray()
+            if (points.size < 2) return listOf(run)
+            return (0 until points.size - 1).map { String(points, it, 2) }
+        }
+
+        private fun stem(word: String): String {
+            var w = when {
+                word.length > 4 && word.endsWith("ies") -> word.dropLast(3) + "y"
+                word.length > 4 && word.endsWith("es") && (word.endsWith("ches") || word.endsWith("shes") || word.endsWith("xes") || word.endsWith("sses")) -> word.dropLast(2)
+                word.length > 3 && word.endsWith("s") && !word.endsWith("ss") -> word.dropLast(1)
+                else -> word
+            }
+            // Not "string" -> "str": what is left of an -ing word has a vowel, as in Porter's stemmer.
+            if (w.length > 5 && w.endsWith("ing") && w.dropLast(3).any { it in "aeiouy" }) w = w.dropLast(3)
+            // running -> runn, setting -> sett: one consonant, so they meet run and set. Applied to every word, so add and adding still meet.
+            if (w.length >= 3 && w[w.length - 1] == w[w.length - 2] && w.last() in DOUBLED) w = w.dropLast(1)
+            return w
+        }
+
+        private const val DOUBLED = "bdgmnprt"
 
         private val STOP = setOf(
             "a", "an", "the", "and", "or", "of", "to", "in", "on", "for", "with", "by", "is", "it", "be", "as", "at", "from", "this",
