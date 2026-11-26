@@ -1402,7 +1402,7 @@ private fun StepsGroup(steps: List<ChatItem>, activeTool: String?) {
         if (collapsible) {
             val label = pluralStringResource(R.plurals.chat_screen_steps, allCalls.size, allCalls.size)
             val hideShowSteps = stringResource(if (expanded) R.string.chat_screen_hide_steps else R.string.chat_screen_show_steps)
-            val failedText = if (failed > 0) stringResource(R.string.chat_screen_n_failed, failed) else ""
+            val failedText = if (failed > 0) pluralStringResource(R.plurals.chat_screen_n_failed, failed, failed) else ""
             val workingText = stringResource(R.string.chat_screen_working)
             val expandedText = stringResource(if (expanded) R.string.chat_changes_expanded else R.string.chat_changes_collapsed)
             Row(

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
 import android.text.format.DateFormat
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
@@ -229,7 +230,7 @@ private val REMOTE_DURATIONS = listOf(30L, 60L, 120L, 240L, 480L)
 private fun TelegramRemoteSection(remoteFlow: Flow<TelegramRemoteSettings>, chatId: Long?, actions: TelegramActions) {
     val remote by remoteFlow.collectAsState(initial = TelegramRemoteSettings())
     val context = LocalContext.current
-    var minutes by remember { mutableStateOf(60L) }
+    var minutes by remember { mutableLongStateOf(60L) }
     val private = chatId != null && TelegramRemote.privateChat(chatId)
     // Ticks: "On until 14:30" turns back into the off state at 14:30, even if nothing else changes.
     val on by rememberBefore(remote.switchesOffAt)

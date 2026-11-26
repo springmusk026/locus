@@ -308,13 +308,13 @@ private fun Verdict(state: SelfTestUiState, onRun: () -> Unit) {
             if (!finished) {
                 val fraction = meterFraction(state.done.toLong(), state.rows.size.toLong())
                 Meter(fraction, size = MeterSize.Medium, contentDescription = stringResource(R.string.settings_selftest_progress_description, meterPercent(fraction)))
-                SupportingText(if (state.rows.isEmpty()) stringResource(R.string.settings_selftest_starting) else stringResource(R.string.settings_selftest_progress, state.done, state.rows.size))
+                SupportingText(if (state.rows.isEmpty()) stringResource(R.string.settings_selftest_starting) else pluralStringResource(R.plurals.settings_selftest_progress, state.done, state.done, state.rows.size))
             } else {
                 SupportingText(
                     summaryJoin(
                         listOfNotNull(
-                            stringResource(R.string.settings_selftest_passed, results.count { it.level == SelfTestLevel.Pass }),
-                            results.count { it.level == SelfTestLevel.Skipped }.takeIf { it > 0 }?.let { stringResource(R.string.settings_selftest_skipped, it) },
+                            pluralStringResource(R.plurals.settings_selftest_passed, results.count { it.level == SelfTestLevel.Pass }, results.count { it.level == SelfTestLevel.Pass }),
+                            results.count { it.level == SelfTestLevel.Skipped }.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.settings_selftest_skipped, it, it) },
                             state.finishedAt?.let { stringResource(R.string.settings_selftest_checked, relativeTime(it).lowercase()) },
                         ),
                     ),

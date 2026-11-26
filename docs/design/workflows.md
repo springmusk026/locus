@@ -142,7 +142,7 @@ A workflow is a task of its own, so it isn't queued into a running one. If the c
 
 - **An approval point asks**, even if the user's settings allow that tool.
 - **A call outside the declared tools asks**, unless it only looks (`Tool.isObservation`) or steers the agent itself (`todo_write`, `ask_user`, `plan_propose`).
-- A workflow with no tools listed has no limit beyond the user's settings.
+- A workflow with no tools listed allows none: every call that changes something asks, with the reason "has no tools listed". (It used to mean no limit, so a workflow saved without picking tools could change anything, and its schedule sheet called it fully unattended.) The editor says so under Tools, and the schedule sheet adds "It lists no tools, so any step that changes something is refused on a schedule" and doesn't say the workflow only reads (`WorkflowScope.Unattended.noTools`).
 
 Escalation only ever adds an approval:
 
@@ -169,6 +169,11 @@ At the end, the task receipt shows the workflow's name and each check: passed, f
 | `research_report` | Locus, from what the task last wrote at the value's path with `write_file` (`ResearchReport.check`) | The report has a summary, inline citations, a numbered sources list with web addresses, and an unverified section. See [deep research](deep-research.md#the-report-check) |
 
 Like the rest of the receipt, the checks are computed from stored data (`TaskReceipts.build`), so nothing new is stored. The receipt's summary line gains "2 of 3 checks passed".
+
+## Limits on size and ids
+
+- The rendered plan note is at most `WorkflowRender.MAX_NOTE_CHARS` (32,000) characters. A long input used in several slots could otherwise fill the context, and a scheduled run stores the note. A run over the cap isn't started: "This workflow's plan is too long once the inputs are filled in".
+- Ids become file names, so `WorkflowStore` checks `Workflow.ID` on `get`, `save(replacing = …)` and `delete`, and a project id is checked by `AgentHome.projectDir`. Anything else, such as `../x`, throws `IllegalArgumentException` before touching the disk. Callers pass trusted values today; this keeps it so.
 
 ## Scheduling
 

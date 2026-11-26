@@ -43,8 +43,12 @@
     <string name="analytics_cost_try_again">重试</string>
     <string name="analytics_cost_chart_day">每日预估花费，此时间段共 %1$s</string>
     <string name="analytics_cost_chart_week">每周预估花费，此时间段共 %1$s</string>
-    <string name="analytics_cost_row_unpriced">%2$d 项中 %1$d 项无价格</string>
-    <string name="analytics_row_requests_short">%1$d 次请求</string>
+    <plurals name="analytics_cost_row_unpriced">
+        <item quantity="other">%2$d 项中 %1$d 项无价格</item>
+    </plurals>
+    <plurals name="analytics_row_requests_short">
+        <item quantity="other">%1$d 次请求</item>
+    </plurals>
     <string name="analytics_models_via">通过 %1$s</string>
     <string name="analytics_share_description">相对最大值的占比</string>
     <string name="analytics_source_chat">对话回复</string>
@@ -62,8 +66,12 @@
     <string name="analytics_tools_succeeded">成功</string>
     <string name="analytics_tools_failed">失败</string>
     <string name="analytics_tools_success_rate">%1$d%%</string>
-    <string name="analytics_tools_chart_day">每日工具调用：%1$d 次，%2$d 次失败</string>
-    <string name="analytics_tools_chart_week">每周工具调用：%1$d 次，%2$d 次失败</string>
+    <plurals name="analytics_tools_chart_day">
+        <item quantity="other">每日工具调用：%1$d 次，%2$d 次失败</item>
+    </plurals>
+    <plurals name="analytics_tools_chart_week">
+        <item quantity="other">每周工具调用：%1$d 次，%2$d 次失败</item>
+    </plurals>
     <plurals name="analytics_tools_caption">
         <item quantity="other">%1$d 次调用</item>
     </plurals>
@@ -77,9 +85,13 @@
     <plurals name="analytics_slow_calls">
         <item quantity="other">%1$s · %2$d 次调用</item>
     </plurals>
-    <string name="analytics_slow_failed">%1$d 次失败</string>
+    <plurals name="analytics_slow_failed">
+        <item quantity="other">%1$d 次失败</item>
+    </plurals>
     <string name="analytics_slow_average">平均 %1$s</string>
-    <string name="analytics_chats_summary">%1$s 个令牌 · %2$d 次请求 · %3$d 个工具</string>
+    <plurals name="analytics_chats_summary">
+        <item quantity="other">%1$s 个令牌 · %2$d 次请求 · %3$d 个工具</item>
+    </plurals>
     <plurals name="analytics_tasks_runs">
         <item quantity="other">运行 %1$d 次</item>
     </plurals>

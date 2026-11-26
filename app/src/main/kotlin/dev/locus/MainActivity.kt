@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -591,7 +592,7 @@ private fun PhoneRequestHost() {
         onDispose { detach() }
     }
     val current = requests.current.collectAsStateWithLifecycle().value
-    var asked by rememberSaveable { mutableStateOf(-1L) }
+    var asked by rememberSaveable { mutableLongStateOf(-1L) }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> requests.answer(asked, granted) }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         requests.answer(asked, result.data?.data.takeIf { result.resultCode == android.app.Activity.RESULT_OK })

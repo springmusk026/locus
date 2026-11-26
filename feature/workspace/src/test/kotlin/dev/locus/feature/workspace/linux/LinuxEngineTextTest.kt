@@ -114,7 +114,7 @@ class LinuxEngineTextTest {
         fun s(id: Int, vararg args: Any) = dev.locus.core.linux.EngineText.Res(id, *args).asString(res)
         assertEquals("Installed Python, Git.", s(dev.locus.core.data.R.string.data_linux_installed, "Python, Git"))
         assertEquals("Installing Git (2 of 2)…", s(dev.locus.core.data.R.string.data_linux_phase_installing_package, "Git", 2, 2))
-        assertEquals("1 of 2 couldn't be installed. See below; you can retry.", s(dev.locus.core.data.R.string.data_linux_packages_failed, 1, 2))
+        assertEquals("1 of 2 couldn't be installed. See below; you can retry.", dev.locus.core.linux.EngineText.Plural(dev.locus.core.data.R.plurals.data_linux_packages_failed, 1, 1, 2).asString(res))
         assertEquals("Repaired. Alpine Linux 3.24.3 starts normally.", s(dev.locus.core.data.R.string.data_linux_repaired, "3.24.3"))
         assertEquals(
             "Couldn't reach Alpine's package servers. Check the internet connection and try again.\nfetch failed",

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="ui_approval_title">¿Permitir esto?</string>
     <string name="ui_approval_origin_wants">%1$s quiere…</string>
     <string name="ui_approval_details">Detalles</string>
@@ -173,7 +173,7 @@
     <string name="ui_workflow_steps">Pasos, uno por línea</string>
     <string name="ui_workflow_steps_hint">Un plan que el agente adapta, no llamadas que se repiten.</string>
     <string name="ui_workflow_tools">Herramientas</string>
-    <string name="ui_workflow_tools_no_limit">Sin límite: el flujo puede usar cualquier herramienta que permitan tus ajustes.</string>
+    <string name="ui_workflow_tools_none">Sin herramientas indicadas: cada llamada que cambie algo pedirá tu aprobación.</string>
     <string name="ui_workflow_tools_note">Cualquier otra cosa que cambie algo te pregunta antes. “Preguntar” mantiene la aprobación de un paso aunque tus ajustes lo permitan.</string>
     <string name="ui_workflow_ask">Preguntar</string>
     <string name="ui_workflow_remove_tool">Quitar %1$s</string>
@@ -211,7 +211,7 @@
     <string name="ui_workflow_plan">Plan</string>
     <string name="ui_workflow_plan_step">%1$d. %2$s</string>
     <string name="ui_workflow_asks_before">Te pregunta antes de poder %1$s.</string>
-    <string name="ui_workflow_only_reads">Por sí solo solo lee. Todo lo demás pregunta antes.</string>
+    <string name="ui_workflow_only_reads">Por sí mismo solo lee. Todo lo demás pregunta antes.</string>
     <string name="ui_workflow_can_on_its_own">Puede %1$s por sí solo. Todo lo demás pregunta antes.</string>
     <string name="ui_workflow_run_title">Ejecutar un flujo de trabajo</string>
     <string name="ui_workflow_none">Aún no hay flujos de trabajo. Cuando una tarea salga bien, abre su recibo y toca Guardar como flujo de trabajo.</string>
@@ -418,7 +418,7 @@
     <string name="ui_catalog_service_paperless_note">Solo lectura. Considera un usuario de Paperless que solo pueda ver los documentos que Locus debe ver.</string>
     <string name="ui_catalog_service_immich_description">Busca fotos y álbumes en tu biblioteca de Immich.</string>
     <string name="ui_catalog_service_immich_where">Account settings → API keys</string>
-    <string name="ui_catalog_service_immich_note">Dale a la clave solo los permisos asset.read, album.read y user.read. Los detalles de las fotos van a tu proveedor de IA cuando Locus los lee.</string>
+    <string name="ui_catalog_service_immich_note" tools:ignore="Typos">Dale a la clave solo los permisos asset.read, album.read y user.read. Los detalles de las fotos van a tu proveedor de IA cuando Locus los lee.</string>
     <string name="ui_catalog_service_mastodon_description">Lee tu cronología de inicio y tus notificaciones; publica solo cuando lo confirmas.</string>
     <string name="ui_catalog_service_mastodon_where">Preferences → Development → New application (permisos read:statuses, read:notifications, read:accounts; write:statuses para publicar)</string>
     <string name="ui_catalog_service_mastodon_note">Publicar siempre te pregunta antes y no se puede recordar. Deja fuera write:statuses para un token de solo lectura.</string>
@@ -497,9 +497,17 @@
     <string name="ui_prompt_edit_title">Editar prompt</string>
     <string name="ui_prompt_editor_subtitle">Insértalo escribiendo / en el cuadro vacío. Nunca se envía hasta que tocas Enviar.</string>
     <string name="ui_prompt_name">Nombre</string>
-    <string name="ui_prompt_name_too_long">Como máximo %1$d caracteres</string>
+    <plurals name="ui_prompt_name_too_long">
+        <item quantity="one">Como máximo %1$d carácter</item>
+        <item quantity="many">Como máximo %1$d caracteres</item>
+        <item quantity="other">Como máximo %1$d caracteres</item>
+    </plurals>
     <string name="ui_prompt_text">Prompt</string>
-    <string name="ui_prompt_text_too_long">Como máximo %1$d caracteres</string>
+    <plurals name="ui_prompt_text_too_long">
+        <item quantity="one">Como máximo %1$d carácter</item>
+        <item quantity="many">Como máximo %1$d caracteres</item>
+        <item quantity="other">Como máximo %1$d caracteres</item>
+    </plurals>
     <plurals name="ui_prompt_issues">
         <item quantity="one">%1$d variable no se puede rellenar</item>
         <item quantity="many">%1$d variables no se pueden rellenar</item>
@@ -509,9 +517,17 @@
     <string name="ui_prompt_issue_unclosed">Un {{ no tiene }} detrás en la misma línea. Ciérralo o escribe \\{{ para mantener las llaves.</string>
     <string name="ui_prompt_issue_empty">{{}} está vacío. Escribe dentro el nombre de una variable.</string>
     <string name="ui_prompt_issue_bad_field">Un campo necesita una etiqueta, como en {{field:Etiqueta}}, y la etiqueta no puede llevar llaves.</string>
-    <string name="ui_prompt_issue_too_long">La etiqueta de un campo puede tener hasta %1$d caracteres y su valor predeterminado hasta %2$d.</string>
+    <plurals name="ui_prompt_issue_too_long">
+        <item quantity="one">La etiqueta de un campo puede tener hasta %1$d carácter y su valor predeterminado hasta %2$d.</item>
+        <item quantity="many">La etiqueta de un campo puede tener hasta %1$d caracteres y su valor predeterminado hasta %2$d.</item>
+        <item quantity="other">La etiqueta de un campo puede tener hasta %1$d caracteres y su valor predeterminado hasta %2$d.</item>
+    </plurals>
     <string name="ui_prompt_issue_defaults">El campo «%1$s» tiene dos valores predeterminados distintos. Dale solo uno.</string>
-    <string name="ui_prompt_issue_too_many">Un prompt puede pedir como máximo %1$d campos.</string>
+    <plurals name="ui_prompt_issue_too_many">
+        <item quantity="one">Un prompt puede pedir como máximo %1$d campo.</item>
+        <item quantity="many">Un prompt puede pedir como máximo %1$d campos.</item>
+        <item quantity="other">Un prompt puede pedir como máximo %1$d campos.</item>
+    </plurals>
     <string name="ui_prompt_insert_variable">Insertar una variable</string>
     <string name="ui_prompt_var_clipboard">Portapapeles</string>
     <string name="ui_prompt_var_date">Fecha</string>

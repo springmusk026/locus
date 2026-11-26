@@ -1,10 +1,12 @@
 package dev.locus.core.agent
 
 import dev.locus.core.model.ApprovalDecision
+import dev.locus.core.model.DiscoveryTools
 import dev.locus.core.model.Message
 import dev.locus.core.model.Part
 import dev.locus.core.model.Role
 import dev.locus.core.model.SubagentTools
+import dev.locus.core.model.ToolCapability
 import dev.locus.core.model.ToolRisk
 import dev.locus.core.model.startsTurn
 import kotlinx.serialization.json.JsonObject
@@ -132,7 +134,10 @@ object Rewind {
                 Role.ASSISTANT -> m.toolCalls.mapNotNull { call ->
                     val decision = results[call.id]?.decision ?: return@mapNotNull null
                     if (decision in NOT_RUN) return@mapNotNull null
-                    classify(call, riskOf(call.name))?.let { Effect(it, call.name, label(call)) }
+                    // A call_tool runs the tool it names (docs/design/tool-discovery.md): classify and label that one.
+                    val (name, arguments) = DiscoveryTools.unwrap(call.name, call.argumentsJson)
+                    val ran = if (name == call.name) call else call.copy(name = name, argumentsJson = arguments)
+                    classify(ran, riskOf(name))?.let { Effect(it, name, label(ran)) }
                 }
                 Role.TOOL -> emptyList()
             }
@@ -146,11 +151,15 @@ object Rewind {
         call.name in TRACKED_FILE_TOOLS -> null
         call.name == SubagentTools.SPAWN || call.name == SubagentTools.SEND -> EffectKind.HELPER
         SubagentTools.isAgentTool(call.name) -> null
-        // A tool found through discovery: an MCP server's, outside the phone.
-        call.name == "call_tool" -> EffectKind.OUTSIDE
+        // A call_tool that named no tool ran nothing.
+        call.name == DiscoveryTools.CALL_TOOL -> null
+        // A tool found through discovery that an MCP server offers: outside the phone.
+        DiscoveryTools.parseMcpName(call.name) != null -> EffectKind.OUTSIDE
         // A plain read of a web page leaves nothing behind.
         call.name == "fetch_url" && args(call)?.string("method")?.uppercase().let { it == null || it == "GET" || it == "HEAD" } -> null
         risk == ToolRisk.READ -> null
+        // A web search, the weather or a mailbox read reaches a service but changes nothing there.
+        risk == ToolRisk.NETWORK && ToolCapability.of(call.name) == ToolCapability.READ -> null
         risk == ToolRisk.EXECUTE -> EffectKind.COMMAND
         risk == ToolRisk.NETWORK -> EffectKind.OUTSIDE
         else -> EffectKind.OTHER

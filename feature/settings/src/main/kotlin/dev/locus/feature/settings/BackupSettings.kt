@@ -289,7 +289,7 @@ private fun NewPasswordSheet(includesVault: Boolean, onDismiss: () -> Unit, onDo
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             modifier = Modifier.fillMaxWidth(),
-            supportingText = { Text(stringResource(R.string.settings_backup_password_hint, MIN_PASSWORD)) },
+            supportingText = { Text(pluralStringResource(R.plurals.settings_backup_password_hint, MIN_PASSWORD, MIN_PASSWORD)) },
         )
         SecretContent()
         OutlinedTextField(

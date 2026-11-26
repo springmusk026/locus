@@ -21,6 +21,25 @@ Three suites, plus a build check:
 `:core:agent`, `:core:llm` and `:core:model` are plain Kotlin modules (`test`); the rest are Android
 modules (`testDebugUnitTest`). One test class: `./gradlew :core:data:testDebugUnitTest --tests '*VaultIsolationTest*'`.
 
+### On a Linux host
+
+Two things depend on the machine, not the code:
+
+- **System `sqlite3`.** The migration tests (`:core:database`, e.g. `SearchMigrationTest`) and
+  `SearchTextTest` (`:core:data`) run the host's `sqlite3` binary. Their SQL uses
+  `group_concat(... ORDER BY ...)`, which needs SQLite 3.44 or newer. On an older host (Debian 12 and
+  Amazon Linux 2023 ship 3.40) they are skipped with "sqlite3 3.44 or newer is needed … found 3.40.1"
+  instead of failing with `near "ORDER": syntax error`. On CI (`CI=true`) they fail instead, so they can't
+  stop running unnoticed. The app itself uses the bundled SQLite (3.50) and isn't affected; install a newer
+  `sqlite3` to run these tests locally.
+- **Robolectric** (the screenshot tests) downloads its Android jars and takes a lock file under
+  `user.home` (`~/.robolectric-download-lock`). Where that folder is read-only it fails with "Couldn't
+  create lock file". The tests run in forked JVMs that don't inherit Gradle's own `-D` options, so pass
+  the properties through the environment, which every JVM reads:
+  `JAVA_TOOL_OPTIONS="-Duser.home=/tmp/robolectric-home" ./gradlew …`. Offline, point
+  `-Drobolectric.dependency.dir=<folder with the android-all jars>` the same way. (Not tried on a
+  read-only host; the property names are Robolectric's and the JDK's.)
+
 ## Coverage
 
 Coverage comes from [Kover](https://kotlin.github.io/kotlinx-kover/gradle-plugin/) 0.9.11, applied

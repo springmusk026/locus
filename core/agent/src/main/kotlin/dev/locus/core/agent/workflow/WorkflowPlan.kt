@@ -82,9 +82,13 @@ object WorkflowRender {
         val note = note(plan)
         // The run's approval points and tool fence are read back from this note: a run whose plan
         // wouldn't read back exactly doesn't start, rather than running unfenced.
+        if (note.length > MAX_NOTE_CHARS) throw WorkflowInputException("", "This workflow's plan is too long once the inputs are filled in (over $MAX_NOTE_CHARS characters). Shorten the inputs.")
         if (planInNote(note) != plan) throw WorkflowInputException("", "This workflow's plan couldn't be prepared from these values. Check the inputs for unusual text.")
         return RenderedWorkflow(text = plan.goal, note = note, plan = plan)
     }
+
+    /** The most a rendered plan note may hold: a long input used in several slots could otherwise fill the context. */
+    const val MAX_NOTE_CHARS = 32_000
 
     /** Markup Locus uses to frame notes and plans; a value carrying it could pass for Locus's own. */
     private val RESERVED_TAGS = listOf(OPEN, CLOSE, "<locus_mode>", "</locus_mode>", "<locus_result>", "</locus_result>")
@@ -230,10 +234,12 @@ object WorkflowScope {
         if (key in plan.approvals || toolName in plan.approvals) {
             return "The workflow “${plan.name}” asks before this step: it needed your approval when the workflow was saved."
         }
-        if (observation || toolName in CONTROL || plan.tools.isEmpty()) return null
+        // No declared tools means none are allowed: every call that changes something asks.
+        if (observation || toolName in CONTROL) return null
         if (key in plan.tools) return null
         // A connector tool named in the list without a connector covers every connector.
         if (key != toolName && toolName in plan.tools) return null
+        if (plan.tools.isEmpty()) return "The workflow “${plan.name}” has no tools listed, so $key needs your approval."
         return "$key isn't one of the workflow “${plan.name}”'s tools, so it needs your approval."
     }
 
@@ -243,10 +249,11 @@ object WorkflowScope {
     /**
      * What a scheduled run of [workflow] can't do, for the schedule sheet: scheduled runs are read-only
      * and have nobody to ask (docs/design/scheduled-runs.md), so its approval points ([needYou]) and
-     * the declared tools that change things ([changes]) are refused when it runs unattended.
+     * the declared tools that change things ([changes]) are refused when it runs unattended. A workflow
+     * that declares no tools ([noTools]) can't promise anything: whatever step changes something is refused.
      */
-    data class Unattended(val needYou: List<String>, val changes: List<String>) {
-        val fullyRuns: Boolean get() = needYou.isEmpty() && changes.isEmpty()
+    data class Unattended(val needYou: List<String>, val changes: List<String>, val noTools: Boolean = false) {
+        val fullyRuns: Boolean get() = needYou.isEmpty() && changes.isEmpty() && !noTools
     }
 
     fun unattended(workflow: Workflow): Unattended {
@@ -254,6 +261,6 @@ object WorkflowScope {
             key !in workflow.approvals && key !in CONTROL &&
                 dev.locus.core.model.ToolCapability.of(if (key.startsWith("connector:")) "mcp_call" else key) != dev.locus.core.model.ToolCapability.READ
         }
-        return Unattended(workflow.approvals, changes)
+        return Unattended(workflow.approvals, changes, noTools = workflow.tools.isEmpty())
     }
 }

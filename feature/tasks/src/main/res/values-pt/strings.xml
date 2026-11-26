@@ -129,7 +129,11 @@
     <string name="tasks_test_placeholder_app">O que aconteceu, ex.: O telefone saiu do Wi-Fi de casa</string>
     <string name="tasks_test_note">A execução lê isso como texto externo não confiável, como um evento real: pode consultar informações, mas não pode enviar, salvar na memória nem abrir endereços que você não indicou.</string>
     <string name="tasks_history_title">Histórico</string>
-    <string name="tasks_history_subtitle">O que chegou a “%1$s” e o que ela fez. Os últimos %2$d eventos são mantidos.</string>
+    <plurals name="tasks_history_subtitle">
+        <item quantity="one">O que chegou a “%1$s” e o que ela fez. O último evento (%2$d) é mantido.</item>
+        <item quantity="many">O que chegou a “%1$s” e o que ela fez. Os últimos %2$d eventos são mantidos.</item>
+        <item quantity="other">O que chegou a “%1$s” e o que ela fez. Os últimos %2$d eventos são mantidos.</item>
+    </plurals>
     <string name="tasks_history_empty_app">Nada ainda. Os eventos aparecem aqui quando outro app os envia, iniciem ou não uma execução.</string>
     <string name="tasks_history_empty">Nada ainda. Os eventos aparecem aqui quando o Locus os encontra, iniciem ou não uma execução.</string>
     <string name="tasks_history_event_done">%1$s · concluído</string>

@@ -53,6 +53,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -453,7 +454,7 @@ internal fun LocusComposer(
                     badge = controls.disabledCount.takeIf { it > 0 && !controls.chatOnly },
                     state = when {
                         controls.chatOnly -> stringResource(R.string.chat_composer_tools_none)
-                        controls.disabledCount > 0 -> stringResource(R.string.chat_composer_tools_off, controls.disabledCount)
+                        controls.disabledCount > 0 -> pluralStringResource(R.plurals.chat_composer_tools_off, controls.disabledCount, controls.disabledCount)
                         else -> stringResource(R.string.chat_composer_tools_all)
                     },
                     onClick = { onSheet(ControlSheet.Tools) },

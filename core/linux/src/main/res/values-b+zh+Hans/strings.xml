@@ -34,7 +34,9 @@
     <string name="linux_health_files_damaged_missing">Linux 缺少 %1$s。只有重新安装才能恢复；工作区文件会保留。</string>
     <string name="linux_health_files_damaged_missing_and_db">Linux 缺少 %1$s；软件包数据库无法读取。只有重新安装才能恢复；工作区文件会保留。</string>
     <string name="linux_health_files_damaged_db">Linux 的软件包数据库无法读取。只有重新安装才能恢复；工作区文件会保留。</string>
-    <string name="linux_health_files_more">%1$s 等另外 %2$d 个</string>
+    <plurals name="linux_health_files_more">
+        <item quantity="other">%1$s 等另外 %2$d 个</item>
+    </plurals>
     <string name="linux_health_files_ok_title">系统文件完好</string>
     <string name="linux_health_files_ok_detail">关键文件和软件包数据库都在。</string>
     <string name="linux_health_storage_full_title">手机存储空间快满了</string>
@@ -54,7 +56,9 @@
     <string name="linux_health_phantom_off_title">后台限制已关闭</string>
     <string name="linux_health_phantom_off_detail">子进程限制已关闭，因此 Android 不会因此停止 Linux。</string>
     <string name="linux_health_phantom_warning_title">Android 可能会在后台停止 Linux</string>
-    <string name="linux_health_phantom_warning_detail">Android 12 及以上版本会停止应用的额外进程（Locus 现在有 %1$d 个在运行）。你可以关闭此限制。</string>
+    <plurals name="linux_health_phantom_warning_detail">
+        <item quantity="other">Android 12 及以上版本会停止应用的额外进程（Locus 现在有 %1$d 个在运行）。你可以关闭此限制。</item>
+    </plurals>
     <string name="linux_health_phantom_killed_command">Locus 在后台时，Android 停止了一个命令。</string>
     <string name="linux_health_phantom_killed_service">Locus 在后台时，Android 停止了服务 %1$s。</string>
     <string name="linux_health_phantom_killed_terminal">Locus 在后台时，Android 停止了一个终端。</string>

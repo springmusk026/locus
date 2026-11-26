@@ -36,7 +36,7 @@ class RewindTest {
             call("c6", "memory_write", """{"name":"prefs"}"""),
             call("c7", "read_file", """{"path":"a.txt"}"""),
             call("c8", "run_command", """{"command":"rm -rf /"}"""),
-            call("c9", "call_tool", """{"name":"linear_create_issue"}"""),
+            call("c9", "call_tool", """{"name":"mcp__linear__create_issue"}"""),
         ),
         msg(
             "t2", Role.TOOL,
@@ -97,7 +97,7 @@ class RewindTest {
                 Rewind.Effect(Rewind.EffectKind.OUTSIDE, "fetch_url", "https://hooks.example.com"),
                 Rewind.Effect(Rewind.EffectKind.HELPER, "agent_spawn", "agent_spawn"),
                 Rewind.Effect(Rewind.EffectKind.OTHER, "memory_write", "prefs"),
-                Rewind.Effect(Rewind.EffectKind.OUTSIDE, "call_tool", "linear_create_issue"),
+                Rewind.Effect(Rewind.EffectKind.OUTSIDE, "mcp__linear__create_issue", "mcp__linear__create_issue"),
                 Rewind.Effect(Rewind.EffectKind.OTHER, Rewind.RAN_ANYWAY, "git push --force"),
             ),
             effects,
@@ -107,6 +107,44 @@ class RewindTest {
         // A tool the chat no longer has counts as another change.
         val unknown = Rewind.effects(listOf(msg("a", Role.ASSISTANT, call("x", "gone_tool")), msg("t", Role.TOOL, result("x", "gone_tool")))) { null }
         assertEquals(Rewind.EffectKind.OTHER, unknown.single().kind)
+    }
+
+    @Test
+    fun `a call_tool is classified by the tool it names, not as outside the phone`() {
+        val risks = risks + mapOf("weather" to ToolRisk.NETWORK, "view_image" to ToolRisk.READ, "ssh_exec" to ToolRisk.EXECUTE, "git_commit" to ToolRisk.WRITE)
+        val calls = listOf(
+            call("w1", "call_tool", """{"name":"read_file","arguments":{"path":"a.txt"}}"""),
+            call("w2", "call_tool", """{"name":"view_image","arguments":{"path":"a.png"}}"""),
+            call("w3", "call_tool", """{"name":"ssh_exec","arguments":{"command":"uptime"}}"""),
+            call("w4", "call_tool", """{"name":"git_commit","arguments":{"message":"x"}}"""),
+            call("w5", "call_tool", """{"name":"mcp__linear__create_issue","arguments":{"title":"x"}}"""),
+            call("w6", "call_tool", """{"name":"fetch_url","arguments":"{\"url\":\"https://example.com\"}"}"""),
+            call("w7", "call_tool", """{"name":"fetch_url","arguments":{"url":"https://hooks.example.com","method":"POST"}}"""),
+            call("w8", "call_tool", """{"name":"edit_file","arguments":{"path":"a.txt"}}"""),
+            call("w9", "call_tool", """{"arguments":{}}"""),
+            call("wa", "call_tool", """{"name":"weather","arguments":{"city":"Oslo"}}"""),
+            call("wb", "call_tool", """{"name":"run_command","arguments":{"command":"ls"}}"""),
+            // The same read called by its own name is no different.
+            call("wc", "weather", """{"place":"Oslo"}"""),
+        )
+        val effects = Rewind.effects(
+            listOf(
+                msg("a", Role.ASSISTANT, *calls.toTypedArray()),
+                msg("t", Role.TOOL, *calls.map { result(it.id, "call_tool") }.toTypedArray()),
+            ),
+        ) { risks[it] }
+        assertEquals(
+            listOf(
+                Rewind.Effect(Rewind.EffectKind.COMMAND, "ssh_exec", "uptime"),
+                Rewind.Effect(Rewind.EffectKind.OTHER, "git_commit", "git_commit"),
+                Rewind.Effect(Rewind.EffectKind.OUTSIDE, "mcp__linear__create_issue", "mcp__linear__create_issue"),
+                Rewind.Effect(Rewind.EffectKind.OUTSIDE, "fetch_url", "https://hooks.example.com"),
+                Rewind.Effect(Rewind.EffectKind.COMMAND, "run_command", "ls"),
+            ),
+            effects,
+        )
+        // The weather read, the image view, the file read, the tracked file edit and the call that named nothing leave no entry.
+        assertTrue(effects.none { it.tool == "call_tool" || it.tool == "weather" || it.tool == "view_image" })
     }
 
     @Test

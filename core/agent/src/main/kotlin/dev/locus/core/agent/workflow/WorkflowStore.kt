@@ -32,7 +32,10 @@ class WorkflowStore(private val home: AgentHome) {
         if (projectId == null) own else own + all().filter { it.projectId == null }
     }
 
-    fun get(id: String, projectId: String?): Workflow? = read(File(dirFor(projectId), "$id.json"))
+    fun get(id: String, projectId: String?): Workflow? {
+        requireId(id)
+        return read(File(dirFor(projectId), "$id.json"))
+    }
 
     /**
      * Saves [workflow] (checked with [validate]) and returns what was written. A new workflow whose id
@@ -40,6 +43,7 @@ class WorkflowStore(private val home: AgentHome) {
      */
     fun save(workflow: Workflow, projectId: String?, replacing: String? = null, now: Long = System.currentTimeMillis()): Workflow {
         validate(workflow)
+        replacing?.let(::requireId)
         val folder = dirFor(projectId).apply { mkdirs() }
         var id = workflow.id
         if (id != replacing) {
@@ -60,9 +64,12 @@ class WorkflowStore(private val home: AgentHome) {
     }
 
     fun delete(id: String, projectId: String?): Boolean {
-        require(Workflow.ID.matches(id)) { "Not a workflow id: $id" }
+        requireId(id)
         return File(dirFor(projectId), "$id.json").delete()
     }
+
+    /** Ids become file names; anything but a workflow id (`../x`) is refused before it reaches the disk. */
+    private fun requireId(id: String) = require(Workflow.ID.matches(id)) { "Not a workflow id: $id" }
 
     private fun load(folder: File): List<Workflow> =
         folder.listFiles { f -> f.isFile && f.name.endsWith(".json") }.orEmpty().mapNotNull(::read).sortedBy { it.name.lowercase() }

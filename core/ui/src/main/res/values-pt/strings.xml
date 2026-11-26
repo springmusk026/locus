@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="ui_approval_title">Permitir isto?</string>
     <string name="ui_approval_origin_wants">%1$s quer…</string>
     <string name="ui_approval_details">Detalhes</string>
@@ -173,7 +173,7 @@
     <string name="ui_workflow_steps">Etapas, uma por linha</string>
     <string name="ui_workflow_steps_hint">Um plano que o agente adapta, não chamadas que se repetem.</string>
     <string name="ui_workflow_tools">Ferramentas</string>
-    <string name="ui_workflow_tools_no_limit">Sem limite: o fluxo pode usar qualquer ferramenta que suas configurações permitirem.</string>
+    <string name="ui_workflow_tools_none">Nenhuma ferramenta listada: toda chamada que altere algo pedirá sua aprovação.</string>
     <string name="ui_workflow_tools_note">Qualquer outra coisa que mude algo pergunta a você antes. “Perguntar” mantém a aprovação de uma etapa mesmo que suas configurações a permitam.</string>
     <string name="ui_workflow_ask">Perguntar</string>
     <string name="ui_workflow_remove_tool">Remover %1$s</string>
@@ -375,7 +375,7 @@
     <string name="ui_catalog_mcp_atlassian_description">Issues do Jira e páginas do Confluence pelo servidor MCP Rovo da Atlassian.</string>
     <string name="ui_catalog_mcp_atlassian_note">O administrador da sua organização pode precisar permitir o servidor MCP Rovo antes.</string>
     <string name="ui_catalog_mcp_postman_description">Espaços de trabalho, coleções, ambientes e especificações de API no Postman.</string>
-    <string name="ui_catalog_mcp_postman_note">/minimal tem as ferramentas essenciais; use /mcp para todas (muito mais ferramentas em cada chat). Contas da UE: mcp.eu.postman.com com uma chave de API.</string>
+    <string name="ui_catalog_mcp_postman_note">/minimal tem as ferramentas essenciais; use /mcp para todas (muito mais ferramentas em cada chat). Contas da UE: use mcp.eu.postman.com e uma chave de API.</string>
     <string name="ui_catalog_mcp_posthog_description">Análise de produto, feature flags, experimentos e rastreamento de erros.</string>
     <string name="ui_catalog_mcp_posthog_scopes">a predefinição MCP Server</string>
     <string name="ui_catalog_mcp_grafana_description">Dashboards, métricas, logs e alertas no seu stack do Grafana Cloud.</string>
@@ -418,7 +418,7 @@
     <string name="ui_catalog_service_paperless_note">Somente leitura. Considere um usuário do Paperless que só possa ver os documentos que o Locus deve ver.</string>
     <string name="ui_catalog_service_immich_description">Encontre fotos e álbuns na sua biblioteca do Immich.</string>
     <string name="ui_catalog_service_immich_where">Account settings → API keys</string>
-    <string name="ui_catalog_service_immich_note">Dê à chave só as permissões asset.read, album.read e user.read. Os detalhes das fotos vão para o seu provedor de IA quando o Locus os lê.</string>
+    <string name="ui_catalog_service_immich_note" tools:ignore="Typos">Dê à chave só as permissões asset.read, album.read e user.read. Os detalhes das fotos vão para o seu provedor de IA quando o Locus os lê.</string>
     <string name="ui_catalog_service_mastodon_description">Leia sua linha do tempo inicial e suas notificações; publique só quando você confirmar.</string>
     <string name="ui_catalog_service_mastodon_where">Preferences → Development → New application (escopos read:statuses, read:notifications, read:accounts; write:statuses para publicar)</string>
     <string name="ui_catalog_service_mastodon_note">Publicar sempre pergunta antes e não pode ser lembrado. Deixe de fora write:statuses para um token somente leitura.</string>
@@ -497,9 +497,17 @@
     <string name="ui_prompt_edit_title">Editar prompt</string>
     <string name="ui_prompt_editor_subtitle">Insira digitando / na caixa vazia. Nada é enviado até você tocar em Enviar.</string>
     <string name="ui_prompt_name">Nome</string>
-    <string name="ui_prompt_name_too_long">No máximo %1$d caracteres</string>
+    <plurals name="ui_prompt_name_too_long">
+        <item quantity="one">No máximo %1$d caractere</item>
+        <item quantity="many">No máximo %1$d caracteres</item>
+        <item quantity="other">No máximo %1$d caracteres</item>
+    </plurals>
     <string name="ui_prompt_text">Prompt</string>
-    <string name="ui_prompt_text_too_long">No máximo %1$d caracteres</string>
+    <plurals name="ui_prompt_text_too_long">
+        <item quantity="one">No máximo %1$d caractere</item>
+        <item quantity="many">No máximo %1$d caracteres</item>
+        <item quantity="other">No máximo %1$d caracteres</item>
+    </plurals>
     <plurals name="ui_prompt_issues">
         <item quantity="one">%1$d variável não pode ser preenchida</item>
         <item quantity="many">%1$d variáveis não podem ser preenchidas</item>
@@ -509,9 +517,17 @@
     <string name="ui_prompt_issue_unclosed">Um {{ não tem }} depois dele na mesma linha. Feche-o ou escreva \\{{ para manter as chaves.</string>
     <string name="ui_prompt_issue_empty">{{}} está vazio. Coloque dentro o nome de uma variável.</string>
     <string name="ui_prompt_issue_bad_field">Um campo precisa de um rótulo, como em {{field:Rótulo}}, e o rótulo não pode ter chaves.</string>
-    <string name="ui_prompt_issue_too_long">O rótulo de um campo pode ter até %1$d caracteres e o valor padrão até %2$d.</string>
+    <plurals name="ui_prompt_issue_too_long">
+        <item quantity="one">O rótulo de um campo pode ter até %1$d caractere e o valor padrão até %2$d.</item>
+        <item quantity="many">O rótulo de um campo pode ter até %1$d caracteres e o valor padrão até %2$d.</item>
+        <item quantity="other">O rótulo de um campo pode ter até %1$d caracteres e o valor padrão até %2$d.</item>
+    </plurals>
     <string name="ui_prompt_issue_defaults">O campo “%1$s” tem dois valores padrão diferentes. Deixe só um.</string>
-    <string name="ui_prompt_issue_too_many">Um prompt pode pedir no máximo %1$d campos.</string>
+    <plurals name="ui_prompt_issue_too_many">
+        <item quantity="one">Um prompt pode pedir no máximo %1$d campo.</item>
+        <item quantity="many">Um prompt pode pedir no máximo %1$d campos.</item>
+        <item quantity="other">Um prompt pode pedir no máximo %1$d campos.</item>
+    </plurals>
     <string name="ui_prompt_insert_variable">Inserir uma variável</string>
     <string name="ui_prompt_var_clipboard">Área de transferência</string>
     <string name="ui_prompt_var_date">Data</string>
@@ -553,7 +569,7 @@
     <string name="ui_research_depth_thorough">Completa</string>
     <string name="ui_research_phases">Como funciona</string>
     <string name="ui_research_phase_plan">Planejar: divide a pergunta em perguntas menores, mostradas como lista de tarefas</string>
-    <string name="ui_research_phase_research">Pesquisar: os ajudantes buscam na web e leem as fontes</string>
+    <string name="ui_research_phase_research" tools:ignore="Typos">Pesquisar: os ajudantes buscam na web e leem as fontes</string>
     <string name="ui_research_phase_verify">Verificar: confere cada afirmação principal com a fonte e marca as que não consegue confirmar</string>
     <string name="ui_research_phase_report">Relatório: escreve um relatório em Markdown com citações na pasta research do seu espaço de trabalho</string>
     <plurals name="ui_research_helpers">

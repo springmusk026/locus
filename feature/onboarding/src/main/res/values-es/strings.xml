@@ -156,7 +156,11 @@
     <string name="onboarding_identity_editor_title">Editar archivos directamente</string>
     <string name="onboarding_identity_editor_body">Opcional. Markdown que tu agente lee al inicio de cada chat.</string>
     <string name="onboarding_identity_editor_done">Listo</string>
-    <string name="onboarding_identity_editor_over_budget">%1$d caracteres; solo se usan los primeros %2$d</string>
+    <plurals name="onboarding_identity_editor_over_budget">
+        <item quantity="one">%1$d carácter; solo se usan los primeros %2$d</item>
+        <item quantity="many">%1$d caracteres; solo se usan los primeros %2$d</item>
+        <item quantity="other">%1$d caracteres; solo se usan los primeros %2$d</item>
+    </plurals>
     <string name="onboarding_identity_editor_budget">%1$d / %2$d</string>
     <string name="onboarding_identity_editor_name_hint">Mantén una línea “- Name: …”: es como se llama el agente a sí mismo.</string>
     <string name="onboarding_identity_route_title">Identidad del agente</string>

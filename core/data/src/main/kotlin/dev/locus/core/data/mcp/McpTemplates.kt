@@ -549,7 +549,7 @@ object McpTemplates {
             docsUrl = "https://github.com/Doist/todoist-ai",
             url = "https://ai.todoist.net/mcp",
             signIn = true,
-            note = "Locus opens Todoist's sign-in in your browser. The server asks for read and write access to your tasks.",
+            note = "Locus opens Todoist's sign-in page in your browser. The server asks for read and write access to your tasks.",
         ),
         McpTemplate(
             id = "nextcloud",

@@ -58,8 +58,8 @@ internal data class HeatHold(val warning: LocalWarning, val text: String) {
 
 /** What light mode does, honestly: shorter replies always; fewer threads only on a CPU engine. */
 internal fun lightModeText(fewerThreads: Boolean): UiText =
-    if (fewerThreads) UiText.Res(R.string.chat_heat_light_cpu, LIGHT_MAX_OUTPUT_TOKENS, LIGHT_CPU_THREADS)
-    else UiText.Res(R.string.chat_heat_light, LIGHT_MAX_OUTPUT_TOKENS)
+    if (fewerThreads) UiText.Plural(R.plurals.chat_heat_light_cpu, LIGHT_CPU_THREADS, LIGHT_MAX_OUTPUT_TOKENS, LIGHT_CPU_THREADS)
+    else UiText.Plural(R.plurals.chat_heat_light, LIGHT_MAX_OUTPUT_TOKENS, LIGHT_MAX_OUTPUT_TOKENS)
 
 /** Asked before an on-device reply while the phone is hot or in battery saver: light mode, send anyway, or not now. */
 @Composable

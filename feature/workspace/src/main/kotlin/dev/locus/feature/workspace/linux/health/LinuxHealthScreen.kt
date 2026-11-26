@@ -347,9 +347,9 @@ private fun Verdict(checks: List<HealthCheck>, report: LinuxReport, repairing: B
             val checkedAgo = relativeTime(report.takenAt).lowercase()
             SupportingText(
                 if (problems == 0) {
-                    stringResource(R.string.workspace_health_verdict_passed, checks.size, checkedAgo)
+                    pluralStringResource(R.plurals.workspace_health_verdict_passed, checks.size, checks.size, checkedAgo)
                 } else {
-                    stringResource(R.string.workspace_health_verdict_attention, problems, checks.size, checkedAgo)
+                    pluralStringResource(R.plurals.workspace_health_verdict_attention, problems, problems, checks.size, checkedAgo)
                 },
             )
             if (repairing) {

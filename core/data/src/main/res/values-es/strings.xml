@@ -25,7 +25,11 @@
     <string name="data_linux_update_failed">%1$s Revisa la conexión a internet e inténtalo de nuevo.</string>
     <string name="data_linux_package_timed_out">Se agotó el tiempo. El agente puede terminarlo más tarde con apk add.</string>
     <string name="data_linux_package_exit">apk terminó con %1$s</string>
-    <string name="data_linux_packages_failed">No se pudieron instalar %1$d de %2$d. Mira abajo; puedes volver a intentarlo.</string>
+    <plurals name="data_linux_packages_failed">
+        <item quantity="one">No se pudo instalar %1$d de %2$d. Mira abajo; puedes volver a intentarlo.</item>
+        <item quantity="many">No se pudieron instalar %1$d de %2$d. Mira abajo; puedes volver a intentarlo.</item>
+        <item quantity="other">No se pudieron instalar %1$d de %2$d. Mira abajo; puedes volver a intentarlo.</item>
+    </plurals>
     <string name="data_linux_estimate_under_a_minute">Unos %1$d MB de descarga y %2$d MB en el teléfono. Con Wi-Fi suele tardar menos de un minuto.</string>
     <plurals name="data_linux_estimate_minutes">
         <item quantity="one">Unos %1$d MB de descarga y %2$d MB en el teléfono. Con Wi-Fi suele tardar unos %3$d minuto.</item>
@@ -37,7 +41,11 @@
     <string name="data_linux_notification_title">Instalando Linux</string>
     <string name="data_linux_notification_cancel">Cancelar</string>
 
-    <string name="data_heat_services_more">%1$s y %2$d más</string>
+    <plurals name="data_heat_services_more">
+        <item quantity="one">%1$s y %2$d más</item>
+        <item quantity="many">%1$s y %2$d más</item>
+        <item quantity="other">%1$s y %2$d más</item>
+    </plurals>
     <plurals name="data_heat_message">
         <item quantity="one">El teléfono está muy caliente y hay %1$d servicio de Linux en ejecución (%2$s). Detenerlo ayudaría a que se enfríe; el agente puede volver a iniciarlo más tarde.</item>
         <item quantity="many">El teléfono está muy caliente y hay %1$d servicios de Linux en ejecución (%2$s). Detenerlos ayudaría a que se enfríe; el agente puede volver a iniciarlos más tarde.</item>
@@ -107,7 +115,11 @@
         <item quantity="many">%1$s: se superaron %2$d comprobaciones.</item>
         <item quantity="other">%1$s: se superaron %2$d comprobaciones.</item>
     </plurals>
-    <string name="data_selftest_linux_attention">%1$s. %2$d de %3$d comprobaciones necesitan atención; cada una tiene su solución en la pantalla de Linux.</string>
+    <plurals name="data_selftest_linux_attention">
+        <item quantity="one">%1$s. %2$d de %3$d comprobaciones necesita atención; tiene su solución en la pantalla de Linux.</item>
+        <item quantity="many">%1$s. %2$d de %3$d comprobaciones necesitan atención; cada una tiene su solución en la pantalla de Linux.</item>
+        <item quantity="other">%1$s. %2$d de %3$d comprobaciones necesitan atención; cada una tiene su solución en la pantalla de Linux.</item>
+    </plurals>
     <string name="data_selftest_provider_not_checked">Sin comprobar: %1$s</string>
     <plurals name="data_selftest_provider_listed">
         <item quantity="one">Accesible con su clave: %1$d modelo en la lista.</item>

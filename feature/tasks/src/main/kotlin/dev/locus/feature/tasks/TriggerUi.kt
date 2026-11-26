@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.pluralStringResource
 import dev.locus.core.designsystem.SecretContent
 import dev.locus.core.designsystem.IconSize
 import androidx.compose.foundation.layout.Row
@@ -373,7 +374,7 @@ internal fun eventLine(event: TriggerEventRecord): Pair<String, Tone> {
 internal fun HistorySheet(task: ScheduledTask, events: List<TriggerEventRecord>?, onDismiss: () -> Unit, onOpenChat: (String) -> Unit) {
     LocusSheet(
         title = stringResource(R.string.tasks_history_title),
-        subtitle = stringResource(R.string.tasks_history_subtitle, task.title, dev.locus.core.data.tasks.triggers.TriggerEngine.KEEP),
+        subtitle = pluralStringResource(R.plurals.tasks_history_subtitle, dev.locus.core.data.tasks.triggers.TriggerEngine.KEEP, task.title, dev.locus.core.data.tasks.triggers.TriggerEngine.KEEP),
         onDismiss = onDismiss,
     ) {
         when {

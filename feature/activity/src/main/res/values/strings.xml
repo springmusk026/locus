@@ -63,7 +63,10 @@
         <item quantity="one">%1$d action</item>
         <item quantity="other">%1$d actions</item>
     </plurals>
-    <string name="activity_run_failed">%1$d failed</string>
+    <plurals name="activity_run_failed">
+        <item quantity="one">%1$d failed</item>
+        <item quantity="other">%1$d failed</item>
+    </plurals>
     <plurals name="activity_run_approvals">
         <item quantity="one">%1$d approval</item>
         <item quantity="other">%1$d approvals</item>

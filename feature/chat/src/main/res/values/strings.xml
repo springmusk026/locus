@@ -360,7 +360,10 @@
     </plurals>
     <string name="chat_screen_hide_steps">Hide steps</string>
     <string name="chat_screen_show_steps">Show steps</string>
-    <string name="chat_screen_n_failed">%1$d failed</string>
+    <plurals name="chat_screen_n_failed">
+        <item quantity="one">%1$d failed</item>
+        <item quantity="other">%1$d failed</item>
+    </plurals>
     <string name="chat_screen_working">working</string>
     <string name="chat_screen_temporary_title">A temporary chat</string>
     <string name="chat_screen_welcome">What should we work on?</string>
@@ -478,7 +481,10 @@
     <string name="chat_home_tasks">Tasks</string>
     <string name="chat_home_tasks_none">Tasks, none yet</string>
     <string name="chat_home_tasks_paused">Tasks, all paused</string>
-    <string name="chat_home_tasks_scheduled">Tasks, %1$d scheduled</string>
+    <plurals name="chat_home_tasks_scheduled">
+        <item quantity="one">Tasks, %1$d scheduled</item>
+        <item quantity="other">Tasks, %1$d scheduled</item>
+    </plurals>
     <string name="chat_home_files">Files</string>
     <string name="chat_home_files_description">Workspace files and Linux</string>
     <string name="chat_home_activity">Activity</string>
@@ -534,8 +540,14 @@
     <string name="chat_home_new">New</string>
     <string name="chat_home_project_no_chats">No chats yet</string>
     <string name="chat_home_project_needs_approval">Needs approval</string>
-    <string name="chat_home_project_n_need_approval">%1$d need approval</string>
-    <string name="chat_home_project_n_working">%1$d working</string>
+    <plurals name="chat_home_project_n_need_approval">
+        <item quantity="one">%1$d needs approval</item>
+        <item quantity="other">%1$d need approval</item>
+    </plurals>
+    <plurals name="chat_home_project_n_working">
+        <item quantity="one">%1$d working</item>
+        <item quantity="other">%1$d working</item>
+    </plurals>
     <string name="chat_home_project_spoken">%1$s, project</string>
     <string name="chat_home_project_last_active">last active %1$s</string>
     <plurals name="chat_home_project_spoken_approvals">
@@ -564,8 +576,14 @@
     <string name="chat_heat_body_hot">A reply from the on-device model works the processor hard for a while, so the phone will get hotter and Android will slow it down.</string>
     <string name="chat_heat_body_battery_saver">A reply from the on-device model uses a lot of battery.</string>
     <string name="chat_heat_body_critical">At this temperature Locus stops on-device replies early to let the phone cool; what was written is kept.</string>
-    <string name="chat_heat_light_cpu">Light mode keeps replies to about %1$d tokens and runs the model on %2$d processor cores, so it heats the phone more slowly but answers more slowly too. It turns itself off once the phone is back to normal.</string>
-    <string name="chat_heat_light">Light mode keeps replies to about %1$d tokens, so there is less work to do. It turns itself off once the phone is back to normal.</string>
+    <plurals name="chat_heat_light_cpu">
+        <item quantity="one">Light mode keeps replies to about %1$d tokens and runs the model on %2$d processor core, so it heats the phone more slowly but answers more slowly too. It turns itself off once the phone is back to normal.</item>
+        <item quantity="other">Light mode keeps replies to about %1$d tokens and runs the model on %2$d processor cores, so it heats the phone more slowly but answers more slowly too. It turns itself off once the phone is back to normal.</item>
+    </plurals>
+    <plurals name="chat_heat_light">
+        <item quantity="one">Light mode keeps replies to about %1$d token, so there is less work to do. It turns itself off once the phone is back to normal.</item>
+        <item quantity="other">Light mode keeps replies to about %1$d tokens, so there is less work to do. It turns itself off once the phone is back to normal.</item>
+    </plurals>
     <string name="chat_heat_use_light">Use light mode</string>
     <string name="chat_heat_not_now">Not now</string>
     <string name="chat_heat_send_anyway">Send anyway</string>
@@ -613,7 +631,10 @@
     <string name="chat_composer_thinking_change">Change thinking effort</string>
     <string name="chat_composer_tools">Tools</string>
     <string name="chat_composer_tools_none">None in this chat</string>
-    <string name="chat_composer_tools_off">%1$d switched off</string>
+    <plurals name="chat_composer_tools_off">
+        <item quantity="one">%1$d switched off</item>
+        <item quantity="other">%1$d switched off</item>
+    </plurals>
     <string name="chat_composer_tools_all">All on</string>
     <string name="chat_composer_stop">Stop</string>
     <string name="chat_composer_speak">Speak</string>
@@ -669,7 +690,10 @@
     <string name="chat_modelsheet_collapsed">Collapsed</string>
     <string name="chat_modelsheet_load_failed">Couldn\'t load the model list: %1$s</string>
     <string name="chat_modelsheet_loading">Loading models…</string>
-    <string name="chat_modelsheet_more">%1$d more; search to narrow.</string>
+    <plurals name="chat_modelsheet_more">
+        <item quantity="one">%1$d more; search to narrow.</item>
+        <item quantity="other">%1$d more; search to narrow.</item>
+    </plurals>
     <string name="chat_modelsheet_chat_only_started">This chat started on a model that can\'t use tools, so it has none. Switching model keeps it that way; start a new chat for tools.</string>
     <string name="chat_modelsheet_chat_only_new">Models marked Chat only start this chat without tools: they\'re too small, or not built, to use them.</string>
     <string name="chat_modelsheet_default">Default</string>
@@ -717,7 +741,10 @@
     <string name="chat_projecteditor_snapshots_note">Before each command, Locus copies the project\'s files into its own storage; a file that didn\'t change is kept once. It skips the snapshot, and says so, when the folder has more than %1$s files or %2$s, or reading it takes over %3$s seconds. Left out: links, and folders such as .git, node_modules, build, dist, .venv and __pycache__. Snapshots are kept for the latest %4$s turns, up to %5$s days.</string>
     <string name="chat_projecteditor_permissions">Permissions</string>
     <string name="chat_projecteditor_permissions_hint">These can only make a tool stricter in this project; Allow needs your confirmation. Changes apply at once, also to running chats. Everywhere else, tools follow</string>
-    <string name="chat_projecteditor_set">%1$d set</string>
+    <plurals name="chat_projecteditor_set">
+        <item quantity="one">%1$d set</item>
+        <item quantity="other">%1$d set</item>
+    </plurals>
     <string name="chat_projecteditor_connectors">Connectors</string>
     <string name="chat_projecteditor_connector_allowed">Allowed in this project</string>
     <string name="chat_projecteditor_connector_denied">Not used in this project</string>
@@ -734,9 +761,18 @@
         <item quantity="one">%1$d tool</item>
         <item quantity="other">%1$d tools</item>
     </plurals>
-    <string name="chat_projecteditor_n_ask">%1$d ask</string>
-    <string name="chat_projecteditor_n_denied">%1$d denied</string>
-    <string name="chat_projecteditor_n_allowed">%1$d allowed</string>
+    <plurals name="chat_projecteditor_n_ask">
+        <item quantity="one">%1$d asks</item>
+        <item quantity="other">%1$d ask</item>
+    </plurals>
+    <plurals name="chat_projecteditor_n_denied">
+        <item quantity="one">%1$d denied</item>
+        <item quantity="other">%1$d denied</item>
+    </plurals>
+    <plurals name="chat_projecteditor_n_allowed">
+        <item quantity="one">%1$d allowed</item>
+        <item quantity="other">%1$d allowed</item>
+    </plurals>
     <string name="chat_projecteditor_policy">Everywhere: %1$s · here: %2$s</string>
     <string name="chat_projecteditor_policy_same">Same</string>
     <string name="chat_projecteditor_policy_ask">Ask</string>
@@ -804,7 +840,10 @@
     <string name="chat_receipt_cost_unknown">Unknown: models.dev lists no price for these models</string>
     <string name="chat_receipt_cost_estimate">%1$s · estimate from models.dev prices</string>
     <string name="chat_receipt_files">Files</string>
-    <string name="chat_receipt_files_changed">%1$d changed</string>
+    <plurals name="chat_receipt_files_changed">
+        <item quantity="one">%1$d changed</item>
+        <item quantity="other">%1$d changed</item>
+    </plurals>
     <string name="chat_receipt_checks">Checks</string>
     <string name="chat_receipt_approvals">Approvals</string>
     <string name="chat_receipt_outside">Outside content</string>
@@ -871,7 +910,10 @@
     <string name="chat_remote_unlink_title">Run on this phone again?</string>
     <string name="chat_remote_unlink_body">New commands run in Linux on the phone. The copy on %1$s stays there; Locus doesn\'t delete it.</string>
     <string name="chat_remote_unlink_confirm">Run on this phone</string>
-    <string name="chat_remote_and_more">…and %1$d more</string>
+    <plurals name="chat_remote_and_more">
+        <item quantity="one">…and %1$d more</item>
+        <item quantity="other">…and %1$d more</item>
+    </plurals>
     <plurals name="chat_remote_files">
         <item quantity="one">%1$d file</item>
         <item quantity="other">%1$d files</item>
@@ -906,7 +948,10 @@
     <!-- SentSheet -->
     <string name="chat_sent_title">What was sent</string>
     <string name="chat_sent_loading">Loading…</string>
-    <string name="chat_sent_missing">Not kept for this reply. Locus keeps the last %1$d requests of recent chats in memory only, never on disk, so older replies and replies from before the app last started can\'t be shown.</string>
+    <plurals name="chat_sent_missing">
+        <item quantity="one">Not kept for this reply. Locus keeps the last %1$d request of recent chats in memory only, never on disk, so older replies and replies from before the app last started can\'t be shown.</item>
+        <item quantity="other">Not kept for this reply. Locus keeps the last %1$d requests of recent chats in memory only, never on disk, so older replies and replies from before the app last started can\'t be shown.</item>
+    </plurals>
     <string name="chat_sent_copied">Copied</string>
     <string name="chat_sent_copy_text">Copy text</string>
     <string name="chat_sent_copy_json">Copy JSON</string>
@@ -942,7 +987,10 @@
     <string name="chat_side_caption">Not added to the chat.</string>
     <string name="chat_side_clear">Clear</string>
     <string name="chat_side_close">Close side question</string>
-    <string name="chat_side_older">%1$d older</string>
+    <plurals name="chat_side_older">
+        <item quantity="one">%1$d older</item>
+        <item quantity="other">%1$d older</item>
+    </plurals>
     <string name="chat_side_answering">Answering…</string>
     <string name="chat_side_tried_tools">It tried to use a tool; side questions can\'t run tools, so nothing ran.</string>
     <!-- SubagentRow -->
@@ -999,7 +1047,10 @@
     <string name="chat_checks_show_runs">Show all runs</string>
     <string name="chat_checks_show_output">Show output</string>
     <string name="chat_checks_hide_output">Hide output</string>
-    <string name="chat_checks_and_more">and %1$d more</string>
+    <plurals name="chat_checks_and_more">
+        <item quantity="one">and %1$d more</item>
+        <item quantity="other">and %1$d more</item>
+    </plurals>
     <string name="chat_checks_output">Output</string>
     <plurals name="chat_checks_runs_in_turn">
         <item quantity="one">%1$d run in this turn</item>
@@ -1122,8 +1173,14 @@
     <string name="chat_budget_cost_off">Cost needs model prices: turn on model details (models.dev) in Settings → Models.</string>
     <string name="chat_budget_cost_not_loaded">Model prices haven\'t loaded yet; open the model list once to fetch them.</string>
     <string name="chat_budget_cost_no_price">models.dev lists no price for %1$s, so cost can\'t be estimated.</string>
-    <string name="chat_checklist_progress">%1$d of %2$d done</string>
-    <string name="chat_checklist_progress_current">%1$d of %2$d done · %3$s</string>
+    <plurals name="chat_checklist_progress">
+        <item quantity="one">%1$d of %2$d done</item>
+        <item quantity="other">%1$d of %2$d done</item>
+    </plurals>
+    <plurals name="chat_checklist_progress_current">
+        <item quantity="one">%1$d of %2$d done · %3$s</item>
+        <item quantity="other">%1$d of %2$d done · %3$s</item>
+    </plurals>
     <string name="chat_thought_label">Thought</string>
     <string name="chat_thought_moment">Thought for a moment</string>
     <string name="chat_thought_seconds">Thought for %1$ds</string>
@@ -1202,7 +1259,10 @@
     <string name="chat_sent_row_cache">Cache</string>
     <string name="chat_sent_on_this_phone">On this phone</string>
     <string name="chat_sent_format_chatgpt">Responses (ChatGPT plan)</string>
-    <string name="chat_sent_reported">%1$,d reported</string>
+    <plurals name="chat_sent_reported">
+        <item quantity="one">%1$,d reported</item>
+        <item quantity="other">%1$,d reported</item>
+    </plurals>
     <string name="chat_sent_row_cleared">Earlier tool results</string>
     <plurals name="chat_sent_cleared">
         <item quantity="one">%1$d cleared · ≈%2$s tokens saved</item>
@@ -1293,7 +1353,10 @@
     <string name="chat_rewind_changed_since_title">Changed outside Locus since</string>
     <string name="chat_rewind_gone_title">Can\'t be put back</string>
     <string name="chat_rewind_effects_title">Stays as it is</string>
-    <string name="chat_rewind_more">and %1$d more</string>
+    <plurals name="chat_rewind_more">
+        <item quantity="one">and %1$d more</item>
+        <item quantity="other">and %1$d more</item>
+    </plurals>
     <string name="chat_rewind_agent_note">Locus tells the agent what changed before its next reply.</string>
     <string name="chat_rewind_action">Rewind</string>
     <string name="chat_later_branch">The later messages are on another branch.</string>
@@ -1527,7 +1590,10 @@
     <string name="chat_rules_delete_confirm">Delete</string>
     <string name="chat_projecteditor_rules">Rules</string>
     <string name="chat_projecteditor_rules_none">No rules yet</string>
-    <string name="chat_projecteditor_rules_suspended">%1$s · %2$d suspended</string>
+    <plurals name="chat_projecteditor_rules_suspended">
+        <item quantity="one">%1$s · %2$d suspended</item>
+        <item quantity="other">%1$s · %2$d suspended</item>
+    </plurals>
     <string name="chat_projecteditor_rules_note">Commands to run after an edit or before the agent finishes, and commands to block.</string>
     <string name="chat_rules_files_example" translatable="false">*.py, src/**/*.ts</string>
     <string name="chat_rules_pattern_example" translatable="false">git push*main</string>

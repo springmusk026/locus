@@ -4,6 +4,7 @@ import dev.locus.core.agent.home.AgentHome
 import dev.locus.core.agent.workflow.WorkflowChecks
 import dev.locus.core.agent.workflow.WorkflowDraft
 import dev.locus.core.agent.workflow.WorkflowInputException
+import dev.locus.core.agent.workflow.WorkflowPlan
 import dev.locus.core.agent.workflow.WorkflowRender
 import dev.locus.core.agent.workflow.WorkflowScope
 import dev.locus.core.agent.workflow.WorkflowStore
@@ -264,8 +265,36 @@ class WorkflowsTest {
         // An approval point asks even when the call only looks.
         assertNotNull(WorkflowScope.escalation(plan, "mcp_call", vercel, observation = true))
         assertTrue(WorkflowScope.escalation(plan, "mcp_call", github, observation = false)!!.contains("connector:github"))
-        // No declared tools: no limit.
-        assertNull(WorkflowScope.escalation(plan.copy(tools = emptyList(), approvals = emptyList()), "send_email", none, observation = false))
+    }
+
+    @Test
+    fun `a workflow with no declared tools asks before every call that changes something`() {
+        val bare = plan.copy(tools = emptyList(), approvals = emptyList())
+        assertTrue(WorkflowScope.escalation(bare, "send_email", none, observation = false)!!.contains("no tools listed"))
+        assertNotNull(WorkflowScope.escalation(bare, "write_file", none, observation = false))
+        assertNotNull(WorkflowScope.escalation(bare, "mcp_call", buildJsonObject { put("connector", "vercel") }, observation = false))
+        // Looking and steering the agent still don't ask.
+        assertNull(WorkflowScope.escalation(bare, "web_search", none, observation = true))
+        assertNull(WorkflowScope.escalation(bare, "todo_write", none, observation = false))
+    }
+
+    @Test
+    fun `the loop asks for a write when the workflow lists no tools`() = runTest {
+        val asked = mutableListOf<ApprovalRequest>()
+        val store = loop(Probe("write_file"), ToolPolicy.ALLOW, asked = asked, scope = plan.copy(tools = emptyList(), approvals = emptyList()))
+        assertEquals(ApprovalDecision.USER_APPROVED, store.audit.single().decision)
+        assertTrue(asked.single().summary.contains("no tools listed"), asked.single().toString())
+        // A read-only (scheduled) run refuses it.
+        val scheduled = loop(Probe("write_file"), ToolPolicy.ALLOW, readOnly = true, scope = plan.copy(tools = emptyList(), approvals = emptyList()))
+        assertEquals(ApprovalDecision.POLICY_DENIED, scheduled.audit.single().decision)
+    }
+
+    @Test
+    fun `a rendered plan that grows past the cap is refused`() {
+        val big = workflow.copy(parameters = listOf(WorkflowParam("text", label = "Text")), goal = "Summarise {text}", steps = listOf("Read {text}", "Check {text}"))
+        assertNotNull(WorkflowRender.render(big, mapOf("text" to "x".repeat(1_000))))
+        val e = assertFailsWith<WorkflowInputException> { WorkflowRender.render(big, mapOf("text" to "x".repeat(WorkflowRender.MAX_NOTE_CHARS))) }
+        assertTrue("too long" in e.message!!, e.message)
     }
 
     private class Probe(name: String, private val observation: Boolean = false) : Tool {
@@ -289,6 +318,7 @@ class WorkflowsTest {
         readOnly: Boolean = false,
         asked: MutableList<ApprovalRequest> = mutableListOf(),
         args: String = "{}",
+        scope: WorkflowPlan = plan,
     ): Store {
         val store = Store()
         val turns = ArrayDeque(
@@ -304,7 +334,7 @@ class WorkflowsTest {
         var n = 0
         AgentLoop(
             model, ToolRegistry(listOf(tool)), { policy }, { r -> asked += r; true }, store,
-            AgentConfig(readOnly = readOnly, escalate = { t, a -> WorkflowScope.escalation(plan, t, a) }),
+            AgentConfig(readOnly = readOnly, escalate = { t, a -> WorkflowScope.escalation(scope, t, a) }),
             ids = { "id${n++}" },
         ).run(Conversation("c", "t", "p", "system", 0, 0), listOf(msg("u", Role.USER, 0, Part.Text("go")))).toList()
         return store
@@ -402,6 +432,10 @@ class WorkflowsTest {
         assertEquals(listOf("run_command", "edit_file"), limits.changes)
         assertFalse(limits.fullyRuns)
         assertTrue(WorkflowScope.unattended(workflow.copy(tools = listOf("read_file", "web_search", "todo_write"), approvals = emptyList())).fullyRuns)
+        // No declared tools: nothing says its steps only read, so the schedule sheet can't call it fully unattended.
+        val bare = WorkflowScope.unattended(workflow.copy(tools = emptyList(), approvals = emptyList()))
+        assertTrue(bare.noTools)
+        assertFalse(bare.fullyRuns)
     }
 
     // ---- Storage --------------------------------------------------------------------------------
@@ -434,5 +468,27 @@ class WorkflowsTest {
         assertFalse(store.all().any { it.workflow.id == "other" })
         assertFailsWith<IllegalArgumentException> { store.save(workflow.copy(name = " "), null) }
         assertFailsWith<IllegalArgumentException> { store.save(workflow.copy(parameters = listOf(WorkflowParam("Bad"))), null) }
+    }
+
+    @Test
+    fun `ids and project ids that aren't ids never reach a path`() {
+        val dir = Files.createTempDirectory("home").toFile()
+        val store = WorkflowStore(AgentHome(dir))
+        val outside = dir.resolve("x.json").apply { writeText("keep") }
+        val outsideProject = dir.resolve("projects/x/workflows/x.json").apply { parentFile.mkdirs(); writeText("keep") }
+        store.save(workflow, null)
+        listOf("../x", "..", "a/b", "A", "", "x.json", "-x").forEach { bad ->
+            assertFailsWith<IllegalArgumentException>(bad) { store.get(bad, null) }
+            assertFailsWith<IllegalArgumentException>(bad) { store.delete(bad, null) }
+            assertFailsWith<IllegalArgumentException>(bad) { store.save(workflow, null, replacing = bad) }
+        }
+        assertEquals("keep", outside.readText())
+        assertTrue(store.get("test-and-deploy", null) != null, "the rejected save didn't change the saved workflow")
+        listOf("../x", "..", "x", "projects", "a/b").forEach { bad ->
+            assertFailsWith<IllegalArgumentException>(bad) { store.get("test-and-deploy", bad) }
+            assertFailsWith<IllegalArgumentException>(bad) { store.save(workflow, bad) }
+            assertFailsWith<IllegalArgumentException>(bad) { store.delete("test-and-deploy", bad) }
+        }
+        assertEquals("keep", outsideProject.readText())
     }
 }

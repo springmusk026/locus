@@ -146,7 +146,10 @@
 
     <!-- History sheet -->
     <string name="tasks_history_title">History</string>
-    <string name="tasks_history_subtitle">What reached “%1$s” and what it did. The latest %2$d events are kept.</string>
+    <plurals name="tasks_history_subtitle">
+        <item quantity="one">What reached “%1$s” and what it did. The latest %2$d event is kept.</item>
+        <item quantity="other">What reached “%1$s” and what it did. The latest %2$d events are kept.</item>
+    </plurals>
     <string name="tasks_history_empty_app">Nothing yet. Events show here as another app sends them, whether or not they start a run.</string>
     <string name="tasks_history_empty">Nothing yet. Events show here as Locus finds them, whether or not they start a run.</string>
     <string name="tasks_history_event_done">%1$s · done</string>

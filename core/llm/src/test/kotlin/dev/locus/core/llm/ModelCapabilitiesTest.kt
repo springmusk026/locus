@@ -71,6 +71,14 @@ class ModelCapabilitiesTest {
         assertEquals(Support.YES, rule("gpt-4o-mini").vision)
         assertEquals(Support.YES, rule("gpt-5.2").reasoning)
         assertEquals(Support.NO, rule("o1-mini").tools)
+        // o1-preview took neither tools nor images; the full o1 does.
+        listOf("o1-preview", "o1-preview-2024-09-12", "openai/o1-preview").forEach { id ->
+            assertEquals(Support.NO, rule(id).tools, id)
+            assertEquals(Support.NO, rule(id).vision, id)
+            assertEquals(Support.YES, rule(id).reasoning, id)
+        }
+        assertEquals(Support.YES, rule("o1").tools)
+        assertEquals(Support.YES, rule("o1-2024-12-17").vision)
         assertEquals(Support.NO, rule("deepseek-chat", base = "https://api.deepseek.com").vision)
         assertEquals(Support.YES, rule("claude-opus-5-5", ApiFormat.ANTHROPIC_MESSAGES, "https://api.anthropic.com").reasoning)
         assertEquals(Support.NO, rule("claude-3-5-haiku-latest", ApiFormat.ANTHROPIC_MESSAGES, "https://api.anthropic.com").reasoning)

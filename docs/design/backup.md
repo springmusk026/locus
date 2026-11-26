@@ -71,7 +71,7 @@ Readers accept 10,000 to 10,000,000 iterations, so a crafted header can't stall 
    - Last, `PRAGMA quick_check` runs on the staged database (`RestoredDatabaseCheck`), with the same bundled SQLite Room uses. Any problem refuses the backup with its own message: "The database inside this backup … is damaged, so Locus won't restore it. Nothing on this phone has changed. Try an older backup." The encryption proves the file is the one that was written; it can't prove the database was sound when it was written, and a damaged one would otherwise show only after the swap, as missing chats or a crash. See "Checking the database" below.
    - Any failure deletes the stage; nothing current has been touched. The vault, if present, is held in memory only until the user confirms.
 4. **Versions.**
-   - A newer file format, or a database newer than the app's (`PRAGMA user_version` of the open database), is refused: "update Locus first".
+   - A newer file format, a database newer than the app's (`PRAGMA user_version` of the open database), or newer content (`manifest.contentVersion` above `BackupArchive.CONTENT_VERSION`: the settings or agent-home layout changed while the database didn't) is refused: "update Locus first". Content is refused rather than restored with a warning because this version would drop whatever fields it doesn't know, and the restore replaces the phone's own copy.
    - An older database is restored as-is. Room's auto-migrations (v1 → current) upgrade it when it next opens, as for any app update.
 5. **Preview and confirm.** Created date, app version, database version and each part with its size. The text says what is replaced (database, settings, agent-home; the workspace only if included; keys only if included) and what is kept. Confirming is disabled while a chat, helper or scheduled run is active.
 6. **Apply.**
@@ -148,7 +148,7 @@ Errors (as opposed to exceptions) aren't caught by `PendingRestore`: they're tre
 - the vault and workspace left out by default;
 - a wrong password, and passwords with composed or decomposed accents;
 - a changed ciphertext byte, a cut-short file and a re-encoded header are rejected;
-- a newer schema is refused and an older one accepted; a newer format is refused; the manifest must match the database;
+- a newer schema is refused and an older one accepted; a newer format is refused; a newer content version is refused (`BackupError.NewerContent`) even with a current database; the manifest must match the database;
 - unsafe zip paths, and an unconfirmed stage that is discarded.
 
 `RestoredDatabaseCheckTest.kt` makes real databases with the bundled SQLite (a table with an index and an external-content FTS5 index, in WAL mode, copied with `VACUUM INTO`) and damages them at test time, so no binary fixtures are stored:

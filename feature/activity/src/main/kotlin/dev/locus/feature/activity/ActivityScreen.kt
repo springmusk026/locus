@@ -367,7 +367,7 @@ private fun RunHeader(run: Run, expanded: Boolean, inChat: Boolean, modifier: Mo
             }
             val critical = Locus.colors.critical
             val actionsText = pluralStringResource(R.plurals.activity_run_actions, run.actions, run.actions)
-            val failedText = if (run.failed > 0) stringResource(R.string.activity_run_failed, run.failed) else ""
+            val failedText = if (run.failed > 0) pluralStringResource(R.plurals.activity_run_failed, run.failed, run.failed) else ""
             val askedText = if (run.asked > 0) pluralStringResource(R.plurals.activity_run_approvals, run.asked, run.asked) else ""
             val counts = buildAnnotatedString {
                 append(actionsText)

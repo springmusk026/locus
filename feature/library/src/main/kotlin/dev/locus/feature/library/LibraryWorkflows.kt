@@ -1,5 +1,6 @@
 package dev.locus.feature.library
 
+import androidx.compose.runtime.mutableLongStateOf
 import dev.locus.core.designsystem.shortRes
 import dev.locus.core.ui.workflowToolName
 import androidx.compose.foundation.layout.Arrangement
@@ -296,7 +297,7 @@ private val INTERVALS = dev.locus.core.model.ScheduleIntervals.all
  */
 @Composable
 private fun ScheduleSheet(s: LibraryWorkflowSheet.Schedule, viewModel: LibraryWorkflowsViewModel) {
-    var interval by remember { mutableStateOf(dev.locus.core.model.ScheduleIntervals.DEFAULT.minutes) }
+    var interval by remember { mutableLongStateOf(dev.locus.core.model.ScheduleIntervals.DEFAULT.minutes) }
     val feedback = Locus.feedback
     val scheduledMessage = stringResource(R.string.library_workflows_scheduled)
     val limits = remember(s.saved.workflow) { dev.locus.core.agent.workflow.WorkflowScope.unattended(s.saved.workflow) }
@@ -326,6 +327,7 @@ private fun ScheduleSheet(s: LibraryWorkflowSheet.Schedule, viewModel: LibraryWo
                 add(stringResource(R.string.library_workflows_schedule_read_only))
                 if (limits.needYou.isNotEmpty()) add(stringResource(R.string.library_workflows_schedule_need_you, limits.needYou.map { workflowToolName(it) }.distinct().joinToString()))
                 if (limits.changes.isNotEmpty()) add(stringResource(R.string.library_workflows_schedule_changes, limits.changes.map { workflowToolName(it) }.distinct().joinToString()))
+                if (limits.noTools) add(stringResource(R.string.library_workflows_schedule_no_tools))
                 add(stringResource(if (limits.fullyRuns) R.string.library_workflows_schedule_only_reads else R.string.library_workflows_schedule_run_from_chat))
             }
             Text(

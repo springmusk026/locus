@@ -219,7 +219,7 @@
     <string name="ui_workflow_steps">Steps, one per line</string>
     <string name="ui_workflow_steps_hint">A plan the agent adapts, not calls it replays.</string>
     <string name="ui_workflow_tools">Tools</string>
-    <string name="ui_workflow_tools_no_limit">No limit: the workflow may use any tool your settings allow.</string>
+    <string name="ui_workflow_tools_none">No tools listed: every call that changes something asks for your approval.</string>
     <string name="ui_workflow_tools_note">Anything else that changes something asks you first. “Ask” keeps a step\'s approval even when your settings allow it.</string>
     <string name="ui_workflow_ask">Ask</string>
     <!-- %1$s is what the tool does, in a few words. -->
@@ -451,7 +451,7 @@
     <string name="ui_catalog_mcp_home_assistant_scopes">a token of a non-administrator user is enough; it sees only what you exposed to Assist</string>
     <string name="ui_catalog_mcp_home_assistant_full_warning">Full access uses /api/mcp: every tool set you enabled, which can include reading all entities, history and logs and calling any action. It needs an administrator\'s token.</string>
     <string name="ui_catalog_mcp_todoist_description">Find, add, update and complete your tasks and projects.</string>
-    <string name="ui_catalog_mcp_todoist_note">Locus opens Todoist\'s sign-in in your browser. The server asks for read and write access to your tasks.</string>
+    <string name="ui_catalog_mcp_todoist_note">Locus opens Todoist\'s sign-in page in your browser. The server asks for read and write access to your tasks.</string>
     <string name="ui_catalog_mcp_nextcloud_description">Files, notes, calendar, contacts, tasks and Deck on your Nextcloud.</string>
     <string name="ui_catalog_mcp_nextcloud_note">The address is your server\'s, with https://. Use an app password from Nextcloud → Settings → Security → Devices &amp; sessions, not your login password: you can revoke it there.</string>
     <string name="ui_catalog_mcp_filesystem_description">Read, write and search files in your workspace.</string>
@@ -561,9 +561,15 @@
     <string name="ui_prompt_edit_title">Edit prompt</string>
     <string name="ui_prompt_editor_subtitle">Insert it by typing / in an empty composer. It\'s never sent until you tap Send.</string>
     <string name="ui_prompt_name">Name</string>
-    <string name="ui_prompt_name_too_long">At most %1$d characters</string>
+    <plurals name="ui_prompt_name_too_long">
+        <item quantity="one">At most %1$d character</item>
+        <item quantity="other">At most %1$d characters</item>
+    </plurals>
     <string name="ui_prompt_text">Prompt</string>
-    <string name="ui_prompt_text_too_long">At most %1$d characters</string>
+    <plurals name="ui_prompt_text_too_long">
+        <item quantity="one">At most %1$d character</item>
+        <item quantity="other">At most %1$d characters</item>
+    </plurals>
     <plurals name="ui_prompt_issues">
         <item quantity="one">%1$d variable can\'t be filled in</item>
         <item quantity="other">%1$d variables can\'t be filled in</item>
@@ -572,9 +578,15 @@
     <string name="ui_prompt_issue_unclosed">A {{ has no }} after it on the same line. Close it, or write \\{{ to keep the braces.</string>
     <string name="ui_prompt_issue_empty">{{}} is empty. Put a variable\'s name in it.</string>
     <string name="ui_prompt_issue_bad_field">A field needs a label, as in {{field:Label}}, and the label can\'t contain braces.</string>
-    <string name="ui_prompt_issue_too_long">A field\'s label can be up to %1$d characters long and its default up to %2$d.</string>
+    <plurals name="ui_prompt_issue_too_long">
+        <item quantity="one">A field\'s label can be up to %1$d character long and its default up to %2$d.</item>
+        <item quantity="other">A field\'s label can be up to %1$d characters long and its default up to %2$d.</item>
+    </plurals>
     <string name="ui_prompt_issue_defaults">The field “%1$s” has two different defaults. Give it one.</string>
-    <string name="ui_prompt_issue_too_many">A prompt can ask for at most %1$d fields.</string>
+    <plurals name="ui_prompt_issue_too_many">
+        <item quantity="one">A prompt can ask for at most %1$d field.</item>
+        <item quantity="other">A prompt can ask for at most %1$d fields.</item>
+    </plurals>
     <string name="ui_prompt_insert_variable">Insert a variable</string>
     <string name="ui_prompt_var_clipboard">Clipboard</string>
     <string name="ui_prompt_var_date">Date</string>

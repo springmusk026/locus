@@ -40,7 +40,10 @@
     <string name="linux_health_files_damaged_missing">Linux is missing %1$s. Only a reinstall puts them back; your workspace files stay.</string>
     <string name="linux_health_files_damaged_missing_and_db">Linux is missing %1$s; the package database can\'t be read. Only a reinstall puts them back; your workspace files stay.</string>
     <string name="linux_health_files_damaged_db">Linux is the package database can\'t be read. Only a reinstall puts them back; your workspace files stay.</string>
-    <string name="linux_health_files_more">%1$s and %2$d more</string>
+    <plurals name="linux_health_files_more">
+        <item quantity="one">%1$s and %2$d more</item>
+        <item quantity="other">%1$s and %2$d more</item>
+    </plurals>
     <string name="linux_health_files_ok_title">System files intact</string>
     <string name="linux_health_files_ok_detail">Key files and the package database are in place.</string>
     <string name="linux_health_storage_full_title">Phone storage is almost full</string>
@@ -60,7 +63,10 @@
     <string name="linux_health_phantom_off_title">Background limit is off</string>
     <string name="linux_health_phantom_off_detail">Child process restrictions are turned off, so Android won\'t stop Linux for that reason.</string>
     <string name="linux_health_phantom_warning_title">Android may stop Linux in the background</string>
-    <string name="linux_health_phantom_warning_detail">Android 12+ stops apps\' extra processes (%1$d running for Locus now). You can turn this off.</string>
+    <plurals name="linux_health_phantom_warning_detail">
+        <item quantity="one">Android 12+ stops apps\' extra processes (%1$d running for Locus now). You can turn this off.</item>
+        <item quantity="other">Android 12+ stops apps\' extra processes (%1$d running for Locus now). You can turn this off.</item>
+    </plurals>
     <string name="linux_health_phantom_killed_command">Android stopped a command while Locus was in the background.</string>
     <string name="linux_health_phantom_killed_service">Android stopped service %1$s while Locus was in the background.</string>
     <string name="linux_health_phantom_killed_terminal">Android stopped a terminal while Locus was in the background.</string>

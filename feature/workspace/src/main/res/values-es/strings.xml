@@ -98,7 +98,11 @@
     <string name="workspace_linux_checking">Comprobando…</string>
     <string name="workspace_linux_services">Servicios</string>
     <string name="workspace_linux_services_none">Ninguno en ejecución</string>
-    <string name="workspace_linux_services_running">%1$d en ejecución</string>
+    <plurals name="workspace_linux_services_running">
+        <item quantity="one">%1$d en ejecución</item>
+        <item quantity="many">%1$d en ejecución</item>
+        <item quantity="other">%1$d en ejecución</item>
+    </plurals>
     <string name="workspace_linux_service_running">Servicio %1$s, en ejecución</string>
     <string name="workspace_linux_service_stop">Detener %1$s</string>
     <string name="workspace_linux_add_tools">Agregar herramientas</string>
@@ -162,8 +166,16 @@
     <string name="workspace_health_level_warning">Aviso</string>
     <string name="workspace_health_level_problem">Problema</string>
     <string name="workspace_health_status">Estado: %1$s</string>
-    <string name="workspace_health_verdict_passed">%1$d comprobaciones superadas · comprobado %2$s</string>
-    <string name="workspace_health_verdict_attention">%1$d de %2$d comprobaciones requieren atención · comprobado %3$s</string>
+    <plurals name="workspace_health_verdict_passed">
+        <item quantity="one">%1$d comprobación superada · comprobado %2$s</item>
+        <item quantity="many">%1$d comprobaciones superadas · comprobado %2$s</item>
+        <item quantity="other">%1$d comprobaciones superadas · comprobado %2$s</item>
+    </plurals>
+    <plurals name="workspace_health_verdict_attention">
+        <item quantity="one">%1$d de %2$d comprobaciones requiere atención · comprobado %3$s</item>
+        <item quantity="many">%1$d de %2$d comprobaciones requieren atención · comprobado %3$s</item>
+        <item quantity="other">%1$d de %2$d comprobaciones requieren atención · comprobado %3$s</item>
+    </plurals>
     <plurals name="workspace_health_checks_passed">
         <item quantity="one">%1$d comprobación superada</item>
         <item quantity="many">%1$d comprobaciones superadas</item>
@@ -207,7 +219,11 @@
     <string name="workspace_health_phantom_developer_options">Opciones de desarrollador</string>
     <string name="workspace_health_phantom_guide">Leer la guía</string>
     <string name="workspace_packages_title">Paquetes</string>
-    <string name="workspace_packages_subtitle">%1$d instalados por ti · %2$d en total</string>
+    <plurals name="workspace_packages_subtitle">
+        <item quantity="one">%1$d instalado por ti · %2$d en total</item>
+        <item quantity="many">%1$d instalados por ti · %2$d en total</item>
+        <item quantity="other">%1$d instalados por ti · %2$d en total</item>
+    </plurals>
     <string name="workspace_packages_not_installed_title">Linux no está instalado</string>
     <string name="workspace_packages_not_installed_body">Los paquetes se muestran aquí cuando Linux esté configurado.</string>
     <string name="workspace_packages_set_up">Configurar Linux</string>
@@ -219,7 +235,11 @@
     <string name="workspace_packages_uninstall_title">¿Desinstalar %1$s?</string>
     <string name="workspace_packages_uninstall_message">Ejecuta `apk del %1$s`. Los paquetes que trajo consigo y que nada más necesita también se eliminan. Los archivos de tu espacio de trabajo se conservan, y puedes volver a instalarlo.</string>
     <string name="workspace_packages_uninstall">Desinstalar</string>
-    <string name="workspace_packages_search_all">Buscar en los %1$d paquetes</string>
+    <plurals name="workspace_packages_search_all">
+        <item quantity="one">Buscar en el %1$d paquete</item>
+        <item quantity="many">Buscar en los %1$d paquetes</item>
+        <item quantity="other">Buscar en los %1$d paquetes</item>
+    </plurals>
     <string name="workspace_packages_search_yours">Buscar entre los paquetes que instalaste</string>
     <string name="workspace_packages_filter_yours">Instalados por ti (%1$d)</string>
     <string name="workspace_packages_filter_yours_description">Mostrar los paquetes que instalaste, %1$d</string>
@@ -236,7 +256,11 @@
         <item quantity="many">%1$d actualizaciones disponibles</item>
         <item quantity="other">%1$d actualizaciones disponibles</item>
     </plurals>
-    <string name="workspace_packages_updates_more">y %1$d más</string>
+    <plurals name="workspace_packages_updates_more">
+        <item quantity="one">y %1$d más</item>
+        <item quantity="many">y %1$d más</item>
+        <item quantity="other">y %1$d más</item>
+    </plurals>
     <string name="workspace_packages_updates_install">Instálalas con `apk upgrade` en la terminal.</string>
     <string name="workspace_packages_open_terminal">Abrir terminal</string>
     <string name="workspace_packages_expanded">Expandido</string>
@@ -333,9 +357,21 @@
     <string name="workspace_preview_image_size_animated">%1$d × %2$d · animada</string>
     <string name="workspace_preview_table_empty">No se encontraron filas.</string>
     <string name="workspace_preview_table_rows_cut">Mostrando las primeras %1$s de %2$s filas.</string>
-    <string name="workspace_preview_table_columns_cut">Mostrando las primeras %1$d de %2$d columnas.</string>
-    <string name="workspace_preview_table_size">%1$s filas × %2$d columnas</string>
-    <string name="workspace_preview_code_lines_cut">%1$d línea(s) larga(s) se cortan aquí a los %2$s caracteres.</string>
+    <plurals name="workspace_preview_table_columns_cut">
+        <item quantity="one">Mostrando la primera %1$d de %2$d columnas.</item>
+        <item quantity="many">Mostrando las primeras %1$d de %2$d columnas.</item>
+        <item quantity="other">Mostrando las primeras %1$d de %2$d columnas.</item>
+    </plurals>
+    <plurals name="workspace_preview_table_size">
+        <item quantity="one">%1$s filas × %2$d columna</item>
+        <item quantity="many">%1$s filas × %2$d columnas</item>
+        <item quantity="other">%1$s filas × %2$d columnas</item>
+    </plurals>
+    <plurals name="workspace_preview_code_lines_cut">
+        <item quantity="one">%1$d línea larga se corta aquí a los %2$s caracteres.</item>
+        <item quantity="many">%1$d líneas largas se cortan aquí a los %2$s caracteres.</item>
+        <item quantity="other">%1$d líneas largas se cortan aquí a los %2$s caracteres.</item>
+    </plurals>
     <string name="workspace_preview_code_plain">Demasiado grande para colorear; se muestra sin formato.</string>
 
     <!-- Workspace: messages the view models make -->
@@ -372,11 +408,19 @@
     <string name="workspace_health_service_didnt_start">No se inició</string>
     <string name="workspace_health_service_stopped_by_restart">Detenido por un reinicio</string>
     <string name="workspace_health_service_finished">Terminado</string>
-    <string name="workspace_health_packages_line">%1$d instalados por ti · %2$d en total</string>
+    <plurals name="workspace_health_packages_line">
+        <item quantity="one">%1$d instalado por ti · %2$d en total</item>
+        <item quantity="many">%1$d instalados por ti · %2$d en total</item>
+        <item quantity="other">%1$d instalados por ti · %2$d en total</item>
+    </plurals>
     <string name="workspace_health_packages_unreadable">No se puede leer la base de datos de paquetes de apk</string>
     <string name="workspace_health_memory_low">%1$s de %2$s disponibles. Android puede detener los programas de Linux, sobre todo mientras Locus está en segundo plano.</string>
     <string name="workspace_health_processes_none">Ninguno en ejecución</string>
-    <string name="workspace_health_processes">%1$d en ejecución · %2$s</string>
+    <plurals name="workspace_health_processes">
+        <item quantity="one">%1$d en ejecución · %2$s</item>
+        <item quantity="many">%1$d en ejecución · %2$s</item>
+        <item quantity="other">%1$d en ejecución · %2$s</item>
+    </plurals>
     <string name="workspace_packages_database_unreadable">No se puede leer la base de datos de paquetes de apk. Reinstalar Linux lo soluciona.</string>
     <string name="workspace_packages_removed">Se quitó %1$s.</string>
     <string name="workspace_packages_remove_failed">No se pudo quitar %1$s: %2$s</string>

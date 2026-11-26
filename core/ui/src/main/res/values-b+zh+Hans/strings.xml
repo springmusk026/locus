@@ -173,7 +173,7 @@
     <string name="ui_workflow_steps">步骤，每行一个</string>
     <string name="ui_workflow_steps_hint">这是智能体会灵活调整的计划，而不是逐字重放的调用。</string>
     <string name="ui_workflow_tools">工具</string>
-    <string name="ui_workflow_tools_no_limit">不限制：工作流可使用你的设置允许的任何工具。</string>
+    <string name="ui_workflow_tools_none">未列出工具：每个会更改内容的调用都会请求你的批准。</string>
     <string name="ui_workflow_tools_note">其他任何会更改内容的操作都会先询问你。“询问”会保留某一步的批准要求，即使你的设置允许该操作。</string>
     <string name="ui_workflow_ask">询问</string>
     <string name="ui_workflow_remove_tool">移除 %1$s</string>
@@ -497,9 +497,13 @@
     <string name="ui_prompt_edit_title">编辑提示词</string>
     <string name="ui_prompt_editor_subtitle">在空输入框中输入 / 即可插入。点按“发送”之前不会发送。</string>
     <string name="ui_prompt_name">名称</string>
-    <string name="ui_prompt_name_too_long">最多 %1$d 个字符</string>
+    <plurals name="ui_prompt_name_too_long">
+        <item quantity="other">最多 %1$d 个字符</item>
+    </plurals>
     <string name="ui_prompt_text">提示词</string>
-    <string name="ui_prompt_text_too_long">最多 %1$d 个字符</string>
+    <plurals name="ui_prompt_text_too_long">
+        <item quantity="other">最多 %1$d 个字符</item>
+    </plurals>
     <plurals name="ui_prompt_issues">
         <item quantity="other">%1$d 个变量无法填入</item>
     </plurals>
@@ -507,9 +511,13 @@
     <string name="ui_prompt_issue_unclosed">同一行中 {{ 之后没有 }}。请补上，或写 \\{{ 来保留花括号。</string>
     <string name="ui_prompt_issue_empty">{{}} 是空的。请在其中写上变量名。</string>
     <string name="ui_prompt_issue_bad_field">字段需要标签，例如 {{field:标签}}，且标签中不能有花括号。</string>
-    <string name="ui_prompt_issue_too_long">字段标签最多 %1$d 个字符，默认值最多 %2$d 个字符。</string>
+    <plurals name="ui_prompt_issue_too_long">
+        <item quantity="other">字段标签最多 %1$d 个字符，默认值最多 %2$d 个字符。</item>
+    </plurals>
     <string name="ui_prompt_issue_defaults">字段“%1$s”有两个不同的默认值。请只保留一个。</string>
-    <string name="ui_prompt_issue_too_many">一个提示词最多可询问 %1$d 个字段。</string>
+    <plurals name="ui_prompt_issue_too_many">
+        <item quantity="other">一个提示词最多可询问 %1$d 个字段。</item>
+    </plurals>
     <string name="ui_prompt_insert_variable">插入变量</string>
     <string name="ui_prompt_var_clipboard">剪贴板</string>
     <string name="ui_prompt_var_date">日期</string>

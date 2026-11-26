@@ -66,10 +66,10 @@ class BackupTest {
         vault = vault.takeIf { options.includeVault },
     )
 
-    private fun backup(p: Phone, options: BackupOptions = BackupOptions(), schema: Int = 8, format: Int = 1, pw: CharArray = password): ByteArray {
+    private fun backup(p: Phone, options: BackupOptions = BackupOptions(), schema: Int = 8, format: Int = 1, pw: CharArray = password, contentVersion: Int = 1): ByteArray {
         val snapshot = File(tmp.newFolder(), "locus.db").also { p.db.copyTo(it) }
         val plan = BackupArchive.plan(sources(p, snapshot, options))
-        val manifest = BackupManifest(format = format, appVersion = "0.1.0", appVersionCode = 1, schemaVersion = schema, createdAt = 1_761_900_000_000, sections = plan.sections)
+        val manifest = BackupManifest(format = format, appVersion = "0.1.0", appVersionCode = 1, schemaVersion = schema, createdAt = 1_761_900_000_000, sections = plan.sections, contentVersion = contentVersion)
         val out = ByteArrayOutputStream()
         BackupCrypto.encrypt(out, pw, iterations = TEST_ITERATIONS).use { BackupArchive.write(it, plan, manifest) }
         return out.toByteArray()
@@ -212,6 +212,20 @@ class BackupTest {
         assertEquals(BackupError.NewerSchema, assertFailsWith<BackupException> { BackupArchive.checkVersions(manifest(9), 8) }.error)
         assertEquals(BackupError.NewerFormat, assertFailsWith<BackupException> { BackupArchive.checkVersions(manifest(8, format = 2), 8) }.error)
         assertEquals(BackupError.Damaged, assertFailsWith<BackupException> { BackupArchive.checkVersions(manifest(0), 8) }.error)
+    }
+
+    @Test
+    fun `a backup with newer content is refused even when its database is current`() {
+        fun manifest(content: Int) = BackupManifest(
+            format = 1, appVersion = "x", appVersionCode = 1, schemaVersion = 8, createdAt = 0, sections = emptyList(), contentVersion = content,
+        )
+        BackupArchive.checkVersions(manifest(BackupArchive.CONTENT_VERSION), maxSchema = 8)
+        BackupArchive.checkVersions(manifest(1), maxSchema = 8)
+        val e = assertFailsWith<BackupException> { BackupArchive.checkVersions(manifest(BackupArchive.CONTENT_VERSION + 1), maxSchema = 8) }
+        assertEquals(BackupError.NewerContent, e.error)
+        // Refused before anything is unpacked into place, so a restore never starts from it.
+        val file = backup(phone("source", schema = 8), schema = 8, contentVersion = BackupArchive.CONTENT_VERSION + 1)
+        assertEquals(BackupError.NewerContent, assertFailsWith<BackupException> { verify(file, tmp.newFolder()) }.error)
     }
 
     @Test

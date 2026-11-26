@@ -38,7 +38,11 @@
     <string name="linux_health_files_damaged_missing">Estão faltando no Linux: %1$s. Só uma reinstalação os traz de volta; os arquivos do espaço de trabalho continuam.</string>
     <string name="linux_health_files_damaged_missing_and_db">Estão faltando no Linux: %1$s; e o banco de dados de pacotes não pode ser lido. Só uma reinstalação os traz de volta; os arquivos do espaço de trabalho continuam.</string>
     <string name="linux_health_files_damaged_db">O banco de dados de pacotes do Linux não pode ser lido. Só uma reinstalação o traz de volta; os arquivos do espaço de trabalho continuam.</string>
-    <string name="linux_health_files_more">%1$s e mais %2$d</string>
+    <plurals name="linux_health_files_more">
+        <item quantity="one">%1$s e mais %2$d</item>
+        <item quantity="many">%1$s e mais %2$d</item>
+        <item quantity="other">%1$s e mais %2$d</item>
+    </plurals>
     <string name="linux_health_files_ok_title">Arquivos do sistema intactos</string>
     <string name="linux_health_files_ok_detail">Os arquivos principais e o banco de dados de pacotes estão no lugar.</string>
     <string name="linux_health_storage_full_title">O armazenamento do telefone está quase cheio</string>
@@ -58,7 +62,11 @@
     <string name="linux_health_phantom_off_title">O limite em segundo plano está desativado</string>
     <string name="linux_health_phantom_off_detail">As restrições de processos filhos estão desativadas, então o Android não vai parar o Linux por esse motivo.</string>
     <string name="linux_health_phantom_warning_title">O Android pode parar o Linux em segundo plano</string>
-    <string name="linux_health_phantom_warning_detail">O Android 12+ para os processos extras dos apps (%1$d em execução para o Locus agora). Você pode desativar isso.</string>
+    <plurals name="linux_health_phantom_warning_detail">
+        <item quantity="one">O Android 12+ para os processos extras dos apps (%1$d em execução para o Locus agora). Você pode desativar isso.</item>
+        <item quantity="many">O Android 12+ para os processos extras dos apps (%1$d em execução para o Locus agora). Você pode desativar isso.</item>
+        <item quantity="other">O Android 12+ para os processos extras dos apps (%1$d em execução para o Locus agora). Você pode desativar isso.</item>
+    </plurals>
     <string name="linux_health_phantom_killed_command">O Android parou um comando enquanto o Locus estava em segundo plano.</string>
     <string name="linux_health_phantom_killed_service">O Android parou o serviço %1$s enquanto o Locus estava em segundo plano.</string>
     <string name="linux_health_phantom_killed_terminal">O Android parou um terminal enquanto o Locus estava em segundo plano.</string>

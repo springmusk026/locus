@@ -214,7 +214,7 @@ internal fun ReceiptSheet(r: TaskReceipt, actions: ReceiptActions, onDismiss: ()
                 receiptPlan(resources, r)?.let { Field(stringResource(R.string.chat_receipt_plan), it) }
                 receiptPlanTotal(r)?.let { Field(stringResource(R.string.chat_receipt_plan_total), stringResource(R.string.chat_receipt_cost_estimate, it)) }
                 if (r.files > 0) {
-                    Field(stringResource(R.string.chat_receipt_files), stringResource(R.string.chat_receipt_files_changed, r.files), onClick = item.changesKey?.let { key -> { onDismiss(); actions.showCard(key) } })
+                    Field(stringResource(R.string.chat_receipt_files), pluralStringResource(R.plurals.chat_receipt_files_changed, r.files, r.files), onClick = item.changesKey?.let { key -> { onDismiss(); actions.showCard(key) } })
                 }
                 if (r.checks.isNotEmpty()) {
                     Field(

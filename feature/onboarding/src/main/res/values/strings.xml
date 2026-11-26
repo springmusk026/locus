@@ -99,7 +99,7 @@
     <string name="onboarding_provider_context">%1$s context</string>
     <string name="onboarding_provider_chatgpt_manage_usage">Manage usage</string>
     <string name="onboarding_provider_chatgpt_note">Use your ChatGPT Plus or Pro plan instead of an API key. Usage counts toward your plan\'s limits.</string>
-    <string name="onboarding_provider_chatgpt_finish_sign_in">Finish signing in in the browser…</string>
+    <string name="onboarding_provider_chatgpt_finish_sign_in">Finish signing in through the browser…</string>
     <string name="onboarding_provider_chatgpt_welcome_title">You\'re using your ChatGPT plan</string>
     <string name="onboarding_provider_chatgpt_welcome_body">Locus\'s requests to this model now use your ChatGPT plan. You can review and manage that usage in ChatGPT settings.</string>
     <string name="onboarding_provider_chatgpt_welcome_action">Got it</string>
@@ -177,7 +177,10 @@
     <string name="onboarding_identity_editor_title">Edit files directly</string>
     <string name="onboarding_identity_editor_body">Optional. Markdown your agent reads at the start of every chat.</string>
     <string name="onboarding_identity_editor_done">Done</string>
-    <string name="onboarding_identity_editor_over_budget">%1$d characters; only the first %2$d are used</string>
+    <plurals name="onboarding_identity_editor_over_budget">
+        <item quantity="one">%1$d character; only the first %2$d are used</item>
+        <item quantity="other">%1$d characters; only the first %2$d are used</item>
+    </plurals>
     <string name="onboarding_identity_editor_budget">%1$d / %2$d</string>
     <string name="onboarding_identity_editor_name_hint">Keep a “- Name: …” line: it\'s what the agent calls itself.</string>
     <string name="onboarding_identity_route_title">Agent identity</string>

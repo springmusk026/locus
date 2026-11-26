@@ -14,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
@@ -79,7 +80,7 @@ fun PromptEditorSheet(prompt: SavedPrompt?, error: String?, onSave: (SavedPrompt
             label = { Text(stringResource(R.string.ui_prompt_name)) },
             singleLine = true,
             isError = nameTooLong,
-            supportingText = if (nameTooLong) ({ Text(stringResource(R.string.ui_prompt_name_too_long, SavedPrompt.MAX_NAME)) }) else null,
+            supportingText = if (nameTooLong) ({ Text(pluralStringResource(R.plurals.ui_prompt_name_too_long, SavedPrompt.MAX_NAME, SavedPrompt.MAX_NAME)) }) else null,
         )
         OutlinedTextField(
             body, { body = it }, Modifier.fillMaxWidth(),
@@ -89,7 +90,7 @@ fun PromptEditorSheet(prompt: SavedPrompt?, error: String?, onSave: (SavedPrompt
             textStyle = LocusType.code,
             isError = !template.isValid || textTooLong,
             supportingText = when {
-                textTooLong -> ({ Text(stringResource(R.string.ui_prompt_text_too_long, SavedPrompt.MAX_TEXT)) })
+                textTooLong -> ({ Text(pluralStringResource(R.plurals.ui_prompt_text_too_long, SavedPrompt.MAX_TEXT, SavedPrompt.MAX_TEXT)) })
                 !template.isValid -> ({ Text(issueCount(template.issues.size)) })
                 else -> null
             },
@@ -121,9 +122,9 @@ fun promptIssueText(issue: PromptIssue): String = when (issue.kind) {
     PromptIssue.Kind.UNCLOSED -> stringResource(R.string.ui_prompt_issue_unclosed)
     PromptIssue.Kind.EMPTY -> stringResource(R.string.ui_prompt_issue_empty)
     PromptIssue.Kind.BAD_FIELD -> stringResource(R.string.ui_prompt_issue_bad_field)
-    PromptIssue.Kind.TOO_LONG -> stringResource(R.string.ui_prompt_issue_too_long, PromptTemplate.MAX_LABEL, PromptTemplate.MAX_DEFAULT)
+    PromptIssue.Kind.TOO_LONG -> pluralStringResource(R.plurals.ui_prompt_issue_too_long, PromptTemplate.MAX_LABEL, PromptTemplate.MAX_LABEL, PromptTemplate.MAX_DEFAULT)
     PromptIssue.Kind.CONFLICTING_DEFAULTS -> stringResource(R.string.ui_prompt_issue_defaults, issue.token)
-    PromptIssue.Kind.TOO_MANY_FIELDS -> stringResource(R.string.ui_prompt_issue_too_many, PromptTemplate.MAX_FIELDS)
+    PromptIssue.Kind.TOO_MANY_FIELDS -> pluralStringResource(R.plurals.ui_prompt_issue_too_many, PromptTemplate.MAX_FIELDS, PromptTemplate.MAX_FIELDS)
 }
 
 /** What picking a prompt will do, in one short line: the boxes it asks for and what it reads. */

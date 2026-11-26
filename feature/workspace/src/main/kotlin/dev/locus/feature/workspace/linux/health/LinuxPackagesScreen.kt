@@ -100,7 +100,7 @@ fun LinuxPackagesRoute(
             LocusTopBar(
                 stringResource(R.string.workspace_packages_title),
                 onBack = onBack,
-                subtitle = pkgs?.let { stringResource(R.string.workspace_packages_subtitle, state.userCount, it.size) },
+                subtitle = pkgs?.let { pluralStringResource(R.plurals.workspace_packages_subtitle, state.userCount, state.userCount, it.size) },
             )
         },
     ) { padding ->
@@ -179,7 +179,7 @@ private fun Controls(state: LinuxPackagesUiState, onQuery: (String) -> Unit, onA
         SearchField(
             query = state.query,
             onQueryChange = onQuery,
-            placeholder = if (state.all) stringResource(R.string.workspace_packages_search_all, total) else stringResource(R.string.workspace_packages_search_yours),
+            placeholder = if (state.all) pluralStringResource(R.plurals.workspace_packages_search_all, total, total) else stringResource(R.string.workspace_packages_search_yours),
         )
         FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             LocusChip(
@@ -222,7 +222,7 @@ private fun Updates(state: LinuxPackagesUiState, onCheck: () -> Unit, onOpenTerm
             Text(pluralStringResource(R.plurals.workspace_packages_updates_available, upgrades.size, upgrades.size), style = LocusType.cardTitle)
             Column(Modifier.padding(vertical = Spacing.xs)) {
                 upgrades.take(MAX_UPGRADES).forEach { AmountRow(it.name, "${it.installed} → ${it.available}", monoLabel = true) }
-                if (upgrades.size > MAX_UPGRADES) SupportingText(stringResource(R.string.workspace_packages_updates_more, upgrades.size - MAX_UPGRADES))
+                if (upgrades.size > MAX_UPGRADES) SupportingText(pluralStringResource(R.plurals.workspace_packages_updates_more, upgrades.size - MAX_UPGRADES, upgrades.size - MAX_UPGRADES))
             }
             SupportingText(stringResource(R.string.workspace_packages_updates_install))
             OutlinedButton(onClick = onOpenTerminal, modifier = Modifier.padding(top = Spacing.sm).heightIn(min = Sizes.touchTarget)) { Text(stringResource(R.string.workspace_packages_open_terminal)) }

@@ -42,7 +42,7 @@
     <string name="library_memory_intro">O que o Locus aprendeu sobre você e seu trabalho. Ele lê o índice no início de cada chat.</string>
     <string name="library_memory_general_label">Geral</string>
     <string name="library_memory_general_empty">Nada na memória geral ainda. As notas de chats fora de projetos ficam aqui.</string>
-    <string name="library_memory_project_note">Só os chats deste projeto leem estas notas. Mova uma nota para a memória geral para usá-la em todo lugar.</string>
+    <string name="library_memory_project_note" tools:ignore="Typos">Só os chats deste projeto leem estas notas. Mova uma nota para a memória geral para usá-la em todo lugar.</string>
     <string name="library_memory_edit_subtitle_project">Na memória de %1$s. O Locus lê o resumo primeiro e a nota quando precisa dela.</string>
     <string name="library_memory_edit_subtitle">O que o Locus lembra. Ele lê o resumo primeiro e a nota quando precisa dela.</string>
     <string name="library_memory_summary_label">Resumo</string>
@@ -52,8 +52,8 @@
     <string name="library_memory_forget_body">O Locus exclui esta nota da memória e não a conhecerá nos novos chats.</string>
     <string name="library_memory_forget">Esquecer</string>
     <string name="library_memory_move_title">Mover “%1$s” para a memória geral?</string>
-    <string name="library_memory_move_body">Assim, chats fora de %1$s e projetos que leem a memória geral poderão usá-la. Ela sai da memória do projeto.</string>
-    <string name="library_memory_move_body_replaces">Assim, chats fora de %1$s e projetos que leem a memória geral poderão usá-la. Ela sai da memória do projeto. A memória geral já tem uma nota com este nome: ela será substituída, e a versão antiga fica no histórico.</string>
+    <string name="library_memory_move_body" tools:ignore="Typos">Assim, chats fora de %1$s e projetos que leem a memória geral poderão usá-la. Ela sai da memória do projeto.</string>
+    <string name="library_memory_move_body_replaces" tools:ignore="Typos">Assim, chats fora de %1$s e projetos que leem a memória geral poderão usá-la. Ela sai da memória do projeto. A memória geral já tem uma nota com este nome: ela será substituída, e a versão antiga fica no histórico.</string>
     <string name="library_memory_move">Mover</string>
     <string name="library_memory_no_summary">Sem resumo</string>
     <string name="library_memory_icon_project_note">Nota da memória do projeto</string>
@@ -243,6 +243,7 @@
     <string name="library_workflows_schedule_read_only">Execuções agendadas são somente leitura e não há ninguém para aprovar nada.</string>
     <string name="library_workflows_schedule_need_you">Precisa da sua aprovação, então execuções agendadas o recusam: %1$s.</string>
     <string name="library_workflows_schedule_changes">Altera coisas, então execuções agendadas o recusam: %1$s.</string>
+    <string name="library_workflows_schedule_no_tools">Não lista ferramentas, então execuções agendadas recusam qualquer passo que altere algo.</string>
     <string name="library_workflows_schedule_only_reads">Tudo o que este fluxo de trabalho faz é apenas ler, então ele pode rodar sem supervisão.</string>
     <string name="library_workflows_schedule_run_from_chat">Execute-o a partir de um chat para fazer essas etapas.</string>
     <string name="library_mcp_picker_subtitle">Escolha um servidor conhecido ou adicione outro qualquer. As chaves ficam criptografadas neste telefone; a IA nunca as vê.</string>

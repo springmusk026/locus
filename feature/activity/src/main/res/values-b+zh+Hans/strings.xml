@@ -49,7 +49,9 @@
     <plurals name="activity_run_actions">
         <item quantity="other">%1$d 项操作</item>
     </plurals>
-    <string name="activity_run_failed">%1$d 项失败</string>
+    <plurals name="activity_run_failed">
+        <item quantity="other">%1$d 项失败</item>
+    </plurals>
     <plurals name="activity_run_approvals">
         <item quantity="other">%1$d 次批准</item>
     </plurals>

@@ -195,6 +195,8 @@ enum class BackupError {
     NewerFormat,
     /** Its database is newer than this app's; update Locus first. */
     NewerSchema,
+    /** Same database version, but its settings or agent-home layout is newer than this app's; update Locus first. */
+    NewerContent,
     /** A task is running; restoring would pull its data from under it. */
     RunActive,
 

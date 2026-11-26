@@ -33,7 +33,7 @@ internal object HealthSummary {
 
     /** "42 you installed · 214 total": the one Packages row; the list itself is its own screen. */
     fun packagesLine(resources: Resources, packages: List<LinuxInventory.Package>?): String =
-        packages?.let { all -> resources.getString(R.string.workspace_health_packages_line, all.count { it.userInstalled }, all.size) }
+        packages?.let { all -> resources.getQuantityString(R.plurals.workspace_health_packages_line, all.count { it.userInstalled }, all.count { it.userInstalled }, all.size) }
             ?: resources.getString(R.string.workspace_health_packages_unreadable)
 
     /** The low-memory warning, or null when memory is fine (then there's no memory dashboard, just one line). */
@@ -45,7 +45,7 @@ internal object HealthSummary {
     /** "2 running · 84 MB": what Linux's programs hold. */
     fun processesLine(resources: Resources, processes: List<LinuxReport.GuestProcess>): String =
         if (processes.isEmpty()) resources.getString(R.string.workspace_health_processes_none)
-        else resources.getString(R.string.workspace_health_processes, processes.size, LinuxHealth.bytesText(processes.sumOf { it.rssBytes }).asString(resources))
+        else resources.getQuantityString(R.plurals.workspace_health_processes, processes.size, processes.size, LinuxHealth.bytesText(processes.sumOf { it.rssBytes }).asString(resources))
 
     private const val MEMORY = "memory"
 }

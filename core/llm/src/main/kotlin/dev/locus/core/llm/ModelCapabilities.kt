@@ -285,7 +285,7 @@ object CapabilityRules {
         id.startsWith("gpt-3.5") -> ModelCapabilities(tools = Y, vision = N, reasoning = N)
         id.startsWith("gpt-4o") || id.startsWith("gpt-4.1") || id.startsWith("gpt-4-turbo") -> ModelCapabilities(tools = Y, vision = Y, reasoning = N)
         Regex("""^gpt-([5-9]|\d{2})""").containsMatchIn(id) -> ModelCapabilities(tools = Y, vision = Y, reasoning = if ("-chat" in id) Support.UNKNOWN else Y)
-        id == "o1-mini" || id.startsWith("o1-mini-") -> ModelCapabilities(tools = N, vision = N, reasoning = Y)
+        id == "o1-mini" || id.startsWith("o1-mini-") || id == "o1-preview" || id.startsWith("o1-preview-") -> ModelCapabilities(tools = N, vision = N, reasoning = Y)
         id == "o3-mini" || id.startsWith("o3-mini-") -> ModelCapabilities(tools = Y, vision = N, reasoning = Y)
         Regex("""^o[1-9](-|$)""").containsMatchIn(id) -> ModelCapabilities(tools = Y, vision = Y, reasoning = Y)
         id.startsWith("gemini-1.5") || id.startsWith("gemini-2.0") -> ModelCapabilities(tools = Y, vision = Y, reasoning = if ("thinking" in id) Y else N)

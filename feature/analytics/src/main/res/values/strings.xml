@@ -53,10 +53,16 @@
     <string name="analytics_cost_try_again">Try again</string>
     <string name="analytics_cost_chart_day">Estimated spend per day, %1$s in this period</string>
     <string name="analytics_cost_chart_week">Estimated spend per week, %1$s in this period</string>
-    <string name="analytics_cost_row_unpriced">%1$d of %2$d unpriced</string>
+    <plurals name="analytics_cost_row_unpriced">
+        <item quantity="one">%1$d of %2$d unpriced</item>
+        <item quantity="other">%1$d of %2$d unpriced</item>
+    </plurals>
 
     <!-- Rows -->
-    <string name="analytics_row_requests_short">%1$d req</string>
+    <plurals name="analytics_row_requests_short">
+        <item quantity="one">%1$d req</item>
+        <item quantity="other">%1$d req</item>
+    </plurals>
     <string name="analytics_models_via">via %1$s</string>
     <string name="analytics_share_description">Share of the largest</string>
 
@@ -78,8 +84,14 @@
     <string name="analytics_tools_succeeded">Succeeded</string>
     <string name="analytics_tools_failed">Failed</string>
     <string name="analytics_tools_success_rate">%1$d%%</string>
-    <string name="analytics_tools_chart_day">Tool calls per day: %1$d, %2$d failed</string>
-    <string name="analytics_tools_chart_week">Tool calls per week: %1$d, %2$d failed</string>
+    <plurals name="analytics_tools_chart_day">
+        <item quantity="one">Tool calls per day: %1$d, %2$d failed</item>
+        <item quantity="other">Tool calls per day: %1$d, %2$d failed</item>
+    </plurals>
+    <plurals name="analytics_tools_chart_week">
+        <item quantity="one">Tool calls per week: %1$d, %2$d failed</item>
+        <item quantity="other">Tool calls per week: %1$d, %2$d failed</item>
+    </plurals>
     <plurals name="analytics_tools_caption">
         <item quantity="one">%1$d call</item>
         <item quantity="other">%1$d calls</item>
@@ -98,11 +110,17 @@
         <item quantity="one">%1$s · %2$d call</item>
         <item quantity="other">%1$s · %2$d calls</item>
     </plurals>
-    <string name="analytics_slow_failed">%1$d failed</string>
+    <plurals name="analytics_slow_failed">
+        <item quantity="one">%1$d failed</item>
+        <item quantity="other">%1$d failed</item>
+    </plurals>
     <string name="analytics_slow_average">avg %1$s</string>
 
     <!-- Busiest chats and scheduled tasks -->
-    <string name="analytics_chats_summary">%1$s tokens · %2$d req · %3$d tools</string>
+    <plurals name="analytics_chats_summary">
+        <item quantity="one">%1$s tokens · %2$d req · %3$d tool</item>
+        <item quantity="other">%1$s tokens · %2$d req · %3$d tools</item>
+    </plurals>
     <plurals name="analytics_tasks_runs">
         <item quantity="one">%1$d run</item>
         <item quantity="other">%1$d runs</item>

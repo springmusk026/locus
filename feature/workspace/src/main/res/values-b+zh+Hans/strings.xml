@@ -96,7 +96,9 @@
     <string name="workspace_linux_checking">正在检查…</string>
     <string name="workspace_linux_services">服务</string>
     <string name="workspace_linux_services_none">没有运行中的服务</string>
-    <string name="workspace_linux_services_running">%1$d 个运行中</string>
+    <plurals name="workspace_linux_services_running">
+        <item quantity="other">%1$d 个运行中</item>
+    </plurals>
     <string name="workspace_linux_service_running">服务 %1$s，运行中</string>
     <string name="workspace_linux_service_stop">停止 %1$s</string>
     <string name="workspace_linux_add_tools">添加工具</string>
@@ -158,8 +160,12 @@
     <string name="workspace_health_level_warning">警告</string>
     <string name="workspace_health_level_problem">问题</string>
     <string name="workspace_health_status">状态：%1$s</string>
-    <string name="workspace_health_verdict_passed">%1$d 项检查通过 · 检查于 %2$s</string>
-    <string name="workspace_health_verdict_attention">%2$d 项检查中有 %1$d 项需要注意 · 检查于 %3$s</string>
+    <plurals name="workspace_health_verdict_passed">
+        <item quantity="other">%1$d 项检查通过 · 检查于 %2$s</item>
+    </plurals>
+    <plurals name="workspace_health_verdict_attention">
+        <item quantity="other">%2$d 项检查中有 %1$d 项需要注意 · 检查于 %3$s</item>
+    </plurals>
     <plurals name="workspace_health_checks_passed">
         <item quantity="other">%1$d 项检查通过</item>
     </plurals>
@@ -201,7 +207,9 @@
     <string name="workspace_health_phantom_developer_options">开发者选项</string>
     <string name="workspace_health_phantom_guide">阅读指南</string>
     <string name="workspace_packages_title">软件包</string>
-    <string name="workspace_packages_subtitle">你安装了 %1$d 个 · 共 %2$d 个</string>
+    <plurals name="workspace_packages_subtitle">
+        <item quantity="other">你安装了 %1$d 个 · 共 %2$d 个</item>
+    </plurals>
     <string name="workspace_packages_not_installed_title">未安装 Linux</string>
     <string name="workspace_packages_not_installed_body">设置好 Linux 后，软件包会显示在这里。</string>
     <string name="workspace_packages_set_up">设置 Linux</string>
@@ -213,7 +221,9 @@
     <string name="workspace_packages_uninstall_title">卸载 %1$s？</string>
     <string name="workspace_packages_uninstall_message">将运行 `apk del %1$s`。由它带来且不再被其他软件包需要的软件包也会一并移除。工作区文件会保留，之后可以再次安装。</string>
     <string name="workspace_packages_uninstall">卸载</string>
-    <string name="workspace_packages_search_all">搜索全部 %1$d 个软件包</string>
+    <plurals name="workspace_packages_search_all">
+        <item quantity="other">搜索全部 %1$d 个软件包</item>
+    </plurals>
     <string name="workspace_packages_search_yours">搜索你安装的软件包</string>
     <string name="workspace_packages_filter_yours">你安装的（%1$d）</string>
     <string name="workspace_packages_filter_yours_description">显示你安装的软件包，共 %1$d 个</string>
@@ -228,7 +238,9 @@
     <plurals name="workspace_packages_updates_available">
         <item quantity="other">有 %1$d 个可用更新</item>
     </plurals>
-    <string name="workspace_packages_updates_more">另外还有 %1$d 个</string>
+    <plurals name="workspace_packages_updates_more">
+        <item quantity="other">另外还有 %1$d 个</item>
+    </plurals>
     <string name="workspace_packages_updates_install">在终端中用 `apk upgrade` 安装。</string>
     <string name="workspace_packages_open_terminal">打开终端</string>
     <string name="workspace_packages_expanded">已展开</string>
@@ -321,9 +333,15 @@
     <string name="workspace_preview_image_size_animated">%1$d × %2$d · 动图</string>
     <string name="workspace_preview_table_empty">未找到任何行。</string>
     <string name="workspace_preview_table_rows_cut">显示前 %1$s 行，共 %2$s 行。</string>
-    <string name="workspace_preview_table_columns_cut">显示前 %1$d 列，共 %2$d 列。</string>
-    <string name="workspace_preview_table_size">%1$s 行 × %2$d 列</string>
-    <string name="workspace_preview_code_lines_cut">有 %1$d 个长行在此处于 %2$s 个字符处被截断。</string>
+    <plurals name="workspace_preview_table_columns_cut">
+        <item quantity="other">显示前 %1$d 列，共 %2$d 列。</item>
+    </plurals>
+    <plurals name="workspace_preview_table_size">
+        <item quantity="other">%1$s 行 × %2$d 列</item>
+    </plurals>
+    <plurals name="workspace_preview_code_lines_cut">
+        <item quantity="other">有 %1$d 个长行在此处于 %2$s 个字符处被截断。</item>
+    </plurals>
     <string name="workspace_preview_code_plain">文件过大，无法着色，已按纯文本显示。</string>
 
     <!-- Workspace: messages the view models make -->
@@ -358,11 +376,15 @@
     <string name="workspace_health_service_didnt_start">未启动</string>
     <string name="workspace_health_service_stopped_by_restart">因重启而停止</string>
     <string name="workspace_health_service_finished">已结束</string>
-    <string name="workspace_health_packages_line">你安装了 %1$d 个 · 共 %2$d 个</string>
+    <plurals name="workspace_health_packages_line">
+        <item quantity="other">你安装了 %1$d 个 · 共 %2$d 个</item>
+    </plurals>
     <string name="workspace_health_packages_unreadable">无法读取 apk 的软件包数据库</string>
     <string name="workspace_health_memory_low">可用 %1$s，共 %2$s。Android 可能会停止 Linux 程序，尤其是在 Locus 位于后台时。</string>
     <string name="workspace_health_processes_none">没有运行中的程序</string>
-    <string name="workspace_health_processes">%1$d 个运行中 · %2$s</string>
+    <plurals name="workspace_health_processes">
+        <item quantity="other">%1$d 个运行中 · %2$s</item>
+    </plurals>
     <string name="workspace_packages_database_unreadable">无法读取 apk 的软件包数据库。重新安装 Linux 即可修复。</string>
     <string name="workspace_packages_removed">已移除 %1$s。</string>
     <string name="workspace_packages_remove_failed">无法移除 %1$s：%2$s</string>

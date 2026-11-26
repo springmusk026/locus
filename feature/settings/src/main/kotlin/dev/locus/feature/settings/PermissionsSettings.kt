@@ -1,5 +1,6 @@
 package dev.locus.feature.settings
 
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.LocusType
@@ -305,23 +306,25 @@ private val SEGMENT_WIDTH = Sizes.policySegmented
 @Composable
 internal fun policySummary(total: Int, counts: Map<ToolPolicy, Int>): String =
     counts.keys.singleOrNull()?.let {
-        stringResource(
+        pluralStringResource(
             when (it) {
-                ToolPolicy.ALLOW -> R.string.settings_permissions_all_allowed
-                ToolPolicy.ASK -> R.string.settings_permissions_all_ask
-                ToolPolicy.DENY -> R.string.settings_permissions_all_blocked
+                ToolPolicy.ALLOW -> R.plurals.settings_permissions_all_allowed
+                ToolPolicy.ASK -> R.plurals.settings_permissions_all_ask
+                ToolPolicy.DENY -> R.plurals.settings_permissions_all_blocked
             },
+            total,
             total,
         )
     } ?: summaryJoin(
         ToolPolicy.entries.mapNotNull { p ->
             counts[p]?.let {
-                stringResource(
+                pluralStringResource(
                     when (p) {
-                        ToolPolicy.ALLOW -> R.string.settings_permissions_count_allowed
-                        ToolPolicy.ASK -> R.string.settings_permissions_count_ask
-                        ToolPolicy.DENY -> R.string.settings_permissions_count_blocked
+                        ToolPolicy.ALLOW -> R.plurals.settings_permissions_count_allowed
+                        ToolPolicy.ASK -> R.plurals.settings_permissions_count_ask
+                        ToolPolicy.DENY -> R.plurals.settings_permissions_count_blocked
                     },
+                    it,
                     it,
                 )
             }

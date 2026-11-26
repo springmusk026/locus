@@ -45,14 +45,18 @@
     <string name="settings_hub_extras_helper_named">辅助模型：%1$s</string>
     <string name="settings_hub_extras_helper_automatic">辅助模型：自动</string>
     <string name="settings_hub_extras_helper_chat_model">辅助模型：各对话所用模型</string>
-    <string name="settings_hub_extras_count">%1$d/%2$d 项附加功能</string>
+    <plurals name="settings_hub_extras_count">
+        <item quantity="other">%1$d/%2$d 项附加功能</item>
+    </plurals>
     <string name="settings_hub_agent_summary">身份、指令与任务预算</string>
     <string name="settings_hub_agent_custom">已设置自定义指令</string>
     <string name="settings_hub_permissions_summary">哪些操作无需询问即可运行</string>
     <string name="settings_hub_permissions_reviewer_on">审查器已开启</string>
     <string name="settings_hub_integrations_none">尚未连接任何服务</string>
     <string name="settings_hub_integrations_names">已连接 %1$s</string>
-    <string name="settings_hub_integrations_count">已连接 %1$d 个</string>
+    <plurals name="settings_hub_integrations_count">
+        <item quantity="other">已连接 %1$d 个</item>
+    </plurals>
     <string name="settings_hub_ssh_none">尚无主机</string>
     <plurals name="settings_hub_models_drafts">
         <item quantity="other">%1$d 个草稿待审核</item>
@@ -102,12 +106,24 @@
     <string name="settings_permissions_collapse">收起</string>
     <string name="settings_permissions_expand">展开</string>
     <string name="settings_permissions_all_tools">全部 %1$d</string>
-    <string name="settings_permissions_all_allowed">全部 %1$d 项已允许</string>
-    <string name="settings_permissions_all_ask">全部 %1$d 项先询问</string>
-    <string name="settings_permissions_all_blocked">全部 %1$d 项已拒绝</string>
-    <string name="settings_permissions_count_allowed">%1$d 项已允许</string>
-    <string name="settings_permissions_count_ask">%1$d 项先询问</string>
-    <string name="settings_permissions_count_blocked">%1$d 项已拒绝</string>
+    <plurals name="settings_permissions_all_allowed">
+        <item quantity="other">全部 %1$d 项已允许</item>
+    </plurals>
+    <plurals name="settings_permissions_all_ask">
+        <item quantity="other">全部 %1$d 项先询问</item>
+    </plurals>
+    <plurals name="settings_permissions_all_blocked">
+        <item quantity="other">全部 %1$d 项已拒绝</item>
+    </plurals>
+    <plurals name="settings_permissions_count_allowed">
+        <item quantity="other">%1$d 项已允许</item>
+    </plurals>
+    <plurals name="settings_permissions_count_ask">
+        <item quantity="other">%1$d 项先询问</item>
+    </plurals>
+    <plurals name="settings_permissions_count_blocked">
+        <item quantity="other">%1$d 项已拒绝</item>
+    </plurals>
 
     <!-- Settings → Agent -->
     <string name="settings_agent_title">智能体</string>
@@ -402,9 +418,15 @@
     <string name="settings_selftest_all_good">所有已检查项均正常</string>
     <string name="settings_selftest_progress_description">自检，已完成 %1$s</string>
     <string name="settings_selftest_starting">正在开始</string>
-    <string name="settings_selftest_progress">已完成 %1$d/%2$d</string>
-    <string name="settings_selftest_passed">%1$d 项通过</string>
-    <string name="settings_selftest_skipped">%1$d 项已跳过</string>
+    <plurals name="settings_selftest_progress">
+        <item quantity="other">已完成 %1$d/%2$d</item>
+    </plurals>
+    <plurals name="settings_selftest_passed">
+        <item quantity="other">%1$d 项通过</item>
+    </plurals>
+    <plurals name="settings_selftest_skipped">
+        <item quantity="other">%1$d 项已跳过</item>
+    </plurals>
     <string name="settings_selftest_checked">检查于 %1$s</string>
     <string name="settings_selftest_run_again">重新运行</string>
     <string name="settings_selftest_waiting">等待中</string>
@@ -647,7 +669,9 @@
     <string name="settings_backup_password_subtitle">保护文件。</string>
     <string name="settings_backup_password_action">选择保存位置</string>
     <string name="settings_backup_password_label">密码</string>
-    <string name="settings_backup_password_hint">至少 %1$d 个字符。几个随机单词既容易输入，又难以猜到。</string>
+    <plurals name="settings_backup_password_hint">
+        <item quantity="other">至少 %1$d 个字符。几个随机单词既容易输入，又难以猜到。</item>
+    </plurals>
     <string name="settings_backup_password_again">再次输入密码</string>
     <string name="settings_backup_password_mismatch">两次输入的密码不一致。</string>
     <string name="settings_backup_password_forgotten">如果忘记此密码，备份将无法打开，任何人都无法找回。</string>
@@ -757,8 +781,12 @@
     <string name="settings_models_phone_section">在这部手机上</string>
     <string name="settings_models_on_device_title">设备端模型</string>
     <string name="settings_models_none_installed">未安装</string>
-    <string name="settings_models_installed">已安装 %1$d 个 · %2$s GB</string>
-    <string name="settings_models_downloading">%1$d 个下载中</string>
+    <plurals name="settings_models_installed">
+        <item quantity="other">已安装 %1$d 个 · %2$s GB</item>
+    </plurals>
+    <plurals name="settings_models_downloading">
+        <item quantity="other">%1$d 个下载中</item>
+    </plurals>
     <string name="settings_models_backup_position">%1$d. %2$s</string>
     <string name="settings_models_backup_earlier">将 %1$s 提前</string>
     <string name="settings_models_backup_remove">移除 %1$s</string>
@@ -1097,6 +1125,7 @@
     <string name="settings_backup_error_database_damaged">此备份中的数据库（对话、任务和项目）已损坏，因此 Locus 不会恢复它。此手机上的内容没有任何改变。请尝试更早的备份。</string>
     <string name="settings_backup_error_newer_format">此备份由更新版本的 Locus 创建。请更新 Locus 后重试。</string>
     <string name="settings_backup_error_newer_schema">此备份中的数据来自更新版本的 Locus。请更新 Locus 后重试。</string>
+    <string name="settings_backup_error_newer_content">此备份中的设置和文件来自更新版本的 Locus，当前版本会丢失其中一部分。请更新 Locus 后重试。</string>
     <string name="settings_backup_error_run_active">有任务正在运行。请先停止它，再进行恢复。</string>
     <string name="settings_backup_error_no_space">此手机上没有足够的可用空间来恢复此备份。请释放一些空间后重试。</string>
     <string name="settings_backup_error_read">无法读取文件：%1$s</string>

@@ -48,8 +48,15 @@ unknown), and unknown never means no.
 
    The cached copy used to store "no" and "unknown" alike as `false`, so `CACHE_VERSION` went to 2
    and the copy is fetched again.
+
+   **A local server gets no catalogue entry.** LM Studio, Ollama or vLLM serve whatever the user loaded,
+   at whatever window they set, so `ModelCatalogIndex.lookup` returns nothing for a local host even when
+   the same id is in the catalogue (`openai/gpt-oss-20b` at 8K isn't the listed 131K). Local means
+   loopback, private ranges (10/8, 172.16/12, 192.168/16), link-local, Tailscale/CGNAT (100.64/10),
+   IPv6 loopback, unique-local (fc00::/7) and link-local (fe80::/10) addresses, and `localhost`,
+   `*.local`, `*.lan`, `*.home.arpa` and `host.docker.internal` (`ModelCatalogIndex.isLocal`).
 3. **Built-in rules** (`CapabilityRules`) for well-known families: Claude, GPT-3.5/4o/4.1/5,
-   o-series, Gemini 1.5 to 3, DeepSeek chat and reasoner, and the on-device Gemma (tools, images,
+   o-series (o1-mini and o1-preview take neither tools nor images; the rest of the series take both, o3-mini tools only), Gemini 1.5 to 3, DeepSeek chat and reasoner, and the on-device Gemma (tools, images,
    a 16K window). Anything else stays unknown. Prompt caching follows the endpoint more than the
    model, so it comes from the API format and host.
 4. Otherwise **unknown**.

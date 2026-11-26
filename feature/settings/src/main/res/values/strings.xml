@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Settings hub -->
     <string name="settings_hub_title">Settings</string>
@@ -46,14 +46,20 @@
     <string name="settings_hub_extras_helper_named">Helper: %1$s</string>
     <string name="settings_hub_extras_helper_automatic">Helper: automatic</string>
     <string name="settings_hub_extras_helper_chat_model">Helper: each chat\'s model</string>
-    <string name="settings_hub_extras_count">%1$d of %2$d extras</string>
+    <plurals name="settings_hub_extras_count">
+        <item quantity="one">%1$d of %2$d extra</item>
+        <item quantity="other">%1$d of %2$d extras</item>
+    </plurals>
     <string name="settings_hub_agent_summary">Identity, instructions and task budget</string>
     <string name="settings_hub_agent_custom">Custom instructions set</string>
     <string name="settings_hub_permissions_summary">Which actions run without asking</string>
     <string name="settings_hub_permissions_reviewer_on">Reviewer on</string>
     <string name="settings_hub_integrations_none">Nothing connected yet</string>
     <string name="settings_hub_integrations_names">%1$s connected</string>
-    <string name="settings_hub_integrations_count">%1$d connected</string>
+    <plurals name="settings_hub_integrations_count">
+        <item quantity="one">%1$d connected</item>
+        <item quantity="other">%1$d connected</item>
+    </plurals>
     <string name="settings_hub_ssh_none">No machines yet</string>
     <plurals name="settings_hub_models_drafts">
         <item quantity="one">%1$d draft to review</item>
@@ -106,12 +112,30 @@
     <string name="settings_permissions_collapse">Collapse</string>
     <string name="settings_permissions_expand">Expand</string>
     <string name="settings_permissions_all_tools">All %1$d</string>
-    <string name="settings_permissions_all_allowed">All %1$d allowed</string>
-    <string name="settings_permissions_all_ask">All %1$d ask first</string>
-    <string name="settings_permissions_all_blocked">All %1$d blocked</string>
-    <string name="settings_permissions_count_allowed">%1$d allowed</string>
-    <string name="settings_permissions_count_ask">%1$d ask first</string>
-    <string name="settings_permissions_count_blocked">%1$d blocked</string>
+    <plurals name="settings_permissions_all_allowed">
+        <item quantity="one">All %1$d allowed</item>
+        <item quantity="other">All %1$d allowed</item>
+    </plurals>
+    <plurals name="settings_permissions_all_ask">
+        <item quantity="one">All %1$d asks first</item>
+        <item quantity="other">All %1$d ask first</item>
+    </plurals>
+    <plurals name="settings_permissions_all_blocked">
+        <item quantity="one">All %1$d blocked</item>
+        <item quantity="other">All %1$d blocked</item>
+    </plurals>
+    <plurals name="settings_permissions_count_allowed">
+        <item quantity="one">%1$d allowed</item>
+        <item quantity="other">%1$d allowed</item>
+    </plurals>
+    <plurals name="settings_permissions_count_ask">
+        <item quantity="one">%1$d asks first</item>
+        <item quantity="other">%1$d ask first</item>
+    </plurals>
+    <plurals name="settings_permissions_count_blocked">
+        <item quantity="one">%1$d blocked</item>
+        <item quantity="other">%1$d blocked</item>
+    </plurals>
 
     <!-- Settings → Agent -->
     <string name="settings_agent_title">Agent</string>
@@ -410,9 +434,18 @@
     <string name="settings_selftest_all_good">Everything checked works</string>
     <string name="settings_selftest_progress_description">Self-test, %1$s done</string>
     <string name="settings_selftest_starting">Starting</string>
-    <string name="settings_selftest_progress">%1$d of %2$d done</string>
-    <string name="settings_selftest_passed">%1$d passed</string>
-    <string name="settings_selftest_skipped">%1$d skipped</string>
+    <plurals name="settings_selftest_progress">
+        <item quantity="one">%1$d of %2$d done</item>
+        <item quantity="other">%1$d of %2$d done</item>
+    </plurals>
+    <plurals name="settings_selftest_passed">
+        <item quantity="one">%1$d passed</item>
+        <item quantity="other">%1$d passed</item>
+    </plurals>
+    <plurals name="settings_selftest_skipped">
+        <item quantity="one">%1$d skipped</item>
+        <item quantity="other">%1$d skipped</item>
+    </plurals>
     <string name="settings_selftest_checked">checked %1$s</string>
     <string name="settings_selftest_run_again">Run again</string>
     <string name="settings_selftest_waiting">Waiting</string>
@@ -662,7 +695,10 @@
     <string name="settings_backup_password_subtitle">Protects the file.</string>
     <string name="settings_backup_password_action">Choose where to save</string>
     <string name="settings_backup_password_label">Password</string>
-    <string name="settings_backup_password_hint">At least %1$d characters. A few random words are easy to type and hard to guess.</string>
+    <plurals name="settings_backup_password_hint">
+        <item quantity="one">At least %1$d character. A few random words are easy to type and hard to guess.</item>
+        <item quantity="other">At least %1$d characters. A few random words are easy to type and hard to guess.</item>
+    </plurals>
     <string name="settings_backup_password_again">Password again</string>
     <string name="settings_backup_password_mismatch">The passwords don\'t match.</string>
     <string name="settings_backup_password_forgotten">If you forget this password, the backup can\'t be opened. Nobody can recover it.</string>
@@ -776,8 +812,14 @@
     <string name="settings_models_phone_section">On this phone</string>
     <string name="settings_models_on_device_title">On-device models</string>
     <string name="settings_models_none_installed">None installed</string>
-    <string name="settings_models_installed">%1$d installed · %2$s GB</string>
-    <string name="settings_models_downloading">%1$d downloading</string>
+    <plurals name="settings_models_installed">
+        <item quantity="one">%1$d installed · %2$s GB</item>
+        <item quantity="other">%1$d installed · %2$s GB</item>
+    </plurals>
+    <plurals name="settings_models_downloading">
+        <item quantity="one">%1$d downloading</item>
+        <item quantity="other">%1$d downloading</item>
+    </plurals>
     <string name="settings_models_backup_position">%1$d. %2$s</string>
     <string name="settings_models_backup_earlier">Try %1$s earlier</string>
     <string name="settings_models_backup_remove">Remove %1$s</string>
@@ -864,11 +906,11 @@
     <string name="settings_ondevice_verifying">Checking the file before it\'s used</string>
     <string name="settings_ondevice_checking_name">Checking %1$s</string>
     <string name="settings_ondevice_unverified">Unverified source</string>
-    <string name="settings_ondevice_announce_paused_at">%1$s paused at %2$d percent</string>
+    <string name="settings_ondevice_announce_paused_at" tools:ignore="PluralsCandidate">%1$s paused at %2$d percent</string>
     <string name="settings_ondevice_announce_paused">%1$s paused</string>
     <string name="settings_ondevice_announce_waiting_wifi">%1$s waiting for Wi-Fi</string>
     <string name="settings_ondevice_announce_waiting">%1$s waiting</string>
-    <string name="settings_ondevice_announce_downloading_at">%1$s downloading, %2$d percent</string>
+    <string name="settings_ondevice_announce_downloading_at" tools:ignore="PluralsCandidate">%1$s downloading, %2$d percent</string>
     <string name="settings_ondevice_announce_downloading">%1$s downloading</string>
     <string name="settings_ondevice_use_mobile_data">Use mobile data</string>
     <string name="settings_ondevice_pause">Pause</string>
@@ -946,7 +988,7 @@
     <string name="settings_ondevice_library_reading_subtitle">Checking the model\'s header</string>
     <string name="settings_ondevice_library_reading_description">Reading</string>
     <string name="settings_ondevice_library_copying">Copying %1$s</string>
-    <string name="settings_ondevice_library_copying_at">Copying %1$s, %2$d percent</string>
+    <string name="settings_ondevice_library_copying_at" tools:ignore="PluralsCandidate">Copying %1$s, %2$d percent</string>
     <string name="settings_ondevice_library_import_failed">Couldn\'t import %1$s</string>
     <string name="settings_ondevice_library_dismiss">Dismiss</string>
     <string name="settings_ondevice_library_pick_another">Pick another file</string>
@@ -1136,6 +1178,7 @@
     <string name="settings_backup_error_database_damaged">The database inside this backup (chats, tasks and projects) is damaged, so Locus won\'t restore it. Nothing on this phone has changed. Try an older backup.</string>
     <string name="settings_backup_error_newer_format">This backup was made by a newer version of Locus. Update Locus, then try again.</string>
     <string name="settings_backup_error_newer_schema">This backup\'s data is from a newer version of Locus. Update Locus, then try again.</string>
+    <string name="settings_backup_error_newer_content">This backup\'s settings and files are from a newer version of Locus, which would lose some of them. Update Locus, then try again.</string>
     <string name="settings_backup_error_run_active">A task is running. Stop it first, then restore.</string>
     <string name="settings_backup_error_no_space">There isn\'t enough free space on this phone to restore this backup. Free some space, then try again.</string>
     <string name="settings_backup_error_read">Couldn\'t read the file: %1$s</string>
