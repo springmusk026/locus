@@ -115,6 +115,17 @@ sealed interface Part {
     @Serializable
     @SerialName("turn_effort")
     data class TurnEffort(val effort: String, val topLevel: String) : Part
+
+    /**
+     * On an OpenAI Responses assistant turn whose request carried the system prompt as the first
+     * `developer` message in `input` instead of top-level `instructions` (GPT-6.2 and later, see
+     * docs/design/cost.md, "System prompt placement on GPT-6.2 and later"). A chat keeps that placement
+     * only while every earlier turn of its format has this record, so each request is rebuilt exactly.
+     * Never shown and never sent as content; other adapters ignore it.
+     */
+    @Serializable
+    @SerialName("system_in_input")
+    data object SystemInInput : Part
 }
 
 /**

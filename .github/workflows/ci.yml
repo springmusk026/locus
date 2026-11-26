@@ -2,9 +2,11 @@ name: CI
 
 # Four Gradle jobs run side by side (unit tests + coverage, lint, debug APK, release APK with R8), and
 # one small `build` job needs them all, so branch protection and the merge tooling still see a single
-# `build` check. Draft PRs and docs-only PRs skip the Gradle jobs; `build` still reports. Main is not
-# rebuilt on push (it gets the tree its PR was tested with); a nightly run on main is the safety net.
-# Why each choice: docs/design/ci.md.
+# `build` check. Draft PRs and docs-only PRs skip the Gradle jobs; `build` still reports. A PR runs only
+# the jobs its files need (screenshots for UI changes, release-r8 for app and build changes). Main is
+# not rebuilt on push (it gets the tree its PR was tested with); a nightly run on main is the safety net,
+# and it runs only when main changed since the night before. Actions minutes are limited: why each
+# choice, docs/design/ci.md.
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -30,27 +32,72 @@ jobs:
       pull-requests: read
     outputs:
       code: ${{ steps.filter.outputs.code }}
+      matrix: ${{ steps.filter.outputs.matrix }}
     steps:
       - id: filter
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
+          EVENT: ${{ github.event_name }}
         run: |
+          # Every Gradle job. unit-tests: Kover instruments these runs (no thresholds yet); the screenshot
+          # tests run here too but draw nothing. screenshots: every module's screenshot tests draw into
+          # build/ and the render guard checks contrast and raw ids; no goldens, nothing uploaded
+          # (docs/design/design-system.md, "Review gate"). release-r8: R8 runs only for release builds, so
+          # a missing keep rule would otherwise only show on a phone; verifyReleaseR8KeptNames checks
+          # app/r8-kept-names.txt; one ABI is enough, and its APK (runner's debug key) is kept for
+          # reproducible-build comparisons (docs/FDROID.md). robolectric: the job runs Robolectric tests.
+          MATRIX='[
+            {"name":"unit-tests","tasks":"testDebugUnitTest :core:agent:test :core:llm:test :core:model:test :koverHtmlReportUnit :koverXmlReportUnit","ndk":false,"robolectric":true,"artifact":"coverage","artifact-path":"build/reports/kover/"},
+            {"name":"screenshots","tasks":"recordRoborazziDebug","ndk":false,"robolectric":true},
+            {"name":"lint","tasks":"lintDebug","ndk":false,"robolectric":false},
+            {"name":"debug-apk","tasks":":app:assembleDebug","ndk":true,"robolectric":false,"artifact":"locus-debug-apk","artifact-path":"app/build/outputs/apk/debug/app-*-debug.apk"},
+            {"name":"release-r8","tasks":":app:assembleRelease -Plocus.abi=arm64-v8a","ndk":true,"robolectric":false,"artifact":"locus-release-arm64-v8a-debugkey","artifact-path":"app/build/outputs/apk/release/app-arm64-v8a-release.apk"}
+          ]'
+          pick() { echo "matrix=$(jq -c --argjson want "$1" '{include: [.[] | select(.name as $n | $want | index($n))]}' <<< "$MATRIX")" >> "$GITHUB_OUTPUT"; }
           if [ -z "$PR" ]; then
+            # The nightly run checks main only when main changed in the last day: a night with no merge
+            # would repeat the previous night's run on the same tree. Manual runs always run.
+            if [ "$EVENT" = schedule ]; then
+              since=$(date -u -d '25 hours ago' +%Y-%m-%dT%H:%M:%SZ)
+              n=$(gh api "repos/$GITHUB_REPOSITORY/commits?sha=${GITHUB_REF_NAME}&since=$since&per_page=1" --jq length)
+              if [ "$n" = 0 ]; then
+                echo "No commits on main since $since: nothing to check tonight."
+                echo "code=false" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+            fi
             echo "Not a pull request: run everything."
             echo "code=true" >> "$GITHUB_OUTPUT"
+            pick '["unit-tests","screenshots","lint","debug-apk","release-r8"]'
             exit 0
           fi
           gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --jq '.[].filename' > files.txt
           cat files.txt
           # The files API lists at most 3000 files; past that, don't guess.
+          many=$([ "$(wc -l < files.txt)" -ge 3000 ] && echo yes || echo no)
           # Docs only: anything under docs/, or a Markdown file at the top level (README, CHANGELOG...).
-          if [ "$(wc -l < files.txt)" -ge 3000 ] || grep -qvE '^docs/|^[^/]+\.md$' files.txt; then
-            echo "code=true" >> "$GITHUB_OUTPUT"
-          else
+          if [ "$many" = no ] && ! grep -qvE '^docs/|^[^/]+\.md$' files.txt; then
             echo "Docs-only change: the Gradle jobs are skipped."
             echo "code=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          echo "code=true" >> "$GITHUB_OUTPUT"
+          # Build setup changes everything; so does this file.
+          setup='^gradle/|\.gradle\.kts$|^build-logic/|^gradle\.properties$|^\.github/workflows/ci\.yml$'
+          jobs='"unit-tests","lint","debug-apk"'
+          # Screenshots: a change that can alter what a screen draws (feature screens, the design system,
+          # shared UI, resources) or the screenshot tests themselves. Pure logic in core modules can't.
+          if [ "$many" = yes ] || grep -qE "$setup|^feature/|^core/designsystem/|^core/ui/|^core/markdown/|^app/|/src/main/res/|Screenshots?\.kt$" files.txt; then
+            jobs="$jobs,\"screenshots\""
+          fi
+          # Release with R8: the app module, keep rules, the kept-names list, or build setup. Code in other
+          # modules is still checked by R8 in the nightly run on main and in every release build.
+          if [ "$many" = yes ] || grep -qE "$setup|^app/|proguard|\.pro$|r8" files.txt; then
+            jobs="$jobs,\"release-r8\""
+          fi
+          pick "[$jobs]"
+          echo "Jobs for this PR: [$jobs]"
 
   gradle:
     needs: changes
@@ -61,40 +108,9 @@ jobs:
     strategy:
       # Let every job finish so one failure doesn't hide another.
       fail-fast: false
-      matrix:
-        include:
-          # Kover instruments these test runs; no thresholds yet. The screenshot tests run here too but
-          # draw nothing; the screenshots job draws and checks them.
-          - name: unit-tests
-            tasks: testDebugUnitTest :core:agent:test :core:llm:test :core:model:test :koverHtmlReportUnit :koverXmlReportUnit
-            ndk: false
-            artifact: coverage
-            artifact-path: build/reports/kover/
-          # Every module with screenshot tests draws them into its build/ folder, and the render guard
-          # checks contrast and raw ids in what was drawn. There are no goldens and nothing is uploaded:
-          # screenshots are never stored on GitHub (docs/design/design-system.md, "Review gate").
-          # Its own job, beside unit-tests, so drawing ~1,800 images doesn't add to that job's time.
-          - name: screenshots
-            tasks: recordRoborazziDebug
-            ndk: false
-          - name: lint
-            tasks: lintDebug
-            ndk: false
-          - name: debug-apk
-            tasks: :app:assembleDebug
-            ndk: true
-            artifact: locus-debug-apk
-            artifact-path: app/build/outputs/apk/debug/app-*-debug.apk
-          # R8 only runs for release builds, so a missing keep rule (a class found by name at run time)
-          # would otherwise only show on a phone. verifyReleaseR8KeptNames runs with it and checks
-          # app/r8-kept-names.txt against the mapping. One ABI is enough: R8 runs once for all of them.
-          # Its APK (signed with the runner's debug key) is kept so a local or F-Droid build of the same
-          # commit can be compared with a Linux build; docs/FDROID.md, "Reproducible builds".
-          - name: release-r8
-            tasks: :app:assembleRelease -Plocus.abi=arm64-v8a
-            ndk: true
-            artifact: locus-release-arm64-v8a-debugkey
-            artifact-path: app/build/outputs/apk/release/app-arm64-v8a-release.apk
+      # Built by the changes job: only the jobs this change needs (the full list and why each job exists
+      # are there, in MATRIX). fail-fast is off so one failure doesn't hide another.
+      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -113,6 +129,17 @@ jobs:
       - name: Install NDK
         if: matrix.ndk
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;29.0.14206865" > /dev/null
+
+      # Robolectric fetches its android-all jars from Maven Central into ~/.m2 on first use; a failed
+      # fetch failed whole test classes (MavenArtifactFetcher). Cached by the dependency versions file,
+      # so a run downloads them only after a Robolectric or SDK change.
+      - name: Robolectric jars
+        if: matrix.robolectric
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: robolectric-${{ hashFiles('gradle/libs.versions.toml') }}
+          restore-keys: robolectric-
 
       - name: Gradle
         run: ./gradlew ${{ matrix.tasks }}

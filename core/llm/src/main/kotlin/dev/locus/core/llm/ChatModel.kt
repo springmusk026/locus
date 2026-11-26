@@ -103,6 +103,11 @@ data class AssistantTurn(
      * before running one, whatever the tool's policy.
      */
     val repairedCallIds: Set<String> = emptySet(),
+    /**
+     * The request put the system prompt in a `developer` input message ([SystemPlacement]); stored on the
+     * turn as [Part.SystemInInput] so later requests of the chat keep that placement.
+     */
+    val systemInInput: Boolean = false,
 )
 
 /** One billed model attempt within a request: [model] and its own token counts. */

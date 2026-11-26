@@ -116,6 +116,20 @@ object PowerPolicy {
      */
     const val HEADROOM_SEVERE = 1.0f
 
+    /**
+     * Once background work is held for heat, it stays held this long after the phone drops below SEVERE
+     * while it's still MODERATE ([coolingDown]); below MODERATE it's released at once. Without it a phone
+     * flapping between MODERATE and SEVERE released everything at each dip, which heated it again.
+     */
+    const val HOT_RELEASE_AFTER_MS = 60_000L
+
+    /**
+     * Still warm enough (MODERATE and above, with deferral on) that work held for heat waits
+     * [HOT_RELEASE_AFTER_MS] before it's released, instead of at once.
+     */
+    fun coolingDown(state: DeviceState, settings: PowerSettings): Boolean =
+        settings.deferWhenHot && state.thermal >= ThermalLevel.MODERATE
+
     /** Whether to hold non-urgent background work, and why; null to run it now. Heat wins over battery saver. */
     fun deferReason(state: DeviceState, settings: PowerSettings): PauseReason? = when {
         !settings.deferWhenHot -> null

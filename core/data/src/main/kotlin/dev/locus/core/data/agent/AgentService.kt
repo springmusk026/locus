@@ -200,7 +200,7 @@ class AgentService : LifecycleService() {
         val lock: AppLockSettings,
     )
 
-    /** Deny, then Allow; Allow needs the phone unlocked. */
+    /** Deny, then Allow; Allow needs the phone unlocked, so it is offered only on Android 12+. */
     private fun approvalActions(callId: String): List<NotificationCompat.Action> {
         fun action(approve: Boolean, label: String) = NotificationCompat.Action.Builder(
             0,
@@ -215,10 +215,13 @@ class AgentService : LifecycleService() {
             // Approving from a locked phone must not be possible; with Lock Locus on, denying isn't either.
             .setAuthenticationRequired(LockedNotifications.authenticationRequired(lock, approve))
             .build()
-        return listOf(action(false, "Deny"), action(true, "Allow"))
+        // Below Android 12 Allow couldn't ask for the unlock, so it isn't offered: the tap opens Locus.
+        return listOf(false to "Deny", true to "Allow")
+            .filter { (approve, _) -> LockedNotifications.actionOffered(lock, Build.VERSION.SDK_INT, approve) }
+            .map { (approve, label) -> action(approve, label) }
     }
 
-    /** Stop, then Continue for a task paused at its budget; Continue spends more, so it needs the phone unlocked. */
+    /** Stop, then Continue for a task paused at its budget; Continue spends more, so it needs the phone unlocked (Android 12+ only). */
     private fun budgetActions(conversationId: String): List<NotificationCompat.Action> {
         fun action(continueTask: Boolean, label: String) = NotificationCompat.Action.Builder(
             0,
@@ -232,7 +235,10 @@ class AgentService : LifecycleService() {
         )
             .setAuthenticationRequired(LockedNotifications.authenticationRequired(lock, continueTask))
             .build()
-        return listOf(action(false, "Stop"), action(true, "Continue"))
+        // Below Android 12 Continue couldn't ask for the unlock, so it isn't offered: the tap opens Locus.
+        return listOf(false to "Stop", true to "Continue")
+            .filter { (continueTask, _) -> LockedNotifications.actionOffered(lock, Build.VERSION.SDK_INT, continueTask) }
+            .map { (continueTask, label) -> action(continueTask, label) }
     }
 
     private fun approvalNotification(conversationId: String, callId: String, title: String, summary: String): Notification {
@@ -304,6 +310,8 @@ class AgentService : LifecycleService() {
             val input = RemoteInput.Builder(KEY_REPLY).setLabel("Your answer").build()
             val intent = Intent(this, QuestionReceiver::class.java).putExtra(EXTRA_CALL_ID, question.callId)
             // Mutable so the system can add the typed text; the intent is explicit (our own receiver).
+            // A holder's fill-in can't change EXTRA_CALL_ID: Intent.fillIn copies an extra only where this
+            // intent has no value under that name (developer.android.com/reference/android/content/Intent#fillIn).
             val pending = PendingIntent.getBroadcast(this, (question.callId + "#reply").hashCode(), intent, PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
             actions += NotificationCompat.Action.Builder(0, "Reply", pending)
                 .addRemoteInput(input)

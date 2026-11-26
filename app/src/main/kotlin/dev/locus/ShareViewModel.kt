@@ -4,7 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.core.content.IntentCompat
 import androidx.core.content.pm.ShortcutManagerCompat
-import dev.locus.core.data.shortcuts.ChatShortcutPlan
+import dev.locus.core.data.shortcuts.ChatShortcuts
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -30,6 +30,7 @@ class ShareViewModel @Inject constructor(
     private val conversations: ConversationRepository,
     private val settings: SettingsRepository,
     private val workspace: WorkspaceRepository,
+    private val shortcuts: ChatShortcuts,
 ) : ViewModel() {
 
     private val _failures = MutableStateFlow<List<String>>(emptyList())
@@ -71,7 +72,8 @@ class ShareViewModel @Inject constructor(
         }
         if (intent.action != Intent.ACTION_SEND && intent.action != Intent.ACTION_SEND_MULTIPLE) return
         // A Direct Share target: the chat the user shared to (dynamic shortcuts, docs/design/android-bridge.md).
-        val sharedTo = ChatShortcutPlan.chatOf(intent.getStringExtra(ShortcutManagerCompat.EXTRA_SHORTCUT_ID))
+        // Any app can name a shortcut, so only one of the chats the share sheet offers now counts.
+        val shortcutId = intent.getStringExtra(ShortcutManagerCompat.EXTRA_SHORTCUT_ID)
         val text = listOfNotNull(intent.getStringExtra(Intent.EXTRA_SUBJECT), intent.getStringExtra(Intent.EXTRA_TEXT)).joinToString("\n").trim()
         val uris: List<Uri> = if (intent.action == Intent.ACTION_SEND_MULTIPLE) {
             IntentCompat.getParcelableArrayListExtra(intent, Intent.EXTRA_STREAM, Uri::class.java).orEmpty()
@@ -100,7 +102,7 @@ class ShareViewModel @Inject constructor(
             }
             if (draft.isBlank()) return@launch
             // Into that chat when it still exists (the draft waits for Send there too), else a new one.
-            val target = sharedTo?.let { conversations.get(it) }?.takeIf { !it.hidden }?.id
+            val target = shortcuts.shareTarget(shortcutId)?.let { conversations.get(it) }?.takeIf { !it.hidden }?.id
             open(target ?: conversations.create(settings.current().defaultProviderId).id, draft)
         }
     }

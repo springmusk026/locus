@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.locus.core.data.agent.AgentRunner
+import dev.locus.core.data.agent.RunState
 import dev.locus.core.data.repository.ConversationRepository
 import dev.locus.core.data.search.ChatSearchHit
 import dev.locus.core.data.repository.LibraryRepository
@@ -17,6 +18,7 @@ import dev.locus.core.model.effectiveModel
 import dev.locus.core.model.overrideFor
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.debounce
@@ -37,8 +39,6 @@ data class ConversationRow(
     val providerName: String = "",
     val providerUrl: String = "",
     val onDevice: Boolean = false,
-    /** The tool in use right now, while running. */
-    val activeTool: String? = null,
     val interrupted: Boolean = false,
     /** The model id this chat uses (its override, else its provider's), for the model-family logo. */
     val model: String = "",
@@ -72,8 +72,27 @@ internal fun redactedRow(row: ConversationRow, lock: dev.locus.core.model.AppLoc
 internal fun visibleHits(hits: List<ChatSearchHit>, lock: dev.locus.core.model.AppLockStatus): List<ChatSearchHit> =
     hits.filterNot { lock.redactInApp(it.conversation.id) }
 
-/** The parts of a run's state the home list needs. */
-private data class RowRun(val running: Boolean, val approval: Boolean, val activeTool: String?, val interrupted: Boolean)
+/**
+ * The parts of a run's state the home list needs. Not the tool in use: that changes at every tool call
+ * of every chat, and would rebuild every row each time ([ConversationsViewModel.activeTools] carries it for the featured card).
+ */
+internal data class RowRun(val running: Boolean, val approval: Boolean, val interrupted: Boolean)
+
+/** [RowRun]s by chat id, emitted only when one of them changes (not on streamed text or tool calls). */
+internal fun rowRuns(states: Flow<Map<String, RunState>>): Flow<Map<String, RowRun>> =
+    states.map { all -> all.mapValues { (_, r) -> RowRun(r.running, r.pendingApproval != null, r.interrupted) } }.distinctUntilChanged()
+
+/** The tool each running chat is using right now, by chat id. */
+internal fun activeToolsOf(states: Flow<Map<String, RunState>>): Flow<Map<String, String>> =
+    states.map { all -> all.mapNotNull { (id, r) -> r.activeTool?.let { id to it } }.toMap() }.distinctUntilChanged()
+
+/**
+ * What a chat search depends on in the chat list: which chats there are, their titles, and when each
+ * last changed (a new message moves it). Room re-emits the whole list on any write to the table (a
+ * helper chat's progress, a model switch), which needn't run the search again.
+ */
+internal fun searchInputs(chats: Flow<List<Conversation>>): Flow<List<Triple<String, String, Long>>> =
+    chats.map { list -> list.map { Triple(it.id, it.title, it.updatedAt) } }.distinctUntilChanged()
 
 private data class Quad<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
 
@@ -238,9 +257,14 @@ class ConversationsViewModel @Inject constructor(
     }
 
     /** Only what the list shows of each run, so streamed text doesn't rebuild every row. */
-    private val runs = runner.states
-        .map { all -> all.mapValues { (_, r) -> RowRun(r.running, r.pendingApproval != null, r.activeTool, r.interrupted) } }
-        .distinctUntilChanged()
+    private val runs = rowRuns(runner.states)
+
+    /** The tool each running chat is using, for the featured card's status line only (see [RowRun]). */
+    val activeTools: StateFlow<Map<String, String>> = activeToolsOf(runner.states)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    /** The user's chats, only when they changed: Room re-emits equal lists on unrelated writes (helper chats). */
+    private val chats = conversations.all.distinctUntilChanged()
 
     /**
      * Every project with its chat count, last activity and live state, the ones that need the user
@@ -248,7 +272,7 @@ class ConversationsViewModel @Inject constructor(
      */
     val projects: StateFlow<List<HomeProject>> = combine(
         projectRepository?.all ?: kotlinx.coroutines.flow.flowOf(emptyList()),
-        conversations.all,
+        chats,
         conversations.emptyIds,
         runs,
     ) { list, chats, empty, states ->
@@ -368,7 +392,7 @@ class ConversationsViewModel @Inject constructor(
 
     /** Re-read after chats change (that's when the agent writes files), at most once a second. */
     @OptIn(FlowPreview::class)
-    private val recentFiles = conversations.all.debounce(1_000).map { runCatching { workspace.recent(3) }.getOrDefault(emptyList()) }.onStart { emit(emptyList()) }
+    private val recentFiles = chats.debounce(1_000).map { runCatching { workspace.recent(3) }.getOrDefault(emptyList()) }.onStart { emit(emptyList()) }
 
     private val counts = combine(library.library, tasks.tasks, recentFiles) { lib, list, files ->
         HomeCounts(
@@ -389,16 +413,17 @@ class ConversationsViewModel @Inject constructor(
 
     /**
      * Chats matching the query (title or message text), from the full-text index. Debounced while typing;
-     * the index itself is only written when messages are.
+     * the index itself is only written when messages are, so it re-runs only when a chat's title or last
+     * activity changes, or chats come and go ([searchInputs]).
      */
     @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
-    private val matches = combine(query, conversations.all) { q, _ -> q } // re-run as new messages arrive
+    private val matches = combine(query, searchInputs(chats)) { q, _ -> q } // re-run as new messages arrive
         .debounce { if (it.isNullOrBlank()) 0L else 200L }
         .mapLatest { q -> q?.takeIf { it.isNotBlank() }?.let { q to conversations.search(it) } }
 
     val uiState: StateFlow<ConversationsUiState> = combine(
         // Chats with no messages (a "New chat" opened and left) are hidden, unless a run just started in one.
-        combine(conversations.all, conversations.emptyIds, matches, query) { list, empty, ids, q -> Quad(list, empty, ids, q) },
+        combine(chats, conversations.emptyIds.distinctUntilChanged(), matches, query) { list, empty, ids, q -> Quad(list, empty, ids, q) },
         runs,
         settings.settings,
         combine(
@@ -431,7 +456,6 @@ class ConversationsViewModel @Inject constructor(
                     } else ConversationRow(
                         c, state?.running == true, state?.approval == true,
                         provider?.name.orEmpty(), provider?.baseUrl.orEmpty(), provider?.format == ApiFormat.ON_DEVICE,
-                        activeTool = state?.activeTool,
                         interrupted = state?.interrupted == true && state.running != true,
                         model = provider?.effectiveModel(c.modelOverride) ?: c.modelOverride.orEmpty(),
                     ),

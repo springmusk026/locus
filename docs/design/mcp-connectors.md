@@ -287,6 +287,16 @@ built-in's, stays untied: its card says "Confirm key" with **Use for <host>**, a
 until the user taps it or replaces the key. This runs once (`connector-origin-migrated`). Because it runs
 before any approval, a draft approved later is never what an old key gets tied to.
 
+## Keys, redirects and replies in `connector_call` (2026-11)
+
+Three limits on what an HTTP connector's service can do to a call (issues #358, #365, #375). Code: `home/HomeTools.kt` (`ConnectorCall`), `ToolCatalog.connectorClient`.
+
+- **Redirects are followed by hand.** The app's `HttpClient` is OkHttp, which follows redirects itself and, on a change of host, drops only `Authorization`: an `X-Api-Key` header went to whatever address a service (an open redirect, or a path the model was steered to) named. `connector_call` now uses a client whose OkHttp has `followRedirects(false)` and `followSslRedirects(false)` (`ToolCatalog.connectorClient`, the same as the provider clients) and follows 301, 302, 303, 307 and 308 itself, at most 5. Each hop must stay on the connector's own host, may not go from https to http, and, for a connector with a key, must land on an origin the key was saved for (`ConnectorKeys.origin` against `KeyOrigins`), so another port or scheme is refused too. A refused hop ends the call with a "Blocked: …" message and nothing is sent. The key is added to every request again, never carried over from the last one (a query key replaces a parameter of the same name in the redirect's address). 301, 302 and 303 turn a write into a GET without its body, as browsers do; 307 and 308 keep both.
+- **A reply is read up to 2 MB.** `bodyAsText()` read the whole body before the 30,000-character cut, so a service that sent hundreds of MB could end the run with an out-of-memory error. The body is now read with `readRemaining(2 MB + 1)`, as `fetch_url` does. When it was longer, the status line says "HTTP 200 · stopped reading at 2 MB" (outside the untrusted block, it is Locus's own text). A connector's `response()` script gets the first 2 MB.
+- **A `response()` script never sees the key.** The reply is scrubbed of the key (as typed, %-encoded, base64 for basic auth) before the script gets it, as well as after: the script is model-drafted code and could re-encode an echoed key (hex, reversed) into a form the final scrub doesn't know. Neither hook sees credentials now.
+
+Prompt caches are untouched: no tool description, list or history changes. No database change.
+
 ## When a user has both
 
 ### How the tool list is built today

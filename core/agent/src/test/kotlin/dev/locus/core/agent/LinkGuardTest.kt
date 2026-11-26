@@ -32,6 +32,18 @@ class LinkGuardTest {
         assertNull(LinkGuard.check("http://localhost:3000/", outsideContent = true, namedHosts = emptySet()))
     }
 
+    // Issue #377: the host shown is the one the link opens, and an unclear address never counts as named.
+    @Test
+    fun `a backslash or user info link to a named host asks after outside content`() {
+        val slash = LinkGuard.check("https://evil.com\\@github.com/?d=secret", outsideContent = true, namedHosts = named)!!
+        assertEquals(setOf(LinkGuard.Reason.OUTSIDE_CONTENT), slash.reasons)
+        assertEquals("evil.com", slash.host)
+        listOf("https://github.com@evil.com/", "https://github.com\\@evil.com/x", "https:/\\github.com/x").forEach {
+            assertEquals(setOf(LinkGuard.Reason.OUTSIDE_CONTENT), LinkGuard.check(it, true, named)?.reasons, it)
+        }
+        assertNull(LinkGuard.check("https://github.com/x", true, named))
+    }
+
     @Test
     fun `a long query or fragment asks even in a clean reply and on a named host`() {
         val data = "a".repeat(LinkGuard.DATA_CHARS + 1)

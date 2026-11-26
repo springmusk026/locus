@@ -7,6 +7,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.locus.core.browser.DropdownPage
 import dev.locus.core.browser.DropdownSelect
+import dev.locus.core.browser.SensitiveWords
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -42,7 +43,8 @@ class DropdownsTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private var web: WebView? = null
     private val helper: String by lazy {
-        instrumentation.targetContext.assets.open("locus-agent.js").bufferedReader().use { it.readText() }.replace("__LOCUS_SECRET__", "")
+        SensitiveWords.forPageScript(instrumentation.targetContext.assets.open("locus-agent.js").bufferedReader().use { it.readText() })
+            .replace("__LOCUS_SECRET__", "")
     }
 
     @After

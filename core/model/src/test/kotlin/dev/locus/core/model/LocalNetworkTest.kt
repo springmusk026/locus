@@ -71,4 +71,37 @@ class LocalNetworkTest {
             "http://192.168.1.5:11434/v1", "http://10.0.0.2", "http://nas.local:8080", "http://mypc:1234", "not a url", "",
         ).forEach { assertEquals(null, LocalNetwork.cleartextWarning(it), it) }
     }
+
+    // Issue #377: the host must be the one browsers and OkHttp connect to (WHATWG URL parsing).
+    @Test
+    fun `the host is the one a browser or OkHttp would connect to`() {
+        mapOf(
+            "https://evil.com\\@github.com/?d=secret" to "evil.com",
+            "https://evil.com\\\\@github.com/x" to "evil.com",
+            "https://github.com\\@evil.com/x" to "github.com",
+            "https:/\\evil.com/x" to "evil.com",
+            "https:evil.com/x" to "evil.com",
+            "https:///evil.com/x" to "evil.com",
+            "https://ev\til.com/x" to "evil.com",
+            "https://[::ffff:7f00:1]/x" to "127.0.0.1",
+            "https://[::ffff:192.168.1.5]:8080/" to "192.168.1.5",
+            "http://[0:0:0:0:0:0:0:1]:3000/" to "::1",
+            "http://[FE80:0:0:0:0:0:0:1]/" to "fe80::1",
+            "https://user:pw@github.com:443/x" to "github.com",
+            "HTTPS://GitHub.com./x" to "github.com",
+        ).forEach { (url, host) -> assertEquals(host, LocalNetwork.hostOf(url), url) }
+    }
+
+    @Test
+    fun `addresses that could mislead have no plain host`() {
+        listOf(
+            "https://evil.com\\@github.com/?d=secret", "https://github.com\\@evil.com/x", "https:/\\evil.com/x", "https:evil.com/x",
+            "https:///evil.com/x", "https://github.com@evil.com/", "https://user:pw@github.com/", "https://git%68ub.com/",
+            "https://github.com\n.evil.com/", "https://evil.com\t@github.com/",
+        ).forEach { assertEquals(null, LocalNetwork.plainHostOf(it), it) }
+        assertEquals("github.com", LocalNetwork.plainHostOf("https://github.com/x?y=1#z"))
+        assertEquals("127.0.0.1", LocalNetwork.plainHostOf("https://[::ffff:7f00:1]/x"))
+        assertEquals("192.168.1.5", LocalNetwork.plainHostOf("http://192.168.1.5:11434/v1"))
+        assertEquals("github.com", LocalNetwork.plainHostOf("github.com/x"))
+    }
 }

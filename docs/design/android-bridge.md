@@ -90,7 +90,7 @@ Locus: an exported `AssistLocus` alias of MainActivity with the `ACTION_ASSIST` 
 | Static shortcut **Voice** | A new chat with voice mode open ([voice mode](voice-mode.md)); it listens once the microphone is allowed. | `LaunchActions.VOICE` |
 | Static shortcut **Workspace** | The workspace browser. | `LaunchActions.WORKSPACE` |
 | Dynamic shortcuts | Pinned chats, then recent ones (helpers, hidden chats and scheduled runs never), at most four, ranked; tap opens the chat. | `ChatShortcutPlan`, `ChatShortcuts` |
-| Direct Share | Each chat shortcut is a sharing shortcut (`dev.locus.category.SHARE_TO_CHAT`): sharing to it puts the text and files in that chat's composer. A chat that's gone falls back to a new chat. | `ShareViewModel` |
+| Direct Share | Each chat shortcut is a sharing shortcut (`dev.locus.category.SHARE_TO_CHAT`): sharing to it puts the text and files in that chat's composer. A chat that's gone, or one the share sheet doesn't offer now, falls back to a new chat. | `ShareViewModel`, `ChatShortcutPlan.shareTarget` |
 | Quick settings tile **Ask Locus** | Home with the ask bar focused and the keyboard up. | `AskTileService`, `LaunchActions.ASK` |
 | Text selection **Ask Locus** | The selection as a new chat's draft. | `AskLocusText` alias, `ShareViewModel` |
 | Home-screen **widget** | The status line, the latest scheduled-task result and an **Ask Locus** button (home with the ask bar focused). Tapping the status opens the waiting or working chat, otherwise Locus. | `LocusWidget`, `WidgetFeed` |
@@ -98,6 +98,17 @@ Locus: an exported `AssistLocus` alias of MainActivity with the `ACTION_ASSIST` 
 | **Default assistant** | Once picked in Android's Default apps, the assist gesture (and holding power, where set) opens home with the ask bar focused. | `AssistLocus` alias, `LaunchActions.resolve` |
 
 None of them sends or runs anything by itself; each ends in a composer the user sends from, or in voice mode, which sends only what the user then says. The static shortcut intents name MainActivity explicitly; `targetPackage` comes from a `resValue` because the debug build's application id differs. A chat shortcut opens its chat through `OpenChatLink`'s per-install token, as notifications do, so another app can't open a chat of its choosing through MainActivity.
+
+**Direct Share can't carry that token.** When the user picks a chat in the share sheet, Android starts Locus with the sharing app's `ACTION_SEND` plus `EXTRA_SHORTCUT_ID` ([Direct Share targets](https://developer.android.com/training/sharing/direct-share-targets)), so any app can send the same intent with any id, and Locus can't tell who did: the caller is known only when it opts in to share its identity (`Activity.getLaunchedFromPackage`, API 34+). The same page asks for no disambiguation step after a Direct Share pick ("Don't present the user a disambiguation UI"), so Locus doesn't ask again either. Instead `ChatShortcutPlan.shareTarget` honours the id only when it names a chat the share sheet offers right now (the current plan: pinned and recent chats; never a locked, hidden, imported, helper or older chat, and none with Lock Locus on). Shortcut ids are `chat:` plus a random UUID, and the page notes that shortcuts "are accessible only by system services and the same app that publishes the shortcuts". Any other id falls back to a new chat with the draft, as a plain share does. A share never replaces text you were typing: the draft opens in a new composer entry on top, and the one underneath keeps its text. Left open: an app that already knows the id of one of those few chats can still open it with a draft (nothing is sent until you tap Send, and a locked chat still asks first).
+
+### The workspace in other apps
+
+`WorkspaceDocumentsProvider` shows the workspace in the Files app and other apps' pickers. It is exported with `grantUriPermissions`, so ids and names come from other apps, and the rules live in `WorkspaceDocuments` (`WorkspaceDocumentsTest`):
+
+- An id is a workspace-relative path, resolved by `Workspace.resolve` (canonical, never outside the workspace). A subtree grant covers a document only when its canonical file is inside the granted folder's ([`isChildDocument`](https://developer.android.com/reference/android/provider/DocumentsProvider#isChildDocument(java.lang.String,%20java.lang.String)) is what keeps a tree grant to its tree), so `projects/a/../b/x` is not inside `projects/a`.
+- A new or renamed document's name is one path segment: `/`, `\` and NUL become `_`, and empty, `.` and `..` are refused; the file must land in the folder asked for. A taken name gets a number before the extension, `a (1).txt`, as the Files app does.
+- The workspace root can't be renamed or deleted, under any id that means it (`root`, `.`, `a/..`).
+- A write (`w`, `wt`, `wa`, `rw`, `rwt`) to a file with something in it first keeps a copy in the workspace trash ("Earlier version"), so another app's write can be undone from Workspace → Trash. These writes aren't in a turn's change tracking: that records the agent's file tools only ([change tracking](change-tracking.md)). A rename never replaces anything (a taken name is refused), so it needs no copy.
 
 `ChatShortcuts` watches the chat list, debounced by a second, and replaces the dynamic shortcuts when the plan changes. The plan is pure (`ChatShortcutPlanTest`).
 

@@ -53,7 +53,7 @@ class FetchDnsTest {
         // fetch_url's own check sees the public address; the connection's lookup gets the private one.
         val dns = Rebinding(listOf(loopback))
         val client = FetchDns.client(OkHttpClient(), { emptySet() }, dns)
-        val fetch = webTools(HttpClient(OkHttp), FetchNetwork(resolve = { listOf(public) }, allowedHosts = { emptySet() }, client = client)).single()
+        val fetch = webTools(HttpClient(OkHttp), FetchNetwork(resolve = { listOf(public) }, allowedOrigins = { emptySet() }, client = client)).single()
         val e = assertFailsWith<ToolException> { fetch.execute(buildJsonObject { put("url", "http://rebind.test/admin") }) }
         assertTrue("Blocked" in e.message!!, e.message)
         // The connection's own lookup is what refused it.

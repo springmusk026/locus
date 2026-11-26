@@ -718,7 +718,9 @@ class AgentLoop(
             )
             val replied = assistant.parts.isNotEmpty() || assistant.rawPayload != null
             // What effort the turn was asked for, for adapters that change it mid-chat per message (hidden).
-            val stored = turn.turnEffort?.takeIf { replied }?.let { assistant.copy(parts = assistant.parts + it) } ?: assistant
+            // Where the request put the system prompt, for the Responses adapter on GPT-6.2 and later (hidden).
+            val records = listOfNotNull(turn.turnEffort, Part.SystemInInput.takeIf { turn.systemInInput })
+            val stored = if (replied && records.isNotEmpty()) assistant.copy(parts = assistant.parts + records) else assistant
             config.onRequest?.invoke(request, assistant.id.takeIf { replied })
             if (replied) appendAndEmit(stored, transcript)
 

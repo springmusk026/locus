@@ -83,14 +83,43 @@ does not enforce this for this repository, because there is no branch protection
 requires up-to-date branches. A merge made by hand from a stale branch, or with a merge or rebase
 commit, gives main a tree no run has seen. Two runs on main cover that:
 
-- **Nightly** (`schedule`, 02:00 UTC): the full suite on main. It also refreshes the Gradle caches
-  that PRs read. GitHub turns off scheduled workflows in a public repository after 60 days without
+- **Nightly** (`schedule`, 02:00 UTC): the full suite on main, but only when main changed in the last
+  25 hours (the `changes` job asks the commits API); a night without a merge would repeat the previous
+  night's run on the same tree. It also refreshes the Gradle caches that PRs read. The emulator
+  workflow (`instrumentation.yml`, 03:30 UTC) has the same gate, since its minutes cost the most. GitHub turns off scheduled workflows in a public repository after 60 days without
   activity.
 - **On demand**: Actions → CI → Run workflow (`workflow_dispatch`), on main or any branch.
 
 Nothing depends on a CI artifact from main. Releases build their own APKs from the tag
 (`release.yml`, a full `assembleRelease` with R8 and the kept-names check). The README badge shows
 the latest run on main, which is now the nightly run.
+
+## Only the jobs a change needs
+
+Actions minutes are limited (the repository ran out in October 2026), so a pull request runs only the
+Gradle jobs its files can affect. The `changes` job lists the PR's files and builds the matrix the
+`gradle` job runs:
+
+| Job | Runs on a PR when it touches |
+|---|---|
+| unit-tests, lint, debug-apk | any code (everything but docs) |
+| screenshots | feature screens, the design system, shared UI, markdown, the app module, any `src/main/res`, a screenshot test, or build setup |
+| release-r8 | the app module, keep rules (`*.pro`, `r8`), or build setup |
+
+Build setup is `gradle/`, any `*.gradle.kts`, `build-logic/`, `gradle.properties` and `ci.yml`; it
+runs everything. Logic in core modules can't change what a screen draws, and a missing keep rule in
+other modules is still caught by R8 in the nightly run and in every release build (`release.yml`).
+Nightly and manual runs run all five. A matrix job skipped with `if:` would still start a runner and
+bill a minute, which is why the matrix itself is filtered.
+
+Robolectric (unit-tests and screenshots) fetches its `android-all` jars from Maven Central into
+`~/.m2` on first use; a failed fetch failed whole test classes and cost a full re-run. They are
+cached (`actions/cache`, keyed by `gradle/libs.versions.toml`), so a run downloads them only after
+a Robolectric or SDK version change.
+
+Merging: a green PR that doesn't conflict with main and doesn't touch what merged since its run is
+merged on that run; it isn't re-run just to be "up to date". The nightly run on main checks the
+combined tree.
 
 ## Cancellation
 

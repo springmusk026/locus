@@ -148,4 +148,48 @@ class SensitiveActionsTest {
         assertNull(SensitiveActions.submitGate(submit("Search").copy(searchLike = true), host))
         assertNotNull(SensitiveActions.keyGate("Enter", submit("Go"), host))
     }
+
+    // ---- Other languages (#362): the app ships es, pt and zh, and so do the sites its users visit. ----
+
+    private fun assertOutward(labels: List<String>) = labels.forEach {
+        assertNotNull(SensitiveActions.click(button(it), host), it)
+        assertNotNull(SensitiveActions.dialog("confirm", "¿$it?", accept = true), it)
+    }
+
+    private fun assertLogin(labels: List<String>) = labels.forEach {
+        assertNotNull(SensitiveActions.click(button(it).copy(pageHasPassword = true), host), it)
+        assertNull(SensitiveActions.click(button(it), host), it)
+    }
+
+    @Test
+    fun spanishOutwardLabelsAsk() {
+        assertOutward(listOf("Pagar ahora", "Comprar", "Enviar", "Eliminar cuenta", "Finalizar compra", "Realizar pedido", "Suscribirse", "Regístrate"))
+        assertOutward(listOf("ELIMINAR CUENTA", "Envía el mensaje", "Cancelar suscripción"))
+        assertNotNull(SensitiveActions.dialog("confirm", "¿Eliminar cuenta?", accept = true))
+    }
+
+    @Test
+    fun portugueseOutwardLabelsAsk() {
+        assertOutward(listOf("Excluir", "Finalizar compra", "Pagar", "Enviar", "Assinar", "Cadastrar-se", "Fechar pedido", "Apagar conta"))
+    }
+
+    @Test
+    fun chineseOutwardLabelsAsk() {
+        // No spaces between Chinese words, so they match inside longer labels.
+        assertOutward(listOf("支付", "立即支付", "删除", "发送", "提交订单", "购买", "刪除", "確認付款"))
+    }
+
+    @Test
+    fun loginsAskInEveryLanguage() {
+        assertLogin(listOf("Iniciar sesión", "INICIAR SESIÓN", "Iniciar sesion", "Entrar", "Acessar", "Iniciar sessão", "登录", "登錄"))
+    }
+
+    @Test
+    fun ordinaryLocalisedClicksDoNot() {
+        // Whole words only: "Pedidos", "Posts" and "Compartimentos" aren't actions.
+        listOf("Siguiente página", "Aceptar cookies", "Mostrar más", "Configuración", "Próxima página", "Ver mais", "Configurações",
+            "下一页", "更多", "设置", "Mis pedidos", "Compartimentos", "Reservas anteriores").forEach {
+            assertNull(SensitiveActions.click(button(it), host), it)
+        }
+    }
 }

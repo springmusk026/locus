@@ -148,10 +148,13 @@ data class ReviewContext(
             ToolRisk.EXECUTE -> "execute (runs commands)"
         }
 
-        private val TAG = Regex("<(/?\\s*(?:user_messages|message|plan|action)\\b)", RegexOption.IGNORE_CASE)
+        private val TAG = Regex("</?\\s*(?:user_messages|message|plan|action)\\b", RegexOption.IGNORE_CASE)
 
-        /** Text can't open or close the prompt's own sections, so nothing can pose as a user message. */
-        fun neutralize(text: String): String = text.replace(TAG, "‹$1")
+        /**
+         * Text can't open or close the prompt's own sections, so nothing can pose as a user message. Fullwidth
+         * and other compatibility forms of a section tag count too ([UntrustedContent.defuseTags]).
+         */
+        fun neutralize(text: String): String = UntrustedContent.defuseTags(text, TAG)
     }
 }
 

@@ -19,12 +19,19 @@ import io.ktor.client.HttpClient
 import kotlinx.coroutines.CancellationException
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
-import io.ktor.client.request.request
+import io.ktor.client.request.prepareRequest
 import io.ktor.client.request.setBody
-import io.ktor.client.statement.bodyAsText
+import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
+import io.ktor.http.URLBuilder
+import io.ktor.http.Url
+import io.ktor.http.charset
 import io.ktor.http.contentType
+import io.ktor.http.takeFrom
+import io.ktor.utils.io.readRemaining
+import kotlinx.io.readByteArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -61,6 +68,9 @@ interface MemoryWrites {
 /**
  * [origins] says which address each connector key was saved for; a key never goes anywhere else.
  * [memoryWrites] decides when memory writes ask; it changes the policy only, never the tools or their specs.
+ * [connectorHttp] is the client connector calls use: its engine must not follow redirects (the app's OkHttp
+ * would), because connector_call follows them itself so the key never leaves its address. Without one,
+ * [http] is used with Ktor's own redirects off, which is all a test engine needs.
  */
 fun homeTools(
     home: AgentHome,
@@ -69,10 +79,11 @@ fun homeTools(
     scripts: ScriptEngine? = null,
     origins: KeyOrigins,
     memoryWrites: MemoryWrites = MemoryWrites.DEFAULT,
+    connectorHttp: HttpClient? = null,
 ): List<Tool> = listOf(
     MemorySave(home, memoryWrites), MemoryRead(home), MemorySearch(home), MemoryForget(home, memoryWrites),
     SkillUse(home), SkillReadFile(home), SkillCreate(home),
-    ConnectorCall(home, http, secrets, scripts, origins), ConnectorCreate(home, secrets),
+    ConnectorCall(home, http, secrets, scripts, origins, connectorHttp), ConnectorCreate(home, secrets),
 )
 
 // ---- Memory -------------------------------------------------------------------------------------
@@ -359,7 +370,11 @@ private class ConnectorCall(
     private val secrets: SecretResolver,
     private val scripts: ScriptEngine?,
     private val origins: KeyOrigins,
+    connectorHttp: HttpClient? = null,
 ) : Tool {
+    /** Redirects are followed by hand ([follow]); [connectorHttp] is a client whose engine doesn't follow them either. */
+    private val noRedirects: HttpClient by lazy { connectorHttp ?: http.config { followRedirects = false } }
+
     override val risk = ToolRisk.NETWORK
     override val defaultPolicy = ToolPolicy.ALLOW
     override val spec = ToolSpec(
@@ -401,6 +416,94 @@ private class ConnectorCall(
 
     private fun operation(args: JsonObject) = home.connector(args.str("connector").orEmpty())?.operations?.firstOrNull { it.name == args.str("operation") }
 
+    /** A reply with at most [MAX_BODY_BYTES] of its body read; [location] is set only for a redirect. */
+    private class Reply(val status: Int, val text: String, val complete: Boolean, val location: String?)
+
+    /**
+     * The service's reply, following its redirects here one hop at a time. The shared client (OkHttp) would
+     * follow them itself, and it drops only `Authorization` when the host changes, so a key in `X-Api-Key`
+     * or a query parameter would reach whatever address the service named. Instead each hop must stay on the
+     * connector's host, never step down from https to http, and (with a key) land on an origin the key was
+     * saved for; the key is added to each request afresh.
+     */
+    private suspend fun follow(
+        connector: Connector, op: Connector.Operation, values: JsonObject, overrides: JsonObject?, secret: String?, forms: List<String>,
+        url: String, verb: String, body: String?,
+    ): Reply {
+        val keyOrigins = if (secret != null) origins.allowed(connector.auth.secret) else emptySet()
+        val seen = forms.filter { it.length >= 6 }
+        var target = url
+        var method = HttpMethod.parse(verb)
+        var payload = body
+        var hops = 0
+        while (true) {
+            val got = send(connector, op, values, overrides, secret, forms, target, method, payload, first = hops == 0)
+            val location = got.location ?: return got
+            if (hops++ >= MAX_REDIRECTS) throw ToolException("Too many redirects (more than $MAX_REDIRECTS).")
+            val here = Url(target)
+            val next = runCatching { URLBuilder(here).takeFrom(location).build() }.getOrNull()
+                ?: throw ToolException("Blocked: ${connector.host} redirected to an address Locus can't read.")
+            val nextOrigin = ConnectorKeys.origin(next.toString())
+            when {
+                nextOrigin == null -> throw ToolException("Blocked: ${connector.host} redirected to a ${next.protocol.name}: address.")
+                here.protocol.name == "https" && next.protocol.name == "http" ->
+                    throw ToolException("Blocked: ${connector.host} redirected from https to an insecure http:// address.")
+                !next.host.equals(connector.host, ignoreCase = true) ->
+                    throw ToolException("Blocked: ${connector.host} redirected to ${scrubAll(next.host, seen)}, and requests may only go to ${connector.host}.")
+                secret != null && nextOrigin !in keyOrigins ->
+                    throw ToolException("Blocked: ${connector.host} redirected to ${ConnectorKeys.host(nextOrigin)}, which the key “${connector.auth.secret}” wasn't saved for, so Locus didn't send it.")
+            }
+            // 301/302/303 turn into a GET without a body, as browsers do; 307/308 keep both.
+            if (got.status in 301..303 && method != HttpMethod.Get && method != HttpMethod.Head) {
+                method = HttpMethod.Get
+                payload = null
+            }
+            target = next.toString()
+        }
+    }
+
+    /** One request, with the key added; never follows a redirect and never reads more than [MAX_BODY_BYTES]. */
+    private suspend fun send(
+        connector: Connector, op: Connector.Operation, values: JsonObject, overrides: JsonObject?, secret: String?, forms: List<String>,
+        target: String, verb: HttpMethod, body: String?, first: Boolean,
+    ): Reply {
+        // A failed request is reported with the secret taken out: Ktor's timeout errors quote the full
+        // URL, which carries the secret for query auth.
+        return try {
+            noRedirects.prepareRequest(target) {
+                method = verb
+                if (secret != null) {
+                    ConnectorKeys.header(connector.auth, secret)?.let { (name, value) -> header(name, value) }
+                    if (connector.auth.type == "query") {
+                        // A redirect's own address may already carry a parameter of that name.
+                        if (!first) url.parameters.remove(connector.auth.name)
+                        parameter(connector.auth.name, secret)
+                    }
+                }
+                if (first) {
+                    op.params.filter { it.location == "query" }.forEach { p -> (values[p.name] as? JsonPrimitive)?.contentOrNull?.let { parameter(p.name, it) } }
+                    (overrides?.get("query") as? JsonObject)?.forEach { (k, v) -> (v as? JsonPrimitive)?.contentOrNull?.let { parameter(k, it) } }
+                }
+                if (body != null) {
+                    contentType(ContentType.Application.Json)
+                    setBody(body)
+                }
+            }.execute { response ->
+                val status = response.status.value
+                val location = response.headers[HttpHeaders.Location]
+                if (status in REDIRECTS && location != null) return@execute Reply(status, "", true, location)
+                // Never more than the cap in memory, whatever the server sends or claims.
+                val bytes = response.bodyAsChannel().readRemaining(MAX_BODY_BYTES + 1L).readByteArray()
+                val charset = response.contentType()?.charset() ?: Charsets.UTF_8
+                Reply(status, String(bytes, 0, minOf(bytes.size, MAX_BODY_BYTES), charset), bytes.size <= MAX_BODY_BYTES, null)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            throw ToolException("${e::class.simpleName}: ${scrubAll(e.message.orEmpty(), forms)}")
+        }
+    }
+
     override suspend fun execute(args: JsonObject): ToolResult {
         val connector = home.connector(args.str("connector").orEmpty())
             ?: throw ToolException("No active connector “${args.str("connector")}”. Active: ${home.connectors().joinToString { it.id }.ifEmpty { "none" }}.")
@@ -410,7 +513,8 @@ private class ConnectorCall(
         op.params.filter { it.required && values[it.name] == null }.takeIf { it.isNotEmpty() }?.let {
             throw ToolException("Missing: ${it.joinToString { p -> p.name }}")
         }
-        // A connector script may reshape the request; it never sees credentials or the network.
+        // A connector script may reshape the request; it never sees credentials or the network. Its response() hook
+        // gets the reply with the key scrubbed out.
         val overrides = runScript(connector, "typeof request === 'function' ? request(${q(op.name)}, ${JsonObject(values)}) : null")
         // The operation's declared side effect decides whether the user is asked first (mustConfirm runs before
         // the script), so a script may not turn a read into a call that changes data: a read keeps its method.
@@ -430,46 +534,37 @@ private class ConnectorCall(
         val secret = if (connector.auth.type == "none") null else ConnectorKeys.resolve(connector, secrets, origins)
         val forms = secret?.let { ConnectorKeys.secretForms(connector.auth, it) }.orEmpty()
 
-        // A failed request is reported with the secret taken out: Ktor's timeout errors quote the full
-        // URL, which carries the secret for query auth.
-        val (response, raw) = try {
-            val response = http.request(url) {
-                method = HttpMethod.parse(verb)
-                if (secret != null) {
-                    ConnectorKeys.header(connector.auth, secret)?.let { (name, value) -> header(name, value) }
-                    if (connector.auth.type == "query") parameter(connector.auth.name, secret)
-                }
-                op.params.filter { it.location == "query" }.forEach { p -> (values[p.name] as? JsonPrimitive)?.contentOrNull?.let { parameter(p.name, it) } }
-                (overrides?.get("query") as? JsonObject)?.forEach { (k, v) -> (v as? JsonPrimitive)?.contentOrNull?.let { parameter(k, it) } }
-                val body = overrides?.get("body") ?: op.params.filter { it.location == "body" }.mapNotNull { p -> values[p.name]?.let { p.name to it } }.toMap()
-                    .takeIf { it.isNotEmpty() }?.let { JsonObject(it) }
-                if (body != null) {
-                    contentType(ContentType.Application.Json)
-                    setBody(body.toString())
-                }
-            }
-            response to response.bodyAsText()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            throw ToolException("${e::class.simpleName}: ${scrubAll(e.message.orEmpty(), forms)}")
-        }
+        val bodyText = (
+            overrides?.get("body") ?: op.params.filter { it.location == "body" }.mapNotNull { p -> values[p.name]?.let { p.name to it } }.toMap()
+                .takeIf { it.isNotEmpty() }?.let { JsonObject(it) }
+            )?.toString()
+        val reply = follow(connector, op, values, overrides, secret, forms, url, verb, bodyText)
         val engine = scripts
+        // A connector's script is code the model drafted: it gets the reply with the key already taken out, because
+        // the final scrub only knows the key's usual forms and the script could re-encode an echo (hex, reversed…).
+        val clean = scrubAll(reply.text, forms.filter { it.length >= 6 })
         val shaped = if (connector.script.isNotBlank() && engine != null) {
             runCatching {
-                engine.eval(connector.script + "\n;(function(){ return typeof response === 'function' ? String(response(${q(op.name)}, ${response.status.value}, ${q(raw)})) : null; })()")
-            }.getOrNull()?.takeIf { it != "null" } ?: raw
-        } else raw
+                engine.eval(connector.script + "\n;(function(){ return typeof response === 'function' ? String(response(${q(op.name)}, ${reply.status}, ${q(clean)})) : null; })()")
+            }.getOrNull()?.takeIf { it != "null" } ?: clean
+        } else clean
         val text = shaped.let { if (it.length > 30_000) it.take(30_000) + "\n…[truncated]" else it }
         // A connector must never echo its own credential back into the conversation.
         val safe = scrubAll(text, forms.filter { it.length >= 6 })
+        val cut = if (reply.complete) "" else " · stopped reading at ${MAX_BODY_BYTES / 1_000_000} MB"
         // The service's reply is third-party text, so it's marked like web pages (see UntrustedContent).
         return ToolResult(
-            "HTTP ${response.status.value}\n" + UntrustedContent.wrap(safe, UntrustedContent.note("from the ${connector.name} service")),
-            isError = response.status.value >= 400,
+            "HTTP ${reply.status}$cut\n" + UntrustedContent.wrap(safe, UntrustedContent.note("from the ${connector.name} service")),
+            isError = reply.status >= 400,
         )
     }
 }
+
+private val REDIRECTS = setOf(301, 302, 303, 307, 308)
+private const val MAX_REDIRECTS = 5
+
+/** The most of a connector's reply kept in memory; the model sees far less (30,000 characters). */
+private const val MAX_BODY_BYTES = 2_000_000
 
 /** [text] with each of [forms] (a secret as stored, in base64 for basic auth…) replaced; see [scrub]. */
 internal fun scrubAll(text: String, forms: List<String>): String = forms.fold(text) { acc, form -> scrub(acc, form) }
