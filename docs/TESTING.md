@@ -123,8 +123,15 @@ the full table). Compose UI is most of what's uncovered in the feature modules.
   the end of each test so nothing they started reaches Main after it's reset.
 - **Time**: use virtual time (`runTest`, `runCurrent`, `advanceTimeBy`). Pass `backgroundScope` as
   TestGraph's scope and drive it with `runCurrent()`; `advanceUntilIdle()` doesn't wait for
-  background work. Where real time can't be avoided (real processes in `RemoteJobsTest`, real IO in
-  onboarding), poll a condition with a deadline; never sleep for a fixed time.
+  background work. Where real time can't be avoided, wait on the event itself, not on the clock:
+  a process's end with `ProcessHandle.onExit()` (`RemoteJobsTest`), a service's exit watcher with
+  `Service.awaitExitNoted` (`LinuxKillReasonTest`), background deletion with
+  `BrowserPages.awaitForgetting`, a view model's state with `StateFlow.first { … }`. A timeout there
+  only bounds a broken run. There's no `Thread.sleep` in `src/test`; keep it that way.
+- **Ordering by timestamp**: a list sorted by `createdAt` or `updatedAt` can't rely on rows made a
+  few milliseconds apart (a fast run makes them in the same millisecond). Stamp the times the test
+  needs through the DAO, and compare wall-clock values against a time read before the action
+  (`until >= switchedOn + duration`), never against the clock afterwards.
 - **sqlite3**: `SearchMigrationTest` runs SQL through the system `sqlite3` (with FTS5 and JSON).
   It skips where that's missing, except on CI (`CI=true`), where it fails so it can't silently stop
   running. GitHub's `ubuntu-latest` image ships sqlite3 3.45.1.

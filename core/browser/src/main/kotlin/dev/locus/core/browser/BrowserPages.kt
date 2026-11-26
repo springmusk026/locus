@@ -125,6 +125,11 @@ class BrowserPages internal constructor(
         background.launch { runCatching { forget(ids) } }
     }
 
+    /** Waits until every [forgetSoon] started so far has finished (tests check the files are gone). */
+    suspend fun awaitForgetting() {
+        background.coroutineContext[kotlinx.coroutines.Job]!!.children.toList().forEach { it.join() }
+    }
+
     /** The newest [perChat] calls per chat, then the newest across chats until they fit [maxBytes]. */
     internal fun prune() = synchronized(lock) {
         val all = root.listFiles { f -> f.isDirectory }.orEmpty().flatMap { chat ->

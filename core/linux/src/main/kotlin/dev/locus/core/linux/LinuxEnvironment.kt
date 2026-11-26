@@ -359,6 +359,17 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
         /** It died from signal 9 while Locus was in the background ([AndroidKill]). */
         @Volatile var killedByAndroid = false
             internal set
+
+        private val exitNoted = java.util.concurrent.CountDownLatch(1)
+
+        /** Marks how it ended as noted ([killedByAndroid] and the record on disk are final). */
+        internal fun noteExited() = exitNoted.countDown()
+
+        /**
+         * Waits up to [timeoutMillis] until how it ended has been noted; false if it hasn't by then. The
+         * note is taken on the service's own exit-watcher thread, a moment after the process ends.
+         */
+        fun awaitExitNoted(timeoutMillis: Long): Boolean = exitNoted.await(timeoutMillis, java.util.concurrent.TimeUnit.MILLISECONDS)
     }
 
     /**
@@ -518,12 +529,16 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
      */
     private fun watchExit(service: Service) {
         Thread({
-            val code = runCatching { service.process.waitFor() }.getOrNull()
-            if (!service.stopping) service.killedByAndroid = AndroidKill.applies(code, inBackground())
-            if (service.killedByAndroid) noteAndroidKill("Service ${service.name}", AndroidKillNotice.Kind.Service, service.name)
-            // Kept on disk, so after a restart a crash still reads as a crash, not as "a restart ended it".
-            if (!service.stopping && code != null && services[service.name] === service) {
-                runCatching { records.update(service.name) { r -> if (r.startedAt == service.startedAt) r.copy(exitCode = code, killedByAndroid = service.killedByAndroid) else r } }
+            try {
+                val code = runCatching { service.process.waitFor() }.getOrNull()
+                if (!service.stopping) service.killedByAndroid = AndroidKill.applies(code, inBackground())
+                if (service.killedByAndroid) noteAndroidKill("Service ${service.name}", AndroidKillNotice.Kind.Service, service.name)
+                // Kept on disk, so after a restart a crash still reads as a crash, not as "a restart ended it".
+                if (!service.stopping && code != null && services[service.name] === service) {
+                    runCatching { records.update(service.name) { r -> if (r.startedAt == service.startedAt) r.copy(exitCode = code, killedByAndroid = service.killedByAndroid) else r } }
+                }
+            } finally {
+                service.noteExited()
             }
         }, "locus-service-${service.name}").apply { isDaemon = true }.start()
     }

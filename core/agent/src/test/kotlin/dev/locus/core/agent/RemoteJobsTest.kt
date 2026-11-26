@@ -3,6 +3,9 @@ package dev.locus.core.agent
 import dev.locus.core.agent.tools.RemoteJobs
 import java.io.File
 import java.nio.file.Files
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -31,20 +34,41 @@ class RemoteJobsTest {
     }
 
     /**
-     * Polls until [check] holds. Real processes take real time, so this waits on a deadline rather
-     * than for a fixed time: fast machines don't wait, slow CI runners get up to 20 s.
+     * Waits for process [pid] to end, without polling: [ProcessHandle.onExit] completes when it does.
+     * A process that's already gone counts as ended. The 20 s are a bound for a broken run, not a wait.
      */
-    private fun <T> eventually(what: String, read: () -> T, check: (T) -> Boolean): T {
-        val deadline = System.nanoTime() + 20_000_000_000L
-        while (true) {
-            val value = read()
-            if (check(value)) return value
-            if (System.nanoTime() > deadline) throw AssertionError("timed out waiting for $what; last: $value")
-            Thread.sleep(25)
+    private fun awaitExit(pid: Long, what: String) {
+        val handle = ProcessHandle.of(pid).orElse(null) ?: return
+        try {
+            handle.onExit().get(20, TimeUnit.SECONDS)
+        } catch (e: TimeoutException) {
+            throw AssertionError("timed out waiting for $what (pid $pid) to end")
         }
     }
 
-    private fun waitFor(id: String, state: String): String = eventually("$id to be $state", { sh(RemoteJobs.status(id, 20)) }) { it.contains(state) }
+    private fun runnerPid(id: String): Long = File(home, ".locus-jobs/$id.pid").readText().trim().toLong()
+
+    /**
+     * [id]'s status once it has finished. The runner writes the exit code and only then exits, so once
+     * its process has ended the status is final.
+     */
+    private fun finished(id: String): String {
+        awaitExit(runnerPid(id), "job $id's runner")
+        return sh(RemoteJobs.status(id, 20))
+    }
+
+    /**
+     * The pid a job's grandchild wrote to [fifo] as it started. Opening a FIFO for reading blocks until
+     * the writer opens it, so this returns exactly when the grandchild is up. Bounded like [awaitExit].
+     */
+    private fun pidFrom(fifo: File): Long {
+        val read = CompletableFuture.supplyAsync { fifo.readText().trim().toLong() }
+        return try {
+            read.get(20, TimeUnit.SECONDS)
+        } catch (e: TimeoutException) {
+            throw AssertionError("timed out waiting for the grandchild to start")
+        }
+    }
 
     /** A sleep only this run starts, so pgrep never matches another run's (or another checkout's) process. */
     private val marker = "31.${(1000..9999).random()}"
@@ -60,7 +84,7 @@ class RemoteJobsTest {
     @Test
     fun runsDetachedAndReportsExitAndOutput() {
         assertEquals("started j1", sh(RemoteJobs.start("j1", "echo \"it's here\"; echo two; exit 3")))
-        val status = waitFor("j1", "finished")
+        val status = finished("j1")
         assertTrue(status.startsWith("state: finished, exit code 3"), status)
         assertTrue(status.contains("it's here\ntwo"), status)
     }
@@ -68,7 +92,8 @@ class RemoteJobsTest {
     @Test
     fun runningJobCanBeListedAndStopped() {
         sh(RemoteJobs.start("slow", "sleep 30"))
-        assertTrue(waitFor("slow", "running").startsWith("state: running"))
+        // start forks the runner before it prints, so the job is running as soon as start returns.
+        assertTrue(sh(RemoteJobs.status("slow", 5)).startsWith("state: running"))
         assertTrue(sh(RemoteJobs.list()).contains("slow: running"))
         assertEquals("stopped", sh(RemoteJobs.stop("slow")))
         assertTrue(sh(RemoteJobs.status("slow", 5)).startsWith("state: finished, exit code 143"))
@@ -76,12 +101,16 @@ class RemoteJobsTest {
 
     @Test
     fun stopKillsGrandchildren() {
-        sh(RemoteJobs.start("tree", "sh -c 'sleep $marker'; echo after"))
-        assertTrue(waitFor("tree", "running").startsWith("state: running"))
-        val grandchild = "pgrep -f 'slee[p] $marker'"
-        eventually("the grandchild to start", { sh(grandchild) }) { it.isNotBlank() }
+        // The grandchild says it's up by writing its pid to a FIFO, then becomes the sleep (same pid).
+        val fifo = File(home, "grandchild.fifo")
+        assertEquals("", sh("mkfifo '${fifo.path}'"))
+        sh(RemoteJobs.start("tree", "sh -c 'echo \$\$ > ${fifo.path}; exec sleep $marker'; echo after"))
+        assertTrue(sh(RemoteJobs.status("tree", 5)).startsWith("state: running"))
+        val grandchild = pidFrom(fifo)
+        assertTrue(ProcessHandle.of(grandchild).map { it.isAlive }.orElse(false), "the grandchild is running")
         assertEquals("stopped", sh(RemoteJobs.stop("tree")))
-        eventually("the grandchild to be killed", { sh(grandchild) }) { it.isEmpty() }
+        awaitExit(grandchild, "the grandchild")
+        assertEquals("", sh("pgrep -f 'slee[p] $marker'"))
         assertFalse(sh(RemoteJobs.status("tree", 5)).contains("after"))
     }
 

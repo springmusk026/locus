@@ -13,6 +13,9 @@ import dev.locus.core.model.AppLockStatus
 import dev.locus.core.testing.MainDispatcherRule
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Rule
 import org.junit.Test
 import java.io.File
@@ -43,9 +46,12 @@ class PublishFlowTest {
 
     private val chat = PublishSource.Chat("c1", "Fix tests", "23 November 2026", listOf(ChatItem.User("u", "hello"), ChatItem.Assistant("a", "hi")))
 
+    /**
+     * Waits for the sheet to reach [step]: the build finishes on an IO thread, and the state flow says
+     * when. The 10 s only bound a run that never gets there; the wait ends as soon as it does.
+     */
     private fun PublishViewModel.await(step: PublishStep) {
-        val until = System.currentTimeMillis() + 10_000
-        while (ui.value.step != step && System.currentTimeMillis() < until) Thread.sleep(20)
+        runBlocking { withTimeoutOrNull(10_000) { ui.first { it.step == step } } }
         assertEquals(step, ui.value.step)
     }
 
