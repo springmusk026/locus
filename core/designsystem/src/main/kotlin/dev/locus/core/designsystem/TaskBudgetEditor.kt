@@ -29,7 +29,12 @@ object TaskBudgetPresets {
         else -> "$n"
     }
 
+    /** "$0.25", "$2", "$2.50": English, for text that isn't shown in the app's language. */
     fun dollars(d: Double): String = if (d < 1) String.format(Locale.US, "$%.2f", d) else if (d % 1.0 == 0.0) "$${d.toLong()}" else String.format(Locale.US, "$%.2f", d)
+
+    /** [dollars] in the app's language: "$2", "2 US$", "US$ 0,25". */
+    fun dollars(resources: Resources, d: Double): String =
+        usdAmount(resources.configuration.locales[0], d, fractionDigits = if (d >= 1 && d % 1.0 == 0.0) 0 else 2)
 
     /** "30 min", "2 h": English, for text that isn't shown in the app's language. */
     fun minutes(m: Int): String = if (m >= 60 && m % 60 == 0) "${m / 60} h" else "$m min"
@@ -50,7 +55,7 @@ object TaskBudgetPresets {
     } else {
         listOfNotNull(
             b.tokens?.let { resources.getString(R.string.designsystem_budget_tokens_amount, tokens(resources, it)) },
-            b.costUsd?.let(::dollars),
+            b.costUsd?.let { dollars(resources, it) },
             b.minutes?.let { minutes(resources, it) },
         ).joinToString(" · ")
     }
@@ -82,7 +87,7 @@ fun TaskBudgetEditor(
             stringResource(R.string.designsystem_budget_cost),
             (TaskBudgetPresets.dollars + listOfNotNull(budget.costUsd)).distinct().sorted(),
             budget.costUsd,
-            TaskBudgetPresets::dollars,
+            { TaskBudgetPresets.dollars(resources, it) },
             enabled = costNote == null,
         ) { onChange(budget.copy(costUsd = it)) }
         if (costNote != null) {

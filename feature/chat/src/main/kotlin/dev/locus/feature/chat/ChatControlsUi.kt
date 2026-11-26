@@ -86,9 +86,9 @@ internal enum class ControlSheet { Model, Effort, Mode, Tools, More, Budget, Tem
 internal fun budgetSubtitle(resources: Resources, controls: ChatControls): String {
     val own = controls.ownBudget
     return when {
-        own != null -> resources.getString(R.string.chat_budget_subtitle_own, dev.locus.core.designsystem.TaskBudgetPresets.summary(own))
+        own != null -> resources.getString(R.string.chat_budget_subtitle_own, dev.locus.core.designsystem.TaskBudgetPresets.summary(resources, own))
         controls.defaultBudget.isOff -> resources.getString(R.string.chat_composer_off)
-        else -> resources.getString(R.string.chat_budget_subtitle_default, dev.locus.core.designsystem.TaskBudgetPresets.summary(controls.defaultBudget))
+        else -> resources.getString(R.string.chat_budget_subtitle_default, dev.locus.core.designsystem.TaskBudgetPresets.summary(resources, controls.defaultBudget))
     }
 }
 

@@ -105,4 +105,6 @@
     <string name="browser_pick_attach">Attach to message</string>
     <string name="browser_pick_attached">Attached to your next message</string>
     <string name="browser_pick_overlay">Page. Tap an element to pick it.</string>
+    <!-- Clipboard label: how a clipboard manager names the copied page address. -->
+    <string name="browser_clip_link">Link</string>
 </resources>

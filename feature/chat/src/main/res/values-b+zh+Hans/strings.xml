@@ -1492,8 +1492,7 @@
     <string name="chat_compare_kept">已保留</string>
     <string name="chat_compare_streaming">第二个回复：%1$s · 只读</string>
     <string name="chat_compare_price_unknown">未知</string>
-    <string name="chat_compare_price_tiny">&lt; $0.001</string>
-    <string name="chat_compare_price">$%1$s</string>
+    <string name="chat_compare_price_tiny">&lt; %1$s</string>
     <string name="chat_compare_confirm_title">发送给两个模型？</string>
     <string name="chat_compare_confirm_send">发送给两者</string>
     <string name="chat_compare_confirm_first">你的消息会发给此对话的模型和第二个模型。两个回复显示为 ‹ 1/2 ›，各自标有模型；保留你喜欢的那个。</string>
@@ -1619,4 +1618,25 @@
     <string name="chat_page_not_kept_message">Locus 没有这个页面的副本。它会保存每个对话最近的页面，但不包括此功能推出之前的、从备份恢复的或复制的对话中的页面。此步骤的详情中仍可看到它读取的内容。</string>
     <string name="chat_page_when">查看于%1$s</string>
     <string name="chat_page_picture">当时的页面</string>
+    <string name="chat_clip_request">Locus 请求</string>
+    <string name="chat_clip_code">代码</string>
+    <string name="chat_clip_error">Locus 错误</string>
+    <string name="chat_clip_link">链接</string>
+    <string name="chat_export_untitled">对话</string>
+    <string name="chat_export_dated">%1$s · 从 Locus 导出</string>
+    <string name="chat_export_undated">从 Locus 导出</string>
+    <string name="chat_export_speaker">%1$s：</string>
+    <string name="chat_export_summarised">之前的消息已在此处总结，以节省空间。</string>
+    <string name="chat_export_ran_anyway">你仍然运行了被拦截的调用：%1$s</string>
+    <string name="chat_export_approved">你已在“待你处理”中批准：%1$s</string>
+    <string name="chat_export_sent">已发送给你 %1$s</string>
+    <string name="chat_export_provider_draft">已起草提供商 %1$s（%2$s），请在 %3$s 中审核</string>
+    <string name="chat_export_changed">修改了 %1$s（%2$s）</string>
+    <string name="chat_export_changed_undone">修改了 %1$s（%2$s，已撤销）</string>
+    <string name="chat_export_step_failed">%1$s（失败）</string>
+    <string name="chat_export_step_not_run">%1$s（未运行）</string>
+    <string name="chat_export_typed">已在页面中输入</string>
+    <string name="chat_export_type">在页面中输入</string>
+    <string name="chat_export_field">%1$s：%2$s</string>
+    <string name="chat_export_receipt">任务回执：%1$s</string>
 </resources>

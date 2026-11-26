@@ -181,4 +181,20 @@ class DesignGuardRulesTest {
         assertEquals(2, counts["text-colour"])
         assertEquals(1, counts["named-colour"])
     }
+
+    @Test
+    fun `fixed date patterns and dollar formats are counted in screens, not in the core`() {
+        val code = """
+            private val DAY = DateTimeFormatter.ofPattern("EEE d MMM, HH:mm", Locale.ROOT)
+            val month = ofPattern("MMMM")
+            val stamp = java.text.SimpleDateFormat("HH:mm", Locale.getDefault())
+            val cost = "≈" + String.format(Locale.US, "$%.2f", usd)
+            val fine = formatDateTime(millis, DateSkeleton.DAY_MONTH, locale)
+            val alsoFine = SimpleDateFormat(DateFormat.getBestDateTimePattern(locale, "dMMM"), locale)
+            val file = DateTimeFormatter.ofPattern("yyyy-MM-dd") // design-exception: machine format for file names
+        """.trimIndent()
+        assertEquals(4, DesignGuard.countText(code)["fixed-format"])
+        val rule = DesignGuard.rules.single { it.id == "fixed-format" }
+        assertEquals(listOf("feature/", "core/ui/"), rule.only)
+    }
 }

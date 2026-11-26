@@ -56,7 +56,7 @@ internal fun FailureDetailsSheet(failure: RunFailure, message: String, onDismiss
         action = stringResource(if (copied) R.string.chat_failure_copied else R.string.chat_failure_copy),
         onAction = {
             scope.launch {
-                clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(android.content.ClipData.newPlainText("Locus error", failureReport(failure, message))))
+                clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(android.content.ClipData.newPlainText(resources.getString(R.string.chat_clip_error), failureReport(failure, message))))
                 copied = true
             }
         },

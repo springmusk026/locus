@@ -517,6 +517,10 @@
     <string name="designsystem_duration_ms">%1$dms</string>
     <string name="designsystem_duration_seconds">%1$ss</string>
     <string name="designsystem_duration_minutes_seconds">%1$dm %2$02ds</string>
+    <!-- Money (LocaleFormats.kt); %1$s is an amount already written the language's way, such as $0.04. About: an estimate. Under: less than. Or more: a floor, some requests had no price. -->
+    <string name="designsystem_money_about">≈%1$s</string>
+    <string name="designsystem_money_under">&lt;%1$s</string>
+    <string name="designsystem_money_or_more">%1$s+</string>
     <!-- An amount of time: %1$d minutes, or whole hours. -->
     <string name="designsystem_amount_minutes">%1$d min</string>
     <string name="designsystem_amount_hours">%1$d h</string>

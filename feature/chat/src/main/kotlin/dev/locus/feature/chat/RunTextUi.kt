@@ -5,7 +5,6 @@ import dev.locus.core.agent.BudgetLimit
 import dev.locus.core.agent.BudgetMeter
 import dev.locus.core.agent.BudgetReached
 import dev.locus.core.agent.ContextOverflowText
-import dev.locus.core.agent.HelperSpend
 import dev.locus.core.agent.LikelyCause
 import dev.locus.core.agent.RunBudget
 import dev.locus.core.agent.RunFailure
@@ -23,7 +22,10 @@ import dev.locus.core.ondevice.OnDeviceFormat
 import dev.locus.core.ondevice.TurnSpeed
 import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+import dev.locus.core.designsystem.DateSkeleton
+import dev.locus.core.designsystem.formatDateTime
+import dev.locus.core.designsystem.usdEstimate
+import dev.locus.core.designsystem.usdText
 
 /*
  * What the chat shows while the agent works and when it stops, in the user's language
@@ -97,11 +99,12 @@ internal fun llmErrorInWords(resources: Resources, text: LlmErrorText, withIds: 
 }
 
 /** When a ChatGPT usage limit resets, as core/llm says it (a time today, else a date and time), in the user's language. */
-private fun resetTime(resources: Resources, resetsAt: Long?, zone: ZoneId = ZoneId.systemDefault(), now: Long = System.currentTimeMillis()): String? {
+internal fun resetTime(resources: Resources, resetsAt: Long?, zone: ZoneId = ZoneId.systemDefault(), now: Long = System.currentTimeMillis()): String? {
     val at = resetsAt?.takeIf { it > 0 }?.let(Instant::ofEpochSecond) ?: return null
     val time = at.atZone(zone)
     val sameDay = time.toLocalDate() == Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
-    return time.format(DateTimeFormatter.ofPattern(if (sameDay) "HH:mm" else "d MMM, HH:mm", resources.configuration.locales[0]))
+    // Only Resources here, so the hour follows the language (9:00 AM, 09:00) rather than the phone's 12/24-hour switch.
+    return formatDateTime(at.toEpochMilli(), if (sameDay) DateSkeleton.TIME else DateSkeleton.DAY_MONTH_TIME, resources.configuration.locales[0], zone)
 }
 
 /** The run's message when the chat no longer fit the model, in the user's language. */
@@ -219,7 +222,7 @@ internal fun budgetReachedSentence(resources: Resources, r: BudgetReached): Stri
 
 private fun budgetSize(resources: Resources, r: BudgetReached): String = when (r.limit) {
     BudgetLimit.TOKENS -> resources.getString(R.string.chat_budget_size_tokens, RunBudget.compactTokens(r.tokens))
-    BudgetLimit.COST -> resources.getString(R.string.chat_budget_size_cost, RunBudget.usd(r.costUsd))
+    BudgetLimit.COST -> resources.getString(R.string.chat_budget_size_cost, usdText(resources, r.costUsd))
     BudgetLimit.TIME -> resources.getQuantityString(R.plurals.chat_budget_size_minutes, r.minutes, r.minutes)
 }
 
@@ -244,7 +247,7 @@ private fun minutesInWords(resources: Resources, ms: Long): String =
 /** The chip beside the context meter ([dev.locus.core.agent.BudgetText.chip]) in the user's language. */
 internal fun budgetChip(resources: Resources, m: BudgetMeter): String? = when {
     m.tokenLimit != null -> "${RunBudget.compactTokens(m.tokens)} / ${RunBudget.compactTokens(m.tokenLimit!!)}"
-    m.costLimit != null && m.costUsd != null -> "${RunBudget.usd(m.costUsd!!)} / ${RunBudget.usd(m.costLimit!!)}"
+    m.costLimit != null && m.costUsd != null -> "${usdText(resources, m.costUsd!!)} / ${usdText(resources, m.costLimit!!)}"
     m.timeLimitMs != null -> "${minutesInWords(resources, m.elapsedMs)} / ${minutesInWords(resources, m.timeLimitMs!!)}"
     else -> null
 }
@@ -252,7 +255,7 @@ internal fun budgetChip(resources: Resources, m: BudgetMeter): String? = when {
 /** The chip read aloud ([dev.locus.core.agent.BudgetText.spokenChip]) in the user's language. */
 internal fun budgetSpokenChip(resources: Resources, m: BudgetMeter): String? = when {
     m.tokenLimit != null -> resources.getString(R.string.chat_budget_spoken_tokens, RunBudget.compactTokens(m.tokens), RunBudget.compactTokens(m.tokenLimit!!))
-    m.costLimit != null && m.costUsd != null -> resources.getString(R.string.chat_budget_spoken_used, RunBudget.usd(m.costUsd!!), RunBudget.usd(m.costLimit!!))
+    m.costLimit != null && m.costUsd != null -> resources.getString(R.string.chat_budget_spoken_used, usdText(resources, m.costUsd!!), usdText(resources, m.costLimit!!))
     m.timeLimitMs != null -> resources.getString(R.string.chat_budget_spoken_used, minutesInWords(resources, m.elapsedMs), minutesInWords(resources, m.timeLimitMs!!))
     else -> null
 }
@@ -260,14 +263,14 @@ internal fun budgetSpokenChip(resources: Resources, m: BudgetMeter): String? = w
 /** The task's limits ([dev.locus.core.agent.BudgetText.limits]) in the user's language; null when it has none. */
 internal fun budgetLimits(resources: Resources, m: BudgetMeter): String? = listOfNotNull(
     m.tokenLimit?.let { resources.getString(R.string.chat_budget_tokens_count, RunBudget.compactTokens(it)) },
-    m.costLimit?.let { RunBudget.usd(it) },
+    m.costLimit?.let { usdText(resources, it) },
     m.timeLimitMs?.let { minutesInWords(resources, it) },
 ).takeIf { it.isNotEmpty() }?.joinToString(" · ")
 
 /** What the task used ([dev.locus.core.agent.BudgetText.used]) in the user's language. */
 internal fun budgetUsed(resources: Resources, m: BudgetMeter): String = listOfNotNull(
     resources.getString(R.string.chat_budget_tokens_count, RunBudget.compactTokens(m.tokens)),
-    m.costUsd?.let { resources.getString(if (m.costPartial) R.string.chat_budget_about_or_more else R.string.chat_budget_about, RunBudget.usd(it)) },
+    m.costUsd?.let { resources.getString(if (m.costPartial) R.string.chat_budget_about_or_more else R.string.chat_budget_about, usdText(resources, it)) },
     durationInWords(resources, m.elapsedMs),
 ).joinToString(" · ")
 
@@ -298,7 +301,7 @@ internal fun receiptOutcomeLine(resources: Resources, r: TaskReceipt): String {
 internal fun receiptCost(resources: Resources, r: TaskReceipt): String? {
     if (r.tokens.requests == 0) return null
     val c = r.cost ?: return resources.getString(R.string.chat_receipt_cost_unknown_short)
-    return HelperSpend.costLabel(c.usd, c.partial)
+    return usdEstimate(resources, c.usd, c.partial)
 }
 
 /** "tests passed", "build failed" ([TaskReceipts.checksLabel]); null when nothing was checked. */
@@ -333,13 +336,13 @@ internal fun receiptChecksDetail(resources: Resources, r: TaskReceipt): String =
  */
 internal fun receiptPlan(resources: Resources, r: TaskReceipt): String? {
     val plan = r.plan ?: return null
-    val cost = if (plan.requests == 0) null else plan.cost?.let { HelperSpend.costLabel(it.usd, it.partial) } ?: resources.getString(R.string.chat_receipt_cost_unknown_short)
+    val cost = if (plan.requests == 0) null else plan.cost?.let { usdEstimate(resources, it.usd, it.partial) } ?: resources.getString(R.string.chat_receipt_cost_unknown_short)
     return listOfNotNull(cost, plan.models.takeIf { it.isNotEmpty() }?.joinToString(" · ") { ModelNames.short(it) }).joinToString(" · ").ifEmpty { null }
 }
 
 /** Planning and running together, "≈$0.25" ([TaskReceipts.withPlanCost]); null without a plan or any known price. */
-internal fun receiptPlanTotal(r: TaskReceipt): String? =
-    dev.locus.core.agent.TaskReceipts.withPlanCost(r)?.let { HelperSpend.costLabel(it.usd, it.partial) }
+internal fun receiptPlanTotal(resources: Resources, r: TaskReceipt): String? =
+    dev.locus.core.agent.TaskReceipts.withPlanCost(r)?.let { usdEstimate(resources, it.usd, it.partial) }
 
 /** Each model once, with its role ([TaskReceipts.modelsLabel]). */
 internal fun receiptModels(resources: Resources, r: TaskReceipt): String? = r.models.takeIf { it.isNotEmpty() }?.joinToString(" · ") { m ->
@@ -364,7 +367,7 @@ internal fun receiptTokens(resources: Resources, r: TaskReceipt): String = listO
 internal fun receiptHelpers(resources: Resources, r: TaskReceipt, separator: String = "; "): String? {
     if (r.helperRuns.isEmpty()) return r.helpers.takeIf { it.isNotEmpty() }?.joinToString(", ")
     return r.helperRuns.joinToString(separator) { h ->
-        val cost = h.cost?.let { HelperSpend.costLabel(it.usd, it.partial) }
+        val cost = h.cost?.let { usdEstimate(resources, it.usd, it.partial) }
         val model = h.model?.let { ModelNames.short(it) }
         when {
             cost != null && model != null -> resources.getString(R.string.chat_receipt_helper_cost_model, h.label, cost, model)

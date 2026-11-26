@@ -84,6 +84,7 @@ internal fun GuardedLinks(content: @Composable () -> Unit) {
 internal fun LinkConfirmSheet(confirm: LinkGuard.Confirm, onOpen: () -> Unit, onDismiss: () -> Unit) {
     val clipboard = androidx.compose.ui.platform.LocalClipboard.current
     val scope = rememberCoroutineScope()
+    val clipLabel = stringResource(R.string.chat_clip_link)
     var copied by remember { mutableStateOf(false) }
     ConfirmSheet(
         title = stringResource(R.string.chat_link_title),
@@ -106,7 +107,7 @@ internal fun LinkConfirmSheet(confirm: LinkGuard.Confirm, onOpen: () -> Unit, on
         TextButton(
             onClick = {
                 scope.launch {
-                    clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(android.content.ClipData.newPlainText("Link", confirm.url)))
+                    clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(android.content.ClipData.newPlainText(clipLabel, confirm.url)))
                     copied = true
                 }
             },

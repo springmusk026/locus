@@ -66,7 +66,8 @@ class DesignGuardTest {
 
 /** The guard's rules and bookkeeping, separate from the file walk so they can be tested on strings. */
 internal object DesignGuard {
-    class Rule(val id: String, val pattern: Regex, val fix: String)
+    /** [only]: path prefixes the rule applies to; null for every file. */
+    class Rule(val id: String, val pattern: Regex, val fix: String, val only: List<String>? = null)
 
     val rules = listOf(
         Rule("raw-colour", Regex("""\bColor\(\s*0[xX]"""), "take colours from MaterialTheme.colorScheme, Locus.colors or a Tone"),
@@ -156,6 +157,14 @@ internal object DesignGuard {
             Regex("""\b(Text|SupportingText|ListRow|KeyValueRow|LocusChip)\([^\n]*"[^"\n]*(\$\{?[\w.]*\.(id|key|hash|sha256|digest|callId)\}?|gguf:|sha256:)"""),
             "name the thing in words; an id or hash belongs in a labelled, mono details row, not in a title or body text",
         ),
+        Rule(
+            "fixed-format",
+            // A fixed pattern puts fields in English order on a 24-hour clock whatever the language ("11月 10"
+            // for "11月10日"); "$%.2f" writes money the US way. Screens only: the core's machine formats are fine.
+            Regex("""(?<![\w])ofPattern\(|\bSimpleDateFormat\(\s*"|"\$%"""),
+            "use formatDateTime with a DateSkeleton, and usdText / usdEstimate / usdAmount for money (LocaleFormats.kt)",
+            only = listOf("feature/", "core/ui/"),
+        ),
     )
 
     private val byId = rules.associateBy { it.id }
@@ -186,7 +195,8 @@ internal object DesignGuard {
         val out = sortedMapOf<Pair<String, String>, Int>(compareBy({ it.first }, { it.second }))
         for (f in files) {
             val path = f.relativeTo(root).invariantSeparatorsPath
-            val applicable = if (path.startsWith(DESIGN_SYSTEM)) rules.filter { it.id in designSystemRules } else rules
+            val applicable = (if (path.startsWith(DESIGN_SYSTEM)) rules.filter { it.id in designSystemRules } else rules)
+                .filter { rule -> rule.only == null || rule.only.any { path.startsWith(it) } }
             countText(f.readText(), applicable).forEach { (rule, n) -> out[rule to path] = n }
         }
         return out

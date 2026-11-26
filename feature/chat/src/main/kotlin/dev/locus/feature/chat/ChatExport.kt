@@ -1,6 +1,8 @@
 package dev.locus.feature.chat
 
 import dev.locus.core.data.repository.TrackedChange
+import dev.locus.core.model.TaskReceipt
+import dev.locus.core.model.Verification
 import dev.locus.core.model.toolLabel
 import java.time.Instant
 import java.time.ZoneId
@@ -12,17 +14,18 @@ import java.util.Locale
  * from the transcript rows the chat shows ([ChatItem]), so it holds the active branch only and
  * nothing the user can't see: no reasoning, no tool arguments or results, no helper transcripts.
  * Tool steps become one-line labels ("Ran `python3 fib.py`"), attachments are listed by name, and
- * anything shaped like a key or token is replaced with [REDACTED].
+ * anything shaped like a key or token is replaced with [REDACTED]. Its own words ([ExportWords]) are
+ * in the app's language when the share sheet makes it ([exportWords]); English by default.
  */
 internal object ChatExport {
 
     const val REDACTED = "[redacted]"
 
-    fun markdown(title: String, startedAt: Long, items: List<ChatItem>, zone: ZoneId = ZoneId.systemDefault()): String {
+    fun markdown(title: String, startedAt: Long, items: List<ChatItem>, zone: ZoneId = ZoneId.systemDefault(), words: ExportWords = ExportWords()): String {
         val out = StringBuilder()
-        out.append("# ").append(title.ifBlank { "Chat" }.lineSequence().first()).append("\n\n")
-        if (startedAt > 0) out.append("_").append(DATE.format(Instant.ofEpochMilli(startedAt).atZone(zone))).append(" · exported from Locus_\n")
-        else out.append("_Exported from Locus_\n")
+        out.append("# ").append(title.ifBlank { words.untitled }.lineSequence().first()).append("\n\n")
+        if (startedAt > 0) out.append("_").append(words.dated.format(words.date(startedAt, zone))).append("_\n")
+        else out.append("_").append(words.undated).append("_\n")
 
         var speaker: String? = null
         var inSteps = false
@@ -34,7 +37,7 @@ internal object ChatExport {
             if (speaker == who) return
             speaker = who
             inSteps = false
-            out.append("\n**").append(who).append(":**\n")
+            out.append("\n**").append(words.speaker.format(who)).append("**\n")
         }
         fun step(line: String) {
             if (!inSteps) out.append("\n")
@@ -46,58 +49,58 @@ internal object ChatExport {
             when (item) {
                 is ChatItem.User -> {
                     speaker = null
-                    speak("You")
+                    speak(words.you)
                     if (item.text.isNotBlank()) paragraph(item.text)
-                    if (item.attachments.isNotEmpty()) paragraph("Attached: " + item.attachments.joinToString(", ") { code(it.name) })
+                    if (item.attachments.isNotEmpty()) paragraph(words.attached.format(item.attachments.joinToString(", ") { code(it.name) }))
                 }
                 is ChatItem.Checkpoint -> {
                     speaker = null
-                    paragraph("_Earlier messages were summarised here to save space._")
+                    paragraph("_" + words.summarised + "_")
                 }
                 is ChatItem.Assistant -> if (item.text.isNotBlank()) {
-                    speak("Locus")
+                    speak(words.locus)
                     paragraph(item.text)
                 }
                 is ChatItem.ToolCall -> {
-                    speak("Locus")
-                    step(stepLabel(item))
+                    speak(words.locus)
+                    step(stepLabel(item, words))
                 }
                 is ChatItem.Note -> {
-                    speak("Locus")
+                    speak(words.locus)
                     step(
                         oneLine(
                             when {
-                                item.ranAnyway -> "You ran the blocked call anyway: ${item.text}"
-                                item.approvedProposal -> "You approved it in Needs you: ${item.text}"
+                                item.ranAnyway -> words.ranAnyway.format(item.text)
+                                item.approvedProposal -> words.approved.format(item.text)
                                 else -> item.text
                             },
                         ),
                     )
                 }
                 is ChatItem.Plan -> {
-                    speak("Locus")
-                    paragraph("Proposed a plan: **${item.plan.title}**\n\n" + item.plan.steps.mapIndexed { i, s -> "${i + 1}. ${oneLine(s)}" }.joinToString("\n"))
+                    speak(words.locus)
+                    paragraph(words.plan.format("**${item.plan.title}**") + "\n\n" + item.plan.steps.mapIndexed { i, s -> "${i + 1}. ${oneLine(s)}" }.joinToString("\n"))
                 }
                 is ChatItem.SentFile -> {
-                    speak("Locus")
-                    step("Sent you " + code(item.path.substringAfterLast('/')))
+                    speak(words.locus)
+                    step(words.sent.format(code(item.path.substringAfterLast('/'))))
                 }
                 is ChatItem.ProviderDraft -> {
-                    speak("Locus")
-                    step("Drafted provider " + code(item.name) + " (" + item.host + ") for review in Settings → Models")
+                    speak(words.locus)
+                    step(words.providerDraft.format(code(item.name), item.host, words.modelsPage))
                 }
                 is ChatItem.Verification -> {
-                    speak("Locus")
-                    step(stepLabel(item.call) + ": " + dev.locus.core.model.Verification.title(item.outcome).lowercase())
+                    speak(words.locus)
+                    step(words.field.format(stepLabel(item.call, words), words.check(item.outcome)))
                 }
                 // A card holding only notes about untracked commands has no files to list.
                 is ChatItem.Changes -> if (item.files.isNotEmpty()) {
-                    speak("Locus")
-                    item.files.forEach { f -> step("Changed " + code(f.path) + " (" + changeSummaryEnglish(f) + if (f.undone) ", undone)" else ")") }
+                    speak(words.locus)
+                    item.files.forEach { f -> step((if (f.undone) words.changedUndone else words.changed).format(code(f.path), words.change(f))) }
                 }
                 is ChatItem.Receipt -> {
                     speaker = null
-                    paragraph(dev.locus.core.agent.TaskReceipts.exportText(item.receipt))
+                    paragraph(words.receipt(item.receipt))
                 }
                 // Reasoning stays private; turn ends carry only branch controls.
                 is ChatItem.Thought, is ChatItem.TurnEnd -> Unit
@@ -110,14 +113,15 @@ internal object ChatExport {
      * A tool step as one line, from the same wording the chat uses, minus anything that could be a
      * secret: what was typed into a page is never repeated, and key=value secrets are blanked.
      */
-    fun stepLabel(item: ChatItem.ToolCall): String {
+    fun stepLabel(item: ChatItem.ToolCall, words: ExportWords = ExportWords()): String {
         val done = item.result != null
         val label = when (item.name) {
-            "browser_type" -> if (done) "Typed into the page" else "Type into the page"
-            else -> toolLabel(item.name, item.argumentsJson, done = done)
+            "browser_type" -> if (done) words.typed else words.type
+            else -> words.tool(item.name, item.argumentsJson, done)
         }
         val failed = item.result?.isError == true
-        return redactAssignments(oneLine(label)) + if (failed) " (failed)" else if (!done) " (not run)" else ""
+        val line = redactAssignments(oneLine(label))
+        return if (failed) words.failed.format(line) else if (!done) words.notRun.format(line) else line
     }
 
     /** A file name for the export: the title made safe, and the chat's date. */
@@ -142,8 +146,8 @@ internal object ChatExport {
     private fun code(name: String) = "`" + name.replace("`", "'") + "`"
 
     /**
-     * A changed file as the export says it: always English, whatever language the screen shows
-     * ([changeSummary] is the screen's). "New · 121 lines", "Deleted", "+12 −3".
+     * A changed file as the English export ([ExportWords]) says it; a shared export in another language
+     * uses the screen's [changeSummary]. "New · 121 lines", "Deleted", "+12 −3".
      */
     internal fun changeSummaryEnglish(change: TrackedChange): String {
         fun lines(n: Int) = if (n == 1) "1 line" else "${formatCount(n)} lines"
@@ -164,8 +168,10 @@ internal object ChatExport {
         }
     }
 
-    private val DATE = DateTimeFormatter.ofPattern("d MMMM yyyy, HH:mm", Locale.ENGLISH)
-    private val FILE_DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.ENGLISH)
+    /** The English export's date, "31 October 2026, 09:00"; a shared export uses the app's language ([exportWords]). */
+    internal val DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMMM yyyy, HH:mm", Locale.ENGLISH) // design-exception: the English export's fixed wording
+    // A file name, not text to read: the same in every language.
+    private val FILE_DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.ENGLISH) // design-exception: machine format for file names
     private val UNSAFE_NAME = Regex("[\\\\/:*?\"<>|\\p{Cntrl}`]")
     private val SPACES = Regex("\\s+")
     private val NEWLINES = Regex("\\s*\\n\\s*")
@@ -184,3 +190,42 @@ internal object ChatExport {
         Regex("()\\beyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}"),
     )
 }
+
+/**
+ * The words a Markdown export is written in: English by default (the strings the core writes, which
+ * tests compare); [exportWords] gives the same set in the app's language. Each format string takes
+ * the values named in its English.
+ */
+internal class ExportWords(
+    val untitled: String = "Chat",
+    /** "%1$s · exported from Locus", with the chat's date. */
+    val dated: String = "%1\$s · exported from Locus",
+    val undated: String = "Exported from Locus",
+    /** "%1$s:", a speaker's name before their turn. */
+    val speaker: String = "%1\$s:",
+    val you: String = "You",
+    val locus: String = "Locus",
+    val attached: String = "Attached: %1\$s",
+    val summarised: String = "Earlier messages were summarised here to save space.",
+    val ranAnyway: String = "You ran the blocked call anyway: %1\$s",
+    val approved: String = "You approved it in Needs you: %1\$s",
+    val plan: String = "Proposed a plan: %1\$s",
+    val sent: String = "Sent you %1\$s",
+    /** The provider's name, its host and [modelsPage]. */
+    val providerDraft: String = "Drafted provider %1\$s (%2\$s) for review in %3\$s",
+    val modelsPage: String = "Settings → Models",
+    /** The file and its change ("+12 −3"). */
+    val changed: String = "Changed %1\$s (%2\$s)",
+    val changedUndone: String = "Changed %1\$s (%2\$s, undone)",
+    val failed: String = "%1\$s (failed)",
+    val notRun: String = "%1\$s (not run)",
+    val typed: String = "Typed into the page",
+    val type: String = "Type into the page",
+    /** "%1$s: %2$s", a label and its value. */
+    val field: String = "%1\$s: %2\$s",
+    val date: (Long, ZoneId) -> String = { millis, zone -> ChatExport.DATE.format(Instant.ofEpochMilli(millis).atZone(zone)) },
+    val tool: (name: String, argumentsJson: String, done: Boolean) -> String = { name, args, done -> toolLabel(name, args, done = done) },
+    val check: (Verification.Outcome) -> String = { Verification.title(it).lowercase() },
+    val change: (TrackedChange) -> String = ChatExport::changeSummaryEnglish,
+    val receipt: (TaskReceipt) -> String = dev.locus.core.agent.TaskReceipts::exportText,
+)

@@ -2,7 +2,9 @@ package dev.locus.feature.chat
 
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import dev.locus.core.designsystem.DateSkeleton
 import dev.locus.core.designsystem.UiText
+import dev.locus.core.designsystem.formatDateTime
 import dev.locus.core.designsystem.asString
 import dev.locus.core.ui.largeFont
 import androidx.activity.compose.BackHandler
@@ -118,7 +120,6 @@ import dev.locus.core.designsystem.localizedToolActivity
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @Composable
@@ -833,7 +834,8 @@ private fun AllChats(
     }
     @Suppress("NAME_SHADOWING") val state = shown
     // Search results keep their own order (newest match first) instead of date sections.
-    val sections = remember(state.rows, searching) { if (searching) emptyList() else chatSections(state.rows, includePinned = true) }
+    val locale = androidx.compose.ui.platform.LocalResources.current.configuration.locales[0]
+    val sections = remember(state.rows, searching, locale) { if (searching) emptyList() else chatSections(state.rows, includePinned = true, locale = locale) }
     val titlesOnly = remember(query) { searching && SearchQuery.parse(query).match == null }
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -920,11 +922,17 @@ private fun AllChats(
     }
 }
 
-private fun chatSections(rows: List<ConversationRow>, includePinned: Boolean, now: Long = System.currentTimeMillis()): List<Pair<UiText, List<ConversationRow>>> {
-    val zone = ZoneId.systemDefault()
+internal fun chatSections(
+    rows: List<ConversationRow>,
+    includePinned: Boolean,
+    now: Long = System.currentTimeMillis(),
+    locale: Locale = Locale.getDefault(),
+    zone: ZoneId = ZoneId.systemDefault(),
+): List<Pair<UiText, List<ConversationRow>>> {
     val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
-    val month = DateTimeFormatter.ofPattern("MMMM", Locale.getDefault())
-    val monthYear = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())
+    // Older chats go under their month: "November", "November 2025" ("2025年11月" in Chinese).
+    fun month(millis: Long, withYear: Boolean) =
+        formatDateTime(millis, if (withYear) DateSkeleton.MONTH_YEAR else DateSkeleton.MONTH, locale, zone)
     fun label(millis: Long): UiText {
         val day: LocalDate = Instant.ofEpochMilli(millis).atZone(zone).toLocalDate()
         val ago = today.toEpochDay() - day.toEpochDay()
@@ -933,8 +941,8 @@ private fun chatSections(rows: List<ConversationRow>, includePinned: Boolean, no
             ago == 1L -> UiText.Res(R.string.chat_home_yesterday)
             ago < 7 -> UiText.Res(R.string.chat_home_previous_7)
             ago < 30 -> UiText.Res(R.string.chat_home_previous_30)
-            day.year == today.year -> UiText.Plain(day.format(month))
-            else -> UiText.Plain(day.format(monthYear))
+            day.year == today.year -> UiText.Plain(month(millis, withYear = false))
+            else -> UiText.Plain(month(millis, withYear = true))
         }
     }
     val pinned = if (includePinned) rows.filter { it.conversation.pinned } else emptyList()

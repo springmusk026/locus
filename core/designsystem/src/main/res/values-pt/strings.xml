@@ -497,6 +497,9 @@
     <string name="designsystem_duration_ms">%1$d ms</string>
     <string name="designsystem_duration_seconds">%1$s s</string>
     <string name="designsystem_duration_minutes_seconds">%1$d min %2$02d s</string>
+    <string name="designsystem_money_about">≈%1$s</string>
+    <string name="designsystem_money_under">&lt;%1$s</string>
+    <string name="designsystem_money_or_more">%1$s+</string>
     <string name="designsystem_amount_minutes">%1$d min</string>
     <string name="designsystem_amount_hours">%1$d h</string>
 

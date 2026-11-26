@@ -93,6 +93,40 @@ internal fun receiptOutcomeText(resources: Resources, r: TaskReceipt): String {
 }
 
 /**
+ * A receipt in a shared chat ([TaskReceipts.exportText] in the user's language): the one-line summary,
+ * then a line for each row of [ReceiptSheet] that has something to say. No arguments or results.
+ */
+internal fun receiptExportText(resources: Resources, r: TaskReceipt): String = buildString {
+    append('_').append(resources.getString(R.string.chat_export_receipt, receiptSummary(resources, r))).append("_\n")
+    fun labelled(label: String, value: String?) {
+        if (!value.isNullOrBlank()) append("- ").append(resources.getString(R.string.chat_export_field, label, value)).append('\n')
+    }
+    fun line(label: Int, value: String?) = labelled(resources.getString(label), value)
+    if (r.detail != null && r.outcome != TaskOutcome.DONE) line(R.string.chat_receipt_outcome, receiptOutcomeText(resources, r))
+    line(R.string.chat_receipt_time, durationInWords(resources, r.durationMs) + if (r.steps > 0) " · " + resources.getQuantityString(R.plurals.chat_receipt_steps, r.steps, r.steps) else "")
+    line(R.string.chat_receipt_models, receiptModels(resources, r))
+    if (r.tokens.requests > 0) line(R.string.chat_receipt_tokens, receiptTokens(resources, r))
+    line(R.string.chat_receipt_cost, receiptCost(resources, r)?.let { resources.getString(if (r.cost == null) R.string.chat_receipt_cost_unknown else R.string.chat_receipt_cost_estimate, it) })
+    line(R.string.chat_receipt_plan, receiptPlan(resources, r))
+    line(R.string.chat_receipt_plan_total, receiptPlanTotal(resources, r)?.let { resources.getString(R.string.chat_receipt_cost_estimate, it) })
+    if (r.files > 0) line(R.string.chat_receipt_files, resources.getQuantityString(R.plurals.chat_receipt_files_changed, r.files, r.files))
+    if (r.checks.isNotEmpty()) line(R.string.chat_receipt_checks, receiptChecksDetail(resources, r))
+    line(R.string.chat_receipt_approvals, approvalLinks(resources, r).joinToString(" · ") { it.text }.ifEmpty { null })
+    if (r.tainted) {
+        line(R.string.chat_receipt_outside, receiptOutside(resources, r) + if (r.taintedFromStart) " · " + resources.getString(R.string.chat_receipt_outside_earlier) else "")
+    }
+    line(R.string.chat_receipt_helpers, receiptHelpers(resources, r))
+    line(R.string.chat_receipt_completion, receiptCompletionCheck(resources, r))
+    r.workflow?.let { w ->
+        line(R.string.chat_receipt_workflow, w.name)
+        w.checks.forEach { c ->
+            val mark = resources.getString(when (c.passed) { true -> R.string.chat_receipt_passed; false -> R.string.chat_receipt_failed; null -> R.string.chat_receipt_not_checked })
+            labelled(c.check.label, "$mark · ${c.note}")
+        }
+    }
+}.trimEnd()
+
+/**
  * A provider's failure in words, with what to do: the status codes people meet most, else the message
  * without ids. The codes are looked for in the provider's own (English) message.
  */
@@ -212,7 +246,7 @@ internal fun ReceiptSheet(r: TaskReceipt, actions: ReceiptActions, onDismiss: ()
                 }
                 // A task that carried out an approved plan: what planning cost, on its model, and both together (docs/design/plan-run.md).
                 receiptPlan(resources, r)?.let { Field(stringResource(R.string.chat_receipt_plan), it) }
-                receiptPlanTotal(r)?.let { Field(stringResource(R.string.chat_receipt_plan_total), stringResource(R.string.chat_receipt_cost_estimate, it)) }
+                receiptPlanTotal(resources, r)?.let { Field(stringResource(R.string.chat_receipt_plan_total), stringResource(R.string.chat_receipt_cost_estimate, it)) }
                 if (r.files > 0) {
                     Field(stringResource(R.string.chat_receipt_files), pluralStringResource(R.plurals.chat_receipt_files_changed, r.files, r.files), onClick = item.changesKey?.let { key -> { onDismiss(); actions.showCard(key) } })
                 }

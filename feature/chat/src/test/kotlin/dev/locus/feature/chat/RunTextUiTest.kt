@@ -37,6 +37,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
+import kotlin.test.assertTrue
 
 /**
  * The run's errors, notices, budget and receipt lines read in English exactly as core writes them, and in
@@ -65,11 +66,15 @@ class RunTextUiTest {
             assertEquals(text.english, llmErrorInWords(english, text), kind.name)
             assertNotEquals(text.english, llmErrorInWords(spanish, text), kind.name)
         }
-        // With a reset time, today and another day, as core/llm words it.
+        // With a reset time, today and another day, as core/llm words it. The time is in the language's own
+        // order and clock (#320): British English writes it as the core does ("18:08", "11 Nov, 18:08");
+        // US English on its 12-hour clock.
         val now = System.currentTimeMillis() / 1000
+        val british = resources(Locale.UK)
         for (at in listOf(now + 600, now + 3 * 86_400)) {
             val limit = LlmErrorText(LlmErrorText.Kind.CHATGPT_LIMIT, resetsAt = at)
-            assertEquals(limit.english, llmErrorInWords(english, limit))
+            assertEquals(limit.english, llmErrorInWords(british, limit).replace('\u202F', ' ').replace('\u00A0', ' '))
+            assertTrue(Regex("""resets at .*\d:\d\d\s[AP]M\.$""").containsMatchIn(llmErrorInWords(english, limit)), llmErrorInWords(english, limit))
         }
     }
 

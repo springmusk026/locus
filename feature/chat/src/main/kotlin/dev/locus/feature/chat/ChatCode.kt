@@ -139,6 +139,7 @@ private fun CopyCodeButton(code: String) {
     val scope = rememberCoroutineScope()
     // Android 13+ confirms clipboard writes itself; older versions get our own short confirmation.
     val feedback = rememberCopyFeedback()
+    val clipLabel = stringResource(R.string.chat_clip_code)
     if (feedback.shown) {
         SupportingText(stringResource(R.string.chat_code_copied), style = LocusType.mono)
         Spacer(Modifier.size(Spacing.xs))
@@ -148,7 +149,7 @@ private fun CopyCodeButton(code: String) {
         stringResource(R.string.chat_code_copy),
         onClick = {
             scope.launch {
-                clipboard.setClipEntry(ClipEntry(android.content.ClipData.newPlainText("Code", code)))
+                clipboard.setClipEntry(ClipEntry(android.content.ClipData.newPlainText(clipLabel, code)))
                 feedback.copied()
             }
         },

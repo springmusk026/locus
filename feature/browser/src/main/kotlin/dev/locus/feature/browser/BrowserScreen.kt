@@ -248,6 +248,7 @@ internal fun BrowserScreen(
     val context = LocalContext.current
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
+    val clipLabel = stringResource(R.string.browser_clip_link)
     // Messages the click handlers below show, read here because a handler isn't a composable.
     val linkCopiedMessage = stringResource(R.string.browser_feedback_link_copied)
     val noAppMessage = stringResource(R.string.browser_feedback_no_app)
@@ -296,7 +297,7 @@ internal fun BrowserScreen(
                             onNavigate = { menu = false; actions.navigate(it) },
                             onCopy = {
                                 menu = false
-                                scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Link", state.url))) }
+                                scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(clipLabel, state.url))) }
                                 feedback.show(linkCopiedMessage, Tone.Live)
                             },
                             onOpenElsewhere = {
