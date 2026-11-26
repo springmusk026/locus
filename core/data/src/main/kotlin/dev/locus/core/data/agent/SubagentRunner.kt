@@ -203,7 +203,7 @@ class SubagentRunner @Inject constructor(
             status = row.agentStatus,
             fork = history.firstOrNull { it.role == Role.USER }?.parts?.filterIsInstance<Part.Text>()?.firstOrNull()?.text?.startsWith(FORK_INTRO) == true,
             steps = history.count { it.role == Role.ASSISTANT },
-            tokens = history.sumOf { m -> m.usage?.let { (it.input + it.output).toLong() } ?: 0L },
+            tokens = history.sumOf { m -> m.usage?.let(dev.locus.core.model.TaskBudget::budgetTokens) ?: 0L },
             spend = spendOf(history),
         )
     }
@@ -361,7 +361,7 @@ class SubagentRunner @Inject constructor(
                         status = status,
                         steps = messages.count { it.role == Role.ASSISTANT },
                         currentTool = null,
-                        tokens = messages.sumOf { m -> m.usage?.let { (it.input + it.output).toLong() } ?: 0L },
+                        tokens = messages.sumOf { m -> m.usage?.let(dev.locus.core.model.TaskBudget::budgetTokens) ?: 0L },
                         waitingApproval = false,
                         background = false,
                         stop = if (status == SubagentStatus.CANCELLED) dev.locus.core.model.HelperStop.CANCELLED else null,

@@ -416,6 +416,14 @@ class AgentConfig(
      */
     val stopAtBoundary: (() -> Boolean)? = null,
     /**
+     * Asked after each step, once all its calls have their results: true ends the run before the next
+     * request with [Outcome.Interrupted] (the caller knows why). Unlike [stopAtBoundary] it is never asked
+     * between a reply and its tool calls, so the step that crossed the line still runs every call. Nothing
+     * is added at that boundary (no summary, no [atStepBoundary] notes). A helper passes "its own token
+     * budget is used up" (docs/design/subagents.md). Null: never.
+     */
+    val endAfterStep: (() -> Boolean)? = null,
+    /**
      * The task's budget: every request of this run is recorded in it, and between steps a reached limit
      * goes to [budgetGate]. Shared with the helpers this run starts. Null: no budget.
      */
@@ -781,6 +789,11 @@ class AgentLoop(
                     emit(AgentEvent.Finished(Outcome.ToolLoopStopped(loop)))
                     return@flow
                 }
+            }
+            // The caller's own limit (a helper's token budget): every call of this step has its result, so end here.
+            if (config.endAfterStep?.invoke() == true) {
+                emit(AgentEvent.Finished(Outcome.Interrupted))
+                return@flow
             }
             // The step boundary: what the user added while this step ran goes to the end of the
             // transcript, and the next request sees it.

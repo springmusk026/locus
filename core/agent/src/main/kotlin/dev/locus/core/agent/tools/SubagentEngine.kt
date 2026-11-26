@@ -27,19 +27,21 @@ import dev.locus.core.model.ModeNote
 import dev.locus.core.model.Part
 import dev.locus.core.model.Role
 import dev.locus.core.model.SubagentStatus
+import dev.locus.core.model.TaskBudget
 import dev.locus.core.model.ToolPolicy
 import dev.locus.core.model.toolLabel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -59,14 +61,17 @@ data class SubagentLimits(
     /** Helpers one parent turn may start. */
     val maxSpawnsPerTurn: Int = 6,
     val maxSteps: Int = MAX_STEPS,
-    /** Tokens (input + output, summed over its requests) one helper may use before it is stopped as partial. */
+    /**
+     * Budget tokens ([TaskBudget.budgetTokens]: cache reads at a tenth, server summaries included, as the
+     * task budget counts them) one helper run may use; past it, it stops after its current step as partial.
+     */
     val tokenBudget: Long = 600_000,
     /**
      * Wall-clock limit per helper run when the app sets none ([SubagentBackend.timeoutMs]); it is
      * stopped as partial after this, with what it had.
      */
     val timeoutMs: Long = 30 * 60_000L,
-    /** Tokens all helpers of one parent turn may use; past it, no new helpers start. */
+    /** Budget tokens all helpers of one parent turn may use; past it, no new helpers start. */
     val turnSpendCap: Long = 2_000_000,
     /** A report longer than this is cut, with the full text saved to the workspace. */
     val reportChars: Int = 6_000,
@@ -267,7 +272,13 @@ class SubagentEngine(
     /** Every helper started since the app started, by agent id. */
     val states: StateFlow<Map<String, SubagentState>> = _states.asStateFlow()
 
+    /**
+     * Runs in this process: every unfinished one, every finished one whose report nobody has collected, and
+     * the latest [RETAINED_FINISHED] collected ones (an older one is forgotten when a new run is admitted; its
+     * saved chat still serves `agent_send`).
+     */
     private val runs = ConcurrentHashMap<String, ChildRun>()
+    private val finishOrder = AtomicLong()
     private val turns = ConcurrentHashMap<String, TurnBudget>()
     private val counters = ConcurrentHashMap<String, Int>()
     private val admission = Mutex()
@@ -306,6 +317,8 @@ class SubagentEngine(
         @Volatile var reported = false
         @Volatile var loopJob: Job? = null
         @Volatile var stopReason: String? = null
+        /** When it finished, in finishing order (0 while it works); the oldest collected ones are forgotten first. */
+        @Volatile var finishedSeq = 0L
         val texts = mutableListOf<String>()
         val steps = mutableListOf<String>()
         /** What it has done so far, for a partial report. */
@@ -335,6 +348,25 @@ class SubagentEngine(
             update { it.copy(pendingNotes = 0) }
             return taken.map { Message(ids(), prepared.conversation.id, Role.USER, SubagentPrompts.steer(it), clock()) }
         }
+
+        /** Approval cards open now, and the time ([clock]) closed ones took: the time limit doesn't count it. */
+        val openWaits = MutableStateFlow(0)
+        private val waitLock = Any()
+        private var waitStartedAt = 0L
+        private var waitedMs = 0L
+
+        /** Runs [block] (an approval card in the parent chat) without counting its time against the time limit. */
+        suspend fun <T> waitingForUser(block: suspend () -> T): T {
+            synchronized(waitLock) { if (openWaits.value == 0) waitStartedAt = clock(); openWaits.value++ }
+            try {
+                return block()
+            } finally {
+                synchronized(waitLock) { if (--openWaits.value == 0) waitedMs += clock() - waitStartedAt }
+            }
+        }
+
+        /** Time the closed approval waits took. */
+        fun waitedMs(): Long = synchronized(waitLock) { waitedMs }
 
         val state: SubagentState get() = _states.value.getValue(agentId)
 
@@ -393,6 +425,7 @@ class SubagentEngine(
         val parentId = ctx.conversationId
 
         val run = admission.withLock {
+            forgetCollected()
             val turn = turns.getOrPut(parentId) { TurnBudget() }
             refusal(turn, profile, ctx.budget)?.let { return ToolResult.error(it) }
 
@@ -449,10 +482,22 @@ class SubagentEngine(
         else -> null
     }
 
+    /**
+     * Forgets the oldest finished runs whose reports were collected, keeping the latest [RETAINED_FINISHED]
+     * (their prepared model, tools and transcript go with them). A forgotten helper is continued from its
+     * saved chat, as after a restart. Called under [admission].
+     */
+    private fun forgetCollected() {
+        val collected = runs.values.filter { it.result.isCompleted && it.reported }
+        if (collected.size <= RETAINED_FINISHED) return
+        collected.sortedBy { it.finishedSeq }.take(collected.size - RETAINED_FINISHED).forEach { runs.remove(it.agentId, it) }
+    }
+
     /** Runs [run] in the foreground (returning its report) or in the background (returning at once). */
     private suspend fun start(run: ChildRun, ctx: ToolCallContext, verb: String): ToolResult {
         if (run.background) {
-            scope.launch { runCatching { execute(run, ctx) } }
+            // execute() ends every run with a report (a failure as FAILED) and logs what went wrong; only cancellation leaves it.
+            scope.launch { execute(run, ctx) }
             return ToolResult(
                 "$verb ${run.label} in the background (agentId \"${run.agentId}\"). Keep working on other parts; collect its report with " +
                     "agent_wait({\"ids\": [\"${run.agentId}\"]}). If your turn ends first, its report arrives as a new message.",
@@ -496,7 +541,7 @@ class SubagentEngine(
             ?: return ToolResult.error("${record.label}'s helper type “${record.type}” no longer exists. Start a new helper with agent_spawn.")
         if (record.fork && live == null) {
             return ToolResult.error(
-                "${record.label} was forked from this chat, and its copy of the chat was lost when Locus restarted, so it can't be continued. " +
+                "${record.label} was forked from this chat, and its copy of the chat is no longer in memory (Locus restarted, or it finished a while ago), so it can't be continued. " +
                     "Start a new helper with agent_spawn, giving it what you know so far.",
             )
         }
@@ -506,6 +551,7 @@ class SubagentEngine(
         val run = admission.withLock {
             // Checked again under the lock: another call may have continued it meanwhile.
             runs[id]?.let { if (!it.result.isCompleted) return ToolResult.error(stillRunning(it.label, id)) }
+            forgetCollected()
             val turn = turns.getOrPut(parentId) { TurnBudget() }
             refusal(turn, profile, ctx.budget)?.let { return ToolResult.error(it) }
             val prepared = try {
@@ -582,6 +628,8 @@ class SubagentEngine(
         }?.takeIf { it > 0 } ?: limits.timeoutMs
         var outcome: Outcome? = null
         var stop: Stop? = null
+        // Set when this run's requests reach the token budget; the run then ends after its current step.
+        var overBudget = false
         val loop = AgentLoop(
             model = prepared.model,
             // Same tools in the same order: the declared tools block is byte-identical to the parent's.
@@ -595,7 +643,8 @@ class SubagentEngine(
                 override suspend fun reply(request: ApprovalRequest): dev.locus.core.agent.ApprovalReply {
                     run.update { it.copy(waitingApproval = true) }
                     return try {
-                        val reply = backend.requestReply(run.parentId, request.copy(origin = ApprovalOrigin(run.agentId, run.label)))
+                        // Time the user takes to answer doesn't count against the helper's time limit.
+                        val reply = run.waitingForUser { backend.requestReply(run.parentId, request.copy(origin = ApprovalOrigin(run.agentId, run.label))) }
                         if (reply.answer.allowed) dev.locus.core.agent.ApprovalReply(dev.locus.core.agent.ApprovalAnswer.ALLOW) else reply
                     } finally {
                         run.update { it.copy(waitingApproval = false) }
@@ -613,6 +662,9 @@ class SubagentEngine(
                 depth = ctx.depth + 1,
                 cacheKey = run.cacheKey,
                 atStepBoundary = run::takeNotes,
+                // Over its own token budget: the step that crossed it runs all its calls, then the helper stops
+                // there, never mid-step (a cancel would answer its calls as cancelled by the user).
+                endAfterStep = { overBudget },
                 // The parent's task budget: the helper's requests count toward it, and once it's reached the
                 // helper stops at its next step boundary (after its current step) and reports what it had.
                 // Only the parent's run pauses to ask the user.
@@ -658,22 +710,19 @@ class SubagentEngine(
                                     }
                                 }
                                 m.usage?.let { u ->
-                                    val used = (u.input + u.output).toLong()
+                                    val used = TaskBudget.budgetTokens(u)
                                     val total = run.tokens.addAndGet(used)
                                     turn.tokens.addAndGet(used)
                                     run.spent(u, m.reply?.model)
                                     // Shown as the helper's running total; the budget is per run (a continuation gets a fresh one).
                                     run.update { it.copy(tokens = run.baseTokens + total, spend = run.baseSpend + run.spend) }
-                                    if (total >= limits.tokenBudget) {
-                                        stop = Stop.BUDGET
-                                        this@launch.cancel()
-                                    }
+                                    if (total >= limits.tokenBudget) overBudget = true
                                 }
                             }
                             is AgentEvent.Compacted -> {
                                 // The summary request counts toward the helper's tokens like any other.
                                 event.usage?.let { u ->
-                                    val used = (u.input + u.output).toLong()
+                                    val used = TaskBudget.budgetTokens(u)
                                     val total = run.tokens.addAndGet(used)
                                     turn.tokens.addAndGet(used)
                                     run.spent(u, model = null)
@@ -684,7 +733,7 @@ class SubagentEngine(
                             is AgentEvent.SummaryUnused -> {
                                 // Billed though not used: it counts toward the helper's tokens all the same.
                                 event.usage?.let { u ->
-                                    val used = (u.input + u.output).toLong()
+                                    val used = TaskBudget.budgetTokens(u)
                                     val total = run.tokens.addAndGet(used)
                                     turn.tokens.addAndGet(used)
                                     run.spent(u, model = null)
@@ -699,20 +748,38 @@ class SubagentEngine(
                 }
                 run.loopJob = job
                 if (run.stopReason != null) job.cancel()
-                val inTime = withTimeoutOrNull(timeoutMs) { job.join() }
-                if (inTime == null) {
-                    stop = Stop.TIMEOUT
-                    job.cancelAndJoin()
+                // The time limit counts working time only: what approval cards took is added to it as they close.
+                var slice = timeoutMs
+                var counted = 0L
+                while (withTimeoutOrNull(slice) { job.join() } == null) {
+                    // Out of time, unless some of it went to waiting for the user: a card still open is waited out first.
+                    run.openWaits.first { it == 0 }
+                    val waited = run.waitedMs()
+                    slice = waited - counted
+                    counted = waited
+                    if (job.isCompleted) break
+                    if (slice <= 0) {
+                        stop = Stop.TIMEOUT
+                        job.cancelAndJoin()
+                        break
+                    }
                 }
             }
         } catch (e: CancellationException) {
             // The parent's turn (or the app) stopped: the helper stops with it.
             withContext(NonCancellable) { finish(run, SubagentStatus.CANCELLED, run.stopReason ?: "the main task was stopped", HelperStop.CANCELLED) }
             throw e
+        } catch (e: Exception) {
+            // Anything else (its store, a backend call) fails the helper: it reports, frees its slot and its
+            // writer turn, and agent_wait returns. The error goes to the app's log (Diagnostics).
+            scope.coroutineContext[CoroutineExceptionHandler]?.let { handler -> runCatching { handler.handleException(scope.coroutineContext, e) } }
+            return withContext(NonCancellable) { finish(run, SubagentStatus.FAILED, "error: ${e.message ?: e::class.simpleName}") }
         } finally {
             browser.release(run.agentId)
         }
         if (stop == null && run.stopReason != null) stop = Stop.CANCELLED
+        // The loop ended itself after the step that used up the token budget.
+        if (stop == null && overBudget && outcome == Outcome.Interrupted) stop = Stop.BUDGET
         val (status, reason, why) = when (stop) {
             Stop.BUDGET -> Triple(SubagentStatus.PARTIAL, "it used its token budget (${run.tokens.get()} of ${limits.tokenBudget} tokens)", HelperStop.TOKEN_BUDGET)
             Stop.TIMEOUT -> Triple(SubagentStatus.PARTIAL, "it ran out of time (${describeMinutes(timeoutMs)})", HelperStop.TIMEOUT)
@@ -748,6 +815,7 @@ class SubagentEngine(
         val wrapped = SubagentReport.wrap(run.label, run.agentId, status, body, limits.reportChars, path, why)
         runCatching { backend.finished(state, body) }
         val result = ChildResult(status, wrapped)
+        run.finishedSeq = finishOrder.incrementAndGet()
         run.result.complete(result)
         if (run.background && !run.reported) backend.backgroundFinished(run.parentId)
         return result
@@ -874,6 +942,9 @@ class SubagentEngine(
 
     companion object {
         const val MIN_TASK_CHARS = 40
+
+        /** Finished, collected runs kept in memory (for agent_wait/agent_status by id and a fork's continuation). */
+        const val RETAINED_FINISHED = 16
 
         /** "30 minutes", "2 hours". */
         internal fun describeMinutes(ms: Long): String {
