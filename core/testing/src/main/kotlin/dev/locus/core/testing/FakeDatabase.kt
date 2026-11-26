@@ -246,6 +246,8 @@ class FakeDatabase {
     val auditDao: AuditDao = object : AuditDao {
         override fun observeRecent(limit: Int) = select { t -> t.audit.sortedByDescending { it.startedAt }.take(limit) }
         override suspend fun insert(entry: AuditEntity) = write { t -> t.copy(audit = t.audit + entry) }
+        override suspend fun forCalls(conversationId: String, callIds: List<String>) =
+            tables.value.audit.filter { it.conversationId == conversationId && it.callId in callIds }
         override suspend fun deleteForConversation(conversationId: String) = write { t -> t.copy(audit = t.audit.filterNot { it.conversationId == conversationId }) }
         override fun observeStats(since: Long) = select { t ->
             t.audit.filter { it.startedAt >= since }.map { AuditStatRow(it.conversationId, it.toolName, it.decision, it.isError, it.startedAt, it.finishedAt) }

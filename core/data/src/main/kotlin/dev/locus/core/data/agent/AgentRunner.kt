@@ -1722,7 +1722,9 @@ class AgentRunner @Inject constructor(
         // Helpers cut off with the app keep their chat, are marked interrupted and are never offered "Continue".
         for (helperChat in conversations.helpersWithStatus(dev.locus.core.model.SubagentStatus.RUNNING)) {
             if (subagents.engine.isChild(helperChat.id)) continue
-            val recovery = recoverTranscript(conversations.history(helperChat.id))
+            val helperHistory = conversations.history(helperChat.id)
+            // The audit log tells a call that was running from calls that never started.
+            val recovery = recoverTranscript(helperHistory, conversations.auditedDangling(helperChat.id, helperHistory))
             if (recovery.missingResults.isNotEmpty()) {
                 conversations.append(Message(UUID.randomUUID().toString(), helperChat.id, Role.TOOL, recovery.missingResults, System.currentTimeMillis()))
             }
@@ -1739,7 +1741,7 @@ class AgentRunner @Inject constructor(
             val helpers = if (history.any { m -> m.toolCalls.any { it.name in helperTools } }) conversations.helpers(conversation.id) else emptyList()
             val helpersByCall = helpers.associateBy { it.parentCallId }
             val helpersById = helpers.associateBy { it.id }
-            val recovery = recoverTranscript(history) { call ->
+            val recovery = recoverTranscript(history, conversations.auditedDangling(conversation.id, history)) { call ->
                 when (call.name) {
                     dev.locus.core.model.SubagentTools.SPAWN ->
                         helpersByCall[call.id].let { dev.locus.core.agent.tools.SubagentReport.interruptedResult(it?.id, it?.title) }

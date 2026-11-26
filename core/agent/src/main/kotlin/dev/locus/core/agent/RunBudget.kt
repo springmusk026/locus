@@ -88,13 +88,24 @@ class RunBudget(
         }
     }
 
-    /** The user chose Continue: [limit] grows by one more increment of the budget's own size. */
+    /**
+     * The user chose Continue: [limit] grows by increments of the budget's own size, one more than it takes to pass
+     * what's spent. Usually that's one; a step that overshot by several (helpers record into the same budget) gets
+     * them all at once, so the user isn't asked again with no work in between.
+     */
     fun extend(limit: BudgetLimit) {
         synchronized(lock) {
             when (limit) {
-                BudgetLimit.TOKENS -> budget.tokens?.let { extraTokens += it }
-                BudgetLimit.COST -> budget.costUsd?.let { extraCost += it }
-                BudgetLimit.TIME -> budget.minutes?.let { extraMs += it * MINUTE }
+                BudgetLimit.TOKENS -> budget.tokens?.takeIf { it > 0 }?.let { step ->
+                    extraTokens += step * (1 + ((tokens - (step + extraTokens)) / step).coerceAtLeast(0))
+                }
+                BudgetLimit.COST -> budget.costUsd?.takeIf { it > 0 }?.let { step ->
+                    extraCost += step * (1 + kotlin.math.floor((cost - (step + extraCost)) / step + 1e-9).coerceAtLeast(0.0))
+                }
+                BudgetLimit.TIME -> budget.minutes?.takeIf { it > 0 }?.let { m ->
+                    val step = m * MINUTE
+                    extraMs += step * (1 + ((elapsedLocked() - (step + extraMs)) / step).coerceAtLeast(0))
+                }
             }
         }
         onChange(this)

@@ -323,6 +323,22 @@ class ProjectRulesTest {
     }
 
     @Test
+    fun `a long rule output counts toward compaction, which runs before the next request instead of an overflow`() = runTest {
+        val hooks = FakeHooks(listOf(lint), exits = ArrayDeque(listOf(1)), output = "E501 line too long\n".repeat(400))
+        val store = MemoryStore()
+        val step = calls(edit("a.py")).copy(usage = dev.locus.core.model.TokenUsage(1_000, 50))
+        val summary = AssistantTurn("Fixed the parser in a.py; ruff still reports long lines to wrap.", emptyList(), StopReason.END_TURN, ApiFormat.OPENAI_CHAT, null)
+        val model = ScriptedModel(step, summary, done())
+        // A window of 2,000: due past 1,600. The step's own result is a few tokens; the rule's note is about 1,000.
+        val events = loop(model, store, hooks, config = { AgentConfig(rules = it, scope = scope, compaction = CompactionSetup(2_000, prompt = "Summarise the chat.")) })
+            .run(conversation, listOf(ask)).toList()
+
+        assertEquals("Summarise the chat.", model.requests[1].messages.last().text, "the request after the step is the summary")
+        assertTrue(events.any { it is AgentEvent.Compacted })
+        assertTrue(model.requests[2].messages.first().text.startsWith(Compaction.HEADER))
+    }
+
+    @Test
     fun `every run is audited with its rule, trigger, command and files`() = runTest {
         val hooks = FakeHooks(listOf(lint), exits = ArrayDeque(listOf(2)))
         val store = MemoryStore()

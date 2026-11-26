@@ -109,6 +109,36 @@ class TaskBudgetLoopTest {
     }
 
     @Test
+    fun `a step that overshoots by several increments asks once`() = runTest {
+        // A 50k budget; the first step (with its helpers, say) ends at 160k.
+        val budget = RunBudget(TaskBudget(tokens = 50_000))
+        var answers = 0
+        val model = Model(turns = 1, usage = TokenUsage(input = 150_000, output = 10_000))
+        val events = loop(model, Work(), Store(), budget, BudgetGate { _, _ -> answers++; true }).run(conversation, listOf(user)).toList()
+        // One Continue, with no work in between: the allowance passes what's spent (200k), and the task carries on.
+        assertEquals(1, answers)
+        assertEquals(200_000, budget.meter().tokenLimit)
+        assertEquals(2, model.requests.size)
+        assertIs<Outcome.Completed>((events.last() as AgentEvent.Finished).outcome)
+    }
+
+    @Test
+    fun `Continue passes an overshot cost and time limit in one go`() {
+        var now = 0L
+        val budget = RunBudget(TaskBudget(costUsd = 0.10, minutes = 10), price = { _, _ -> ModelPrice(input = 1.0, output = 1.0) }, costKnown = true, clock = { now })
+        // $0.30 spent: three times the limit.
+        budget.record(TokenUsage(input = 300_000, output = 0), "p", "m")
+        assertEquals(BudgetLimit.COST, budget.exceeded())
+        budget.extend(BudgetLimit.COST)
+        assertEquals(0.40, budget.meter().costLimit!!, 1e-9)
+        now = 35 * RunBudget.MINUTE
+        assertEquals(BudgetLimit.TIME, budget.exceeded())
+        budget.extend(BudgetLimit.TIME)
+        assertNull(budget.exceeded())
+        assertEquals(40 * RunBudget.MINUTE, budget.meter().timeLimitMs)
+    }
+
+    @Test
     fun `a run that finishes under its budget never asks`() = runTest {
         val budget = RunBudget(TaskBudget(tokens = 1_000_000, minutes = 60))
         var asked = false

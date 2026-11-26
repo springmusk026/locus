@@ -18,8 +18,10 @@ with server-side compaction were covered.
 ### At a step boundary
 
 After a step, once every call of that step has its result, the loop checks the last request's
-reported usage (`TokenUsage.context`, input plus output) plus a rough estimate of the tool results it
-just added (four characters a token, but one token for each Chinese, Japanese or Korean character: `Compaction.estimateTokens`, since real tokenizers spend 0.7 to 1.5 on one and four characters a token put 2,100 Chinese characters at 525). If that's above 80% of the model's window
+reported usage (`TokenUsage.context`, input plus output) plus a rough estimate of everything added after
+that reply (`Compaction.estimateTokens(messages)`: the tool results, the after-edit rules' output that
+follows them, and about 1,600 tokens for each image; before #303 only the tool results' text counted, so a
+long failing test run could push the next request over the window and into overflow recovery) (four characters a token, but one token for each Chinese, Japanese or Korean character: `Compaction.estimateTokens`, since real tokenizers spend 0.7 to 1.5 on one and four characters a token put 2,100 Chinese characters at 525). If that's above 80% of the model's window
 (`Compaction.THRESHOLD`, the same threshold as before), the loop compacts before the next request.
 
 The window and the threshold come from the same rule as before (`compactionSetup` in `AgentRunner.kt`):
@@ -43,7 +45,12 @@ then; see [Starting the summary early](#starting-the-summary-early).
 
 Compaction comes before the user's queued messages are added at that boundary (#55). Those messages
 then follow the summary as ordinary messages, with their mid-task note, so the model reads them as
-new rather than as part of the summary.
+new rather than as part of the summary. So they aren't in the estimate: checking after them would put
+them inside the summary. They're usually short; a "Run anyway" result that's long enough to overflow
+still has overflow recovery. Room for the reply is the 20% of the window above the threshold (the
+threshold isn't a setting); a price-step ceiling limits the prompt, not the reply. Every adapter's
+`TokenUsage.input` includes cache reads and writes (Anthropic adds them to `input_tokens`; OpenAI's
+`prompt_tokens` and Responses' `input_tokens` already include them), so `context` is the whole prompt.
 
 ### The summary request
 
@@ -201,9 +208,13 @@ so nobody waits; Locus does the same.
   helper's token limit, and `AgentEvent.Compacted` for usage records, so receipts and Insights show it
   as "compaction". One that came back but isn't used (the run ended before the threshold, it fell back,
   or an overflow error) is recorded the same way through `AgentEvent.SummaryUnused`, before the run's
-  `Finished` event, and nothing is stored. One still out when the run ends, is stopped or the app is
-  killed is cancelled: nothing came back to count, as for a reply cut off by Stop, and nothing was
-  stored, so a restart sees the chat as it was.
+  `Finished` event, and nothing is stored. One still out when the run ends (or an overflow drops it) is
+  cancelled, and counted the same way from an estimate (#305): the provider read its prompt even though no
+  usage came back. The estimate is the context it started at plus the question, with the part the last
+  request read or wrote in the provider's cache counted as a cache read (none when that request reported no
+  caching); no output. One still out when the run is stopped or the app is killed is cancelled uncounted, as
+  for a reply cut off by Stop (a stopped run can't report it). Nothing was stored, so a restart sees the chat
+  as it was.
 - **Overflow.** A context-overflow error drops it (counted if it came back) and summarises everything:
   keeping the turns after it is what didn't fit.
 - **Where not.** Only on Chat Completions (`Compaction.keepsTurnsAfterSummary`), where Locus replays no

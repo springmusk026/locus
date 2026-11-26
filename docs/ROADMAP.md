@@ -123,7 +123,7 @@ The eight items chosen in November 2026 (#82), in priority order. All eight have
     - **Follow-up suggestions** as tappable chips above the composer, cleared when a run starts.
   - **Token accounting:** every assistant turn stores `TokenUsage` (Room v4).
     - Anthropic: `message_start` + `message_delta`, with cache fields summed into input.
-    - OpenAI-compatible: the `usage` chunk; `stream_options.include_usage` is sent only to OpenAI, OpenRouter and Groq.
+    - OpenAI-compatible: the `usage` chunk; `stream_options.include_usage` is sent to every host (until #305 only OpenAI, OpenRouter and Groq), and a server that rejects it gets the request once more without it.
     - Responses: `response.usage`.
     - UI: a mono line under each reply ("10.6k in · 36 out · 94% cached"); a context ring and percentage or count in the chat header; a sheet with context-now versus window plus per-chat totals.
   - **Context window** per provider, filled from model lists (Anthropic `max_input_tokens`, OpenRouter `context_length`) or entered by hand.

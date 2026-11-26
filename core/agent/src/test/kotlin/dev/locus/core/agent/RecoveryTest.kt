@@ -49,4 +49,40 @@ class RecoveryTest {
         )
         kotlin.test.assertFalse(recoverTranscript(history).unfinished)
     }
+
+    @Test
+    fun `the audit log tells a call that was running from calls that never started`() {
+        val history = listOf(
+            msg(Role.USER, Part.Text("send the report")),
+            msg(
+                Role.ASSISTANT,
+                Part.ToolCall("c1", "write_file", "{}"), Part.ToolCall("c2", "email_send", "{}"),
+                Part.ToolCall("c3", "run_command", "{}"), Part.ToolCall("c4", "read_file", "{}"),
+            ),
+        )
+        // c1 finished; c2 was running when Locus died (no entry yet); c3 and c4 never started.
+        val r = recoverTranscript(history, audited = mapOf("c1" to dev.locus.core.model.ApprovalDecision.AUTO_ALLOWED))
+        val byCall = r.missingResults.associate { it.callId to it.content }
+        assertEquals(RAN_BEFORE_CLOSE, byCall["c1"])
+        assertEquals("Locus was closed while this was running; it may have completed. Check before running it again.", byCall["c2"])
+        assertEquals("Not run: Locus was closed before this ran.", byCall["c3"])
+        assertEquals("Not run: Locus was closed before this ran.", byCall["c4"])
+        assertTrue(r.missingResults.all { it.isError })
+        assertTrue(r.unfinished)
+    }
+
+    @Test
+    fun `a refused call is not run, and with no audit entries the first call may have run`() {
+        val history = listOf(
+            msg(Role.ASSISTANT, Part.ToolCall("c1", "email_send", "{}"), Part.ToolCall("c2", "run_command", "{}")),
+        )
+        val refused = recoverTranscript(history, audited = mapOf("c1" to dev.locus.core.model.ApprovalDecision.USER_DENIED))
+        assertEquals("Not run: Locus was closed before this ran.", refused.missingResults[0].content)
+        assertEquals(CLOSED_WHILE_RUNNING, refused.missingResults[1].content)
+
+        val none = recoverTranscript(history, audited = emptyMap())
+        assertEquals(listOf(CLOSED_WHILE_RUNNING, "Not run: Locus was closed before this ran."), none.missingResults.map { it.content })
+        // Without the audit log (a branch switch, a fork) every call reads as before.
+        assertTrue(recoverTranscript(history).missingResults.all { it.content == "Not run: Locus was closed before this ran." })
+    }
 }

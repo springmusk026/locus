@@ -424,6 +424,19 @@ class ConversationRepository @Inject constructor(
 
     override suspend fun record(entry: AuditEntry) = audit.insert(entry.toEntity())
 
+    /**
+     * What the audit log says about [conversationId]'s tool calls that have no result: call id to decision, for those
+     * that finished ([dev.locus.core.agent.recoverTranscript] after a restart).
+     */
+    suspend fun auditedDangling(conversationId: String, history: List<Message>): Map<String, ApprovalDecision> {
+        val answered = history.flatMapTo(HashSet()) { m -> m.toolResults.map { it.callId } }
+        val dangling = history.flatMap { m -> m.toolCalls.map { it.id } }.filter { it !in answered }
+        if (dangling.isEmpty()) return emptyMap()
+        return dangling.chunked(500).flatMap { ids -> audit.forCalls(conversationId, ids) }
+            .mapNotNull { e -> ApprovalDecision.entries.firstOrNull { it.name == e.decision }?.let { e.callId to it } }
+            .toMap()
+    }
+
     fun observeAudit(limit: Int = 500): Flow<List<AuditEntry>> = audit.observeRecent(limit).map { list -> list.map { it.toModel() } }
 
     internal companion object {
