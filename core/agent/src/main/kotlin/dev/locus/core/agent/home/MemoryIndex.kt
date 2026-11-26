@@ -106,13 +106,14 @@ internal class MemoryDoc(val topic: String, val fingerprint: String, val load: (
  * spaces between words (CJK, Thai) and words inside longer ones. Results from both are merged by
  * reciprocal rank fusion. See docs/design/memory-search.md.
  *
- * Every call is synchronised; any SQLite failure drops the file so the next call rebuilds it, and the
- * caller falls back to scanning the notes.
+ * Every call is synchronised. A file SQLite reports as damaged (or whose tables aren't ours) is dropped
+ * so the next call rebuilds it; a busy or locked file, or any other error, leaves it alone. Either way the
+ * failed call returns null and the caller falls back to scanning the notes.
  */
-class MemorySearchIndex(private val driver: SQLiteDriver, val file: File) {
+class MemorySearchIndex(private val driver: SQLiteDriver, val file: File, private val busyTimeoutMs: Int = BUSY_TIMEOUT_MS) {
     private var connection: SQLiteConnection? = null
 
-    /** Opens failed this many times in a row; past [MAX_FAILURES] the index stays off for this process. */
+    /** Calls failed this many times in a row (damaged file or an error that isn't a busy file); past [MAX_FAILURES] the index stays off for this process. */
     private var failures = 0
 
     /** Brings the index up to date with [docs]: adds and re-reads changed topics, drops removed ones. */
@@ -178,14 +179,60 @@ class MemorySearchIndex(private val driver: SQLiteDriver, val file: File) {
 
     private fun <T> guarded(block: (SQLiteConnection) -> T): T? {
         if (failures >= MAX_FAILURES) return null
-        return try {
-            block(open()).also { failures = 0 }
-        } catch (e: Exception) {
-            // A damaged or half-written index: drop it; the next call rebuilds it from the notes.
-            failures++
-            close()
-            deleteFiles()
-            null
+        var retries = 0
+        while (true) {
+            try {
+                return block(open()).also { failures = 0 }
+            } catch (e: Exception) {
+                when (Failure.of(e)) {
+                    // Another connection holds the file (it already waited busyTimeoutMs): try again, then
+                    // give up on this call only. The file is fine and a busy file isn't a failure.
+                    Failure.BUSY -> if (retries++ >= BUSY_RETRIES) return null
+                    // A damaged or half-written index: drop it; the next call rebuilds it from the notes.
+                    Failure.DAMAGED -> {
+                        failures++
+                        close()
+                        deleteFiles()
+                        return null
+                    }
+                    // Disk full, an I/O error, a read-only file: probably passing, so keep the file and open a fresh connection next time.
+                    Failure.OTHER -> {
+                        failures++
+                        close()
+                        return null
+                    }
+                }
+            }
+        }
+    }
+
+    private enum class Failure {
+        BUSY, DAMAGED, OTHER;
+
+        companion object {
+            /**
+             * What [e] says about the file. androidx.sqlite reports every error as a `SQLiteException` whose
+             * message starts `Error code: <result code>, message: <text>`; the low byte is the primary code.
+             */
+            fun of(e: Exception): Failure {
+                val message = e.message.orEmpty()
+                val code = CODE.find(message)?.groupValues?.get(1)?.toIntOrNull()?.and(0xff)
+                return when {
+                    code == SQLITE_BUSY || code == SQLITE_LOCKED -> BUSY
+                    code == SQLITE_CORRUPT || code == SQLITE_NOTADB -> DAMAGED
+                    // A schema that isn't ours (a table or column missing, an FTS5 table that won't open).
+                    code == SQLITE_ERROR && SCHEMA_MISMATCH.containsMatchIn(message) -> DAMAGED
+                    else -> OTHER
+                }
+            }
+
+            private val CODE = Regex("""Error code: (\d+)""")
+            private val SCHEMA_MISMATCH = Regex("no such (table|column|module)|malformed|fts5: ", RegexOption.IGNORE_CASE)
+            private const val SQLITE_ERROR = 1
+            private const val SQLITE_BUSY = 5
+            private const val SQLITE_LOCKED = 6
+            private const val SQLITE_CORRUPT = 11
+            private const val SQLITE_NOTADB = 26
         }
     }
 
@@ -193,6 +240,8 @@ class MemorySearchIndex(private val driver: SQLiteDriver, val file: File) {
         file.parentFile?.mkdirs()
         val existing = driver.open(file.path)
         val current = try {
+            // First, so that a writer on another connection is waited for rather than failed at once.
+            existing.execSQL("PRAGMA busy_timeout = $busyTimeoutMs")
             userVersion(existing) == SCHEMA
         } catch (e: Exception) {
             existing.close()
@@ -204,6 +253,7 @@ class MemorySearchIndex(private val driver: SQLiteDriver, val file: File) {
         deleteFiles()
         val c = driver.open(file.path)
         try {
+            c.execSQL("PRAGMA busy_timeout = $busyTimeoutMs")
             c.execSQL("CREATE TABLE topic(id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, fingerprint TEXT NOT NULL)")
             c.execSQL("CREATE VIRTUAL TABLE words USING fts5(name, summary, content, tokenize='unicode61 remove_diacritics 2')")
             c.execSQL("CREATE VIRTUAL TABLE grams USING fts5(name, summary, content, tokenize='trigram remove_diacritics 1')")
@@ -289,6 +339,12 @@ class MemorySearchIndex(private val driver: SQLiteDriver, val file: File) {
         const val SCHEMA = 1
 
         private const val MAX_FAILURES = 3
+
+        /** How long SQLite waits for a lock another connection holds, before reporting the file busy. */
+        const val BUSY_TIMEOUT_MS = 3_000
+
+        /** Extra tries after a call finds the file busy. */
+        private const val BUSY_RETRIES = 2
 
         /** Reciprocal rank fusion's constant (Cormack, Clarke and Büttcher, SIGIR 2009). */
         private const val RRF_K = 60.0

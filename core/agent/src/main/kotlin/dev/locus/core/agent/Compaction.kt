@@ -244,7 +244,7 @@ object Compaction {
                 kept.addFirst(m)
                 left -= tokens
             } else {
-                kept.addFirst(cut(m, left * CHARS_PER_TOKEN))
+                kept.addFirst(cutTokens(m, left))
                 break
             }
         }
@@ -409,15 +409,78 @@ object Compaction {
 
     private const val DROPPED = "[Earlier messages were left out here to fit the context window.]"
 
-    private const val CHARS_PER_TOKEN = 4
+    /**
+     * An estimate of [text]'s tokens: about four characters a token, as Codex estimates
+     * (`approx_token_count`), but one token for each Chinese, Japanese or Korean character, and for each emoji (real
+     * tokenizers spend 0.7 to 1.5 on one; four characters a token would be 3 to 6 times too low).
+     */
+    fun estimateTokens(text: String): Int = (quarterTokens(text) + 3) / 4
 
-    /** About four characters a token, as Codex estimates (`approx_token_count`). */
-    fun estimateTokens(text: String): Int = (text.length + CHARS_PER_TOKEN - 1) / CHARS_PER_TOKEN
+    /** [estimateTokens] in quarter tokens: 1 for most characters, 4 for a CJK one or one outside the BMP (an emoji is several bytes). */
+    private fun quarterTokens(text: String): Int {
+        var total = 0
+        var i = 0
+        while (i < text.length) {
+            val cp = text.codePointAt(i)
+            total += quarterTokens(cp)
+            i += Character.charCount(cp)
+        }
+        return total
+    }
+
+    private fun quarterTokens(cp: Int): Int = if (cp >= 0x10000 || isCjk(cp)) 4 else 1
+
+    /** Han, kana, Hangul, Bopomofo and their punctuation and full-width forms: scripts written without spaces between words. */
+    private fun isCjk(cp: Int): Boolean {
+        // Everything below Hangul Jamo (Latin, Greek, Cyrillic, Arabic, Thai, ...) is in neither.
+        if (cp < 0x1100) return false
+        return when (Character.UnicodeScript.of(cp)) {
+            Character.UnicodeScript.HAN, Character.UnicodeScript.HIRAGANA, Character.UnicodeScript.KATAKANA,
+            Character.UnicodeScript.HANGUL, Character.UnicodeScript.BOPOMOFO,
+            -> true
+            else -> when (Character.UnicodeBlock.of(cp)) {
+                Character.UnicodeBlock.CJK_SYMBOLS_AND_PUNCTUATION, Character.UnicodeBlock.HALFWIDTH_AND_FULLWIDTH_FORMS -> true
+                else -> false
+            }
+        }
+    }
 
     /** [text] cut to about [maxChars], keeping its start and end. */
-    private fun cut(text: String, maxChars: Int): String {
-        if (text.length <= maxChars) return text
-        val half = (maxChars / 2).coerceAtLeast(1)
-        return text.take(half) + "\n…[${text.length - 2 * half} characters cut]…\n" + text.takeLast(half)
+    private fun cut(text: String, maxChars: Int): String = cut(text, maxChars) { Character.charCount(it) }
+
+    /** [text] cut to about [maxTokens] by [estimateTokens]'s weights, keeping its start and end. */
+    private fun cutTokens(text: String, maxTokens: Int): String = cut(text, maxTokens * 4, ::quarterTokens)
+
+    /**
+     * [text] cut to a [budget] of [weight]s, keeping its start and end. Both pieces end on whole code
+     * points, so no emoji or other character outside the BMP is split into a lone surrogate.
+     */
+    private fun cut(text: String, budget: Int, weight: (Int) -> Int): String {
+        var total = 0
+        var i = 0
+        while (i < text.length && total <= budget) {
+            val cp = text.codePointAt(i)
+            total += weight(cp)
+            i += Character.charCount(cp)
+        }
+        if (total <= budget) return text
+        val half = (budget / 2).coerceAtLeast(1)
+        var head = 0
+        var used = 0
+        while (head < text.length) {
+            val cp = text.codePointAt(head)
+            if (used + weight(cp) > half) break
+            used += weight(cp)
+            head += Character.charCount(cp)
+        }
+        var tail = text.length
+        used = 0
+        while (tail > head) {
+            val cp = text.codePointBefore(tail)
+            if (used + weight(cp) > half) break
+            used += weight(cp)
+            tail -= Character.charCount(cp)
+        }
+        return text.substring(0, head) + "\n…[${tail - head} characters cut]…\n" + text.substring(tail)
     }
 }
