@@ -183,6 +183,78 @@ retried once the old way and remembered per provider. Chat Completions has no su
 Research with sources, the request shapes, the fallback and why steering notes stay in the user message:
 [midchat-config.md](midchat-config.md).
 
+## System prompt placement on GPT-6.2 and later
+
+Locus sent each chat's frozen system prompt in the Responses `instructions` field, on OpenAI's API and on
+the ChatGPT plan route alike. From GPT-6.2 that field is no longer part of the cached prefix. OpenAI's
+[prompt caching guide](https://developers.openai.com/api/docs/guides/prompt-caching), "How prefix
+matching works" (read 2026-11-23):
+
+> Use top-level `instructions` for developer guidance that applies only to the current request. […]
+> Models starting with GPT-6.2, including Astra and Sol, append these instructions after `input`, beyond
+> eligible cache breakpoints. […] OpenAI bills those instruction tokens at the uncached input-token rate
+> on every request, even if you repeat identical instructions. To make reusable instructions eligible for
+> caching, put them in a `developer` message at the beginning of `input`.
+
+The same page, "Summary of model differences": "In the Responses API, models starting with GPT-6.2 append
+top-level `instructions` after `input` and bill those tokens at the uncached input rate, even on a cache
+hit. Put reusable instructions in the first `developer` message in `input`."
+[Keep the prefix unchanged](https://developers.openai.com/api/docs/guides/keep-prefix-unchanged), row
+"Updating developer instructions": "Put reusable instructions in the first `developer` message in `input`"
+and "For models starting with GPT-6.2, use top-level `instructions` for turn-scoped developer messages."
+
+So every request of a GPT-6.2 chat paid the whole system prompt at the full input rate.
+
+**What Locus sends now** (`SystemPlacement`, core/llm). On GPT-6.2 and later (`gpt-6.2…`, `gpt-6.3…`,
+`gpt-7…`: the model id's major.minor, so `gpt-6-astra` and `gpt-6.1-sol` are not included), at
+`api.openai.com`, in a new chat, the system prompt goes first in `input`:
+
+```json
+{"type": "message", "role": "developer", "content": [{"type": "input_text", "text": "<frozen system prompt>"}]}
+```
+
+and `instructions` is left out. Everything else in the request is unchanged. The ChatGPT plan route gets
+the same: its [preview rules](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations)
+say "Use instructions or developer messages; explicit {type: "message", role: "system"} items are
+rejected", and it runs the same models on `https://api.openai.com/v1`. Earlier models, other hosts and
+Chat Completions send byte for byte what they did.
+
+**Only chats that start with it move.** Each reply whose request used the developer message gets a hidden
+`Part.SystemInInput` record (stored in the message's parts, like `Part.TurnEffort`: no database change). A
+request uses the developer message only when every earlier assistant turn of its format has that record.
+A new chat has none, so it starts that way and stays that way. A chat with turns from before this change
+keeps `instructions` for good. Turns from another provider don't count: their prefix is new to OpenAI
+anyway. The placement is a function of the stored messages (and of a refusal this run, below), so every
+request is rebuilt the same.
+
+Why not move chats already under way, with numbers. Take a 6,000-token system prompt and a 60,000-token
+conversation on GPT-6.2 Sol (reads 0.05x, 30-minute writes 1.25x, same guide):
+
+| | Each later request | Once |
+|---|---|---|
+| Keep `instructions` | system prompt at 1x: 6,000 | nothing |
+| Developer message, new chat | read at 0.05x: 300, saves 5,700 | first write at 1.25x instead of 1x: +1,500, back by the second request |
+| Developer message, chat under way | saves 5,700 | the whole prefix misses: 66,000 written at 1.25x = 82,500 instead of 60,000 × 0.05 + 6,000 = 9,000, so +73,500, back after about 13 requests |
+
+The money would come back within a long task. What doesn't come back is the reasoning. The
+[reasoning guide](https://developers.openai.com/api/docs/guides/reasoning), "Reasoning item removal across
+requests", lists `prefix_mismatch` as a reason the API removes a replayed reasoning item: "On GPT-6.2 and
+later, you insert or edit content before the reasoning item." A developer message inserted at the start comes
+before every reasoning item the chat already has, and each item is checked against the request that made
+it, so those items would be dropped on the move and on every request after it. A chat under way keeps
+`instructions` and pays what it paid before; new chats get the saving with nothing dropped.
+
+**Fallback.** A 400 or 422 that names `developer` or `instructions`, for a request that sent the developer
+message, is retried once with the system prompt in `instructions`, and that provider (id, format, address,
+model) gets `instructions` until the app restarts, as with `configuration_update` (`MidChatEffort.reject`).
+The retried turn has no record, so its chat stays on `instructions`.
+
+**What else stays the same.** `configuration_update` items (mid-chat effort, above) go where they went,
+"before the next user message", after the developer message. Encrypted reasoning items are replayed untouched in
+their places; Locus sends `store: false` and never `previous_response_id`, so the whole history,
+developer message included, travels on every request. "What was sent" shows the developer message as the
+system section, as it shows `instructions`.
+
 ## OpenRouter and Chat Completions caching
 
 Claude through OpenRouter was never cached: the Chat Completions adapter sent no `cache_control`, and

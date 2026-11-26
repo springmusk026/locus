@@ -97,6 +97,11 @@ data class AssistantTurn(
      * this one exactly. Null elsewhere.
      */
     val turnEffort: Part.TurnEffort? = null,
+    /**
+     * The request put the system prompt in a `developer` input message ([SystemPlacement]); stored on the
+     * turn as [Part.SystemInInput] so later requests of the chat keep that placement.
+     */
+    val systemInInput: Boolean = false,
 )
 
 /** One billed model attempt within a request: [model] and its own token counts. */
