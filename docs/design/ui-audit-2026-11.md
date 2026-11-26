@@ -358,7 +358,7 @@ Render-guard notes:
 
 #### sheet-remote-folder
 - [x] S1 · At 200% the title and subtitle collapse into a column one character wide beside "Preview what's copied" and can't be read. At 360 they still wrap to 2-3 lines (LocusSheet header) · feature/chat/src/main/kotlin/dev/locus/feature/chat/RemoteUi.kt:191 · before/feature-chat/sheet-remote-folder_360-light-font200.png · fixed in #188 → after/feature-chat/sheet-remote-folder_360-light-font200.png
-- [x] S2 · The warning banner is ellipsized ("credentials a…"), which hides which secrets are affected. The error "~/locus is not writable by basanta." gives no fix (choose another folder, or chmod). Let the banner wrap and add the action · feature/chat/src/main/kotlin/dev/locus/feature/chat/RemoteUi.kt:196 · before/feature-chat/sheet-remote-folder_360-dark.png · fixed in #188 → after/feature-chat/sheet-remote-folder_360-dark.png
+- [x] S2 · The warning banner is ellipsized ("credentials a…"), which hides which secrets are affected. The error "~/locus is not writable by <user>." gives no fix (choose another folder, or chmod). Let the banner wrap and add the action · feature/chat/src/main/kotlin/dev/locus/feature/chat/RemoteUi.kt:196 · before/feature-chat/sheet-remote-folder_360-dark.png · fixed in #188 → after/feature-chat/sheet-remote-folder_360-dark.png
 
 #### sheet-remote-linking
 - [x] S3 · The Meter is inset 44dp against a 24dp title, and the step has no Cancel · feature/chat/src/main/kotlin/dev/locus/feature/chat/RemoteUi.kt:239 · before/feature-chat/sheet-remote-linking_360-dark.png · fixed: Cancel stops the copy (the link is saved only after it); the meter sits on the sheet edge in #192 → after-open/feature-chat/sheet-remote-linking_360-dark.png

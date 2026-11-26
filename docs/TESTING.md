@@ -2,8 +2,7 @@
 
 Three suites, plus a build check:
 
-- **JVM unit tests** (most of them): no emulator, no Robolectric, no network. About 1,500 of them
-  run on every PR.
+- **JVM unit tests** (most of them): no emulator, no Robolectric, no network. They run on every PR.
 - **Instrumentation tests** (`app/src/androidTest`): the real app on a phone or emulator, for what
   only shows up there (startup, Hilt at runtime, the foreground service, process death, WorkManager,
   notifications). See [Instrumentation tests](#instrumentation-tests).
@@ -11,6 +10,10 @@ Three suites, plus a build check:
   [Benchmarks](#benchmarks).
 - **The R8 kept-names check**: a release build fails when a class found by name at run time was
   renamed or removed by R8. See [Release builds and R8](#release-builds-and-r8).
+
+`tools/stats.sh` counts them. On 2026-11-26 (commit `2f5cd0c9`) it found 4,576 `@Test` methods:
+4,490 JVM unit and screenshot tests, 48 in the benchmark harness and 38 instrumentation tests, in
+88k lines of test code. The script's header says how it counts.
 
 ## Running
 
@@ -132,9 +135,11 @@ the full table). Compose UI is most of what's uncovered in the feature modules.
 ## Benchmarks
 
 Unit tests check behaviour; the benchmark in `:bench` measures how often the agent finishes real
-tasks with a real model. It has 38 tasks in five suites (coding, web, SSH, multi-step work and
-prompt-injection robustness), graded only by deterministic checks, and reports pass@1, pass^k and
-pass@k with tokens, cost and time per trial. Published runs are in
+tasks with a real model. It has 53 tasks in five suites (coding, web, SSH, multi-step work and
+prompt-injection robustness): 38 in the standard tier and 15 in a
+[hard tier](benchmarks/README.md#the-hard-tier) (counted by `tools/stats.sh` on 2026-11-26). They
+are graded only by deterministic checks, and a run reports pass@1, pass^k and pass@k with tokens,
+cost and time per trial. Published runs are in
 [docs/benchmarks/README.md#results](benchmarks/README.md#results).
 
 ```sh

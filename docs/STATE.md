@@ -1,10 +1,10 @@
 # Where Locus stands
 
-Snapshot as of 2026-11-21 (release 0.2.0, through #265). Read this first; `ROADMAP.md` has the full feature history, `CHANGELOG.md` what changed in each release, and `STATUS.md` handoff notes and device-testing etiquette.
+Snapshot as of 2026-11-21 (release 0.2.0, through #265); the counts below were refreshed on 2026-11-26. Read this first; `ROADMAP.md` has what's next and the full feature history, and `CHANGELOG.md` what changed in each release. Device-testing etiquette and working notes are at the end of this page.
 
 ## In one paragraph
 
-Locus is a local-first, bring-your-own-key agent app for Android: 26 Gradle modules, about 104k lines of Kotlin plus 53k of tests, MVVM + Jetpack Compose. There are about 2,810 `@Test` methods: about 2,750 JVM unit and screenshot tests, 36 in the benchmark harness and 21 instrumentation tests. It talks to Anthropic, OpenAI (Responses and Chat Completions) and any OpenAI-compatible server, or runs models on the phone (Gemma 4 through LiteRT-LM, GGUF models through llama.cpp). The agent can work in a real Linux shell (proot Alpine, opt-in), drive an in-app browser, reach your servers over SSH, use MCP servers and keyed integrations, remember things, write its own skills and connectors, plan, keep a todo list, and hand work to sub-agents. Chats can be grouped into projects, and a task that went well can be saved as a workflow. You can talk to it hands-free (voice mode), use a real terminal in its Linux, reach it from Telegram, the home screen, the launcher and other apps, and let it check GitHub for updates. Every action is checked against your permissions and the run's limits, and logged. The app has been tested daily on a Galaxy S25 Ultra (Android 17), but most of what shipped in 0.1.4, 0.1.5 and 0.1.6 hasn't been tried on it yet (see below).
+Locus is a local-first, bring-your-own-key agent app for Android: 26 Gradle modules, about 152k lines of Kotlin plus 88k of tests, MVVM + Jetpack Compose. There are 4,576 `@Test` methods: 4,490 JVM unit and screenshot tests, 48 in the benchmark harness and 38 instrumentation tests. `tools/stats.sh` produced these numbers on 2026-11-26 (commit `2f5cd0c9`); its header says how it counts. It talks to Anthropic, OpenAI (Responses and Chat Completions) and any OpenAI-compatible server, or runs models on the phone (Gemma 4 through LiteRT-LM, GGUF models through llama.cpp). The agent can work in a real Linux shell (proot Alpine, opt-in), drive an in-app browser, reach your servers over SSH, use MCP servers and keyed integrations, remember things, write its own skills and connectors, plan, keep a todo list, and hand work to sub-agents. Chats can be grouped into projects, and a task that went well can be saved as a workflow. You can talk to it hands-free (voice mode), use a real terminal in its Linux, reach it from Telegram, the home screen, the launcher and other apps, and let it check GitHub for updates. Every action is checked against your permissions and the run's limits, and logged. The app has been tested daily on a Galaxy S25 Ultra (Android 17), but most of what shipped in 0.1.4, 0.1.5 and 0.1.6 hasn't been tried on it yet (see below).
 
 ## What's built
 
@@ -30,7 +30,7 @@ Locus is a local-first, bring-your-own-key agent app for Android: 26 Gradle modu
 | Safety | Keys encrypted with Tink and the Android Keystore and never shown to the model, never wiped on a Keystore failure; taint tracking and egress control, and a disclosure rule: after a task reads private data, a new site with anything in its address asks (docs/design/taint.md); `fetch_url` checks every DNS answer at connect time (docs/design/network.md); provider addresses, proxies and SSH host keys sealed; `fetch_url` refuses private addresses and caps responses; skill security manifests (docs/design/skill-manifests.md); tool permissions, the reviewer's settings and connector approvals sealed with a Keystore HMAC; release and debug builds signed apart, the debug app a separate `dev.locus.debug`; share target and notification intents hardened; no AccessibilityService by design. |
 | Diagnostics | A local log of crashes, Android exits (ANRs, native crashes, low memory), errors caught on the app scope and storage problems, scrubbed of secrets, shared only on request; a self-test (keys, database, storage, notifications, Linux, an opt-in provider check) and a Storage screen (docs/design/diagnostics.md). |
 | Releases | One APK per ABI (arm64-v8a, x86_64), each with its own versionCode, reproducible byte for byte apart from the signature from 0.1.6 (both 0.1.6 APKs pass `apksigcopier compare`; docs/FDROID.md), signed in a job apart from the build and with a build provenance attestation (docs/RELEASING.md); a release build checks that classes looked up by name survive R8 (`app/r8-kept-names.txt`). An opt-in update check verifies a new release's checksum and signing key and hands it to Android's installer (docs/design/updates.md). |
-| Testing | JVM unit tests on every PR with a Kover report; an instrumentation suite with a scripted model (nightly and on demand on an emulator); an agent benchmark of 38 tasks with deterministic graders (`:bench`, docs/benchmarks/README.md), with a first real-model run published. See docs/TESTING.md. |
+| Testing | JVM unit tests on every PR with a Kover report; an instrumentation suite with a scripted model (nightly and on demand on an emulator); an agent benchmark of 53 tasks (38 standard, 15 in a hard tier) with deterministic graders (`:bench`, docs/benchmarks/README.md), with a first real-model run published. See docs/TESTING.md. |
 
 ## Tested on the phone vs. not yet
 
@@ -106,13 +106,15 @@ Older, still untried on the phone or with real accounts:
 
 ## What can be done next
 
-From the roadmap ("Recommended next (after 0.1.6)"), roughly in order of value:
-1. Phone checks for everything listed above as built but untried, starting with a GGUF model (and small models' chat-only chats and loop breaker), the self-test, restore, voice mode, the terminal, the update check, and a long task on a non-Anthropic model.
-2. F-Droid: resubmit on or after 2027-01-31 (MR !55897 was closed as too new); meanwhile, optionally, a self-hosted F-Droid repo or Obtainium (documented, not started); register for developer verification; IzzyOnDroid if wanted (similar newness bar).
-3. Harder benchmark tasks that separate current models (the first real-model numbers are published: docs/benchmarks/README.md#results), a private held-out set, and runs of more models.
-4. More local models: llama.cpp on the GPU (OpenCL on Adreno), KleidiAI, images (mmproj); Gemini Nano where supported; Matrix as another reach-me channel.
-5. Linux under its own uid (a companion APK) stays deferred; the in-uid hardening shipped in 0.1.6 (docs/design/linux-isolation.md).
-6. Google Play: researched, not started; the owner decides (docs/research/google-play.md).
+From the roadmap ("Recommended next (after 0.2.0)"), roughly in order of value:
+1. Bugs from the code review of 2026-11-26 (#335 tracks them), data loss first: #309, #319, #329.
+2. Phone checks for everything listed above as built but untried, starting with a GGUF model, the self-test, restore, voice mode, the terminal, the update check, a long task on a non-Anthropic model, and the translated screens.
+3. F-Droid: resubmit on or after 2027-01-31 (MR !55897 was closed as too new); meanwhile, optionally, a self-hosted F-Droid repo or Obtainium (documented, not started); register for developer verification; IzzyOnDroid if wanted (similar newness bar).
+4. Engineering: one unit-test task in CI (#330), coverage threshold and static analysis (#331), tests without sleeps and JVM tests for the app module (#332), then splitting the most complex functions (#359).
+5. Benchmarks: a real-model run of the hard tier, the held-out tasks, and runs of more models.
+6. More local models (#327: a saved KV cache, GPU offload; KleidiAI, images), a native Gemini adapter (#326), scheduled backups and Argon2id (#328), and a tablet layout (#322).
+7. Linux under its own uid (a companion APK) stays deferred; the in-uid hardening shipped in 0.1.6 (docs/design/linux-isolation.md).
+8. Google Play: researched, not started; the owner decides (docs/research/google-play.md).
 
 ## What can be improved
 
@@ -131,4 +133,12 @@ Researched 2026-10-31:
 
 - Git history starts 2026-10-31 with one commit per module, then one commit per change.
 - Large features run as parallel agents on separate files; the main session merges them, runs all tests and lint, and tests on the phone.
-- Never install or force-stop while Locus is in use or a run is active (see `STATUS.md`).
+- Conventions: MVVM with one `uiState` StateFlow per ViewModel; features depend on `core:data`, never on `core:database` entities. Research and cite sources before adding a dependency, and check its version on Maven. The tool list is fixed per chat (prompt caching); dynamic catalogues go in the system prompt snapshot frozen at chat creation.
+- Native libraries: `tools/build-proot.sh` writes to `core/linux/src/main/jniLibs`. The committed binaries come from the Native libs workflow's Linux build (static talloc, no `libtalloc.so`). The script needs GNU awk, so don't commit a macOS build.
+
+### Testing on a phone
+
+- Never install or force-stop while Locus is in use or a run is active. A debug build is its own app, `dev.locus.debug` ("Locus Debug"), installed next to the release one.
+- To detect a run, check `adb shell dumpsys activity services dev.locus.debug | grep isForeground=true` right before `adb install`, and don't install while Locus is the top app. Don't grep notification text: plain `dumpsys notification` redacts it, so a "Locus is working" grep always finds nothing.
+- The phone may be in use: never tap or type over adb unless Locus is the top window.
+- The composer is a `BasicTextField`, so its "Message Locus" placeholder isn't a findable node; tap it by position. The live dot's endless animation can keep uiautomator from going idle; retry, or tap by bounds.

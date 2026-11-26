@@ -264,17 +264,19 @@ Bug reports and ideas are welcome in [Issues](https://github.com/springmusk026/l
 Locus is built in the open by one maintainer. Sponsorship pays for devices to test on, model API time for the benchmarks, and time to keep it free of ads and tracking.
 
 - **[GitHub Sponsors](https://github.com/sponsors/springmusk026)**: one-off or monthly.
-- **Crypto:** wallet addresses are coming soon.
-<!-- TODO(owner): add crypto wallet addresses here (one line per coin, with the network), and the same links under `custom:` in .github/FUNDING.yml if wanted. Until then, no addresses are published anywhere. -->
+<!-- TODO(owner): add crypto wallet addresses here (one line per coin, with the network), and the same links under `custom:` in .github/FUNDING.yml if wanted. Until then, no addresses are published anywhere. Restore this line with them:
+- **Crypto:** ...
+-->
 
 ### Featured sponsors
 
-Organisations that sponsor Locus can have their logo here.
+Organisations that sponsor Locus can have their logo here. Get in touch through [GitHub Sponsors](https://github.com/sponsors/springmusk026).
 
+<!-- TODO(owner): add sponsor logos here, each linked to the sponsor's site, for example:
 <p align="center">
-  <!-- TODO(owner): replace this placeholder with sponsor logos, each linked to the sponsor's site. -->
-  <a href="https://github.com/sponsors/springmusk026"><strong>Your logo here: become a sponsor</strong></a>
+  <a href="https://example.org"><img src="..." alt="Sponsor name" height="48"></a>
 </p>
+-->
 
 ### Featured provider
 
