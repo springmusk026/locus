@@ -18,6 +18,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -60,6 +61,16 @@ object ChatShortcutPlan {
             .mapIndexed { rank, c -> ChatShortcut(idOf(c.id), c.id, c.title.ifBlank { "Chat" }.take(MAX_LABEL), c.pinned, rank) }
     }
 
+    /**
+     * The chat a share's EXTRA_SHORTCUT_ID names, only when that chat is one of Locus's Direct Share
+     * targets right now ([plan]); null otherwise. Any app can put any shortcut id on a share, and Android
+     * doesn't say who sent it (the share sheet starts Locus on the sharing app's behalf), so an id is
+     * trusted only as far as it names a target the share sheet could have offered: never a locked,
+     * hidden, imported, helper or older chat, and nothing with Lock Locus on.
+     */
+    fun shareTarget(shortcutId: String?, plan: List<ChatShortcut>): String? =
+        chatOf(shortcutId)?.takeIf { id -> plan.any { it.conversationId == id } }
+
     /** Ids published before and no longer in [now]: removed, long-lived copies included, so a deleted chat leaves no shortcut. */
     fun removed(before: Set<String>, now: List<ChatShortcut>): Set<String> = before.filter { it.startsWith(PREFIX) }.toSet() - now.map { it.id }.toSet()
 
@@ -83,8 +94,7 @@ class ChatShortcuts @Inject constructor(
     @OptIn(kotlinx.coroutines.FlowPreview::class)
     fun start() {
         scope.launch {
-            val max = runCatching { ShortcutManagerCompat.getMaxShortcutCountPerActivity(context) }.getOrDefault(ChatShortcutPlan.DEFAULT_MAX)
-                .let { (it - STATIC_COUNT).coerceIn(0, ChatShortcutPlan.DEFAULT_MAX) }
+            val max = maxChats()
             // Waits for the lock's settings, so a locked chat is never published while they load.
             kotlinx.coroutines.flow.combine(conversations.all, appLock.status.filterNotNull()) { chats, lock -> ChatShortcutPlan.plan(chats, max, lock.settings) }
                 .distinctUntilChanged()
@@ -100,6 +110,21 @@ class ChatShortcuts @Inject constructor(
                 }
         }
     }
+
+    /**
+     * The chat a share to Locus lands in from Direct Share ([ChatShortcutPlan.shareTarget]): checked
+     * against the plan as it stands now, not the last one published, so a share that starts Locus works
+     * before the first publish.
+     */
+    suspend fun shareTarget(shortcutId: String?): String? {
+        if (ChatShortcutPlan.chatOf(shortcutId) == null) return null
+        val lock = appLock.status.filterNotNull().first().settings
+        return ChatShortcutPlan.shareTarget(shortcutId, ChatShortcutPlan.plan(conversations.all.first(), maxChats(), lock))
+    }
+
+    private fun maxChats(): Int =
+        runCatching { ShortcutManagerCompat.getMaxShortcutCountPerActivity(context) }.getOrDefault(ChatShortcutPlan.DEFAULT_MAX)
+            .let { (it - STATIC_COUNT).coerceIn(0, ChatShortcutPlan.DEFAULT_MAX) }
 
     private fun publish(plan: List<ChatShortcut>) {
         val gone = ChatShortcutPlan.removed(published + ShortcutManagerCompat.getDynamicShortcuts(context).map { it.id }, plan)

@@ -52,4 +52,21 @@ class ChatShortcutPlanTest {
         assertNull(ChatShortcutPlan.chatOf("chat:"))
         assertNull(ChatShortcutPlan.chatOf(null))
     }
+
+    @Test
+    fun `a share naming a chat lands there only when the share sheet offers that chat now`() {
+        val chats = listOf(chat("recent", 50), chat("old", 1), chat("hidden", 60, hidden = true), chat("locked", 70), chat("helper", 80, parent = "recent"))
+        val lock = dev.locus.core.model.AppLockSettings(lockedChats = setOf("locked"))
+        val plan = ChatShortcutPlan.plan(chats, max = 1, lock = lock)
+        assertEquals("recent", ChatShortcutPlan.shareTarget(ChatShortcutPlan.idOf("recent"), plan))
+        // Another app can put any shortcut id on a share: a chat the share sheet doesn't offer isn't opened.
+        for (id in listOf("old", "hidden", "locked", "helper", "no-such-chat")) {
+            assertNull(ChatShortcutPlan.shareTarget(ChatShortcutPlan.idOf(id), plan), id)
+        }
+        assertNull(ChatShortcutPlan.shareTarget("recent", plan), "not a chat shortcut id")
+        assertNull(ChatShortcutPlan.shareTarget(null, plan))
+        // With Lock Locus on there are no chat shortcuts, so no share names a chat.
+        val locked = ChatShortcutPlan.plan(chats, lock = dev.locus.core.model.AppLockSettings(enabled = true))
+        assertNull(ChatShortcutPlan.shareTarget(ChatShortcutPlan.idOf("recent"), locked))
+    }
 }

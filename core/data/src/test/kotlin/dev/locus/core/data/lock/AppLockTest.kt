@@ -117,6 +117,23 @@ class AppLockTest {
     }
 
     @Test
+    fun `below Android 12 Allow and Continue are never offered, lock on or off, since nothing could ask for the unlock`() {
+        val on = AppLockSettings(enabled = true)
+        val off = AppLockSettings()
+        // Allow and Continue (default = true): only where setAuthenticationRequired works.
+        assertFalse(LockedNotifications.actionOffered(off, sdk = 30, default = true), "lock off, Android 11: Allow would work from the lock screen")
+        assertFalse(LockedNotifications.actionOffered(on, sdk = 30, default = true))
+        assertFalse(LockedNotifications.actionOffered(off, sdk = 26, default = true))
+        assertTrue(LockedNotifications.actionOffered(off, sdk = 31, default = true))
+        assertTrue(LockedNotifications.actionOffered(on, sdk = 31, default = true))
+        // Deny, Stop and answers (default = false): kept with the lock off; with it on below 31 the whole set is dropped.
+        assertTrue(LockedNotifications.actionOffered(off, sdk = 30, default = false))
+        assertFalse(LockedNotifications.actionOffered(on, sdk = 30, default = false))
+        assertTrue(LockedNotifications.actionOffered(off, sdk = 31, default = false))
+        assertTrue(LockedNotifications.actionOffered(on, sdk = 31, default = false))
+    }
+
+    @Test
     fun `a locked chat's approval and question aren't described in the status notification`() {
         val approval = ApprovalRequest("secret", "call-1", "run_command", ToolRisk.EXECUTE, "Run cat diary.txt", """{"command":"cat diary.txt"}""")
         val states = mapOf("secret" to RunState(running = true, approvals = listOf(approval)))
