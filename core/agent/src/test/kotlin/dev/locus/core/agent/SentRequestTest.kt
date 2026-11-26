@@ -280,6 +280,18 @@ class SentRequestTest {
     }
 
     @Test
+    fun `on GPT-6_2 the developer message carrying the system prompt is shown as the system section`() {
+        val responses = ProviderConfig("p", "R", ApiFormat.OPENAI_RESPONSES, "https://api.openai.com/v1", "gpt-6.2-sol", effort = "low")
+        val model = OpenAiResponsesModel(http, responses, "k")
+        assertEquals("developer", (model.wireBody(request)!!["input"] as kotlinx.serialization.json.JsonArray).first().let { (it as JsonObject)["role"].toString().trim('"') })
+        val v = viewFor(ApiFormat.OPENAI_RESPONSES, model, responses.baseUrl)
+        assertEquals("You are Locus.", v.system)
+        assertTrue(v.messages.none { it.role == "developer" }, "${v.messages}")
+        assertEquals("user", v.messages.first().role)
+        assertTrue(v.estimate.system > 0 && v.estimate.messages > 0)
+    }
+
+    @Test
     fun `on-device view shows the conversation text`() {
         val v = SentView.fromOnDevice("Gemma", "gemma", "sys", listOf(tool.spec), listOf("user" to "hi", "model" to "hello"), scrubber)
         assertTrue(v.onDevice)
