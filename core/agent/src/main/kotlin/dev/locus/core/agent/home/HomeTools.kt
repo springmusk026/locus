@@ -184,8 +184,12 @@ private class MemoryRead(private val home: AgentHome) : Tool {
 
     override fun describe(args: JsonObject) = "Recall “${args.str("topic")}”"
 
+    // A note saved after reading outside content comes back marked, naming where it came from, so it
+    // taints this run like the page it came from (MemoryTrust). Any other note is returned as it is.
     override suspend fun execute(args: JsonObject): ToolResult =
-        home.memory(dev.locus.core.agent.ChatScope.current()).read(args.str("topic").orEmpty())?.let { ToolResult(it) } ?: ToolResult.error("No memory topic “${args.str("topic")}”.")
+        home.memory(dev.locus.core.agent.ChatScope.current()).readTopic(args.str("topic").orEmpty())
+            ?.let { t -> ToolResult(t.provenance?.takeIf(MemoryTrust::flagged)?.let { MemoryTrust.wrapNote(t.content, MemoryTrust.origin(it)) } ?: t.content) }
+            ?: ToolResult.error("No memory topic “${args.str("topic")}”.")
 }
 
 private class MemorySearch(private val home: AgentHome) : Tool {

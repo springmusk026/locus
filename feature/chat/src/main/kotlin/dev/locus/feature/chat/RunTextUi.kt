@@ -391,6 +391,7 @@ internal fun receiptOutside(resources: Resources, r: TaskReceipt): String = r.ou
         TaskReceipts.OutsideSource.COMMAND_OUTPUT -> resources.getString(R.string.chat_receipt_source_command_output)
         TaskReceipts.OutsideSource.REMOTE_MACHINES -> resources.getString(R.string.chat_receipt_source_remote_machines)
         TaskReceipts.OutsideSource.HELPER_REPORTS -> resources.getString(R.string.chat_receipt_source_helper_reports)
+        TaskReceipts.OutsideSource.MEMORY_NOTES -> resources.getString(R.string.chat_receipt_source_memory_notes)
         null -> label
     }
 }

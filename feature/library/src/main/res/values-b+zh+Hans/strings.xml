@@ -507,6 +507,7 @@
     <string name="library_suggest_new_title">新笔记“%1$s”</string>
     <string name="library_memory_saved_from_import">根据导入的聊天建议；你已接受</string>
     <string name="library_memory_taint_imported_chat">导入的聊天</string>
+    <string name="library_memory_taint_memory_note">来自外部内容的记忆笔记</string>
     <plurals name="library_suggest_subtitle">
         <item quantity="other">辅助模型会阅读你导入的 %1$s 个聊天并建议笔记。在你接受之前不会保存任何内容。</item>
     </plurals>

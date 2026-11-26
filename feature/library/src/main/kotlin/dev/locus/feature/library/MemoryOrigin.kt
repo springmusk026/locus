@@ -77,6 +77,8 @@ internal fun taintSources(resources: Resources, tools: List<String>): String = t
         tool.startsWith("mcp_") || tool.startsWith("connector_") -> resources.getString(R.string.library_memory_taint_connector)
         tool == "run_command" || tool.startsWith("linux_") || tool.startsWith("ssh_") -> resources.getString(R.string.library_memory_taint_command)
         tool.startsWith("agent_") -> resources.getString(R.string.library_memory_taint_helper)
+        // A run that read a note saved after outside content (docs/design/taint.md, "Memory notes from outside content").
+        tool.startsWith(dev.locus.core.agent.home.MemoryTrust.SOURCE_PREFIX) -> resources.getString(R.string.library_memory_taint_memory_note)
         // A tool Locus has no words for is named by its id.
         else -> tool.replace('_', ' ')
     }

@@ -14,6 +14,11 @@ data class MemoryHit(
     val snippet: String?,
     /** From the user's general memory, found from a project chat that also reads it. */
     val general: Boolean = false,
+    /**
+     * Where a flagged note's text came from ([MemoryTrust.origin]); null for a note that isn't from outside
+     * content. `memory_search` returns flagged hits marked ([MemoryReads.format]).
+     */
+    val outside: String? = null,
 )
 
 /**

@@ -133,6 +133,7 @@
     <string name="chat_receipt_source_command_output">command output</string>
     <string name="chat_receipt_source_remote_machines">remote machines</string>
     <string name="chat_receipt_source_helper_reports">helpers\' reports</string>
+    <string name="chat_receipt_source_memory_notes">memory notes from outside content</string>
     <string name="chat_reply_meta_prefill">prefill %1$s</string>
     <plurals name="chat_failure_advice_times">
         <item quantity="one">%1$d time</item>

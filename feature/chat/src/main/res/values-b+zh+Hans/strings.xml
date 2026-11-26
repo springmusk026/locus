@@ -133,6 +133,7 @@
     <string name="chat_receipt_source_command_output">命令输出</string>
     <string name="chat_receipt_source_remote_machines">远程机器</string>
     <string name="chat_receipt_source_helper_reports">助手的报告</string>
+    <string name="chat_receipt_source_memory_notes">来自外部内容的记忆笔记</string>
     <string name="chat_reply_meta_prefill">预填充 %1$s</string>
     <plurals name="chat_failure_advice_times">
         <item quantity="other">%1$d 次</item>
