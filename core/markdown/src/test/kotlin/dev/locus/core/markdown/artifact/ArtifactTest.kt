@@ -187,6 +187,31 @@ class ArtifactSandboxTest {
     }
 
     @Test
+    fun `the prelude reaches frames' windows, which frame-src doesn't stop (#370)`() {
+        val doc = ArtifactSandbox.contentDocument(Artifact(ArtifactKind.Html, "<script>go()</script>"))
+        val prelude = doc.substringAfter("<script>").substringBefore("</script>")
+        // Every way to a frame's window hardens it first, and empty frames are hardened as they load.
+        listOf("contentWindow", "contentDocument", "getSVGDocument", "'load'").forEach { assertTrue(it in prelude, it) }
+        // Frames are taken out as they appear, in shadow roots too, before a srcdoc document could run.
+        listOf("MutationObserver", "iframe,frame,object,embed", "removeChild", "attachShadow").forEach { assertTrue(it in prelude, it) }
+        // Natives captured before the artifact's scripts, called without Function.prototype.call.
+        assertTrue("Reflect.apply" in prelude)
+        assertFalse(".call(" in prelude)
+        // Non-configurable, so the artifact can't undo it.
+        assertTrue("configurable:false" in prelude)
+        assertFalse("configurable:true" in prelude)
+        assertFalse("</" in prelude, "nothing that could close the script tag")
+    }
+
+    @Test
+    fun `dns prefetching is turned off before the artifact`() {
+        assertEquals("off", ArtifactSandbox.headers(ArtifactSandbox.CONTENT_HEADER_CSP)["X-DNS-Prefetch-Control"])
+        val doc = ArtifactSandbox.contentDocument(Artifact(ArtifactKind.Html, "<link rel=\"dns-prefetch\" href=\"//x.example\">"))
+        val off = doc.indexOf("<meta http-equiv=\"x-dns-prefetch-control\" content=\"off\">")
+        assertTrue(off in 0 until doc.indexOf("dns-prefetch\""))
+    }
+
+    @Test
     fun `a page's declared color-scheme is read from its meta tag or css, and nothing else`() {
         assertEquals("normal", ArtifactSandbox.pageColorScheme("<html><body class=\"bg-white\">Invoice</body></html>"))
         // Styling for a dark phone isn't a declaration; such a page paints its own dark colours.
