@@ -94,6 +94,7 @@
     <string name="settings_permissions_remembered_empty_title">Nothing remembered</string>
     <string name="settings_permissions_remembered_empty_subtitle">Every action set to Ask asks you.</string>
     <string name="settings_permissions_revoke">Revoke</string>
+    <string name="settings_permissions_revoked">Revoked. Locus will ask again.</string>
     <string name="settings_permissions_reviewer_off">Off</string>
     <string name="settings_permissions_reviewer_asks">Ask actions</string>
     <string name="settings_permissions_reviewer_all">All changes</string>
@@ -291,6 +292,7 @@
     <string name="settings_automation_app_allowed">Always allowed</string>
     <string name="settings_automation_app_denied">Never allowed</string>
     <string name="settings_automation_forget">Forget</string>
+    <string name="settings_automation_forgotten">Answer for %1$s forgotten: Locus will ask next time.</string>
     <string name="settings_automation_developers_section">For app developers</string>
     <string name="settings_automation_developers_permission">Permission</string>
     <string name="settings_automation_developers_intents">Intents</string>
@@ -370,6 +372,8 @@
     <string name="settings_ssh_checking">Checking…</string>
     <string name="settings_ssh_check">Check host key</string>
     <string name="settings_ssh_remove">Remove machine</string>
+    <string name="settings_ssh_remove_title">Remove %1$s?</string>
+    <string name="settings_ssh_remove_message">Its saved key or password and the host key you trusted are deleted from this phone, and the agent can\'t reach it. To use it again, add it again and check its host key.</string>
 
     <!-- Settings → ChatGPT sign-in -->
     <string name="settings_chatgpt_signin_failed">The sign-in didn\'t finish. Try Continue with ChatGPT again.</string>
@@ -701,6 +705,11 @@
     </plurals>
     <string name="settings_backup_password_again">Password again</string>
     <string name="settings_backup_password_mismatch">The passwords don\'t match.</string>
+    <string name="settings_backup_password_too_short">Too short: use at least %1$d characters.</string>
+    <string name="settings_backup_password_weak">Too easy to guess. Use more different characters, or a few random words.</string>
+    <string name="settings_backup_strength_weak">Strength: weak</string>
+    <string name="settings_backup_strength_fair">Strength: fair. A longer password is stronger.</string>
+    <string name="settings_backup_strength_strong">Strength: strong</string>
     <string name="settings_backup_password_forgotten">If you forget this password, the backup can\'t be opened. Nobody can recover it.</string>
     <string name="settings_backup_not_a_backup">Not a backup</string>
     <string name="settings_backup_open_title">Open backup</string>

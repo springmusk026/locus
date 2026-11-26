@@ -6,7 +6,6 @@ import android.graphics.pdf.LoadParams
 import android.graphics.pdf.PdfRenderer
 import android.os.Build
 import android.os.ParcelFileDescriptor
-import android.util.LruCache
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.Orientation
@@ -29,14 +28,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.text.input.ImeAction
+import dev.locus.core.designsystem.Sizes
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -58,14 +61,13 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.KeyboardType
-import dev.locus.core.designsystem.SecretContent
+import dev.locus.core.designsystem.PasswordField
 import dev.locus.core.designsystem.UiText
 import dev.locus.core.designsystem.asString
 import dev.locus.feature.workspace.R
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.core.graphics.createBitmap
 import dev.locus.core.designsystem.EmptyState
+import dev.locus.core.designsystem.LoadingState
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.Spacing
@@ -83,11 +85,15 @@ import kotlinx.coroutines.withContext
 
 private const val MAX_ZOOM = 4f
 
+/** A rendered page, with the page's shape (width / height) as the PDF gives it. */
+private class RenderedPage(val bitmap: Bitmap, val aspect: Float)
+
 /**
  * One open PDF. [PdfRenderer] allows only one open page at a time and is not thread-safe, so every
- * call goes through [lock] on a background dispatcher. Rendered pages live in a byte-budgeted LRU
- * cache; evicted bitmaps are simply dropped (not `recycle()`d) because one may still be on screen,
- * and since API 26 bitmap pixels are native memory freed once nothing references the bitmap.
+ * call goes through [lock] on a background dispatcher. Page bitmaps are capped ([PdfMemory.pageSize]),
+ * and rendered pages are kept in a byte-budgeted LRU cache ([PdfMemory.CACHE_BYTES]); evicted bitmaps
+ * are simply dropped (not `recycle()`d) because one may still be on screen, and since API 26 bitmap
+ * pixels are native memory freed once nothing references the bitmap.
  */
 private class PdfDocument(file: File, password: String?, private val io: CoroutineDispatcher) {
     private val pfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
@@ -96,8 +102,15 @@ private class PdfDocument(file: File, password: String?, private val io: Corouti
     private var closed = false
     val pageCount: Int
 
-    /** Page shapes (width / height), read once up front so the list can lay out before anything renders. */
-    val aspect: FloatArray
+    /**
+     * Page shapes (width / height), each read when its page first renders, so opening a long PDF
+     * doesn't open every page first. NaN until then; written under [lock], read anywhere (a stale
+     * read only means the first page's shape for a moment).
+     */
+    private val aspects: FloatArray
+
+    /** The first page's shape: what a page not rendered yet is laid out with. */
+    val firstAspect: Float
 
     init {
         try {
@@ -112,7 +125,8 @@ private class PdfDocument(file: File, password: String?, private val io: Corouti
         }
         try {
             pageCount = renderer.pageCount
-            aspect = FloatArray(pageCount) { i -> renderer.openPage(i).use { it.width.toFloat() / it.height.coerceAtLeast(1) } }
+            aspects = FloatArray(pageCount) { Float.NaN }
+            firstAspect = if (pageCount == 0) 1f else renderer.openPage(0).use { shapeOf(it) }.also { aspects[0] = it }
         } catch (e: Throwable) {
             runCatching { renderer.close() }
             pfd.close()
@@ -120,26 +134,30 @@ private class PdfDocument(file: File, password: String?, private val io: Corouti
         }
     }
 
-    private val cache = object : LruCache<Long, Bitmap>(
-        // An eighth of the heap, at least ~24 MB: a few pages at screen width, more at lower zoom.
-        (Runtime.getRuntime().maxMemory() / 8).coerceAtLeast(24L shl 20).coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
-    ) {
-        override fun sizeOf(key: Long, value: Bitmap) = value.allocationByteCount
-    }
+    private fun shapeOf(page: PdfRenderer.Page) = page.width.toFloat() / page.height.coerceAtLeast(1)
 
-    fun cached(index: Int, widthPx: Int): Bitmap? = cache.get(key(index, widthPx))
+    /** Page [index]'s shape when known, else the first page's. */
+    fun aspect(index: Int): Float = aspects[index].takeUnless { it.isNaN() } ?: firstAspect
 
-    suspend fun render(index: Int, widthPx: Int): Bitmap? = lock.withLock {
-        cache.get(key(index, widthPx))?.let { return@withLock it }
+    private val cache = PageCache<Long, RenderedPage>(PdfMemory.CACHE_BYTES) { it.bitmap.allocationByteCount.toLong() }
+
+    fun cached(index: Int, widthPx: Int): RenderedPage? = cache[key(index, widthPx)]
+
+    suspend fun render(index: Int, widthPx: Int): RenderedPage? = lock.withLock {
+        cache[key(index, widthPx)]?.let { return@withLock it }
         if (closed) return@withLock null
         withContext(io) {
-            val height = (widthPx / aspect[index]).toInt().coerceIn(1, 16_384)
-            val bitmap = createBitmap(widthPx, height, Bitmap.Config.ARGB_8888)
-            // Pages render with a transparent background; paper is white.
-            bitmap.eraseColor(AndroidColor.WHITE)
-            renderer.openPage(index).use { it.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY) }
-            cache.put(key(index, widthPx), bitmap)
-            bitmap
+            renderer.openPage(index).use { page ->
+                val aspect = shapeOf(page).also { aspects[index] = it }
+                val (w, h) = PdfMemory.pageSize(aspect, widthPx)
+                val bitmap = createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                // Pages render with a transparent background; paper is white.
+                bitmap.eraseColor(AndroidColor.WHITE)
+                page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                // This page at another size isn't kept: the screen shows this one now.
+                cache.removeIf { it ushr 32 == index.toLong() }
+                RenderedPage(bitmap, aspect).also { cache.put(key(index, widthPx), it) }
+            }
         }
     }
 
@@ -151,7 +169,7 @@ private class PdfDocument(file: File, password: String?, private val io: Corouti
         kotlinx.coroutines.GlobalScope.launch(io) {
             lock.withLock {
                 closed = true
-                cache.evictAll()
+                cache.clear()
                 runCatching { renderer.close() }
                 runCatching { pfd.close() }
             }
@@ -173,7 +191,9 @@ private sealed interface PdfState {
  */
 @Composable
 internal fun PdfViewer(file: File, modifier: Modifier = Modifier, onPageCount: (Int) -> Unit = {}) {
-    var password by remember(file) { mutableStateOf<String?>(null) }
+    // Kept across a rotation, like every secret in a form (docs/design/design-system.md, "Secrets"): otherwise
+    // turning the phone re-opens the file and asks for the password again.
+    var password by rememberSaveable(file.path) { mutableStateOf<String?>(null) }
     val work = LocalPreviewDispatchers.current
     val state by produceState<PdfState>(PdfState.Loading, file, password) {
         value = PdfState.Loading
@@ -195,7 +215,8 @@ internal fun PdfViewer(file: File, modifier: Modifier = Modifier, onPageCount: (
     LaunchedEffect(ready) { ready?.let { onPageCount(it.doc.pageCount) } }
 
     when (val s = state) {
-        PdfState.Loading -> Box(modifier.fillMaxSize())
+        // Opening reads only the first page, but a big file can still take a moment.
+        PdfState.Loading -> LoadingState(modifier)
         is PdfState.Failed -> EmptyState(
             stringResource(R.string.workspace_preview_pdf_failed_title),
             stringResource(R.string.workspace_preview_pdf_failed_body, s.message.asString()),
@@ -222,7 +243,7 @@ private fun PasswordPrompt(wrong: Boolean, modifier: Modifier, onSubmit: (String
         )
         return
     }
-    var text by remember { mutableStateOf("") }
+    var text by rememberSaveable { mutableStateOf("") }
     EmptyState(
         stringResource(R.string.workspace_preview_pdf_protected_title),
         stringResource(if (wrong) R.string.workspace_preview_pdf_password_wrong else R.string.workspace_preview_pdf_password_prompt),
@@ -230,14 +251,13 @@ private fun PasswordPrompt(wrong: Boolean, modifier: Modifier, onSubmit: (String
         icon = LocusIcons.Key,
         action = {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                SecretContent()
-                OutlinedTextField(
+                PasswordField(
                     text,
                     { text = it },
-                    singleLine = true,
-                    label = { Text(stringResource(R.string.workspace_preview_pdf_password)) },
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    label = stringResource(R.string.workspace_preview_pdf_password),
+                    modifier = Modifier.widthIn(max = Sizes.readable),
+                    imeAction = ImeAction.Go,
+                    keyboardActions = KeyboardActions(onGo = { if (text.isNotEmpty()) onSubmit(text) }),
                 )
                 Button(onClick = { onSubmit(text) }, enabled = text.isNotEmpty()) { Text(stringResource(R.string.workspace_preview_pdf_open)) }
             }
@@ -262,7 +282,16 @@ private fun PdfPages(doc: PdfDocument, modifier: Modifier) {
         val widthPx = constraints.maxWidth.toFloat()
         val heightPx = constraints.maxHeight.toFloat()
         val pagePadPx = with(density) { Spacing.sm.toPx() }
-        val renderWidth = ((widthPx - pagePadPx * 2) * quality).toInt().coerceIn(1, 4_096)
+        val baseWidth = (widthPx - pagePadPx * 2).toInt().coerceAtLeast(1)
+        val sharpWidth = (baseWidth * quality).coerceAtMost(PdfMemory.MAX_WIDTH)
+        // Zoomed in, the list is laid out unzoomed and only its top 1/scale shows: only pages in that part
+        // render at the sharper size; the others stay at screen width (a bitmap each, not a zoomed one).
+        val sharp by remember(listState, heightPx) {
+            derivedStateOf {
+                val shown = heightPx / scale
+                listState.layoutInfo.visibleItemsInfo.filter { it.offset < shown && it.offset + it.size > 0 }.mapTo(HashSet()) { it.index }
+            }
+        }
 
         fun zoomBy(factor: Float, centroid: Offset, pan: Offset) {
             val old = scale
@@ -319,7 +348,7 @@ private fun PdfPages(doc: PdfDocument, modifier: Modifier) {
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
             items(doc.pageCount, key = { it }) { index ->
-                PdfPage(doc, index, renderWidth)
+                PdfPage(doc, index, if (index in sharp) sharpWidth else baseWidth)
             }
         }
     }
@@ -331,16 +360,18 @@ private fun PdfPage(doc: PdfDocument, index: Int, renderWidth: Int) {
     var shown by remember(doc, index) { mutableStateOf(doc.cached(index, renderWidth)) }
     var failed by remember(doc, index) { mutableStateOf(false) }
     LaunchedEffect(doc, index, renderWidth) {
-        val bitmap = runCatching { doc.render(index, renderWidth) }.getOrElse { e ->
+        val page = runCatching { doc.render(index, renderWidth) }.getOrElse { e ->
             if (e is OutOfMemoryError) System.gc()
             null
         }
-        if (bitmap != null) shown = bitmap else if (shown == null) failed = true
+        if (page != null) shown = page else if (shown == null) failed = true
     }
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        // A page not rendered yet takes the first page's shape until its own is read.
+        val aspect = shown?.aspect ?: doc.aspect(index)
         // design-exception: a PDF page is paper, white in both themes, and its fallback text is ink on that paper
-        Box(Modifier.fillMaxWidth().aspectRatio(doc.aspect[index].coerceIn(0.1f, 10f)).background(Color.White)) {
-            val bitmap = shown
+        Box(Modifier.fillMaxWidth().aspectRatio(aspect.coerceIn(0.1f, 10f)).background(Color.White)) {
+            val bitmap = shown?.bitmap
             if (bitmap != null) {
                 Image(bitmap.asImageBitmap(), contentDescription = stringResource(R.string.workspace_preview_pdf_page, index + 1), modifier = Modifier.fillMaxSize())
             } else if (failed) {

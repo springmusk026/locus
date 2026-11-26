@@ -79,6 +79,22 @@ class TurnEffortRecordTest {
     }
 
     @Test
+    fun `the system placement record is stored beside the effort record and sent back`() = runTest {
+        val call = AssistantTurn("", listOf(Part.ToolCall("t1", "look", "{}")), StopReason.TOOL_USE, ApiFormat.OPENAI_RESPONSES,
+            """[{"type":"function_call","call_id":"t1","name":"look","arguments":"{}"}]""", turnEffort = record, systemInInput = true)
+        val done = AssistantTurn("Done.", emptyList(), StopReason.END_TURN, ApiFormat.OPENAI_RESPONSES, "[]", systemInInput = true)
+        val model = Scripted(call, done)
+        val store = Store()
+        loop(model, store).run(conversation, listOf(Message("u", "c", Role.USER, listOf(Part.Text("go")), 0))).toList()
+
+        val replies = store.messages.filter { it.role == Role.ASSISTANT }
+        assertEquals(listOf(record, Part.SystemInInput), replies.first().parts.filter { it is Part.TurnEffort || it is Part.SystemInInput })
+        assertEquals(listOf<Part>(Part.Text("Done."), Part.SystemInInput), replies.last().parts)
+        assertEquals("Done.", replies.last().text)
+        assertTrue(Part.SystemInInput in model.requests[1].messages.first { it.role == Role.ASSISTANT }.parts)
+    }
+
+    @Test
     fun `a turn without a record is stored as before`() = runTest {
         val store = Store()
         loop(Scripted(AssistantTurn("Hi.", emptyList(), StopReason.END_TURN, ApiFormat.ANTHROPIC_MESSAGES, null)), store)

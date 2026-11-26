@@ -64,6 +64,8 @@ internal fun PermissionsSettings(
     onSetReviewerMode: (ReviewerMode) -> Unit = {},
     onSetReviewerOutward: (Boolean) -> Unit = {},
     onRevoke: (String) -> Unit = {},
+    /** Undo for a revoke: the rule comes back as it was. */
+    onRestore: (RememberedApproval) -> Unit = {},
 ) {
     SettingsPageScaffold(stringResource(R.string.settings_permissions_title), onBack) {
         item { SectionLabel(stringResource(R.string.settings_permissions_reviewer_section), SectionPadding) }
@@ -87,7 +89,7 @@ internal fun PermissionsSettings(
         }
         item { SectionNote(stringResource(R.string.settings_permissions_always_ask_note), NotePadding) }
         item { SectionLabel(stringResource(R.string.settings_permissions_remembered_section), SectionPadding) }
-        item { RememberedCard(state.remembered, onRevoke) }
+        item { RememberedCard(state.remembered, onRevoke, onRestore) }
         item {
             SectionNote(
                 stringResource(R.string.settings_permissions_remembered_note),
@@ -97,9 +99,15 @@ internal fun PermissionsSettings(
     }
 }
 
-/** The remembered approvals, each with Revoke. */
+/**
+ * The remembered approvals, each with Revoke. A revoke is at once, with Undo on the message after it,
+ * since revoking only makes Locus ask again and putting the rule back is exact.
+ */
 @Composable
-private fun RememberedCard(rules: List<RememberedApproval>, onRevoke: (String) -> Unit) {
+private fun RememberedCard(rules: List<RememberedApproval>, onRevoke: (String) -> Unit, onRestore: (RememberedApproval) -> Unit) {
+    val feedback = Locus.feedback
+    val revoked = stringResource(R.string.settings_permissions_revoked)
+    val undo = stringResource(dev.locus.core.designsystem.R.string.common_undo)
     CardGroup {
         if (rules.isEmpty()) {
             ListRow(title = stringResource(R.string.settings_permissions_remembered_empty_title), subtitle = stringResource(R.string.settings_permissions_remembered_empty_subtitle))
@@ -112,7 +120,12 @@ private fun RememberedCard(rules: List<RememberedApproval>, onRevoke: (String) -
                 subtitle = rememberedSubtitle(LocalResources.current, rule, System.currentTimeMillis()),
                 titleMaxLines = 2,
                 leading = { AccentTile(accent, icon, size = IconSize.tile) },
-                trailing = { TextButton(onClick = { onRevoke(rule.id) }) { Text(stringResource(R.string.settings_permissions_revoke)) } },
+                trailing = {
+                    TextButton(onClick = {
+                        onRevoke(rule.id)
+                        feedback.show(revoked, action = undo, onAction = { onRestore(rule) })
+                    }) { Text(stringResource(R.string.settings_permissions_revoke)) }
+                },
             )
         }
     }

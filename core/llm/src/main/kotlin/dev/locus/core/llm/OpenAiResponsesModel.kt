@@ -53,6 +53,8 @@ class OpenAiResponsesModel(
         var withCacheKey = request.cacheKey != null
         // Effort changes as configuration_update items (MidChatEffort): what this chat's earlier requests sent.
         var plan = midChatPlan(request)
+        // The system prompt as the first developer input item (SystemPlacement): what this chat's earlier requests did.
+        var systemInInput = systemInInput(request)
         while (true) {
             var retryWithout = false
             val token = bearer?.token() ?: apiKey
@@ -60,14 +62,14 @@ class OpenAiResponsesModel(
             http.preparePost("${config.baseUrl.trimEnd('/')}/responses") {
                 if (!token.isNullOrBlank()) header("Authorization", "Bearer $token")
                 contentType(ContentType.Application.Json)
-                setBody(LlmJson.encodeToString(JsonObject.serializer(), buildBody(request, withReasoning, withCacheKey, sentPlan)))
+                setBody(LlmJson.encodeToString(JsonObject.serializer(), buildBody(request, withReasoning, withCacheKey, sentPlan, systemInInput)))
             }.execute { response ->
                 val requestId = requestIdOf(response.headers)
                 // Models without reasoning reject the reasoning settings; ask once more without them.
                 // `prompt_cache_key` is not on the ChatGPT preview's omit list, but if a server refuses it,
                 // drop it the same way rather than fail the chat.
                 val perMessage = sentPlan?.any == true
-                if ((response.status.value == 400 || response.status.value == 422) && (withReasoning || withCacheKey || perMessage)) {
+                if ((response.status.value == 400 || response.status.value == 422) && (withReasoning || withCacheKey || perMessage || systemInInput)) {
                     val body = runCatching { response.bodyAsText() }.getOrDefault("")
                     // A model or mode without configuration updates: once more with the effort at the top level,
                     // and that way for this provider from now on. Before the reasoning check, which the same
@@ -75,6 +77,14 @@ class OpenAiResponsesModel(
                     if (perMessage && "configuration_update" in body) {
                         MidChatEffort.reject(config)
                         plan = null
+                        retryWithout = true
+                        return@execute
+                    }
+                    // A server that refuses the developer message (or wants `instructions`): once more with the
+                    // system prompt in `instructions`, and that way for this provider from now on.
+                    if (systemInInput && ("developer" in body || "instructions" in body)) {
+                        SystemPlacement.reject(config)
+                        systemInInput = false
                         retryWithout = true
                         return@execute
                     }
@@ -137,7 +147,8 @@ class OpenAiResponsesModel(
                         throw incompleteFailure(incompleteReason(response), event, requestId, responseId)
                     }
                 }
-                emit(ChatEvent.Completed(if (recordsEffort()) turn.copy(turnEffort = Part.TurnEffort(config.effort, plan?.topLevel ?: config.effort)) else turn))
+                val recorded = if (recordsEffort()) turn.copy(turnEffort = Part.TurnEffort(config.effort, plan?.topLevel ?: config.effort)) else turn
+                emit(ChatEvent.Completed(recorded.copy(systemInInput = systemInInput)))
             }
             if (!retryWithout) break
         }
@@ -153,6 +164,9 @@ class OpenAiResponsesModel(
         } else {
             null
         }
+
+    /** Whether this request sends the system prompt as the first `developer` input item ([SystemPlacement.inInput]). */
+    internal fun systemInInput(request: ChatRequest): Boolean = SystemPlacement.inInput(request.messages, format, config)
 
     private fun recordsEffort() = !chatGpt && MidChatEffort.documented(format, config.baseUrl, config.model)
 
@@ -212,7 +226,13 @@ class OpenAiResponsesModel(
         )
     }
 
-    internal fun buildBody(request: ChatRequest, withReasoning: Boolean = true, withCacheKey: Boolean = true, plan: MidChatEffort.Plan? = null): JsonObject = buildJsonObject {
+    internal fun buildBody(
+        request: ChatRequest,
+        withReasoning: Boolean = true,
+        withCacheKey: Boolean = true,
+        plan: MidChatEffort.Plan? = null,
+        systemInInput: Boolean = systemInInput(request),
+    ): JsonObject = buildJsonObject {
         put("model", config.model.trim())
         put("stream", true)
         put("store", false)
@@ -222,10 +242,14 @@ class OpenAiResponsesModel(
         // without Zero Data Retention (a ZDR org's "in_memory" is its own policy, which Locus shouldn't
         // override); GPT-5.6 and later replace it with `prompt_cache_options.ttl`, whose default is a
         // 30-minute minimum. Setting either would add nothing over the defaults.
-        if (request.system.isNotBlank()) put("instructions", request.system)
+        // GPT-6.2 and later append `instructions` after `input` and bill them uncached on every request; there
+        // the system prompt goes first in `input` as a developer message, which the cache covers (SystemPlacement).
+        val inInput = systemInInput && request.system.isNotBlank()
+        if (request.system.isNotBlank() && !inInput) put("instructions", request.system)
         // Normalised: a stored history that lost a call's output (or kept an item the API can't resolve)
         // is sent valid; a sound one goes as it is (ResponsesInput).
-        put("input", JsonArray(ResponsesInput.normalize(toInputItems(request.messages, plan))))
+        val items = ResponsesInput.normalize(toInputItems(request.messages, plan))
+        put("input", JsonArray(if (inInput) listOf(developerMessage(request.system)) + items else items))
         if (request.tools.isNotEmpty()) {
             val search = toolSearchFor(request)
             val loaded = if (search) request.tools.filter { it.name !in DISCOVERY_TOOL_NAMES } else request.tools
@@ -376,6 +400,13 @@ class OpenAiResponsesModel(
         var i = end
         while (i > 0 && messages[i - 1].role == Role.USER) i--
         return i
+    }
+
+    /** The system prompt as the first input item: "a `developer` message at the beginning of `input`" (prompt caching guide). */
+    private fun developerMessage(text: String) = buildJsonObject {
+        put("type", "message")
+        put("role", "developer")
+        putJsonArray("content") { add(inputText(text)) }
     }
 
     private fun inputText(text: String) = buildJsonObject {

@@ -291,7 +291,9 @@ class AgentBrowser @Inject constructor(
     }
 
     private val context = MutableContextWrapper(appContext)
-    private val agentSource: String by lazy { appContext.assets.open("locus-agent.js").bufferedReader().use { it.readText() } }
+    private val agentSource: String by lazy {
+        SensitiveWords.forPageScript(appContext.assets.open("locus-agent.js").bufferedReader().use { it.readText() })
+    }
 
     /** The helper as injected after the page's scripts (fallback): it doesn't know any tab's secret. */
     private val fallbackJs: String by lazy { agentSource.replace(PageReply.SECRET_PLACEHOLDER, "") }
@@ -1115,7 +1117,7 @@ class AgentBrowser @Inject constructor(
         var name = Transfers.sanitize(android.webkit.URLUtil.guessFileName(url, disposition, mime))
         if ('.' !in name) name += Transfers.extensionFor(mime.orEmpty())
         val referer = tab.view.url
-        val cookies = cookies().getCookie(url)
+        val cookieManager = cookies()
         s.downloadsInFlight++
         io.launch {
             val result = runCatching {
@@ -1129,7 +1131,7 @@ class AgentBrowser @Inject constructor(
                             workspace.write(file) { it.write(bytes) }
                         }
                         url.startsWith("blob:") -> readBlob(tab, url, file)
-                        else -> fetchTo(url, userAgent, cookies, referer, file)
+                        else -> fetchTo(url, userAgent, { hop -> cookieManager.getCookie(hop) }, referer, file)
                     }
                 } catch (e: Exception) {
                     file.delete()
@@ -1146,16 +1148,10 @@ class AgentBrowser @Inject constructor(
         }
     }
 
-    private fun fetchTo(url: String, userAgent: String?, cookies: String?, referer: String?, file: File) {
-        val connection = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+    /** Each redirect hop gets its own cookies ([cookiesFor]) and only the page's origin as Referer (Transfers.openDownload). */
+    private fun fetchTo(url: String, userAgent: String?, cookiesFor: (String) -> String?, referer: String?, file: File) {
+        val connection = Transfers.openDownload(url, userAgent, referer, cookiesFor)
         try {
-            connection.connectTimeout = 15_000
-            connection.readTimeout = 30_000
-            userAgent?.let { connection.setRequestProperty("User-Agent", it) }
-            cookies?.let { connection.setRequestProperty("Cookie", it) }
-            referer?.let { connection.setRequestProperty("Referer", it) }
-            val code = connection.responseCode
-            if (code !in 200..299) throw IOException("the server answered HTTP $code")
             connection.inputStream.use { input ->
                 workspace.write(file) { output ->
                     val buffer = ByteArray(64 * 1024)

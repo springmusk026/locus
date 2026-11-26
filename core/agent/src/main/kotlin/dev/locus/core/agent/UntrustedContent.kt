@@ -36,7 +36,58 @@ object UntrustedContent {
      */
     fun forDisplay(text: String): String = dev.locus.core.model.Envelopes.strip(text)
 
-    fun defuse(text: String): String = TAG.replace(text) { m -> m.value.replace("<", "‹").replace(">", "›") }
+    /**
+     * [text] with every marker tag in it turned into `‹…›`. A tag counts in any case or spacing, and also when
+     * it is written with compatibility forms that NFKC normalisation turns into one: fullwidth `＜／＞` and
+     * letters, small-form `﹤﹥`, and the like. Models tend to read those as the real tag. Only the tag's
+     * brackets change; the rest of the text stays as it was.
+     */
+    fun defuse(text: String): String = defuseTags(text, TAG)
+
+    /**
+     * [text] with `<` and `>` in every match of [tag] turned into `‹` and `›`, matching both the text as
+     * written and its NFKC compatibility fold, so `＜／untrusted_web_content＞` counts as the tag (see [defuse]).
+     * [tag] is written for ASCII text and is matched case-insensitively by its own options.
+     */
+    internal fun defuseTags(text: String, tag: Regex): String {
+        if (text.all { it < '\u0080' }) return tag.replace(text) { m -> m.value.replace("<", "‹").replace(">", "›") }
+        // Fold each code point on its own (NFKC, when that gives one character), so that every character of the
+        // folded text stands for one code point of the original and a match maps straight back to it.
+        val folded = StringBuilder(text.length)
+        val starts = ArrayList<Int>(text.length + 1)
+        var i = 0
+        while (i < text.length) {
+            val cp = text.codePointAt(i)
+            val n = Character.charCount(cp)
+            folded.append(
+                if (cp < 0x80) {
+                    text[i]
+                } else {
+                    // Several characters or none (a ligature, a mark that composes away) can't be part of a tag.
+                    java.text.Normalizer.normalize(text.substring(i, i + n), java.text.Normalizer.Form.NFKC).singleOrNull() ?: '\uFFFD'
+                },
+            )
+            starts += i
+            i += n
+        }
+        starts += text.length
+        val brackets = HashMap<Int, Char>()
+        tag.findAll(folded).forEach { m ->
+            m.range.forEach { k ->
+                when (folded[k]) {
+                    '<' -> brackets[k] = '‹'
+                    '>' -> brackets[k] = '›'
+                }
+            }
+        }
+        if (brackets.isEmpty()) return text
+        val out = StringBuilder(text.length)
+        for (k in 0 until starts.size - 1) {
+            val b = brackets[k]
+            if (b != null) out.append(b) else out.append(text, starts[k], starts[k + 1])
+        }
+        return out.toString()
+    }
 
     private val TAG = Regex("<\\s*/?\\s*untrusted_web_content\\s*>", RegexOption.IGNORE_CASE)
 }

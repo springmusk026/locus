@@ -69,8 +69,8 @@ internal fun exitText(exit: ExitRecord): String = buildString {
 /**
  * Locus's local crash and exit history and its one-time notices (docs/design/diagnostics.md): crash
  * reports from [CrashRecorder], exits Android recorded since the last start, errors caught on the app's
- * coroutine scope, and storage problems DataStore recovered from. Everything shown or shared is
- * scrubbed with the vault's values and the credential patterns.
+ * coroutine scope, and storage problems DataStore recovered from. Everything written, shown or shared is
+ * scrubbed with the vault's values and the credential patterns ([keepLogScrubbed] for writing).
  */
 @Singleton
 class DiagnosticsRepository @Inject constructor(
@@ -80,6 +80,15 @@ class DiagnosticsRepository @Inject constructor(
 ) {
     private val _entries = MutableStateFlow<List<DiagnosticEntry>>(emptyList())
     val entries: StateFlow<List<DiagnosticEntry>> = _entries.asStateFlow()
+
+    /**
+     * Keeps [DiagnosticsLog.writeScrubber] holding the vault's current values, so what is written to the log
+     * never carries one. Runs until cancelled: launch it once per start. Before it has run (a crash in the first
+     * moments), entries carry only the credential patterns the writers apply.
+     */
+    suspend fun keepLogScrubbed() {
+        secrets.scrubbableValues.collect { values -> DiagnosticsLog.writeScrubber = SecretScrubber(values)::scrub }
+    }
 
     /** Re-reads the log, scrubbed. */
     suspend fun refresh() {

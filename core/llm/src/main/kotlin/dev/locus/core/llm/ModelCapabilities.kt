@@ -209,6 +209,7 @@ data class ModelRequirements(
                 is Part.Checkpoint -> chars(p.summary) + p.recentUserMessages.sumOf(::chars) + chars(p.todos.orEmpty())
                 is Part.Reasoning -> 0
                 is Part.TurnEffort -> 0
+                is Part.SystemInInput -> 0
             }
         }
 

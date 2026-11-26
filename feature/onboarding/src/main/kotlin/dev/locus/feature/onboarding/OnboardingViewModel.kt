@@ -284,7 +284,7 @@ class OnboardingViewModel @Inject constructor(
     fun loadModels() {
         val draft = provider?.takeIf { it.canListModels } ?: return
         runJob(modelList, { modelList = it }) {
-            val list = settings.listModels(draft.config(), draft.key.takeIf { it.isNotBlank() })
+            val list = settings.listModels(draft.config(), draft.key.trim().takeIf { it.isNotBlank() })
             // The draft may have changed provider while this was loading.
             if (provider?.id == draft.id) remoteModels = list
             if (list.isEmpty()) UiText.Res(R.string.onboarding_provider_no_models) else UiText.Plural(R.plurals.onboarding_provider_models_found, list.size)
@@ -338,7 +338,7 @@ class OnboardingViewModel @Inject constructor(
     fun saveProvider() {
         val draft = provider?.takeIf { it.canSave } ?: return
         runJob(providerSave, { providerSave = it }) {
-            settings.saveProvider(draft.config(), draft.key.takeIf { it.isNotBlank() })
+            settings.saveProvider(draft.config(), draft.key.trim().takeIf { it.isNotBlank() })
             settings.setDefaultProvider(draft.id)
             // A new default model deserves a fresh check.
             modelTest = Job()

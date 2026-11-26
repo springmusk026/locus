@@ -88,6 +88,7 @@
     <string name="settings_permissions_remembered_empty_title">没有已记住的项</string>
     <string name="settings_permissions_remembered_empty_subtitle">所有设为“询问”的操作都会询问你。</string>
     <string name="settings_permissions_revoke">撤销</string>
+    <string name="settings_permissions_revoked">已撤销。Locus 会再次询问。</string>
     <string name="settings_permissions_reviewer_off">关闭</string>
     <string name="settings_permissions_reviewer_asks">询问类操作</string>
     <string name="settings_permissions_reviewer_all">所有更改</string>
@@ -277,6 +278,7 @@
     <string name="settings_automation_app_allowed">始终允许</string>
     <string name="settings_automation_app_denied">始终拒绝</string>
     <string name="settings_automation_forget">忘记</string>
+    <string name="settings_automation_forgotten">已忘记对 %1$s 的选择：下次 Locus 会再询问。</string>
     <string name="settings_automation_developers_section">面向应用开发者</string>
     <string name="settings_automation_developers_permission">权限</string>
     <string name="settings_automation_developers_intents">Intent</string>
@@ -354,6 +356,8 @@
     <string name="settings_ssh_checking">正在检查…</string>
     <string name="settings_ssh_check">检查主机密钥</string>
     <string name="settings_ssh_remove">移除主机</string>
+    <string name="settings_ssh_remove_title">移除 %1$s？</string>
+    <string name="settings_ssh_remove_message">它保存的密钥或密码以及你信任的主机密钥会从这部手机中删除，智能体将无法连接到它。如需再次使用，请重新添加并检查其主机密钥。</string>
 
     <!-- Settings → ChatGPT sign-in -->
     <string name="settings_chatgpt_signin_failed">登录未完成。请再次点击“使用 ChatGPT 继续”。</string>
@@ -674,6 +678,11 @@
     </plurals>
     <string name="settings_backup_password_again">再次输入密码</string>
     <string name="settings_backup_password_mismatch">两次输入的密码不一致。</string>
+    <string name="settings_backup_password_too_short">太短：请至少使用 %1$d 个字符。</string>
+    <string name="settings_backup_password_weak">太容易被猜到。请使用更多不同的字符，或几个随机单词。</string>
+    <string name="settings_backup_strength_weak">强度：弱</string>
+    <string name="settings_backup_strength_fair">强度：一般。密码越长越安全。</string>
+    <string name="settings_backup_strength_strong">强度：强</string>
     <string name="settings_backup_password_forgotten">如果忘记此密码，备份将无法打开，任何人都无法找回。</string>
     <string name="settings_backup_not_a_backup">不是备份文件</string>
     <string name="settings_backup_open_title">打开备份</string>

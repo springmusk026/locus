@@ -440,6 +440,7 @@
     <string name="common_share">Compartir</string>
     <string name="common_open">Abrir</string>
     <string name="common_remove">Quitar</string>
+    <string name="common_undo">Deshacer</string>
     <string name="common_edit">Editar</string>
     <string name="common_search">Buscar</string>
     <string name="common_loading">Cargando…</string>

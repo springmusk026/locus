@@ -12,8 +12,9 @@ import java.io.StringWriter
  * then hands the exception to the previous handler (which shows the system dialog and ends the process).
  * Nothing is sent anywhere.
  *
- * The report is scrubbed with SecretScrubber's credential patterns only (`Bearer …`, `sk-…`,
- * `api_key=…`): reading the vault's values from a dying process isn't safe. Diagnostics scrubs again
+ * The report is scrubbed with SecretScrubber's credential patterns (`Bearer …`, `sk-…`, `api_key=…`,
+ * private keys, JWTs, …). Reading the vault from a dying process isn't safe, so its values come out in
+ * [DiagnosticsLog.writeScrubber], which the app keeps holding them in memory. Diagnostics scrubs again
  * with the vault's values before it shows or shares anything.
  */
 class CrashRecorder internal constructor(

@@ -246,6 +246,12 @@ class OnboardingScreenshots : ScreenshotTest() {
         CallPrivate(SETUP, "IntegrationKeySheet", Integrations.ntfy, true, { _: String? -> }, {})
     }
 
+    /** Remove key asks first, as Settings does: a removed key isn't kept anywhere. */
+    @Test
+    fun integrationKeyRemoveConfirm() = snapAfter("onboarding-sheet-integration-key-remove", listOf(dev.locus.core.screenshot.Step.Tap("Remove key")), heightDp = 800) {
+        CallPrivate(SETUP, "IntegrationKeySheet", Integrations.ntfy, true, { _: String? -> }, {})
+    }
+
     /** Calls a private composable of [fileClass] with [args]; Compose adds a composer and masks. */
     @Composable
     private fun CallPrivate(fileClass: String, name: String, vararg args: Any?) {

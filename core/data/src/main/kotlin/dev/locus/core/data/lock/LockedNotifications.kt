@@ -15,12 +15,23 @@ import dev.locus.core.model.AppLockSettings
  * - With Lock Locus on, every action needs the phone unlocked: `setAuthenticationRequired(true)` on
  *   Android 12+ (API 31), where the system shows the keyguard first. Below 31 that call does nothing,
  *   so the actions are left off and a tap opens Locus, which shows its own lock.
+ * - Allow and Continue need the phone unlocked whatever the lock setting. Below Android 12 nothing can
+ *   enforce that, so they are never offered there: Deny, Stop and the question's answers stay, and a tap
+ *   opens Locus to allow or continue ([actionOffered]).
  * - A locked chat's text never goes into a notification, lock on or off: [lockedChatText] replaces it,
  *   and its approval or question offers no actions, only a tap that opens Locus.
  */
 object LockedNotifications {
     /** Actions may be offered: always with the lock off; with it on, only where Android can ask for the unlock first. */
     fun actionsAllowed(lock: AppLockSettings, sdk: Int): Boolean = !lock.enabled || sdk >= 31
+
+    /**
+     * Whether one action is offered at all: one that needs the phone unlocked ([authenticationRequired]
+     * with [default]) only on Android 12+ (API 31), where `setAuthenticationRequired(true)` makes the
+     * system show the keyguard first. Below 31 that call does nothing, so the action would work from the
+     * lock screen.
+     */
+    fun actionOffered(lock: AppLockSettings, sdk: Int, default: Boolean): Boolean = sdk >= 31 || !authenticationRequired(lock, default)
 
     /** Whether an action needs the phone unlocked: [default] (Allow, Continue), or every action with the lock on. */
     fun authenticationRequired(lock: AppLockSettings, default: Boolean): Boolean = default || lock.enabled

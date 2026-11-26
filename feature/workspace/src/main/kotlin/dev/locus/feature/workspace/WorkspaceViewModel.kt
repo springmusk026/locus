@@ -46,12 +46,20 @@ data class WorkspaceUiState(
     val managing: String? = null,
     /** Why the open connected folder can't be listed (its grant was lost, it's gone); null when it can. */
     val folderError: UiText? = null,
+    /**
+     * A connected folder's file waiting for "Delete" to be confirmed: deleting it removes it from the
+     * person's own storage (and anything syncing it), so it asks first, as the agent's delete_path does.
+     */
+    val confirmingDelete: PendingDelete? = null,
 ) {
     /** The connected folder [folder] is in, or null for a workspace folder. */
     val connectedFolder: dev.locus.core.model.ConnectedFolder?
         get() = folder.split('/').takeIf { it.size >= 2 && it[0] == dev.locus.core.model.ConnectedFolders.PREFIX }
             ?.let { parts -> connected.firstOrNull { it.folder.name == parts[1] }?.folder }
 }
+
+/** A file in a connected folder about to be deleted: its [path], its [name] and where the [folder] is on the phone. */
+data class PendingDelete(val path: String, val name: String, val folder: String)
 
 /** A connected folder and how it's doing; [status] is null until checked. */
 data class ConnectedFolderRow(val folder: dev.locus.core.model.ConnectedFolder, val status: dev.locus.core.data.folders.FolderStatus? = null)
@@ -266,6 +274,28 @@ class WorkspaceViewModel @Inject constructor(
         repository.export(path, uri)
         _uiState.update { it.copy(message = UiText.Res(R.string.workspace_files_exported, path.substringAfterLast('/'))) }
     }
+
+    /**
+     * Delete from the viewer. A workspace file goes to Trash at once (the message offers Undo); a file in
+     * a connected folder is deleted from the person's storage, so it waits for [confirmDelete].
+     */
+    fun requestDelete(path: String) {
+        if (!repository.isConnected(path)) {
+            delete(path)
+            return
+        }
+        val folder = _uiState.value.connected.firstOrNull { path.startsWith("${dev.locus.core.model.ConnectedFolders.PREFIX}/${it.folder.name}/") }?.folder
+        _uiState.update { it.copy(confirmingDelete = PendingDelete(path, path.substringAfterLast('/'), folder?.let { it.source.ifBlank { it.name } } ?: path.substringBeforeLast('/'))) }
+    }
+
+    /** Deletes the connected file [requestDelete] asked about. */
+    fun confirmDelete() {
+        val pending = _uiState.value.confirmingDelete ?: return
+        _uiState.update { it.copy(confirmingDelete = null) }
+        delete(pending.path)
+    }
+
+    fun cancelDelete() = _uiState.update { it.copy(confirmingDelete = null) }
 
     fun delete(path: String) = launchSafely {
         openedFromOutside = false

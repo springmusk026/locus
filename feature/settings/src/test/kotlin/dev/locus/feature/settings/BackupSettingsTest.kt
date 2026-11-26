@@ -55,6 +55,21 @@ class BackupSettingsTest {
     }
 
     @Test
+    fun `a backup password anyone would try first is refused, and the meter says how strong one is`() {
+        // Long enough, but trivially guessed: refused with its own reason.
+        listOf("aaaaaaaa", "abababab", "12345678", "87654321", "abcdefgh", "password1", "Password2024", "qwertyuiop").forEach { weak ->
+            assertEquals(PasswordStrength.Weak, passwordStrength(weak), weak)
+            assertEquals(PasswordProblem.TooWeak, backupPasswordProblem(weak, weak), weak)
+        }
+        assertEquals(PasswordProblem.TooShort, backupPasswordProblem("Xq7!", "Xq7!"))
+        assertEquals(PasswordStrength.Fair, passwordStrength("violet harbor"))
+        assertEquals(PasswordStrength.Strong, passwordStrength("violet harbor lamp"))
+        assertEquals(PasswordStrength.Strong, passwordStrength("Tq7!kd92Lmx#"))
+        assertNull(backupPasswordProblem("violet harbor", "violet harbor"))
+        assertEquals(PasswordProblem.Mismatch, backupPasswordProblem("violet harbor", "violet harbour"))
+    }
+
+    @Test
     fun `the restore warning says what is replaced and what is kept`() {
         fun manifest(vararg names: String) = BackupManifest(appVersion = "0.1.0", appVersionCode = 1, schemaVersion = 8, createdAt = 0, sections = names.map { BackupSection(it, 1, 1) })
         val plain = restoreWarning(res, manifest("database", "settings", "agent-home"))

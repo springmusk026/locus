@@ -9,8 +9,9 @@ import java.io.File
  *
  * Writes are synchronous and plain file I/O, so the log works from an uncaught-exception handler,
  * before Hilt exists, and from DataStore's corruption handlers. Callers scrub what they record
- * (the crash recorder runs SecretScrubber's patterns); Diagnostics scrubs again with the vault's
- * values before showing or sharing anything.
+ * (the crash recorder runs SecretScrubber's patterns), and [writeScrubber] runs over every entry as it is
+ * written, so the vault's values don't reach the file once the app has installed it (before that, only
+ * the callers' patterns apply). Diagnostics scrubs again before showing or sharing anything.
  *
  * Also holds notices the user must see once, such as "your saved keys need re-entering".
  */
@@ -23,13 +24,17 @@ class DiagnosticsLog(private val dir: File, private val clock: () -> Long = Syst
     /** Records one entry; never throws (a log that crashes the app would defeat its purpose). */
     fun record(kind: Kind, title: String, text: String) {
         runCatching {
+            val scrub = writeScrubber
+            // An entry that can't be scrubbed isn't written as it is.
+            val safeTitle = runCatching { scrub(title) }.getOrDefault(WITHHELD)
+            val safeText = runCatching { scrub(text) }.getOrDefault(WITHHELD)
             synchronized(LOCK) {
                 dir.mkdirs()
                 val at = clock()
                 var file = File(dir, "$at-${kind.name.lowercase()}$SUFFIX")
                 var n = 1
                 while (file.exists()) file = File(dir, "$at-${kind.name.lowercase()}-${n++}$SUFFIX")
-                file.writeText(title.lineSequence().first().take(200) + "\n" + text.take(MAX_ENTRY_CHARS))
+                file.writeText(safeTitle.lineSequence().first().take(200) + "\n" + safeText.take(MAX_ENTRY_CHARS))
                 prune()
             }
         }
@@ -79,7 +84,16 @@ class DiagnosticsLog(private val dir: File, private val clock: () -> Long = Syst
         private const val SUFFIX = ".log"
         private const val MAX_ENTRIES = 30
         private const val MAX_ENTRY_CHARS = 32_000
+        private const val WITHHELD = "[withheld: it could not be scrubbed]"
         private val LOCK = Any()
+
+        /**
+         * Applied to the title and text of every entry, by every [DiagnosticsLog], as it is written. The app
+         * sets it to a scrubber holding the vault's values (`DiagnosticsRepository.keepLogScrubbed`) and keeps
+         * it current as keys are added or removed. Plain text in, plain text out; never throws on purpose.
+         */
+        @Volatile
+        var writeScrubber: (String) -> String = { it }
 
         fun forApp(context: Context) = DiagnosticsLog(File(context.noBackupFilesDir, "diagnostics"))
     }

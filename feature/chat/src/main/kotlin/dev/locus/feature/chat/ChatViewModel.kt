@@ -21,7 +21,11 @@ import dev.locus.core.llm.ModelCatalogIndex
 import dev.locus.core.model.ModelRef
 import dev.locus.core.model.PlanRun
 import dev.locus.core.data.repository.WorkspaceRepository
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import dev.locus.core.model.Message
 import dev.locus.core.model.Part
 import dev.locus.core.model.Role
@@ -667,10 +671,9 @@ class ChatViewModel @AssistedInject constructor(
         // With the notes about commands whose changes weren't tracked (docs/design/shell-snapshots.md).
         combine(changes.observe(conversationId).distinctUntilChanged(), changes.observeNotes(conversationId), ::Pair),
         receipts.inputs(conversationId).distinctUntilChanged(),
-        // With recent on-device reply speeds, which live in memory only.
-        onDevice.recentTurns,
-        onDeviceChat,
-    ) { thread, (changed, shellNotes), inputs, speeds, onDeviceProvider ->
+        // With recent on-device reply speeds, which live in memory only; only an on-device chat follows them.
+        onDeviceSpeeds(onDeviceChat, onDevice.recentTurns),
+    ) { thread, (changed, shellNotes), inputs, (onDeviceProvider, speeds) ->
         val receiptList = inputs.receipts(thread.messages, changed)
         // A project chat's sent files live in its folder, as send_file resolved them (ChatScope).
         val scope = projectRepository?.scopeOf(conversations.get(conversationId))
@@ -716,7 +719,8 @@ class ChatViewModel @AssistedInject constructor(
         runState.map { it.copy(streamingText = "", reasoning = "") }.distinctUntilChanged(),
         settings.settings,
         combine(
-            browser.stateOf(conversationId),
+            // Only what the chat shows of its browser: a page load's progress ticks change nothing here.
+            browser.stateOf(conversationId).forChat(),
             combine(pending, compareWith, planRunWith, browser.attachedPicks) { p, cmp, run, picks -> ExtrasInputs(p, cmp, run, picks[conversationId]?.element) },
             directory.lists, directory.catalog, library.library,
         ) { b, i, m, cat, lib ->
@@ -1255,8 +1259,26 @@ private data class Transcript(
     val editableCheckpoint: String? = null,
 )
 
+/** What the chat screen shows of its browser ([forChat]). */
+internal data class ChatBrowser(val hasPage: Boolean, val title: String, val url: String, val handoffReason: String?)
+
+/**
+ * [ChatBrowser]s, emitted only when one of their fields changes: the browser's state also changes with
+ * each loading-progress percent, its tabs and its dialogs, none of which the chat's state reads.
+ */
+internal fun Flow<dev.locus.core.browser.BrowserState>.forChat(): Flow<ChatBrowser> =
+    map { ChatBrowser(it.hasPage, it.title, it.url, it.handoffReason) }.distinctUntilChanged()
+
+/**
+ * Whether the chat runs on the device, with the recent on-device reply speeds when it does. A cloud
+ * chat gets no speeds, so an on-device reply in another chat doesn't rebuild its transcript.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+internal fun onDeviceSpeeds(onDeviceChat: Flow<Boolean>, recent: Flow<Map<String, dev.locus.core.ondevice.TurnSpeed>>): Flow<Pair<Boolean, Map<String, dev.locus.core.ondevice.TurnSpeed>>> =
+    onDeviceChat.distinctUntilChanged().flatMapLatest { on -> if (on) recent.map { true to it } else flowOf(false to emptyMap()) }
+
 private data class Extras(
-    val browser: dev.locus.core.browser.BrowserState,
+    val browser: ChatBrowser,
     val pending: List<Part.Attachment>,
     val models: Map<String, ModelList>,
     /** The second model for the next send (Compare models); null for none. */

@@ -18,6 +18,7 @@ import dev.locus.core.model.QuietHours
 import dev.locus.core.model.ScheduleIntervals
 import dev.locus.core.model.ScheduledTask
 import dev.locus.core.model.TaskConditions
+import androidx.compose.runtime.saveable.listSaver
 import dev.locus.core.model.TaskTrigger
 import dev.locus.core.model.TriggerDecision
 import dev.locus.core.model.TriggerEventRecord
@@ -183,6 +184,54 @@ data class TaskDraft(
             firstRunAt = 7 * 60,
         )
     }
+}
+
+/**
+ * [TaskDraft] as values a saved-state Bundle holds, so a half-written task survives a rotation, a theme
+ * change or the process being stopped in the background ([TaskDraftSaver]). The access token is a secret
+ * typed into the form and is kept like the rest (docs/design/design-system.md, "Secrets").
+ */
+internal object TaskDraftState {
+    /** How many values [toList] writes. */
+    const val SIZE = 17
+
+    fun toList(d: TaskDraft): List<Any> = listOf(
+        d.title, d.prompt, d.intervalMinutes,
+        d.conditions.requiresCharging, d.conditions.unmeteredOnly, d.conditions.batteryNotLow,
+        d.mode.name, d.trigger.toJson(), d.apps, d.quietOn, d.quietFrom, d.quietTo,
+        d.token, d.hasToken, d.clearToken, d.firstRunAt ?: -1, d.readsCalendar,
+    )
+
+    fun fromList(v: List<Any?>): TaskDraft = TaskDraft(
+        title = v[0] as String,
+        prompt = v[1] as String,
+        intervalMinutes = v[2] as Long,
+        conditions = TaskConditions(requiresCharging = v[3] as Boolean, unmeteredOnly = v[4] as Boolean, batteryNotLow = v[5] as Boolean),
+        mode = StartMode.valueOf(v[6] as String),
+        trigger = TaskTrigger.fromJson(v[7] as String) ?: TaskTrigger(TriggerSource.CALENDAR),
+        apps = v[8] as String,
+        quietOn = v[9] as Boolean,
+        quietFrom = v[10] as String,
+        quietTo = v[11] as String,
+        token = v[12] as String,
+        hasToken = v[13] as Boolean,
+        clearToken = v[14] as Boolean,
+        firstRunAt = (v[15] as Int).takeIf { it >= 0 },
+        readsCalendar = v[16] as Boolean,
+    )
+}
+
+/** Saves a [TaskDraft] with [rememberSaveable][androidx.compose.runtime.saveable.rememberSaveable]. */
+internal val TaskDraftSaver = listSaver<TaskDraft, Any>(save = { TaskDraftState.toList(it) }, restore = { TaskDraftState.fromList(it) })
+
+/**
+ * The next [count] scheduled runs of a new task: from its [firstRunAt] (minutes after midnight, the
+ * next one after [now]) or straight away, then every [intervalMinutes]. What the sheet lists under
+ * "Starting at", so "every day at 07:30" reads as the times it will be.
+ */
+internal fun nextRuns(firstRunAt: Int?, intervalMinutes: Long, now: ZonedDateTime, count: Int = 3): List<ZonedDateTime> {
+    val first = firstRunAt?.let { now.plus(Duration.ofMillis(delayUntil(it, now))) } ?: now
+    return List(count) { first.plusMinutes(intervalMinutes * it) }
 }
 
 /** How long until the next [minuteOfDay] after [now] (tomorrow's when today's has passed). */

@@ -125,6 +125,7 @@ data class SentView(
             val clean = scrubber.scrub(body) as JsonObject
             val system: String
             val messages: List<SentMessage>
+            var leadChars = 0
             when (format) {
                 ApiFormat.ANTHROPIC_MESSAGES -> {
                     system = anthropicSystem(clean["system"])
@@ -136,8 +137,13 @@ data class SentView(
                     messages = all.filter { it.str("role") != "system" }.map(::chatMessage)
                 }
                 else -> {
-                    system = clean.str("instructions").orEmpty()
-                    messages = responsesMessages(clean.array("input"))
+                    // On GPT-6.2 and later the system prompt is the first input item, a developer message, instead
+                    // of `instructions` (SystemPlacement in core/llm): shown as the system prompt all the same.
+                    val input = clean.array("input")
+                    val lead = input.firstOrNull()?.takeIf { clean["instructions"] == null && it.str("role") == "developer" }
+                    system = clean.str("instructions") ?: lead?.let { contentText(it["content"]) }.orEmpty()
+                    messages = responsesMessages(if (lead != null) input.drop(1) else input)
+                    if (lead != null) leadChars = lead.toString().length
                 }
             }
             val tools = flattenTools(clean.array("tools"))
@@ -154,7 +160,7 @@ data class SentView(
                 estimate = Estimate(
                     system = estimateTokens(system.length),
                     tools = estimateTokens(upFront(clean["tools"])?.toString()?.length ?: 0),
-                    messages = estimateTokens((clean["messages"] ?: clean["input"])?.toString()?.length ?: 0),
+                    messages = estimateTokens((((clean["messages"] ?: clean["input"])?.toString()?.length ?: 0) - leadChars).coerceAtLeast(0)),
                 ),
                 reportedInputTokens = reportedInputTokens ?: reportedUsage?.input,
                 reportedUsage = reportedUsage,

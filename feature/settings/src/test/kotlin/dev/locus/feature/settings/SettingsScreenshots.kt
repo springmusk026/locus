@@ -202,6 +202,12 @@ class SettingsScreenshots : ScreenshotTest() {
     @Test fun ssh() = snap("settings-ssh") { SettingsScreenHost(populated, SettingsDestination.Ssh) }
     @Test fun sshEmpty() = snap("settings-ssh-empty") { SettingsScreenHost(fresh, SettingsDestination.Ssh) }
 
+    /** Remove machine asks first: it deletes the saved key or password and the trusted host key. */
+    @Test
+    fun sshRemoveConfirm() = snapAfter("settings-ssh-remove-confirm", listOf(Step.Tap("homelab"), Step.Tap("Remove machine")), heightDp = 1400) {
+        SettingsScreenHost(populated, SettingsDestination.Ssh)
+    }
+
     // ---- Pages with their own view models: their stateless content
 
     private val logins = listOf(
@@ -347,6 +353,16 @@ class SettingsScreenshots : ScreenshotTest() {
     private fun backup(state: BackupUiState) = @androidx.compose.runtime.Composable {
         BackupSettings(state, onBack = {}, onIncludeWorkspace = {}, onIncludeVault = {}, onBackUp = {}, onCancelBackup = {}, onDismissResult = {}, onRestore = {})
     }
+
+    // The backup password sheet's new states (the empty, short and mismatched ones are with the restore
+    // sheets below): a password anyone would try, and a strong one.
+    private val passwordSheet = @androidx.compose.runtime.Composable { NewPasswordSheet(includesVault = true, onDismiss = {}, onDone = {}) }
+
+    @Test
+    fun backupPasswordWeak() = snapAfter("settings-backup-password-weak", listOf(Step.Type("aaaaaaaa", 0), Step.Type("aaaaaaaa", 1)), heightDp = 900, content = passwordSheet)
+
+    @Test
+    fun backupPasswordStrong() = snapAfter("settings-backup-password-strong", listOf(Step.Type("violet harbor lamp", 0), Step.Type("violet harbor lamp", 1)), heightDp = 900, content = passwordSheet)
 
     @Test fun backupIdle() = snap("settings-backup", content = backup(BackupUiState(estimate = BackupEstimate(baseBytes = 48_300_000, workspaceBytes = 1_240_000_000), includeWorkspace = true)))
     @Test fun backupEstimating() = snap("settings-backup-estimating", content = backup(BackupUiState()))

@@ -46,7 +46,10 @@
     <string name="tasks_sheet_mode_event">Cuando…</string>
     <string name="tasks_sheet_how_often">Frecuencia</string>
     <string name="tasks_sheet_custom_interval">Ahora: %1$s. Elige una opción para cambiarlo.</string>
-    <string name="tasks_sheet_first_run">Primera ejecución a las %1$s, luego una vez por periodo. Android puede ejecutarla un poco más tarde mientras el teléfono está inactivo.</string>
+    <string name="tasks_sheet_start_title">Empieza a las</string>
+    <string name="tasks_sheet_start_now">Justo después de guardar</string>
+    <string name="tasks_sheet_start_zone">Las horas están en %1$s.</string>
+    <string name="tasks_sheet_next_runs">Próximas ejecuciones: %1$s (%2$s). Android puede ejecutarla un poco más tarde mientras el teléfono está inactivo.</string>
     <string name="tasks_sheet_digest_calendar">El resumen lee los eventos del calendario de hoy.</string>
     <string name="tasks_sheet_digest_ntfy">El resumen también se envía a tu tema de ntfy, así llega a tus otros dispositivos.</string>
     <string name="tasks_sheet_digest_ntfy_hint">Para recibir el resumen también en tus otros dispositivos, configura ntfy en</string>

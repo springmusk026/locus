@@ -129,7 +129,10 @@ internal object ChatExport {
     }
 
     /** Replaces well-known key and token shapes (API keys, bearer tokens, JWTs, private keys). */
-    fun redactTokens(text: String): String = TOKENS.fold(text) { acc, regex -> acc.replace(regex) { m -> (m.groups[1]?.value ?: "") + REDACTED } }
+    fun redactTokens(text: String): String =
+        TOKENS.fold(text) { acc, regex -> acc.replace(regex) { m -> (m.groups[1]?.value ?: "") + REDACTED } }
+            // The shapes every other scrubber uses (Telegram, Groq, Hugging Face, GitLab, Slack, Google, …).
+            .let { shaped -> dev.locus.core.agent.SecretScrubber.TOKEN_SHAPES.fold(shaped) { acc, regex -> acc.replace(regex, REDACTED) } }
 
     /** Blanks the value of `password=…`, `token: …` and the like (used for tool labels, which echo arguments). */
     fun redactAssignments(text: String): String = ASSIGNMENT.replace(text) { m -> m.groupValues[1] + REDACTED }

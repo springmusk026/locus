@@ -26,13 +26,20 @@ already has them with the stack. Exits the user or Locus asked for are left out.
 
 ## Scrubbing
 
-There are two passes:
-1. **At write time**, crash reports, coroutine errors and exit texts go through `SecretScrubber`'s
-   credential patterns: `Bearer …`, `x-api-key: …`, `api_key=…`, `password=…`, `sk-…`, GitHub, Slack and
-   Google keys. The vault isn't read from a dying process.
+There are two passes, and both use the one credential list in `SecretScrubber` (the viewer, Activity,
+the publish page and chat export use it too):
+1. **At write time**, crash reports, coroutine errors, exit texts and provider errors go through
+   `SecretScrubber`'s credential patterns: `Bearer …`, `x-api-key: …`, `api_key=…`, `password=…`, `sk-…`,
+   GitHub, Slack (including `xapp-` and webhook addresses), Google (`AIza…`, `ya29.`), Telegram bot
+   tokens, Groq, Hugging Face, GitLab, AWS key ids, JWTs and private key blocks. Then `DiagnosticsLog`
+   itself runs `DiagnosticsLog.writeScrubber` over the title and text of every entry. The app keeps it
+   holding the vault's current values (`DiagnosticsRepository.keepLogScrubbed`, started with the app and
+   following the vault as keys change), so a vault value doesn't reach the file, a crash included. The
+   one gap is the first moments after a start, before the vault has opened: an entry written then has
+   the patterns only. An entry that can't be scrubbed is written as "[withheld: …]", not as it is.
 2. **At show and share time**, `DiagnosticsRepository` scrubs every entry again with a `SecretScrubber`
    built from the vault's values. That covers the parts of structured values too, such as an MCP
-   session's tokens or the password in a URL. A key that doesn't look like one is still caught here.
+   session's tokens or the password in a URL, and entries written before this change.
 
 Share hands the scrubbed text to the system share sheet, and only when the user taps it. Clear
 deletes every entry.

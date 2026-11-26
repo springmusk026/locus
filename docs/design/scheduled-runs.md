@@ -183,6 +183,10 @@ A scheduled or triggered run happens in a chat of its own, which the user can op
 
 A task's conditions (Tasks → edit → Conditions) are WorkManager constraints, set by `TaskConstraints.of`: a run always needs a network (`NetworkType.CONNECTED`); **On Wi-Fi** narrows it to an unmetered network (`NetworkType.UNMETERED`, which also covers unmetered Ethernet and a Wi-Fi the user didn't mark metered); **While charging** and **Battery not low** add theirs. WorkManager holds the run until all hold, and stops a running worker if one stops holding (recorded as "Stopped by Android (network lost)" and so on, above). Run now ignores them (`TaskConstraints.runNow`: any network). Stored in `scheduled_tasks.unmeteredOnly` since database v16. Tested in `TaskConstraintsTest` (on Wi-Fi maps to `UNMETERED`, the default to `CONNECTED`) and `TaskRepositoryTest`.
 
+## Starting at a time of day
+
+A new scheduled task's sheet has a **Starting at** row: "Right after saving" by default, or a time of day picked on a `TimeSheet` (Material's `TimePicker`, in the phone's 12- or 24-hour format). The time becomes the periodic work's initial delay (`delayUntil`: today's if it's still ahead, else tomorrow's), so "every day at 07:30" first runs at the next 07:30 and then once a period. Under the row the sheet lists the next three runs with their weekday and the phone's time zone ("Fri 07:30, Sat 07:30, Sun 07:30 (Nepal Time)", `nextRuns`), and says Android may run it a little later while the phone is idle. The morning and news digests start at 07:00 this way. An edited task keeps its timing (the row is only on a new task): WorkManager's `UPDATE` keeps a periodic request's schedule, and restarting it to move the time would cancel a run in progress. The editor, with its draft, survives a rotation or a theme change (`SheetTargetSaver`, `TaskDraftSaver`).
+
 ## Event-triggered runs
 
 A task can also start when an event arrives ([event triggers](event-triggers.md)). Such a run is a one-time `TaskWorker` carrying the event's id. It goes through the same marker, claim, budget, receipt, notification and hot-phone hold described here. The event's history row records whether the claim was taken ("Already running") and how the run ended.
@@ -192,6 +196,7 @@ A task can also start when an event arrives ([event triggers](event-triggers.md)
 - `ScheduledRunTest`: a finished run; a stop by Android recorded and notified with its reason, and its
   retry not sending the prompt again; a retry after the process died; the budget; a failure; Run now
   next to a live or stale marker; the start rule and stop reason texts.
+- `TaskSheetStateTest`: a draft round-trips through the saved state; the next runs from a start time or from now. `TaskSheetRotationTest`: a half-written task survives a recreated activity.
 - `BackgroundStartTest`: a refused automatic start doesn't run, offers Continue and posts the
   notification, and Continue then runs; a refused user-started turn still runs.
 - `TakeOverTest`: a message mid-run stops it at the step boundary after its call finished, records

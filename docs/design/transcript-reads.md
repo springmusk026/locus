@@ -85,6 +85,25 @@ transformations in your ViewModel …) so Compose can skip using instance equali
   same list when there is no waiting plan (it used to copy it on every run-state change).
 - `changes.observe` and `receipts.inputs` re-emit on writes from any chat (audit log, tracked
   changes); equal results are now dropped before the transcript is derived again.
+- Recent on-device reply speeds feed the transcript only in a chat on an on-device provider
+  (`onDeviceSpeeds`): a cloud chat isn't derived again when another chat's on-device reply ends.
+- The chat's state reads four fields of its browser's state (has a page, title, address, hand-off
+  reason). The browser's state also changes with every percent of a page load, its tabs and dialogs,
+  so `uiState` combines only those four (`forChat`, with `distinctUntilChanged`): a page load no
+  longer rebuilds `ChatUiState` (and re-marks every item) once per progress tick (#342).
+
+### Home
+
+- Each row takes from a chat's run only running, waiting for an approval and interrupted
+  (`rowRuns`). The tool in use, which changes at every tool call of every chat, comes separately
+  (`ConversationsViewModel.activeTools`) and is read only inside the featured card, so a tool call
+  doesn't re-map every row or recompose the list.
+- Room re-emits the chat list on any write to the conversations table, a helper chat's included;
+  home drops equal lists, and an open search runs again only when a chat's title or last activity
+  changes or chats come and go (`searchInputs`), not on every write.
+- The list isn't paged: the rows are a projection of chats already loaded for the list and
+  `LazyColumn` composes only what's on screen; with the rebuilds above gone, mapping them on a real
+  change costs little. Paging would need the Paging library, a new dependency.
 
 ### `key` and `contentType`
 

@@ -33,6 +33,7 @@ import dev.locus.core.model.WorkflowCheck
 import dev.locus.core.model.WorkflowParam
 import dev.locus.core.model.WorkflowParamType
 import dev.locus.core.screenshot.ScreenshotTest
+import dev.locus.core.screenshot.Step
 import dev.locus.core.testing.MainDispatcherRule
 import dev.locus.core.testing.TestGraph
 import java.io.File
@@ -331,6 +332,21 @@ class LibraryScreenshots : ScreenshotTest() {
     }
 
     /** No model set up: Tidy up says why it can't run and links to the page that fixes it. */
+    /** An edit to a memory note survives a rotation: the sheet stays open with what was typed. */
+    @Test
+    fun memoryEditSurvivesRotation() {
+        val g = populated(withModel)
+        val vm = LibraryViewModel(g.library)
+        vm.ready { it.library.memory.size == 4 && it.library.projectMemory.isNotEmpty() }
+        val note = "Flat white, oat milk, no sugar. Large on Mondays and Fridays."
+        val (before, after) = dev.locus.core.screenshot.recreateAfter(
+            listOf(Step.Tap("coffee order"), Step.Tap("Edit"), Step.Type(note, 1)),
+            screen(vm, workflows(g), 0, tidy = tidy(g), suggest = suggest(g)),
+        )
+        kotlin.test.assertTrue(before.shows(note), before.texts.toString())
+        kotlin.test.assertTrue(after.shows(note), after.texts.toString())
+    }
+
     @Test
     fun memoryTidyUnavailable() {
         val g = populated()

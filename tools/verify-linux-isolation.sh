@@ -96,6 +96,28 @@ else
     pass "proot's environment has no credential-looking names"
 fi
 
+# 6b. A running local MCP server that holds secrets (docs/design/linux-isolation.md, "Local MCP server
+#     secrets") must be invisible to this command: its /proc/<pid> is an empty directory, so its
+#     environment can't be read. Start the server first (a chat that uses it, or Library -> Connectors),
+#     then run this from a command started afterwards. Locus's own environment variables have no
+#     credential-looking names (check 6), so any readable environment that has one is a server's.
+#     With no such server running this passes trivially; the count says how many environments it saw.
+exposed=""
+checked=0
+for envfile in /proc/[0-9]*/environ; do
+    p=${envfile%/environ}
+    [ "$p" = "/proc/$$" ] && continue
+    names=$(tr '\0' '\n' < "$envfile" 2>/dev/null | cut -d= -f1)
+    [ -n "$names" ] || continue
+    checked=$((checked + 1))
+    if echo "$names" | grep -Eqi 'key|token|secret|passw|auth|cookie'; then exposed="$exposed ${p#/proc/}"; fi
+done
+if [ -n "$exposed" ]; then
+    fail "environment of process(es)$exposed is readable and has credential-looking names (a local MCP server's secrets?)"
+else
+    pass "no readable /proc/<pid>/environ has credential-looking names ($checked environments readable)"
+fi
+
 # 7. Ordinary things still work.
 [ -n "$(ls /proc/self/fd 2>/dev/null)" ] && pass "/proc/self/fd works" || fail "/proc/self/fd is broken"
 grep -q . /proc/cpuinfo 2>/dev/null && pass "/proc/cpuinfo works" || fail "/proc/cpuinfo is broken"

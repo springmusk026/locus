@@ -330,6 +330,9 @@ class SettingsViewModel @Inject constructor(
 
     /** Revokes a remembered approval: that tool asks again for that scope. */
     fun revokeRemembered(id: String) = viewModelScope.launch { settings.revokeRememberedApproval(id) }
+
+    /** Puts back a rule [revokeRemembered] took away (the snackbar's Undo), with its id, scope and expiry. */
+    fun restoreRemembered(rule: dev.locus.core.model.RememberedApproval) = viewModelScope.launch { settings.addRememberedApproval(rule) }
     fun setReviewerApprovesOutward(enabled: Boolean) = viewModelScope.launch { settings.setReviewerApprovesOutward(enabled) }
     fun setSuggestFollowUps(enabled: Boolean) = viewModelScope.launch { settings.setSuggestFollowUps(enabled) }
 

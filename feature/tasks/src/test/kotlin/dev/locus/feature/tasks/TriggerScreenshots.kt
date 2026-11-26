@@ -74,6 +74,17 @@ class TriggerScreenshots : ScreenshotTest() {
         snapAfter("tasks-trigger-no-permission", steps = listOf(Step.Tap("Standup prep")), heightDp = 1400) { TasksRoute(onBack = {}, onOpenChat = {}, viewModel = vm) }
     }
 
+    /** A new daily task starting at 07:30: the row, the next runs in the phone's time zone, and the picker. */
+    @Test
+    fun startingAt() {
+        val g = TestGraph(scope)
+        val now = java.time.ZonedDateTime.of(2026, 11, 26, 9, 15, 0, 0, java.time.ZoneId.of("Asia/Kathmandu"))
+        val vm = vm(g).also { it.clock = { now.toInstant().toEpochMilli() }; it.zone = { now.zone } }
+        val draft = TaskDraft(title = "Morning weather", prompt = "Will it rain in Kathmandu today? Say if I need an umbrella.", intervalMinutes = 1_440, firstRunAt = 7 * 60 + 30)
+        snap("task-sheet-starting-at", heightDp = 1600) { TaskSheet(draft, null, vm, onDismiss = {}, onSave = {}) }
+        snapAfter("task-sheet-starting-at-picker", listOf(Step.Tap("Starting at")), heightDp = 1600) { TaskSheet(draft, null, vm, onDismiss = {}, onSave = {}) }
+    }
+
     private fun sheet(name: String, draft: TaskDraft, calendar: FakeCalendarReader = FakeCalendarReader(), heightDp: Int = 1800, editing: String? = null) {
         val g = TestGraph(scope)
         val vm = vm(g, calendar)

@@ -2,6 +2,7 @@ package dev.locus.feature.library
 
 import androidx.compose.runtime.mutableIntStateOf
 import dev.locus.core.designsystem.SecretContent
+import dev.locus.core.designsystem.PasswordField
 import dev.locus.core.designsystem.asString
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.runtime.getValue
@@ -30,7 +31,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.agent.home.AgentHome
@@ -180,13 +180,30 @@ private fun ActionErrorBanner(error: LibraryError, onDismiss: () -> Unit) {
 internal val listPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = Spacing.xxl)
 
 /** A memory topic and where it's saved: general memory ([project] null) or a project's own. */
-private data class MemoryTarget(val topic: AgentHome.MemoryTopic, val project: ProjectMemory? = null)
+private data class MemoryTarget(val topic: AgentHome.MemoryTopic, val project: ProjectMemory? = null) {
+    /** What a saved sheet remembers it by: the project's id (empty for general memory) and the topic's name. */
+    val key: String get() = "${project?.projectId.orEmpty()}/${topic.name}"
+}
+
+/** The topic [key] ([MemoryTarget.key]) names in [library], or null once it's gone. */
+private fun memoryTarget(library: Library, key: String?): MemoryTarget? {
+    if (key == null) return null
+    val projectId = key.substringBefore('/')
+    val name = key.substringAfter('/')
+    if (projectId.isEmpty()) return library.memory.firstOrNull { it.name == name }?.let { MemoryTarget(it) }
+    val project = library.projectMemory.firstOrNull { it.projectId == projectId } ?: return null
+    return project.topics.firstOrNull { it.name == name }?.let { MemoryTarget(it, project) }
+}
 
 @Composable
 private fun MemoryTab(library: Library, viewModel: LibraryViewModel, modifier: Modifier, onOpenChat: (String) -> Unit, suggestNow: Boolean = false) {
-    var editing by remember { mutableStateOf<MemoryTarget?>(null) }
-    var forgetting by remember { mutableStateOf<MemoryTarget?>(null) }
-    var moving by remember { mutableStateOf<MemoryTarget?>(null) }
+    // Saved by key, so an open sheet (and an edit in progress) comes back after a rotation.
+    var editingKey by rememberSaveable { mutableStateOf<String?>(null) }
+    var forgettingKey by rememberSaveable { mutableStateOf<String?>(null) }
+    var movingKey by rememberSaveable { mutableStateOf<String?>(null) }
+    val editing = memoryTarget(library, editingKey)
+    val forgetting = memoryTarget(library, forgettingKey)
+    val moving = memoryTarget(library, movingKey)
     if (library.memory.isEmpty() && library.projectMemory.isEmpty()) {
         Column(modifier.fillMaxSize()) {
             // Shown only with imported chats: a new memory may start from them (docs/design/import-chats.md).
@@ -210,7 +227,7 @@ private fun MemoryTab(library: Library, viewModel: LibraryViewModel, modifier: M
                 if (library.memory.isEmpty()) {
                     SectionNote(stringResource(R.string.library_memory_general_empty))
                 } else {
-                    MemoryCard(library.memory.map { MemoryTarget(it) }, library, onOpenChat, onEdit = { editing = it }, onForget = { forgetting = it }, onMove = null)
+                    MemoryCard(library.memory.map { MemoryTarget(it) }, library, onOpenChat, onEdit = { editingKey = it.key }, onForget = { forgettingKey = it.key }, onMove = null)
                 }
             }
             library.projectMemory.forEach { project ->
@@ -218,7 +235,7 @@ private fun MemoryTab(library: Library, viewModel: LibraryViewModel, modifier: M
                     Column {
                         SectionLabel(project.projectName)
                         SectionNote(stringResource(R.string.library_memory_project_note))
-                        MemoryCard(project.topics.map { MemoryTarget(it, project) }, library, onOpenChat, onEdit = { editing = it }, onForget = { forgetting = it }, onMove = { moving = it })
+                        MemoryCard(project.topics.map { MemoryTarget(it, project) }, library, onOpenChat, onEdit = { editingKey = it.key }, onForget = { forgettingKey = it.key }, onMove = { movingKey = it.key })
                     }
                 }
             }
@@ -226,16 +243,16 @@ private fun MemoryTab(library: Library, viewModel: LibraryViewModel, modifier: M
     }
     editing?.let { target ->
         val topic = target.topic
-        var summary by remember(target) { mutableStateOf(topic.summary) }
-        var content by remember(target) { mutableStateOf(topic.content) }
+        var summary by rememberSaveable(target.key) { mutableStateOf(topic.summary) }
+        var content by rememberSaveable(target.key) { mutableStateOf(topic.content) }
         LocusSheet(
             title = topic.name.replace('-', ' '),
             subtitle = target.project?.let { stringResource(R.string.library_memory_edit_subtitle_project, it.projectName) }
                 ?: stringResource(R.string.library_memory_edit_subtitle),
-            onDismiss = { editing = null },
+            onDismiss = { editingKey = null },
             action = stringResource(R.string.library_action_save),
             actionEnabled = content.isNotBlank(),
-            onAction = { viewModel.saveMemory(topic.name, summary, content, target.project?.projectId); editing = null },
+            onAction = { viewModel.saveMemory(topic.name, summary, content, target.project?.projectId); editingKey = null },
         ) {
             OutlinedTextField(summary, { summary = it }, label = { Text(stringResource(R.string.library_memory_summary_label)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(content, { content = it }, label = { Text(stringResource(R.string.library_memory_note_label)) }, minLines = 5, modifier = Modifier.fillMaxWidth())
@@ -247,8 +264,8 @@ private fun MemoryTab(library: Library, viewModel: LibraryViewModel, modifier: M
             body = target.project?.let { stringResource(R.string.library_memory_forget_body_project, it.projectName) }
                 ?: stringResource(R.string.library_memory_forget_body),
             action = stringResource(R.string.library_memory_forget),
-            onDismiss = { forgetting = null },
-            onConfirm = { viewModel.forgetMemory(target.topic.name, target.project?.projectId); forgetting = null },
+            onDismiss = { forgettingKey = null },
+            onConfirm = { viewModel.forgetMemory(target.topic.name, target.project?.projectId); forgettingKey = null },
         )
     }
     moving?.let { target ->
@@ -257,10 +274,10 @@ private fun MemoryTab(library: Library, viewModel: LibraryViewModel, modifier: M
         LocusSheet(
             title = stringResource(R.string.library_memory_move_title, target.topic.name.replace('-', ' ')),
             subtitle = stringResource(if (replaces) R.string.library_memory_move_body_replaces else R.string.library_memory_move_body, project.projectName),
-            onDismiss = { moving = null },
+            onDismiss = { movingKey = null },
             action = stringResource(R.string.library_memory_move),
             actionTone = if (replaces) Tone.Caution else Tone.Brand,
-            onAction = { viewModel.moveMemoryToGeneral(project.projectId, target.topic.name); moving = null },
+            onAction = { viewModel.moveMemoryToGeneral(project.projectId, target.topic.name); movingKey = null },
         ) {}
     }
 }
@@ -554,10 +571,8 @@ private fun ConnectorsTab(
                     Text(warning, style = LocusType.supporting, color = MaterialTheme.colorScheme.error)
                 }
                 LocalNetworkNote(url, localNetwork)
-                SecretContent()
-                OutlinedTextField(
-                    token, { token = it }, label = { Text(stringResource(R.string.library_connectors_custom_token)) }, supportingText = { Text(stringResource(R.string.library_connectors_custom_token_hint)) }, singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
+                PasswordField(
+                    token, { token = it.trim() }, label = stringResource(R.string.library_connectors_custom_token), supportingText = stringResource(R.string.library_connectors_custom_token_hint),
                 )
             } else {
                 LocalMcpFields(form, linuxInstalled = library.linuxInstalled, onExample = { ex -> form.command = ex.command; if (name.isBlank()) name = ex.name })
@@ -565,7 +580,7 @@ private fun ConnectorsTab(
         }
     }
     secretFor?.let { (entry, secretName) ->
-        var value by remember { mutableStateOf("") }
+        var value by rememberSaveable { mutableStateOf("") }
         LocusSheet(
             title = stringResource(R.string.library_connectors_key_title, entry.connector.name),
             subtitle = if (entry.connector.local != null) stringResource(R.string.library_connectors_key_subtitle_local)
@@ -575,8 +590,7 @@ private fun ConnectorsTab(
             actionEnabled = value.isNotBlank(),
             onAction = { viewModel.setSecret(entry.connector.id, secretName, value); secretFor = null },
         ) {
-            SecretContent()
-            OutlinedTextField(value, { value = it }, label = { Text(secretName) }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+            PasswordField(value, { value = it }, label = secretName)
         }
     }
     reviewingTools?.let { id ->

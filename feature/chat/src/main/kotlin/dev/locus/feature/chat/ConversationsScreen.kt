@@ -151,6 +151,9 @@ fun ConversationsRoute(
     val composer by viewModel.composer.collectAsStateWithLifecycle()
     val remoteModeUntil by viewModel.remoteModeUntil.collectAsStateWithLifecycle()
     val needsYou by viewModel.needsYouFeed.collectAsStateWithLifecycle()
+    // Read only inside the featured card, so a tool call recomposes that card, not the whole list.
+    val activeTools = viewModel.activeTools.collectAsStateWithLifecycle()
+    val activeTool: (String) -> String? = remember(activeTools) { { id -> activeTools.value[id] } }
     // What a tap on a proposal did, in the one feedback channel.
     val feedback = Locus.feedback
     val resources = androidx.compose.ui.platform.LocalResources.current
@@ -204,6 +207,7 @@ fun ConversationsRoute(
         needsYou = needsYou,
         needsYouActions = needsYouActions,
         waiting = waiting,
+        activeTool = activeTool,
         actions = HomeActions(
             onStart = { text -> localNetwork.run(composer.settings.provider?.baseUrl.orEmpty()) { viewModel.start(text, onOpenConversation) } },
             onNewChat = { viewModel.newConversation(onOpenConversation) },
@@ -319,6 +323,8 @@ internal fun ConversationsScreen(
     now: Long = System.currentTimeMillis(),
     /** Chats waiting for the user, oldest first, for the "questions waiting" banner. */
     waiting: List<WaitingEntry> = emptyList(),
+    /** The tool a running chat is using right now, by chat id, for the featured card; null when none. */
+    activeTool: (String) -> String? = { null },
 ) {
     var pendingDelete by remember { mutableStateOf<ConversationRow?>(null) }
     var pendingRename by remember { mutableStateOf<ConversationRow?>(null) }
@@ -371,7 +377,7 @@ internal fun ConversationsScreen(
                     val settings = Locus.settings
                     Button(onClick = { settings?.open(SettingsDestination.Models) ?: actions.onOpenSettings() }) { Text(stringResource(R.string.chat_home_choose_model)) }
                 }
-                else -> HomeList(ready, padding, actions, rowActions, onAllChats = { allChats = true; focusSearch = false }, projects = projects, remoteModeUntil = remoteModeUntil, needsYou = needsYou, needsYouActions = needsYouActions, now = now, waiting = waiting)
+                else -> HomeList(ready, padding, actions, rowActions, onAllChats = { allChats = true; focusSearch = false }, projects = projects, remoteModeUntil = remoteModeUntil, needsYou = needsYou, needsYouActions = needsYouActions, now = now, waiting = waiting, activeTool = activeTool)
             }
         }
     }
@@ -450,6 +456,7 @@ private fun HomeList(
     needsYouActions: NeedsYouActions = NeedsYouActions(),
     now: Long = System.currentTimeMillis(),
     waiting: List<WaitingEntry> = emptyList(),
+    activeTool: (String) -> String? = { null },
 ) {
     // The chat that needs the user most, featured on top while it's active. Once Needs you lists what's waiting
     // (answerable there), the featured card is the chat that's working.
@@ -476,7 +483,7 @@ private fun HomeList(
         // Remote mode keeps a connection to Telegram open (battery), so home says so while it's on.
         remoteModeUntil?.let { until -> item(key = "remote-mode") { RemoteModeStatus(until, Modifier.padding(bottom = Spacing.md)) } }
         featured?.let { row ->
-            item(key = "featured") { ActiveChatCard(row, onClick = { rowActions.open(row) }, modifier = Modifier.animateItem().padding(bottom = Spacing.md)) }
+            item(key = "featured") { ActiveChatCard(row, activeTool, onClick = { rowActions.open(row) }, modifier = Modifier.animateItem().padding(bottom = Spacing.md)) }
         }
         // Other chats waiting for the user: one compact card that opens the one waiting longest.
         waitingBanner?.let { banner ->
@@ -588,7 +595,8 @@ private fun RecentFiles(state: ConversationsUiState.Ready, onOpen: (path: String
 
 /** The featured card: the chat that's running or waiting on the user, with what it's doing now. */
 @Composable
-private fun ActiveChatCard(row: ConversationRow, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun ActiveChatCard(row: ConversationRow, activeTool: (String) -> String?, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val tool = activeTool(row.conversation.id)
     val tone = if (row.needsApproval) Tone.Caution else Tone.Live
     // The tone's outline and status line carry the state; no glow on top.
     LocusCard(modifier, onClick = onClick, outline = tone.color().copy(alpha = Emphasis.toneOutline)) {
@@ -599,7 +607,7 @@ private fun ActiveChatCard(row: ConversationRow, onClick: () -> Unit, modifier: 
                 WrappingStatusLine(
                     when {
                         row.needsApproval -> stringResource(R.string.chat_home_waiting_approval)
-                        row.activeTool != null -> localizedToolActivity(row.activeTool)
+                        tool != null -> localizedToolActivity(tool)
                         else -> stringResource(R.string.chat_home_thinking)
                     },
                     tone,

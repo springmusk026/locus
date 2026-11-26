@@ -181,6 +181,28 @@ class SupabaseRenderTest {
     }
 
     @Test
+    fun `sql check refuses functions that read a vault table or run SQL given as text`() {
+        val refused = listOf(
+            "select table_to_xml('vault.decrypted_secrets'::regclass,true,false,'')",
+            "select schema_to_xml('vault',true,false,'')",
+            "select database_to_xml(true,false,'')",
+            "select * from ts_stat('select to_tsvector(decrypted_secret) from vault.decrypted_secrets')",
+            "select query_to_xml('select * from vault.secrets',true,false,'')",
+            "select pg_catalog.table_to_xml_and_xmlschema('public.t'::regclass,true,false,'')",
+            "select table_to_xml(('va'||'ult.decrypted_secrets')::regclass,true,false,'')",
+            "select cursor_to_xml('c'::refcursor,1,false,false,'')",
+            "select 'vault.decrypted_secrets'::regclass",
+            "select * from VAULT .decrypted_secrets",
+            "select * from pgsodium.key",
+            "select 1 /* vault */",
+            "select * from U&\"va\\0075lt\".decrypted_secrets",
+        )
+        for (sql in refused) assertNotNull(SqlCheck.readOnlyProblem(sql), sql)
+        // Names that merely contain the word are not the schema.
+        for (sql in listOf("select * from public.my_vault_notes", "select vaulted from public.t")) assertNull(SqlCheck.readOnlyProblem(sql), sql)
+    }
+
+    @Test
     fun `sql check accepts ordinary reads`() {
         val ok = listOf(
             "select * from public.todos where note = 'please delete; drop table x' limit 5;",

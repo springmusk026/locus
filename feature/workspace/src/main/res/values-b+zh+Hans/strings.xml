@@ -354,6 +354,8 @@
     </plurals>
     <string name="workspace_files_exported">已导出 %1$s。</string>
     <string name="workspace_files_deleted_connected">已从连接的文件夹中删除；回收站中有一份副本。</string>
+    <string name="workspace_files_delete_connected_title">删除 %1$s？</string>
+    <string name="workspace_files_delete_connected_message">它会从这部手机上的 %1$s 中删除，同步该文件夹的应用里也会删除。Locus 会在回收站中保留一份副本，你可以将其恢复。</string>
     <string name="workspace_files_moved_to_trash">已移到回收站。你可以从回收站恢复。</string>
     <string name="workspace_files_restored">已恢复 %1$s。</string>
     <string name="workspace_files_folder_unreadable">无法读取此文件夹。</string>

@@ -90,6 +90,7 @@ fun SettingsRoute(
         onSetReviewerMode = { viewModel.setReviewerMode(it) },
         onSetReviewerOutward = { viewModel.setReviewerApprovesOutward(it) },
         onRevokeRemembered = { viewModel.revokeRemembered(it) },
+        onRestoreRemembered = { viewModel.restoreRemembered(it) },
         onProbe = viewModel::probeFingerprint,
         onSaveSsh = viewModel::saveSshHost,
         onDeleteSsh = viewModel::deleteSshHost,
@@ -170,6 +171,7 @@ internal fun SettingsScreen(
     onSetReviewerMode: (ReviewerMode) -> Unit = {},
     onSetReviewerOutward: (Boolean) -> Unit = {},
     onRevokeRemembered: (String) -> Unit = {},
+    onRestoreRemembered: (dev.locus.core.model.RememberedApproval) -> Unit = {},
     onProbe: (String, Int, (Result<String>) -> Unit) -> Unit,
     onSaveSsh: (SshHost, String?, String?, String?) -> Unit,
     onDeleteSsh: (String) -> Unit,
@@ -236,6 +238,7 @@ internal fun SettingsScreen(
                 state, onBack = back, onSetPolicy = onSetPolicy,
                 onSetReviewerMode = onSetReviewerMode, onSetReviewerOutward = onSetReviewerOutward,
                 onRevoke = onRevokeRemembered,
+                onRestore = onRestoreRemembered,
             )
             SettingsPage.Integrations -> IntegrationsSettings(state, onBack = back, onSetIntegrationKey = onSetIntegrationKey, onOpenConnectors = onOpenConnectors, onUseMcpTemplate = onUseMcpTemplate, onSetUseMcp = onSetUseMcp, onCheckMcp = onCheckMcp, telegram = telegram, email = email, reachMe = reachMe)
             SettingsPage.Ssh -> SshSettings(state, onBack = back, onProbe = onProbe, onSaveSsh = onSaveSsh, onDeleteSsh = onDeleteSsh)

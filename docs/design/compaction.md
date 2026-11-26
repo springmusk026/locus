@@ -19,7 +19,7 @@ with server-side compaction were covered.
 
 After a step, once every call of that step has its result, the loop checks the last request's
 reported usage (`TokenUsage.context`, input plus output) plus a rough estimate of the tool results it
-just added (four characters a token). If that's above 80% of the model's window
+just added (four characters a token, but one token for each Chinese, Japanese or Korean character: `Compaction.estimateTokens`, since real tokenizers spend 0.7 to 1.5 on one and four characters a token put 2,100 Chinese characters at 525). If that's above 80% of the model's window
 (`Compaction.THRESHOLD`, the same threshold as before), the loop compacts before the next request.
 
 The window and the threshold come from the same rule as before (`compactionSetup` in `AgentRunner.kt`):
@@ -68,7 +68,7 @@ did. In memory, the transcript becomes one user message, the checkpoint's view (
    tokens (`KEEP_USER_TOKENS`; an eighth of the window on smaller models, so a 32k model keeps 4k and
    the view stays well under the threshold). This follows Codex's `compact.rs`: newest first,
    `COMPACT_USER_MESSAGE_MAX_TOKENS = 20_000`, and the message that doesn't fit is cut to the space
-   left (Locus keeps its start and end). Locus's own notes (plan mode, mid-task, helper reports,
+   left (Locus keeps its start and end, cutting between whole characters so an emoji is never split into a lone surrogate, and counting a CJK character as a token). Locus's own notes (plan mode, mid-task, helper reports,
    "Run anyway" results) are left out; attachments are named. Messages kept by an earlier checkpoint
    carry forward;
 3. the checklist as it stood (`todo_write`), carried forward from an earlier checkpoint when there's

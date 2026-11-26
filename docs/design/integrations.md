@@ -235,3 +235,21 @@ Tasks → **News digest** runs every day from 07:00 (`TaskDraft.newsDigest`), li
 - **Taint and approvals:** replies are wrapped untrusted; write and outward calls ask; HA physical actions always ask.
 - **Fixed tool list per chat:** no new tools. Connectors go through `connector_call`, and MCP servers through `mcp_list_tools`/`mcp_call` and discovery.
 - **F-Droid:** no new dependencies, no Play services.
+
+## Supabase read-only queries (`SqlCheck`)
+
+Status: Vault and function checks unreleased. Code: `core/agent/.../integrations/SqlCheck.kt`, `Supabase.kt` (`supabase_query`). Tests: `SupabaseRenderTest`. Issue #380.
+
+`supabase_query` is an observation (it runs in Read-only and plan mode without a card), so `SqlCheck.readOnlyProblem` is a second fence in front of Supabase's read-only endpoint, which runs as `supabase_read_only_user` (`pg_read_all_data`, read-only transactions). It is a text check, not a parser. The goal it states: decrypted Vault and pgsodium secrets must not reach the model.
+
+**The gap.** The check looked for `vault.` and `pgsodium.` in the code with strings blanked out. A schema or table named in a string argument therefore passed, to a function that reads it itself: `table_to_xml('vault.decrypted_secrets'::regclass, …)`, `schema_to_xml('vault', …)`, `database_to_xml(…)`, and `ts_stat('select … from vault.decrypted_secrets')`, which runs the SQL in its string. Only `query_to_xml*` and `cursor_to_xml*` were refused.
+
+**Now refused:**
+
+- `query_to_xml*`, `cursor_to_xml*`, `table_to_xml*`, `schema_to_xml*`, `database_to_xml*` and `ts_stat`;
+- the words `vault` and `pgsodium` anywhere in the original text, in strings, quoted names and comments too (`my_vault_notes` is a different word and passes);
+- names spelled with Unicode escapes (`U&"va\0075lt"`), which no text check can follow.
+
+Cost: a query that mentions "vault" in a string (`where title = 'vault'`) is refused and the agent is told to use `supabase_sql`, which asks first.
+
+**Not closed.** A list of bad functions can't be complete, and this is still a text check. The fence that holds is the database role: in the Supabase dashboard, check what `supabase_read_only_user` can read and revoke its access to the `vault` schema where possible. Other functions that write or change the session (`pg_logical_emit_message`, `pg_stat_reset`, …) are left to the read-only role and transaction. Reads of `auth`, `storage`, `net` and `cron` tables are not refused here.

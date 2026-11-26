@@ -391,6 +391,8 @@
     </plurals>
     <string name="workspace_files_exported">Exported %1$s.</string>
     <string name="workspace_files_deleted_connected">Deleted from the connected folder; a copy is in Trash.</string>
+    <string name="workspace_files_delete_connected_title">Delete %1$s?</string>
+    <string name="workspace_files_delete_connected_message">It\'s deleted from %1$s on this phone, and from anything that syncs that folder. Locus keeps a copy in Trash, so you can put it back.</string>
     <string name="workspace_files_moved_to_trash">Moved to trash. You can restore it from Trash.</string>
     <string name="workspace_files_restored">Restored %1$s.</string>
     <string name="workspace_files_folder_unreadable">This folder can\'t be read.</string>

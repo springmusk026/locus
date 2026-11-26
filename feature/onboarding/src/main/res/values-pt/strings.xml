@@ -222,6 +222,8 @@
     <string name="onboarding_connectors_key_save">Salvar</string>
     <string name="onboarding_connectors_key_label_saved">%1$s (salva — digite para substituir)</string>
     <string name="onboarding_connectors_key_remove">Remover chave</string>
+    <string name="onboarding_connectors_key_remove_title">Remover a chave de %1$s?</string>
+    <string name="onboarding_connectors_key_remove_message">Ela é excluída deste telefone, e o agente não poderá usar %1$s até você adicionar outra.</string>
     <string name="onboarding_test_title">Teste rápido</string>
     <string name="onboarding_test_body">Uma mensagem de teste mínima ao seu modelo e um comando no Linux, se estiver instalado.</string>
     <string name="onboarding_test_model">Modelo</string>

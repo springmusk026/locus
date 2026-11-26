@@ -115,7 +115,7 @@ object PublishPage {
 
     /**
      * Replaces secrets in [text] before it becomes HTML: the vault's values and the shapes of keys and tokens
-     * ([SecretScrubber]), plus private key blocks, JWTs and AWS key ids. Counts what it replaced.
+     * ([SecretScrubber], which also covers private key blocks, JWTs and AWS key ids). Counts what it replaced.
      */
     class Scrubber(vault: Collection<String>) {
         private val inner = SecretScrubber(vault)
@@ -123,19 +123,12 @@ object PublishPage {
         fun scrub(text: String): Scrubbed {
             if (text.isEmpty()) return Scrubbed(text, 0)
             val before = text.occurrences(LABEL)
-            var out = inner.scrub(text)
-            for (pattern in EXTRA) out = pattern.replace(out, LABEL)
+            val out = inner.scrub(text)
             return Scrubbed(out, (out.occurrences(LABEL) - before).coerceAtLeast(0))
         }
 
         private companion object {
             const val LABEL = SecretScrubber.SECRET
-            val EXTRA = listOf(
-                Regex("(?s)-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----"),
-                Regex("\\beyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}"),
-                Regex("\\bAKIA[0-9A-Z]{16}\\b"),
-                Regex("\\b(?:sk|pk|rk)-(?:ant-|proj-|live-|test-)?[A-Za-z0-9_-]{16,}"),
-            )
         }
     }
 
