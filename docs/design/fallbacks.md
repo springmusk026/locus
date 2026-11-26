@@ -58,10 +58,13 @@ accounts or projects. The editor says so.
 
 - `httpError` reads the body: the `error` object, also inside an array, with its `code`, `type`,
   `status` and `details`.
-- `throwIfFailed` reads `retry-after-ms`, then `retry-after` (as seconds or an HTTP date).
-  Gemini's `retryDelay` in the body is used when there's no header.
+- `throwIfFailed` reads `retry-after-ms`, then `retry-after` (as seconds or an HTTP date in any of
+  RFC 9110's three forms: IMF-fixdate, RFC 850 and asctime). Gemini's `retryDelay` in the body is used
+  when there's no header.
 - Errors that arrive mid-stream are classified too: Anthropic's `event: error`, Responses
-  `response.failed` and `error`, and OpenRouter's error chunks.
+  `response.failed` and `error`, and OpenRouter's error chunks. An error chunk with an HTTP code is the
+  same `LlmException` that response would have been, so it keeps its wait (`retryDelay`), its body for
+  Diagnostics and its words in the user's language (#308).
 - Calls that only pass `retryable` keep their old meaning (`TRANSIENT` or `OTHER`).
 
 `Failover` holds the rules, so the key pool and the agent loop agree:
@@ -74,7 +77,11 @@ accounts or projects. The editor says so.
 | `OTHER` (bad request, unknown model) | no | no (another model wouldn't fix it) |
 
 Retries keep the loop's bound of 3. Each one waits for the provider's `retry-after` if it gave one,
-up to `MAX_WAIT_MS` = 60 s, and otherwise 2^n s. A `retry-after` longer than 60 s switches to the
+at least `MIN_WAIT_MS` = 1 s and up to `MAX_WAIT_MS` = 60 s, and otherwise 2^n s spread by ±20 %
+(#304). The floor is for `retry-after: 0` and Gemini's `retryDelay: "0s"`, which spent every retry
+within milliseconds; `retry-after` counts whole seconds, so 0 means under a second. The jitter keeps
+phones that lost the same network or hit the same overloaded provider from all coming back at once
+(LiteLLM adds jitter too). A provider's own wait isn't jittered: it already said when to come back. A `retry-after` longer than 60 s switches to the
 next model at once. With no next model, the chat fails and the message says how long the provider
 asked to wait, instead of retrying into the same wall.
 
@@ -130,8 +137,10 @@ summary written during a task runs on whichever model is serving the run, a back
 ### Never replay a partial reply
 
 A switch happens at the same clean point the existing retry uses. Errors can arrive at any time,
-and a dropped connection counts only before a tool call starts. Tools run only after a completed
-turn, so a switch can't repeat a tool call.
+and a dropped connection is retried also after a tool call started streaming (#304): a long
+`write_file` cut off halfway on mobile data asks for the step again instead of failing the run. Tools
+run only after a completed turn, so neither a retry nor a switch can repeat a tool call; the
+half-streamed call is discarded with the rest.
 
 `FellBack`, like `Retrying`, tells the UI to discard what streamed. The backup gets the original
 request, so its reply never includes the partial text, either as an assistant prefill or as a "continue
@@ -196,3 +205,5 @@ because chat replies are priced from the stored reply, which holds one model.
 - **On-device models as a backup.** They run one reply at a time and have a much smaller context.
 - **Remembering a model that's out of quota across turns.** The next turn tries the chat's own model
   again, which costs one failed request.
+- **A total time cap across retries and fallbacks.** Each model's retries are bounded (3, each wait at
+  most 60 s), so a long chain can still take minutes before the run fails. Not capped as a whole yet.

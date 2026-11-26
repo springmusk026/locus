@@ -1,5 +1,7 @@
 package dev.locus.core.llm
 
+import kotlin.random.Random
+
 /**
  * When a failed request should move to another API key of the same provider ([KeyPool]) or to the
  * next model of the fallback chain (the agent loop). One place, so the two can't disagree. See
@@ -36,11 +38,22 @@ object Failover {
     /** Once this model's retries are spent on [e], the next model in the chain may still answer. */
     fun switchesAfterRetries(e: LlmException): Boolean = e.retryable
 
-    /** How long to wait before retry number [attempt] (1-based): the provider's `retry-after` if it gave one, else 2^attempt s. */
-    fun backoffMs(attempt: Int, e: LlmException?): Long {
-        val exponential = 1_000L shl attempt.coerceIn(0, 6)
-        val asked = e?.retryAfterMs ?: return exponential
-        return asked.coerceIn(0, MAX_WAIT_MS)
+    /**
+     * The shortest wait before a retry, also when the provider asked for less: `retry-after: 0` (or
+     * Gemini's `retryDelay: "0s"`) would otherwise spend every retry within milliseconds. `retry-after`
+     * counts whole seconds, so 0 means "under a second".
+     */
+    const val MIN_WAIT_MS = 1_000L
+
+    /**
+     * How long to wait before retry number [attempt] (1-based): the provider's `retry-after` if it gave
+     * one (at least [MIN_WAIT_MS], at most [MAX_WAIT_MS]), else 2^attempt s spread by ±20 % so phones
+     * that lost the same network or the same provider don't all come back at the same instant.
+     * [jitter] is a number in [0, 1): random, or fixed in tests.
+     */
+    fun backoffMs(attempt: Int, e: LlmException?, jitter: Double = Random.nextDouble()): Long {
+        val asked = e?.retryAfterMs ?: return ((1_000L shl attempt.coerceIn(0, 6)) * (0.8 + 0.4 * jitter.coerceIn(0.0, 1.0))).toLong()
+        return asked.coerceIn(MIN_WAIT_MS, MAX_WAIT_MS)
     }
 
     /** How long a key that failed with [e] is left out of its pool. */

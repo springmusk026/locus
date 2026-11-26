@@ -20,7 +20,6 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
@@ -55,7 +54,9 @@ class OpenAiChatModel(
                     val lower = body.lowercase()
                     // A model that doesn't reason (or not at this level) may refuse the effort field: ask once more
                     // without it, as the Responses adapter does for its reasoning settings.
-                    if (withEffort && "reasoning" in lower) {
+                    // Only an error about the field itself: one that merely mentions reasoning (a replayed item, say)
+                    // would fail again without it and cost a second request.
+                    if (withEffort && refusesReasoningField(body)) {
                         withEffort = false
                         retryWithout = true
                         return@execute
@@ -71,12 +72,16 @@ class OpenAiChatModel(
                 }
                 response.throwIfFailed(config.name)
                 val acc = StreamAccumulator()
+                var done = false
                 response.forEachSseEvent { sse ->
                     val data = sse.data.trim()
+                    if (data == "[DONE]") done = true
                     if (data.isEmpty() || data == "[DONE]") return@forEachSseEvent
-                    val chunk = LlmJson.parseToJsonElement(data).jsonObject
-                    acc.handle(chunk).forEach { emit(it) }
+                    acc.handle(sseJson(config.name, data)).forEach { emit(it) }
                 }
+                // A complete reply ends with `[DONE]`, and its last choice chunk has a finish_reason; a body
+                // that ends with neither was cut off (docs/design/stream-timeouts.md, "Streams that end early").
+                if (!done && !acc.finished) throw streamCutOff(config.name, "its final event ([DONE] or a finish_reason)")
                 emit(ChatEvent.Completed(acc.finish()))
             }
             if (!retryWithout) break
@@ -316,7 +321,12 @@ class OpenAiChatModel(
     private inner class StreamAccumulator {
         private val text = StringBuilder()
         private val calls = sortedMapOf<Int, CallBuilder>()
+        /** The builder the last index-less call delta went to, which the next one may continue. */
+        private var unindexed: Int? = null
         private var finishReason: String? = null
+
+        /** Whether a choice said why it finished: the reply is complete even if `[DONE]` never came. */
+        val finished: Boolean get() = finishReason != null
         private var usage: JsonObject? = null
 
         fun handle(chunk: JsonObject): List<ChatEvent> {
@@ -325,9 +335,10 @@ class OpenAiChatModel(
                 // OpenRouter sends errors that happen after the stream opened as a chunk with the HTTP code
                 // it would have used (https://openrouter.ai/docs/api-reference/errors).
                 val code = error.string("code")?.toIntOrNull()
+                // Classified as that response would have been, with all it carries: the wait it asked for, the
+                // provider's words in the user's language, and the body for Diagnostics.
                 if (code != null) {
-                    val classified = httpError(config.name, code, LlmJson.encodeToString(JsonObject.serializer(), JsonObject(mapOf("error" to error))))
-                    throw LlmException("${config.name} stream error: ${error.string("message") ?: error}", code, classified.retryable, kind = classified.kind)
+                    throw httpError(config.name, code, LlmJson.encodeToString(JsonObject.serializer(), JsonObject(mapOf("error" to error))))
                 }
                 val overflow = ContextOverflow.matches(error.string("code") ?: error.string("type"), error.string("message"))
                 throw LlmException("${config.name} stream error: ${error.string("message") ?: error}", retryable = false, kind = if (overflow) LlmFailure.CONTEXT_OVERFLOW else LlmFailure.OTHER)
@@ -344,16 +355,25 @@ class OpenAiChatModel(
             (delta.string("reasoning_content") ?: delta.string("reasoning"))?.takeIf { it.isNotEmpty() }?.let {
                 events += ChatEvent.ReasoningDelta(it)
             }
-            (delta["tool_calls"] as? JsonArray)?.forEachIndexed { position, element ->
+            val deltas = delta["tool_calls"] as? JsonArray
+            deltas?.forEachIndexed { position, element ->
                 val call = element as? JsonObject ?: return@forEachIndexed
-                val index = call.int("index") ?: position
-                val builder = calls.getOrPut(index) { CallBuilder() }
-                call.string("id")?.let { if (builder.id.isEmpty()) builder.id = it }
-                (call["extra_content"] as? JsonObject)?.let { builder.extra = it }
                 val function = call["function"] as? JsonObject
-                function?.string("name")?.let {
+                val id = call.string("id")?.takeIf { it.isNotEmpty() }
+                val name = function?.string("name")?.takeIf { it.isNotEmpty() }
+                val index = call.int("index") ?: unindexedSlot(position, deltas.size, id, name)
+                val builder = calls.getOrPut(index) { CallBuilder("call_${calls.size}") }
+                // The first id wins; one arriving after the call started under its fallback id is too late to use.
+                if (id != null && !builder.idFromServer && builder.id.isEmpty()) {
+                    builder.id = id
+                    builder.idFromServer = true
+                }
+                (call["extra_content"] as? JsonObject)?.let { builder.extra = it }
+                name?.let {
                     if (builder.name.isEmpty()) {
                         builder.name = it
+                        // The id the finished turn will carry, so the started card and the call match.
+                        if (builder.id.isEmpty()) builder.id = builder.fallbackId
                         events += ChatEvent.ToolCallStarted(builder.id, it)
                     }
                 }
@@ -362,12 +382,31 @@ class OpenAiChatModel(
             return events
         }
 
+        /**
+         * Where a call delta without `index` goes. A chunk that lists several calls lists them by position,
+         * as before. But some OpenAI-compatible servers send each complete call in its own chunk and leave
+         * `index` out, where the position (0 every time) can't tell two calls apart: a lone delta continues
+         * the call before it unless it brings a new id, or a name when that call already has one, and then
+         * it starts the next call.
+         */
+        private fun unindexedSlot(position: Int, count: Int, id: String?, name: String?): Int {
+            val previous = unindexed
+            val last = previous?.let { calls[it] }
+            val slot = when {
+                count > 1 -> position
+                previous != null && last != null && (id == null || !last.idFromServer || id == last.id) && (name == null || last.name.isEmpty()) -> previous
+                else -> (calls.keys.maxOrNull() ?: -1) + 1
+            }
+            unindexed = slot
+            return slot
+        }
+
         fun finish(): AssistantTurn {
-            val toolCalls = calls.values.mapIndexed { i, call ->
+            val toolCalls = calls.values.map { call ->
                 val args = call.arguments.toString().ifBlank { "{}" }
                 val valid = runCatching { LlmJson.parseToJsonElement(args) is JsonObject }.getOrDefault(false)
                 Part.ToolCall(
-                    id = call.id.ifEmpty { "call_$i" },
+                    id = call.id.ifEmpty { call.fallbackId },
                     name = call.name,
                     argumentsJson = if (valid) args else buildJsonObject { put(INVALID_INPUT_KEY, args) }.toString(),
                 )
@@ -379,7 +418,8 @@ class OpenAiChatModel(
                     finishReason == "length" -> StopReason.MAX_TOKENS
                     finishReason == "content_filter" -> StopReason.REFUSAL
                     toolCalls.isNotEmpty() -> StopReason.TOOL_USE
-                    finishReason == null || finishReason == "stop" -> StopReason.END_TURN
+                    // No finish_reason (a server that sent `[DONE]` without one) isn't a known clean stop.
+                    finishReason == "stop" -> StopReason.END_TURN
                     else -> StopReason.OTHER
                 },
                 format = ApiFormat.OPENAI_CHAT,
@@ -391,8 +431,11 @@ class OpenAiChatModel(
         }
     }
 
-    private class CallBuilder {
+    /** [fallbackId]: the id the call gets when the server sends none, `call_<n>` in arrival order. */
+    private class CallBuilder(val fallbackId: String) {
         var id = ""
+        /** Whether [id] came from the server rather than [fallbackId]; only then can a different one mean a new call. */
+        var idFromServer = false
         var name = ""
         val arguments = StringBuilder()
         var extra: JsonObject? = null

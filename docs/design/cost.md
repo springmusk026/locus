@@ -169,8 +169,12 @@ and they don't. It's also Claude API only, and it keeps a fingerprint at Anthrop
   - Gemini's [OpenAI-compatible endpoint](https://aistudio.google.com/docs/openai): `reasoning_effort`, `minimal|low|medium|high`, with higher levels sent as `high` and `none` as `minimal`;
   - OpenRouter: `reasoning: {effort}`, per its [reasoning tokens guide](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens). That guide doesn't document a top-level `reasoning_effort`.
 
-  A 400 or 422 that names reasoning gets the request once more without the field, as the Responses
-  adapter does. Other hosts (Groq, Ollama, local servers) never get it.
+  A 400 or 422 that refuses the field itself gets the request once more without it, as the Responses
+  adapter does for `reasoning` and `include`. "Refuses the field" means the error's `param` names it
+  (`reasoning_effort`, `reasoning.effort`, `reasoning.summary`), or, without a `param`, the message
+  names the field (`refusesReasoningField`). An error that only mentions reasoning, such as one about a
+  replayed `rs_…` item, is not retried that way (#308): the request would fail again, and if it didn't,
+  later turns would lose their encrypted reasoning. Other hosts (Groq, Ollama, local servers) never get it.
 
 ## Cache-safe mid-chat changes
 

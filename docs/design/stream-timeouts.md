@@ -60,8 +60,8 @@ both reference agents, and nothing shows Anthropic's ping interval is that tight
 them instead.
 
 On timeout the read throws `StreamIdleException`, an `IOException`, so `AgentLoop` retries it like any
-dropped connection (the partial output is discarded; bounded backoff; not after a tool call started,
-as before). The timer is wall-clock time on one shared daemon thread (`IdleClock.RealTime`) and
+dropped connection (the partial output is discarded, a tool call that had started streaming
+included; bounded backoff). The timer is wall-clock time on one shared daemon thread (`IdleClock.RealTime`) and
 cancels only the line read, which stays on the caller's dispatcher. A coroutine `withTimeout` would
 follow the caller's clock, and in tests on virtual time it fired at once while a mock engine answered
 on a real thread. Tests of the timeout pass a clock on their test scheduler and run on virtual time.
@@ -133,10 +133,27 @@ out-of-memory killer also sends signal 9, and only the background case is put do
 
 - No setting to change the stream limits (Claude Code has `CLAUDE_STREAM_IDLE_TIMEOUT_MS`). If a local
   server needs more than 5 silent minutes, add a per-provider value.
-- A network switch after a tool call has started streaming still ends the run with "The connection
-  dropped" rather than retrying (unchanged `AgentLoop` rule).
 - The Linux kill reason reaches the user through the agent (tool results). There's no notification of
   its own.
+
+## Streams that end early
+
+A body that ends cleanly is not a finished reply: a local Ollama or vLLM server that crashes, or an
+nginx or Cloudflare timeout, closes the chunked body without an error. Before, Chat Completions and
+Anthropic turned whatever had arrived into a turn (a cut-off Chat Completions reply even as `END_TURN`),
+so half an answer was saved as the final reply and the task reported as done (#306).
+
+- `Sse.kt` dispatches an event only at its blank line. One the body ends in the middle of is dropped, as
+  the WHATWG event-stream rules say, instead of reaching a parser as half a JSON line.
+- Each adapter names the event only a complete reply sends, and a stream that ends without it fails
+  with `streamCutOff`, a retryable `LlmFailure.TRANSIENT` error, so the run retries the step:
+  - Chat Completions: `[DONE]`, or a choice's `finish_reason` (a server that leaves out `[DONE]` has
+    still finished). `[DONE]` without any `finish_reason` ends as `StopReason.OTHER`, not `END_TURN`.
+  - Anthropic: `message_stop`, or the `message_delta` with its `stop_reason`, which comes after every
+    content block has closed and carries the final output count.
+  - Responses: `response.completed` or `response.incomplete` (already so).
+- An event whose data isn't a JSON object fails the same way (`sseJson`), not with a raw
+  `SerializationException`, which neither the key pool nor the run's retry recognised.
 
 ## Size limits
 

@@ -3,8 +3,13 @@ package dev.locus.core.llm
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import java.time.LocalDateTime
+import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeFormatterBuilder
+import java.time.temporal.ChronoField
+import java.util.Locale
 
 /**
  * Turns a failed HTTP response into an [LlmException], deciding whether it's worth retrying and
@@ -100,6 +105,34 @@ private fun errorObject(body: String): JsonObject? = runCatching {
     (root as? JsonObject)?.get("error") as? JsonObject
 }.getOrNull()
 
+/**
+ * Whether a 400 or 422 [body] refuses the request's reasoning settings themselves (`reasoning_effort`,
+ * `reasoning.effort`, `reasoning.summary`, the `include` of encrypted reasoning): the one case where the
+ * adapters ask once more without them. Read from the error's `param` when it names one (OpenAI's errors
+ * do); else from the message naming the field. An error that only mentions reasoning, such as one about a
+ * replayed `rs_…` item ("Item 'rs_…' of type 'reasoning' was provided without its required following
+ * item"), is not one: the same request without the settings would fail again, and if it didn't, the
+ * encrypted reasoning later turns replay would be lost.
+ */
+internal fun refusesReasoningField(body: String): Boolean {
+    val error = errorObject(body)
+    error?.string("param")?.trim()?.takeIf { it.isNotEmpty() }?.let { param ->
+        return param == "reasoning" || param.startsWith("reasoning.") || param.startsWith("reasoning_") || param == "include"
+    }
+    val text = error?.string("message") ?: body
+    if (REASONING_ITEM.containsMatchIn(text)) return false
+    return REASONING_FIELD.containsMatchIn(text)
+}
+
+/** A reasoning item's id (`rs_…`): an error naming one is about the history, not the request's settings. */
+private val REASONING_ITEM = Regex("""\brs_[A-Za-z0-9]""")
+
+/** A reasoning setting by its field name, or `reasoning` named as a parameter or field ("Unknown name \"reasoning\""). */
+private val REASONING_FIELD = Regex(
+    """reasoning(_effort|\.effort|\.summary|\.encrypted_content)|\b(parameter|field|argument|name|property|key)s?\b[^A-Za-z0-9]{0,4}reasoning\b""",
+    RegexOption.IGNORE_CASE,
+)
+
 /** Gemini's `google.rpc.RetryInfo` detail: `"retryDelay": "37s"` (or `"0.5s"`). */
 private fun retryDelayMs(error: JsonObject?): Long? {
     val details = error?.get("details") as? JsonArray ?: return null
@@ -122,14 +155,30 @@ private fun dailyQuota(error: JsonObject?): Boolean {
 
 /**
  * The wait a response asked for, in milliseconds: `retry-after-ms` (OpenAI), else `retry-after` as
- * seconds or an HTTP date (RFC 9110 §10.2.3). Null when neither is present or readable.
+ * seconds or an HTTP date (RFC 9110 §10.2.3) in any of the three forms a recipient must accept
+ * (§5.6.7): IMF-fixdate (`Sun, 06 Nov 1994 08:49:37 GMT`), RFC 850 (`Sunday, 06-Nov-94 08:49:37 GMT`)
+ * and asctime (`Sun Nov  6 08:49:37 1994`). Null when neither is present or readable.
  */
 fun retryAfterMs(retryAfterMsHeader: String?, retryAfterHeader: String?, now: () -> Long = System::currentTimeMillis): Long? {
     retryAfterMsHeader?.trim()?.toDoubleOrNull()?.takeIf { it >= 0 }?.let { return it.toLong() }
     val value = retryAfterHeader?.trim()?.takeIf { it.isNotEmpty() } ?: return null
     value.toDoubleOrNull()?.let { return if (it >= 0) (it * 1000).toLong() else null }
-    return runCatching { ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant().toEpochMilli() - now() }
-        .getOrNull()?.coerceAtLeast(0)
+    return httpDateMs(value, now)?.let { (it - now()).coerceAtLeast(0) }
+}
+
+/** [value] as an HTTP date (RFC 9110 §5.6.7), in epoch milliseconds, or null. */
+private fun httpDateMs(value: String, now: () -> Long): Long? {
+    runCatching { return ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant().toEpochMilli() }
+    // RFC 850's two-digit year: "a timestamp that appears to be more than 50 years in the future" is in the past (§5.6.7).
+    val base = java.time.Instant.ofEpochMilli(now()).atZone(ZoneOffset.UTC).toLocalDate().minusYears(49)
+    val rfc850 = DateTimeFormatterBuilder().parseCaseInsensitive()
+        .appendPattern("EEEE, dd-MMM-").appendValueReduced(ChronoField.YEAR, 2, 2, base).appendPattern(" HH:mm:ss 'GMT'")
+        .toFormatter(Locale.US).withZone(ZoneOffset.UTC)
+    runCatching { return ZonedDateTime.parse(value, rfc850).toInstant().toEpochMilli() }
+    // asctime: the day of the month is space-padded, and the time is GMT though no zone is written.
+    val asctime = DateTimeFormatterBuilder().parseCaseInsensitive().appendPattern("EEE MMM ppd HH:mm:ss yyyy").toFormatter(Locale.US)
+    runCatching { return LocalDateTime.parse(value, asctime).toInstant(ZoneOffset.UTC).toEpochMilli() }
+    return null
 }
 
 private val BILLING_LIMIT_CODES = setOf(
