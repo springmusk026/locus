@@ -14,14 +14,16 @@ package dev.locus.core.model
  * - **Other invisible format characters** (General_Category Cf, Default_Ignorable): zero-width space, word
  *   joiner, invisible operators, BOM, soft hyphen, Mongolian vowel separator, interlinear annotation
  *   marks, the deprecated format characters U+206A–206F, Hangul fillers and Khmer inherent vowels.
- * - **Runs of selectors**: a variation selector (or combining grapheme joiner, Mongolian free variation
- *   selector) is kept only directly after a visible character, one at a time. A second one in a row, or
- *   one with nothing visible before it, is how bytes are hidden "in an emoji".
+ * - **Selectors where they do nothing**: a variation selector (or combining grapheme joiner, Mongolian free
+ *   variation selector) is kept only directly after a character it can apply to, one at a time ([keepSelector]:
+ *   emoji style after a symbol, ideographic variants after a CJK ideograph…). A run of them, or one after a
+ *   letter, is how bytes are hidden "in an emoji" or in plain text.
  *
  * Kept: ZWJ and ZWNJ where a script or emoji needs them (UTS #39 §3.1.1.1 contexts A1, A2, B, read
  * loosely, plus emoji ZWJ sequences, UTS #51 ED-16): one joiner between two non-ASCII letters, marks or
- * symbols, or after an Indic virama. A joiner next to ASCII, whitespace, another joiner or the start or
- * end of the text carries nothing a script needs and is removed. Line breaks, tabs and other control
+ * symbols, or after an Indic virama. A joiner next to ASCII, whitespace, another joiner, a character that is
+ * itself removed, or the start or end of the text carries nothing a script needs and is removed. So cleaning
+ * twice gives the same text as cleaning once. Line breaks, tabs and other control
  * characters are left alone, and so are visible format characters (Arabic number signs, Egyptian
  * hieroglyph controls).
  */
@@ -62,8 +64,9 @@ object HiddenText {
                     }
                 }
                 isSelector(cp) -> {
-                    // One selector after a visible character; never two in a row, never after nothing.
-                    if (last >= 0 && !isSelector(last) && !isJoiner(last) && !Character.isWhitespace(last)) {
+                    // One selector, after a character it can apply to; never two in a row, never after nothing.
+                    val next = if (i + n < text.length) text.codePointAt(i + n) else -1
+                    if (keepSelector(cp, last, next)) {
                         out.appendCodePoint(cp)
                         last = cp
                     } else {
@@ -153,8 +156,62 @@ object HiddenText {
         val before = if (isSelector(last)) codePointBefore(out, out.length - Character.charCount(last)) else last
         if (before < 0 || !joinable(before)) return false
         if (cp == ZWJ && isVirama(before)) return next < 0 || !isJoiner(next)
-        return next >= 0 && !isJoiner(next) && joinable(next)
+        return next >= 0 && alwaysKept(next) && joinable(next)
     }
+
+    /**
+     * Whether [cp] is kept wherever it is. A joiner or selector is judged by the character after it only when
+     * that character stays, so that a second pass finds nothing more to remove (`clean(clean(x)) == clean(x)`).
+     */
+    private fun alwaysKept(cp: Int): Boolean = !isJoiner(cp) && !isSelector(cp) && cp !in TAGS && !isHidden(cp)
+
+    /**
+     * Whether selector [cp] can apply to [last], the character kept before it: a selector anywhere else does
+     * nothing visible and only carries data (a byte per letter with U+E0100–E01EF). Read from Unicode's
+     * StandardizedVariants, emoji-variation-sequences and the IVD, by block rather than by listed base:
+     * - U+FE0E/FE0F (text and emoji style) after a symbol that has both styles: keycap bases `#*0-9`, © ®, ‼ ⁉,
+     *   the symbol blocks U+2100–2BFF, U+3030, U+303D, U+3297, U+3299 and the emoji blocks.
+     * - U+FE00–FE0D after a CJK ideograph, fullwidth or CJK punctuation, a mathematical operator, zero (the slashed
+     *   form), Myanmar, Phags-pa, Manichaean or an Egyptian hieroglyph.
+     * - U+E0100–E01EF (ideographic variation sequences) after a CJK ideograph only.
+     * - U+180B–180D and U+180F (Mongolian free variation selectors) after a Mongolian letter.
+     * - U+034F (combining grapheme joiner) between two combining marks, where it keeps their order.
+     */
+    private fun keepSelector(cp: Int, last: Int, next: Int): Boolean {
+        if (last < 0 || isSelector(last) || isJoiner(last) || Character.isWhitespace(last)) return false
+        return when (cp) {
+            0xFE0E, 0xFE0F -> hasEmojiStyle(last)
+            in 0xFE00..0xFE0D -> hasStandardizedVariants(last)
+            in 0xE0100..0xE01EF -> Character.isIdeographic(last)
+            0x034F -> isMark(last) && next >= 0 && alwaysKept(next) && isMark(next)
+            else -> last in 0x1820..0x18AA // Mongolian free variation selectors
+        }
+    }
+
+    private fun hasEmojiStyle(cp: Int): Boolean =
+        cp == '#'.code || cp == '*'.code || cp in '0'.code..'9'.code || cp == 0x00A9 || cp == 0x00AE ||
+            cp == 0x203C || cp == 0x2049 || cp in 0x2100..0x2BFF || cp == 0x3030 || cp == 0x303D || cp == 0x3297 ||
+            cp == 0x3299 || cp in 0x1F000..0x1FAFF
+
+    private fun hasStandardizedVariants(cp: Int): Boolean =
+        cp == '0'.code || Character.isIdeographic(cp) || cp in 0x3000..0x303F || cp in 0xFF00..0xFFEF ||
+            cp in 0x2200..0x22FF || cp in 0x2A00..0x2AFF || cp in 0x1000..0x109F || cp in 0xA9E0..0xA9FF ||
+            cp in 0xAA60..0xAA7F || cp in 0xA840..0xA87F || cp in 0x10AC0..0x10AFF || cp in 0x13000..0x1345F
+
+    private fun isMark(cp: Int): Boolean = !isSelector(cp) && !isHidden(cp) && when (Character.getType(cp).toByte()) {
+        Character.NON_SPACING_MARK, Character.COMBINING_SPACING_MARK, Character.ENCLOSING_MARK -> true
+        else -> false
+    }
+
+    /**
+     * Whether [cp] is Default_Ignorable_Code_Point (Unicode DerivedCoreProperties): drawn as nothing at all
+     * when a font has no glyph for it. Comparisons that must see text as a person does skip these.
+     */
+    fun isDefaultIgnorable(cp: Int): Boolean =
+        cp == 0x00AD || cp == 0x034F || cp == 0x061C || cp in 0x115F..0x1160 || cp in 0x17B4..0x17B5 ||
+            cp in 0x180B..0x180F || cp in 0x200B..0x200F || cp in 0x202A..0x202E || cp in 0x2060..0x206F ||
+            cp == 0x3164 || cp in 0xFE00..0xFE0F || cp == 0xFEFF || cp == 0xFFA0 || cp in 0xFFF0..0xFFF8 ||
+            cp in 0x1BCA0..0x1BCA3 || cp in 0x1D173..0x1D17A || cp in 0xE0000..0xE0FFF
 
     private fun codePointBefore(text: CharSequence, end: Int): Int =
         if (end <= 0) -1 else Character.codePointBefore(text, end)
