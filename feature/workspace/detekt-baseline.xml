@@ -1,0 +1,78 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:FileLoader.kt:FileLoader$kind == PreviewKind.Json &amp;&amp; !truncated &amp;&amp; file.extension.lowercase() != "jsonc" &amp;&amp; file.extension.lowercase() != "json5"</ID>
+    <ID>ComplexCondition:TerminalViewClient.kt:LocusTerminalViewClient$session != null &amp;&amp; !session.isRunning &amp;&amp; (keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER)</ID>
+    <ID>ComplexCondition:WorkspaceScreen.kt:open == null &amp;&amp; state.opening == null &amp;&amp; !state.showTrash &amp;&amp; inConnected != null</ID>
+    <ID>CompositionLocalAllowlist:PreviewDispatchers.kt:internal val LocalPreviewDispatchers = staticCompositionLocalOf { PreviewDispatchers(io = Dispatchers.IO, compute = Dispatchers.Default) }</ID>
+    <ID>CyclomaticComplexMethod:FileKinds.kt:fun languageLabel: UiText</ID>
+    <ID>CyclomaticComplexMethod:FileKinds.kt:fun syntaxFor: SyntaxLanguage?</ID>
+    <ID>CyclomaticComplexMethod:FilePreview.kt:@Composable internal fun FilePreview</ID>
+    <ID>CyclomaticComplexMethod:LinuxHealthScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun LinuxHealthRoute</ID>
+    <ID>CyclomaticComplexMethod:LinuxPackagesScreen.kt:@Composable fun LinuxPackagesRoute</ID>
+    <ID>CyclomaticComplexMethod:MediaViewers.kt:@Composable internal fun AudioPlayer</ID>
+    <ID>CyclomaticComplexMethod:TableViewer.kt:internal fun parseTable: Table</ID>
+    <ID>CyclomaticComplexMethod:TerminalScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun TerminalRoute</ID>
+    <ID>CyclomaticComplexMethod:WorkspaceScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun WorkspaceRoute</ID>
+    <ID>LambdaParameterEventTrailing:PdfViewer.kt:onSubmit: (String) -&gt; Unit</ID>
+    <ID>LambdaParameterInRestartableEffect:ImageViewer.kt:onInfo: (String) -&gt; Unit = {}</ID>
+    <ID>LambdaParameterInRestartableEffect:PdfViewer.kt:onPageCount: (Int) -&gt; Unit = {}</ID>
+    <ID>LongMethod:CodeViewer.kt:@Composable internal fun CodeViewer</ID>
+    <ID>LongMethod:ConnectedFolders.kt:@OptIn(ExperimentalLayoutApi::class) @Composable internal fun FolderSheet</ID>
+    <ID>LongMethod:LinuxCard.kt:@OptIn(ExperimentalLayoutApi::class) @Composable private fun Installed</ID>
+    <ID>LongMethod:LinuxHealthScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun LinuxHealthRoute</ID>
+    <ID>LongMethod:LinuxPackagesScreen.kt:@Composable fun LinuxPackagesRoute</ID>
+    <ID>LongMethod:MediaViewers.kt:@Composable internal fun AudioPlayer</ID>
+    <ID>LongMethod:PdfViewer.kt:@OptIn(kotlinx.coroutines.FlowPreview::class, ExperimentalCoroutinesApi::class) @Composable private fun PdfPages</ID>
+    <ID>LongMethod:TerminalScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun TerminalRoute</ID>
+    <ID>LongMethod:WorkspaceScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun WorkspaceRoute</ID>
+    <ID>MagicNumber:CodeViewer.kt:0x2E80</ID>
+    <ID>MagicNumber:DocViewers.kt:&lt;no name provided&gt;$403</ID>
+    <ID>MagicNumber:FileLoader.kt:FileLoader$8_192</ID>
+    <ID>MagicNumber:FilePreview.kt:1000</ID>
+    <ID>MagicNumber:ImageViewer.kt:28</ID>
+    <ID>MagicNumber:MediaViewers.kt:1000</ID>
+    <ID>MagicNumber:MediaViewers.kt:250</ID>
+    <ID>MagicNumber:PdfViewer.kt:0.1f</ID>
+    <ID>MagicNumber:PdfViewer.kt:10f</ID>
+    <ID>MagicNumber:PdfViewer.kt:2.5f</ID>
+    <ID>MagicNumber:PdfViewer.kt:250</ID>
+    <ID>MagicNumber:PdfViewer.kt:35</ID>
+    <ID>MagicNumber:PdfViewer.kt:3f</ID>
+    <ID>MagicNumber:PdfViewer.kt:PdfDocument$32</ID>
+    <ID>MagicNumber:PdfViewer.kt:PdfDocument$35</ID>
+    <ID>MagicNumber:TerminalViewClient.kt:LocusTerminalViewClient$0.9f</ID>
+    <ID>MagicNumber:TerminalViewClient.kt:LocusTerminalViewClient$1.1f</ID>
+    <ID>MatchingDeclarationName:TerminalViewClient.kt:LocusTerminalViewClient : TerminalViewClient</ID>
+    <ID>MayBeConstant:WorkspaceScreenshots.kt:WorkspaceScreenshots.Companion$val PACKAGE_JSON = """{"name":"portfolio-site","version":"1.4.2","private":true,"scripts":{"dev":"vite","build":"vite build","preview":"vite preview --port 4173"},"dependencies":{"@fontsource/inter":"5.2.5"},"devDependencies":{"vite":"7.1.4"}}"""</ID>
+    <ID>ModifierMissing:LinuxHealthScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun LinuxHealthRoute</ID>
+    <ID>ModifierMissing:LinuxPackagesScreen.kt:@Composable fun LinuxPackagesRoute</ID>
+    <ID>ModifierMissing:TerminalScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun TerminalRoute</ID>
+    <ID>ModifierMissing:WorkspaceScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun WorkspaceRoute</ID>
+    <ID>ModifierWithoutDefault:LinuxPackagesScreen.kt:modifier: Modifier</ID>
+    <ID>ModifierWithoutDefault:PdfViewer.kt:modifier: Modifier</ID>
+    <ID>ModifierWithoutDefault:TerminalScreen.kt:modifier: Modifier</ID>
+    <ID>ModifierWithoutDefault:WorkspaceScreen.kt:modifier: Modifier</ID>
+    <ID>MultipleEmitters:TableViewer.kt:@Composable fun TableRow</ID>
+    <ID>ReturnCount:FileKinds.kt:fun syntaxFor: SyntaxLanguage?</ID>
+    <ID>ReturnCount:FilePreview.kt:@Composable internal fun textDetail: String?</ID>
+    <ID>ReturnCount:ImageViewer.kt:private fun decode: Decoded</ID>
+    <ID>ReturnCount:LinuxEngineTextTest.kt:LinuxEngineTextTest.OldEnglish$fun headline: String</ID>
+    <ID>ReturnCount:WorkspaceViewModel.kt:WorkspaceViewModel$fun up: Boolean</ID>
+    <ID>TooGenericExceptionCaught:LinuxHealthViewModel.kt:LinuxHealthViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:LinuxPackagesViewModel.kt:LinuxPackagesViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:PdfViewer.kt:PdfDocument$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:PdfViewer.kt:e: Exception</ID>
+    <ID>TooGenericExceptionCaught:WorkspaceViewModel.kt:WorkspaceViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:WorkspaceViewModel.kt:WorkspaceViewModel$e: Throwable</ID>
+    <ID>TooManyFunctions:LinuxHealthScreen.kt:dev.locus.feature.workspace.linux.health.LinuxHealthScreen.kt</ID>
+    <ID>TooManyFunctions:LinuxHealthViewModel.kt:LinuxHealthViewModel : ViewModel</ID>
+    <ID>TooManyFunctions:TerminalViewClient.kt:LocusTerminalViewClient : TerminalViewClient</ID>
+    <ID>TooManyFunctions:WorkspaceViewModel.kt:WorkspaceViewModel : ViewModel</ID>
+    <ID>ViewModelForwarding:LinuxCard.kt:Installed(panel, state, viewModel, onOpenTerminal, onOpenHealth)</ID>
+    <ID>ViewModelForwarding:LinuxCard.kt:NotInstalled(panel, state, viewModel)</ID>
+    <ID>ViewModelForwarding:LinuxHealthScreen.kt:HealthContent(state, report, fixes, viewModel, onOpenPackages)</ID>
+    <ID>ViewModelForwarding:TerminalScreen.kt:TerminalPane( viewModel = viewModel, sessionId = selected, fontSp = fontSp, client = client, onAsk = ask, modifier = Modifier.weight(1f).fillMaxWidth(), )</ID>
+  </CurrentIssues>
+</SmellBaseline>

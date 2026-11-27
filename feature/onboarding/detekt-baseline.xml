@@ -1,0 +1,46 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>CyclomaticComplexMethod:OnboardingScreen.kt:@Composable private fun BottomAction</ID>
+    <ID>CyclomaticComplexMethod:SetupSteps.kt:@Composable internal fun ColumnScope.LinuxStep</ID>
+    <ID>LambdaParameterEventTrailing:IdentityStep.kt:onChange: (String) -&gt; Unit</ID>
+    <ID>LongMethod:IdentityStep.kt:@OptIn(ExperimentalLayoutApi::class) @Composable internal fun ColumnScope.IdentityFields</ID>
+    <ID>LongMethod:ProviderStep.kt:@Composable private fun RemoteFields</ID>
+    <ID>LongMethod:SetupSteps.kt:@Composable internal fun ColumnScope.ConnectorsStep</ID>
+    <ID>LongMethod:SetupSteps.kt:@Composable internal fun ColumnScope.LinuxStep</ID>
+    <ID>MagicNumber:IdentityStep.kt:1_000</ID>
+    <ID>MagicNumber:IdentityStep.kt:40</ID>
+    <ID>MagicNumber:IdentityStep.kt:80</ID>
+    <ID>MagicNumber:OnboardingViewModel.kt:OnboardingViewModel$10.0</ID>
+    <ID>MagicNumber:OnboardingViewModel.kt:OnboardingViewModel$100</ID>
+    <ID>MagicNumber:PersonaTemplates.kt:PersonaFiles$16</ID>
+    <ID>MagicNumber:PersonaTemplates.kt:PersonaTemplates$12</ID>
+    <ID>MagicNumber:PersonaTemplates.kt:PersonaTemplates$40</ID>
+    <ID>MagicNumber:ProviderStep.kt:1_000_000</ID>
+    <ID>MagicNumber:ProviderStep.kt:1e9</ID>
+    <ID>MatchingDeclarationName:OnboardingGate.kt:OnboardingGateViewModel : ViewModel</ID>
+    <ID>ModifierMissing:IdentityStep.kt:@Composable fun PersonaRoute</ID>
+    <ID>ModifierMissing:OnboardingScreen.kt:@Composable fun OnboardingRoute</ID>
+    <ID>MultipleEmitters:ProviderStep.kt:@Composable private fun RemoteFields</ID>
+    <ID>ReturnCount:PersonaTemplates.kt:PersonaTemplates$fun parsePolished: PersonaFiles?</ID>
+    <ID>SwallowedException:OnboardingViewModel.kt:OnboardingViewModel$e: TimeoutCancellationException</ID>
+    <ID>TooGenericExceptionCaught:OnboardingViewModel.kt:OnboardingViewModel$e: Throwable</ID>
+    <ID>TooManyFunctions:OnboardingViewModel.kt:OnboardingViewModel : ViewModel</ID>
+    <ID>TooManyFunctions:PersonaTemplates.kt:PersonaTemplates</ID>
+    <ID>ViewModelForwarding:IdentityStep.kt:IdentityFields(state, viewModel)</ID>
+    <ID>ViewModelForwarding:IdentityStep.kt:PersonaChanges(viewModel)</ID>
+    <ID>ViewModelForwarding:OnboardingScreen.kt:BottomAction(step, state, viewModel, onFinish)</ID>
+    <ID>ViewModelForwarding:OnboardingScreen.kt:ConnectorsStep(state, viewModel)</ID>
+    <ID>ViewModelForwarding:OnboardingScreen.kt:DoneStep(state, viewModel, onOpenWorkspace)</ID>
+    <ID>ViewModelForwarding:OnboardingScreen.kt:IdentityFields(state, viewModel)</ID>
+    <ID>ViewModelForwarding:OnboardingScreen.kt:LinuxStep(state, viewModel, onOpenWorkspace)</ID>
+    <ID>ViewModelForwarding:OnboardingScreen.kt:PrivacyStep(viewModel)</ID>
+    <ID>ViewModelForwarding:OnboardingScreen.kt:ProviderStep(state, viewModel)</ID>
+    <ID>ViewModelForwarding:OnboardingScreen.kt:SshStep(state, viewModel)</ID>
+    <ID>ViewModelForwarding:OnboardingScreen.kt:TestStep(state, viewModel)</ID>
+    <ID>ViewModelForwarding:ProviderStep.kt:ChatGptSignInFields(viewModel)</ID>
+    <ID>ViewModelForwarding:ProviderStep.kt:OnDevicePicker(state, viewModel)</ID>
+    <ID>ViewModelForwarding:ProviderStep.kt:RemoteFields(viewModel, localNetwork)</ID>
+  </CurrentIssues>
+</SmellBaseline>

@@ -1,0 +1,11 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ReturnCount:Sqlite3.kt:Sqlite3.Companion$internal fun unavailableReason: String?</ID>
+    <ID>TooManyFunctions:Daos.kt:ConversationDao</ID>
+    <ID>TooManyFunctions:Daos.kt:MessageDao</ID>
+    <ID>TooManyFunctions:Daos.kt:ScheduledTaskDao</ID>
+    <ID>TooManyFunctions:DatabaseModule.kt:DatabaseModule</ID>
+  </CurrentIssues>
+</SmellBaseline>

@@ -1,0 +1,29 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>CyclomaticComplexMethod:TasksScreen.kt:@Composable internal fun TaskSheet</ID>
+    <ID>CyclomaticComplexMethod:TasksScreen.kt:@Composable private fun TasksScreen</ID>
+    <ID>CyclomaticComplexMethod:TasksScreen.kt:@OptIn(ExperimentalLayoutApi::class) @Composable private fun TaskRow</ID>
+    <ID>CyclomaticComplexMethod:TriggerUi.kt:@Composable internal fun TriggerFields</ID>
+    <ID>LongMethod:TasksScreen.kt:@Composable internal fun TaskSheet</ID>
+    <ID>LongMethod:TasksScreen.kt:@Composable private fun TasksScreen</ID>
+    <ID>LongMethod:TasksScreen.kt:@OptIn(ExperimentalLayoutApi::class) @Composable private fun TaskRow</ID>
+    <ID>LongMethod:TriggerUi.kt:@Composable internal fun TriggerFields</ID>
+    <ID>MagicNumber:TasksScreen.kt:24</ID>
+    <ID>MagicNumber:TasksScreen.kt:60</ID>
+    <ID>MagicNumber:TasksViewModel.kt:TaskDraftState$6</ID>
+    <ID>MagicNumber:TasksViewModel.kt:TaskDraftState$7</ID>
+    <ID>MultipleEmitters:TriggerUi.kt:@Composable internal fun TriggerFields</ID>
+    <ID>ParameterNaming:TasksScreen.kt:onGranted: () -&gt; Unit = {}</ID>
+    <ID>SwallowedException:TasksViewModel.kt:TasksViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:TasksViewModel.kt:TasksViewModel$e: Exception</ID>
+    <ID>TooManyFunctions:TasksScreen.kt:dev.locus.feature.tasks.TasksScreen.kt</ID>
+    <ID>TooManyFunctions:TasksViewModel.kt:TasksViewModel : ViewModel</ID>
+    <ID>TooManyFunctions:TriggerUi.kt:dev.locus.feature.tasks.TriggerUi.kt</ID>
+    <ID>ViewModelForwarding:TasksScreen.kt:TaskRow( item, viewModel, onEdit = { edit(item.task) }, onTest = { sheet = SheetTarget.Test(item.task.id) }, onHistory = { sheet = SheetTarget.History(item.task.id) }, onOpenChat = onOpenChat, )</ID>
+    <ID>ViewModelForwarding:TasksScreen.kt:TaskSheet( initial = target.draft ?: TaskDraft(conditions = defaults), editing = null, viewModel = viewModel, onDismiss = { sheet = null }, onSave = { viewModel.create(it); sheet = null }, )</ID>
+    <ID>ViewModelForwarding:TasksScreen.kt:TaskSheet( initial = target.draft, editing = target.title, viewModel = viewModel, onDismiss = { sheet = null }, onSave = { viewModel.update(target.taskId, it); sheet = null }, )</ID>
+    <ID>ViewModelForwarding:TasksScreen.kt:TasksScreen(onBack, onOpenChat, viewModel, snackbarHost = { LocusFeedbackHost(feedbackState) })</ID>
+  </CurrentIssues>
+</SmellBaseline>

@@ -1,3 +1,4 @@
+import dev.locus.buildlogic.KOVER_MIN_LINE_COVERAGE
 import dev.locus.buildlogic.KOVER_VARIANT
 import dev.locus.buildlogic.koverFilters
 import kotlinx.kover.gradle.plugin.dsl.KoverProjectExtension
@@ -9,7 +10,8 @@ import org.gradle.kotlin.dsl.dependencies
 
 /**
  * Root project only: merges every module's Kover data into one report.
- * `./gradlew :koverHtmlReportUnit` writes build/reports/kover/htmlUnit/index.html.
+ * `./gradlew :koverHtmlReportUnit` writes build/reports/kover/htmlUnit/index.html, and
+ * `./gradlew :koverVerifyUnit` fails when its line coverage is under [KOVER_MIN_LINE_COVERAGE].
  */
 class KoverAggregationConventionPlugin : Plugin<Project> {
     override fun apply(target: Project) = with(target) {
@@ -25,6 +27,15 @@ class KoverAggregationConventionPlugin : Plugin<Project> {
                 createVariant(KOVER_VARIANT) {}
             }
             koverFilters()
+            // Only the merged report has a bound: one module's own coverage says little, and modules
+            // without tests would fail on their own.
+            reports.variant(KOVER_VARIANT) {
+                verify {
+                    rule("Merged line coverage") {
+                        minBound(KOVER_MIN_LINE_COVERAGE)
+                    }
+                }
+            }
         }
     }
 }

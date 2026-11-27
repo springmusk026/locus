@@ -1,0 +1,30 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>CyclomaticComplexMethod:MainActivity.kt:@Composable private fun LocusNavigation</ID>
+    <ID>CyclomaticComplexMethod:MainActivity.kt:@Composable private fun PhoneRequestHost</ID>
+    <ID>CyclomaticComplexMethod:ShareViewModel.kt:ShareViewModel$fun handle</ID>
+    <ID>LongMethod:MainActivity.kt:@Composable private fun LocusNavigation</ID>
+    <ID>LoopWithTooManyJumpStatements:ChatUi.kt:for</ID>
+    <ID>MagicNumber:AutomationActivity.kt:AutomationActivity$200</ID>
+    <ID>MagicNumber:AutomationActivity.kt:AutomationActivity$600</ID>
+    <ID>MagicNumber:LocusApplication.kt:LocusApplication$37</ID>
+    <ID>MagicNumber:MainActivity.kt:33</ID>
+    <ID>MagicNumber:MainActivity.kt:MainActivity$33</ID>
+    <ID>MatchingDeclarationName:ChatUi.kt:SendButton</ID>
+    <ID>MutableStateAutoboxing:ScreensOpenTest.kt:ScreensOpenTest$mutableStateOf(0)</ID>
+    <ID>ProtectedMemberInFinalClass:AskTileServiceTest.kt:AskTileServiceTest.CollapsingTileShadow$@Implementation(minSdk = 34) protected fun startActivityAndCollapse</ID>
+    <ID>ReturnCount:ChatUi.kt:private fun ComposeTestRule.dragIntoView</ID>
+    <ID>ReturnCount:DropdownsTest.kt:DropdownsTest$private fun click: String?</ID>
+    <ID>TooGenericExceptionCaught:LocusWidgetUpdater.kt:LocusWidgetUpdater$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ShareViewModel.kt:ShareViewModel$e: Exception</ID>
+    <ID>ViewModelInjection:MainActivity.kt:val gate: OnboardingGateViewModel = hiltViewModel()</ID>
+    <ID>ViewModelInjection:MainActivity.kt:val notice: IntegrityNoticeViewModel = hiltViewModel()</ID>
+    <ID>ViewModelInjection:MainActivity.kt:val notice: RestoreNoticeViewModel = hiltViewModel()</ID>
+    <ID>ViewModelInjection:MainActivity.kt:val notice: StorageNoticeViewModel = hiltViewModel()</ID>
+    <ID>ViewModelInjection:MainActivity.kt:val share: ShareViewModel = hiltViewModel()</ID>
+    <ID>ViewModelInjection:MainActivity.kt:val vm: PhoneRequestsViewModel = hiltViewModel()</ID>
+    <ID>ViewModelInjection:MainActivity.kt:val vm: SavedKeysResetViewModel = hiltViewModel()</ID>
+  </CurrentIssues>
+</SmellBaseline>

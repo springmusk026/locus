@@ -1,0 +1,76 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:LibraryScreen.kt:(i == 1 &amp;&amp; pendingSkills &gt; 0) || (i == 2 &amp;&amp; pendingConnectors &gt; 0) || (i == 3 &amp;&amp; pendingAgents &gt; 0)</ID>
+    <ID>ComplexCondition:LibraryViewModel.kt:LibraryViewModel$template.local == null &amp;&amp; template.signIn &amp;&amp; key.isNullOrBlank() &amp;&amp; !useSavedKey</ID>
+    <ID>ComplexCondition:MemorySuggestUi.kt:openNow &amp;&amp; !opened &amp;&amp; availability == TidyAvailability.READY &amp;&amp; total &gt; 0</ID>
+    <ID>ComplexCondition:SkillsTab.kt:library.skills.isEmpty() &amp;&amp; status == null &amp;&amp; savedWorkflows.isEmpty() &amp;&amp; savedPrompts.isEmpty()</ID>
+    <ID>ComposableParamOrder:MemorySuggestUi.kt:@Composable internal fun MemorySuggestEntry</ID>
+    <ID>CyclomaticComplexMethod:AgentsTab.kt:@Composable private fun DefinitionRow</ID>
+    <ID>CyclomaticComplexMethod:ConnectorKeyNote.kt:internal fun connectorKeyNote: String?</ID>
+    <ID>CyclomaticComplexMethod:LibraryScreen.kt:@Composable private fun ConnectorsTab</ID>
+    <ID>CyclomaticComplexMethod:LibraryScreen.kt:@Composable private fun MemoryTab</ID>
+    <ID>CyclomaticComplexMethod:LibraryScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun LibraryRoute</ID>
+    <ID>CyclomaticComplexMethod:LibraryWorkflows.kt:@Composable internal fun WorkflowsCard</ID>
+    <ID>CyclomaticComplexMethod:LocalMcpUi.kt:@Composable internal fun LocalMcpRow</ID>
+    <ID>CyclomaticComplexMethod:McpTemplatesUi.kt:@Composable internal fun McpTemplateSheet</ID>
+    <ID>CyclomaticComplexMethod:MemoryOrigin.kt:internal fun taintSources: String</ID>
+    <ID>CyclomaticComplexMethod:MemorySuggestUi.kt:@Composable internal fun MemorySuggestSheet</ID>
+    <ID>CyclomaticComplexMethod:ServiceTemplatesUi.kt:@Composable internal fun ConnectionResult</ID>
+    <ID>CyclomaticComplexMethod:ServiceTemplatesUi.kt:@Composable internal fun HomeAssistantSheet</ID>
+    <ID>CyclomaticComplexMethod:SkillsTab.kt:@Composable internal fun SkillsTab</ID>
+    <ID>CyclomaticComplexMethod:SkillsTab.kt:@Composable private fun ImportReviewSheet</ID>
+    <ID>CyclomaticComplexMethod:SkillsTab.kt:@Composable private fun SkillRow</ID>
+    <ID>LambdaParameterEventTrailing:LibraryScreen.kt:onAddingMcp: (String?) -&gt; Unit</ID>
+    <ID>LambdaParameterInRestartableEffect:ServiceTemplatesUi.kt:onDismiss: () -&gt; Unit</ID>
+    <ID>LongMethod:AgentsTab.kt:@Composable private fun DefinitionRow</ID>
+    <ID>LongMethod:LibraryScreen.kt:@Composable private fun ConnectorsTab</ID>
+    <ID>LongMethod:LibraryScreen.kt:@Composable private fun MemoryTab</ID>
+    <ID>LongMethod:LibraryScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun LibraryRoute</ID>
+    <ID>LongMethod:McpTemplatesUi.kt:@Composable internal fun McpTemplateSheet</ID>
+    <ID>LongMethod:MemorySuggestUi.kt:@Composable internal fun MemorySuggestSheet</ID>
+    <ID>LongMethod:SkillsTab.kt:@Composable internal fun SkillsTab</ID>
+    <ID>LongMethod:SkillsTab.kt:@Composable private fun SkillRow</ID>
+    <ID>MagicNumber:LibraryViewModel.kt:LibraryViewModel.Companion$3</ID>
+    <ID>MagicNumber:LocalMcpUi.kt:1_200</ID>
+    <ID>MagicNumber:MemorySuggestUi.kt:10</ID>
+    <ID>MagicNumber:MemorySuggestUi.kt:100</ID>
+    <ID>MagicNumber:SkillsTab.kt:60</ID>
+    <ID>MagicNumber:SkillsTab.kt:99</ID>
+    <ID>MatchingDeclarationName:MemoryOrigin.kt:MemoryOriginView</ID>
+    <ID>ModifierMissing:LibraryScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun LibraryRoute</ID>
+    <ID>ModifierWithoutDefault:AgentsTab.kt:modifier: Modifier</ID>
+    <ID>ModifierWithoutDefault:LibraryScreen.kt:modifier: Modifier</ID>
+    <ID>ModifierWithoutDefault:SkillsTab.kt:modifier: Modifier</ID>
+    <ID>MultipleEmitters:LocalMcpUi.kt:@Composable private fun HealthNote</ID>
+    <ID>MultipleEmitters:MemorySuggestUi.kt:@Composable private fun SuggestScopePicker</ID>
+    <ID>MultipleEmitters:MemoryTidyUi.kt:@Composable internal fun TidyReview</ID>
+    <ID>MultipleEmitters:ServiceTemplatesUi.kt:@Composable internal fun HomeRulesFields</ID>
+    <ID>ParameterNaming:ServiceTemplatesUi.kt:onEdited: () -&gt; Unit</ID>
+    <ID>ReturnCount:ConnectorKeyNote.kt:internal fun connectorKeyNote: String?</ID>
+    <ID>ReturnCount:LibraryScreen.kt:private fun memoryTarget: MemoryTarget?</ID>
+    <ID>ReturnCount:LibraryViewModel.kt:LibraryViewModel.Companion$fun textOf: String?</ID>
+    <ID>ReturnCount:McpToolChangesUi.kt:internal fun compactDiff: List&lt;String&gt;</ID>
+    <ID>SwallowedException:LibraryPrompts.kt:LibraryPromptsViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:LibraryPrompts.kt:LibraryPromptsViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:LibraryViewModel.kt:LibraryViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:LibraryWorkflows.kt:LibraryWorkflowsViewModel$e: Exception</ID>
+    <ID>TooManyFunctions:LibraryViewModel.kt:LibraryViewModel : ViewModel</ID>
+    <ID>TooManyFunctions:SkillsTab.kt:dev.locus.feature.library.SkillsTab.kt</ID>
+    <ID>ViewModelForwarding:AgentsTab.kt:DefinitionRow(agent, viewModel, approvedActive = library.agents.any { !it.draft &amp;&amp; it.name == agent.name })</ID>
+    <ID>ViewModelForwarding:LibraryPrompts.kt:PromptLibraryRow(prompt, first = i == 0, last = i == all.lastIndex, viewModel)</ID>
+    <ID>ViewModelForwarding:LibraryScreen.kt:AgentsTab(library, viewModel, Modifier)</ID>
+    <ID>ViewModelForwarding:LibraryScreen.kt:ConnectorsTab(library, viewModel, Modifier, addingMcp, onAddingMcp = { addingMcp = it })</ID>
+    <ID>ViewModelForwarding:LibraryScreen.kt:MemoryTab(library, viewModel, Modifier, onOpenChat = onOpenChat, suggestNow = suggestMemories)</ID>
+    <ID>ViewModelForwarding:LibraryScreen.kt:SkillsTab(library, viewModel, Modifier, onOpenChat = onOpenChat)</ID>
+    <ID>ViewModelForwarding:LibraryWorkflows.kt:ScheduleSheet(s, viewModel)</ID>
+    <ID>ViewModelForwarding:LibraryWorkflows.kt:WorkflowRow(saved, saved.projectId?.let { names[it] ?: stringResource(R.string.library_workflows_a_project) }, viewModel)</ID>
+    <ID>ViewModelForwarding:SkillsTab.kt:ImportBanner(it, viewModel)</ID>
+    <ID>ViewModelForwarding:SkillsTab.kt:ImportReviewSheet(it, viewModel)</ID>
+    <ID>ViewModelForwarding:SkillsTab.kt:PromptsCard(prompts)</ID>
+    <ID>ViewModelForwarding:SkillsTab.kt:PromptsCard(prompts, sheetsOnly = true)</ID>
+    <ID>ViewModelForwarding:SkillsTab.kt:SkillRow(skill, replacesActive, if (replacesActive) library.skillUpdates[skill.name] else null, viewModel)</ID>
+    <ID>ViewModelForwarding:SkillsTab.kt:WorkflowsCard(workflows, onOpenChat)</ID>
+  </CurrentIssues>
+</SmellBaseline>

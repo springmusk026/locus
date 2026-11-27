@@ -1,0 +1,16 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:PickUi.kt:selection != null &amp;&amp; !pick.stale &amp;&amp; selection.width &gt; 0f &amp;&amp; selection.height &gt; 0f</ID>
+    <ID>CyclomaticComplexMethod:BrowserScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable internal fun BrowserScreen</ID>
+    <ID>CyclomaticComplexMethod:PickUi.kt:@Composable internal fun PickOverlay</ID>
+    <ID>LongMethod:BrowserScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable internal fun BrowserScreen</ID>
+    <ID>MagicNumber:BrowserScreen.kt:4</ID>
+    <ID>ModifierMissing:BrowserScreen.kt:@Composable fun BrowserRoute</ID>
+    <ID>MultipleEmitters:BrowserScreen.kt:@Composable private fun WaitingDock</ID>
+    <ID>ReturnCount:BrowserScreen.kt:internal fun waitingAnnouncement: String</ID>
+    <ID>TooManyFunctions:BrowserScreen.kt:dev.locus.feature.browser.BrowserScreen.kt</ID>
+    <ID>TooManyFunctions:BrowserViewModel.kt:BrowserViewModel : ViewModel</ID>
+  </CurrentIssues>
+</SmellBaseline>

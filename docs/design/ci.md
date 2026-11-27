@@ -10,8 +10,8 @@ that run side by side, plus two small jobs around them. Instrumentation tests
 | Job | What it runs | NDK |
 |---|---|---|
 | `changes` | Lists the PR's files; says whether anything besides docs changed | – |
-| `unit-tests` | `unitTests` (every module's JVM unit tests), then the Kover reports (artifact `coverage`) | no |
-| `lint` | `lintDebug` | no |
+| `unit-tests` | `unitTests` (every module's JVM unit tests), then the Kover reports (artifact `coverage`) and `:koverVerifyUnit` (the coverage bound) | no |
+| `lint` | `lintDebug detekt --continue` (Android lint, then detekt in every module) | no |
 | `debug-apk` | `:app:assembleDebug` (artifact `locus-debug-apk`) | yes |
 | `release-r8` | `:app:assembleRelease -Plocus.abi=arm64-v8a`: R8 plus `verifyReleaseR8KeptNames` | yes |
 | `build` | Needs all of the above; the one required check | – |
@@ -42,6 +42,64 @@ runs the task of that name in every module, so a module that applies a `locus.*`
 as soon as it exists. Every module does: the root's Kover aggregation already needs each one to
 apply Kover through those plugins. The Kover report tasks (`:koverHtmlReportUnit`,
 `:koverXmlReportUnit`) are unchanged and read the same test runs.
+
+## Coverage bound
+
+`:koverVerifyUnit` fails the unit-tests job when the merged line coverage (the `unit` report the
+job already builds, every module's tests on every module's code, generated code left out) is under
+`KOVER_MIN_LINE_COVERAGE` in `build-logic/.../Kover.kt`. That constant is the one place the bound
+lives; only the root's merged report has a rule, so a module without tests doesn't fail on its own.
+It was set at 59%, just under the 59.6% (45,629 of 76,590 lines) measured on main on 2026-11-27
+(`unitTests :koverXmlReportUnit`), so a change that drops coverage by more than about 0.6 points
+(some 450 lines) fails. Raise it when coverage grows; don't lower it to make a change pass. It
+reads the test run the job has just done, so it adds a second or two, not a job.
+
+## Static analysis
+
+[detekt](https://detekt.dev) runs in the lint job, in every module: the convention plugins
+(`build-logic/.../Detekt.kt`) apply it wherever they apply Kover, so a new module has it too. Locally:
+
+```sh
+./gradlew detekt                      # every module; report in <module>/build/reports/detekt/
+./gradlew :core:agent:detekt          # one module
+./gradlew :core:agent:detektBaseline  # rewrite that module's baseline (detektBaseline: all modules)
+```
+
+- **Which detekt.** detekt 1.23.8, the newest stable release, is built against Kotlin 2.0.21 and
+  refuses to run when its Kotlin is resolved to a newer one ("detekt was compiled with Kotlin 2.0.21
+  but is currently running with …", [detekt#8582](https://github.com/detekt/detekt/issues/8582)); it
+  also predates Gradle 9. The 2.0.0 line is still in alpha, and 2.0.0-alpha.6 (2026-08-04) is built
+  against Kotlin 2.4.10, Gradle 9.6.1 and AGP 9.3.1
+  ([release](https://github.com/detekt/detekt/releases/tag/v2.0.0-alpha.6),
+  [compatibility table](https://detekt.dev/docs/introduction/compatibility/)). It runs its own
+  Kotlin compiler (2.4.10) in a separate classpath, so the project's Kotlin 2.4.21 doesn't have to
+  match. Plugin id `dev.detekt` (2.x moved from `io.gitlab.arturbosch.detekt`). The
+  [Compose rules](https://mrmans0n.github.io/compose-rules/) 0.6.8 (`io.nlopez.compose.rules:detekt`,
+  2026-10-09) target exactly that detekt
+  ([release](https://github.com/mrmans0n/compose-rules/releases/tag/v0.6.8)). Move to 2.0.0 stable
+  when it ships.
+- **Rules.** detekt's defaults (`buildUponDefaultConfig`), the Compose rules' own defaults, and
+  `config/detekt/detekt.yml` for the differences: the complexity rules #359 relies on stay at
+  detekt's limits (cyclomatic complexity 14, 60-line functions, 600-line classes, nesting depth 4)
+  and skip test sources; composables and top-level constants may be PascalCase
+  ([detekt's Compose page](https://detekt.dev/docs/introduction/compose/)); `MaxLineLength` is off,
+  since the code has no line limit to match (14,000 lines over 120 characters). No formatting rules
+  run: detekt's ktlint wrapper is a separate plugin and isn't added.
+- **No type resolution.** The plain `detekt` task parses source without compiling, so it needs no
+  build of the module and analyses only `src/` (generated code under `build/` is never read). Rules
+  that need types are skipped; `detektMain`/`detektDebug` would run them, at the cost of compiling.
+- **Baselines.** Each module has `detekt-baseline.xml` with the findings on main when detekt was
+  added (3,094 in all; the largest groups are magic numbers, return counts and 331 overly complex
+  functions). A finding is matched by rule, file and signature, not line number, so edits elsewhere in
+  the file don't resurface it, but a new function, a changed signature or a move to another file
+  has to pass. Regenerate a module's baseline after
+  fixing baselined code so stale entries drop out (CONTRIBUTING.md, "Static analysis and coverage"),
+  never to let new findings in.
+- **Cost.** All 26 modules take about 9 seconds locally when every one reruns (about 110
+  CPU-seconds spread over the cores, Gradle configuration aside), and detekt's tasks are cacheable,
+  so modules a PR doesn't touch come from the build cache. It runs in the lint job because a job of
+  its own would bill another runner start, checkout and Gradle configuration for well under a
+  minute of work; `--continue` lets lint and detekt both report.
 
 ## One NDK version
 

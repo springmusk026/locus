@@ -1,0 +1,13 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ReturnCount:FixtureWeb.kt:FixtureWeb$private fun serve: Response</ID>
+    <ID>ReturnCount:Grader.kt:Grader$private fun commandProblem: String?</ID>
+    <ID>ReturnCount:Grader.kt:Grader$private fun fileProblem: String?</ID>
+    <ID>ReturnCount:Grader.kt:Grader$private fun grade: CheckResult</ID>
+    <ID>ReturnCount:TrialRunner.kt:TrialRunner$suspend fun run: TrialResult</ID>
+    <ID>SwallowedException:FixtureWeb.kt:FixtureWeb$e: Exception</ID>
+    <ID>SwallowedException:TrialRunner.kt:TrialRunner$e: TimeoutCancellationException</ID>
+  </CurrentIssues>
+</SmellBaseline>

@@ -1,0 +1,561 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:AgentRunner.kt:AgentRunner$completed &amp;&amp; !readOnly &amp;&amp; compare == null &amp;&amp; toolsUsed &gt;= REFLECT_AFTER_TOOLS &amp;&amp; provider.format != ApiFormat.ON_DEVICE &amp;&amp; reflects(conversation, current)</ID>
+    <ID>ComplexCondition:AutomationRequest.kt:AutomationRequest.Companion$k.isBlank() || k.length &gt; MAX_NAME_CHARS || !k.all { it.isLetterOrDigit() || it == '_' || it == '-' }</ID>
+    <ID>ComplexCondition:BackupArchive.kt:BackupArchive$name.isEmpty() || name.startsWith("/") || '\\' in name || '\u0000' in name</ID>
+    <ID>ComplexCondition:BackupCrypto.kt:BackupCrypto$header.format &lt; 1 || header.kdf != KDF || header.cipher != CIPHER || header.iterations !in MIN_ITERATIONS..MAX_ITERATIONS</ID>
+    <ID>ComplexCondition:ChatGptExport.kt:ChatGptExport$type != "text" &amp;&amp; type != "multimodal_text" &amp;&amp; text.isEmpty() &amp;&amp; images == 0 &amp;&amp; unknown == before</ID>
+    <ID>ComplexCondition:ConversationRepository.kt:ConversationRepository.Companion$providerId == null &amp;&amp; model == null &amp;&amp; firstTokenMs == null &amp;&amp; totalMs == null &amp;&amp; fallbackFrom == null</ID>
+    <ID>ComplexCondition:ExportReader.kt:ExportReader$b == ' '.code || b == '\n'.code || b == '\r'.code || b == '\t'.code</ID>
+    <ID>ComplexCondition:ExportReader.kt:ExportReader$n == 4 &amp;&amp; head[0] == 'P'.code.toByte() &amp;&amp; head[1] == 'K'.code.toByte() &amp;&amp; head[2] == 3.toByte() &amp;&amp; head[3] == 4.toByte()</ID>
+    <ID>ComplexCondition:HelperModel.kt:HelperModel.Companion$!(t.startsWith("[") &amp;&amp; t.endsWith("]")) &amp;&amp; !(t.startsWith("{") &amp;&amp; t.endsWith("}"))</ID>
+    <ID>ComplexCondition:LibraryRepository.kt:LibraryRepository$connector != null &amp;&amp; connector.local == null &amp;&amp; connector.auth.type in ConnectorKeys.KEY_TYPES &amp;&amp; connector.auth.secret == name</ID>
+    <ID>ComplexCondition:SftpTransfer.kt:SftpTransfer$next &lt; end &amp;&amp; queue.size &lt; IN_FLIGHT &amp;&amp; (next &lt; sizeEnd || queue.isEmpty())</ID>
+    <ID>ComplexCondition:TranscriptReader.kt:TranscriptReader.Companion$providerId == null &amp;&amp; model == null &amp;&amp; firstTokenMs == null &amp;&amp; totalMs == null &amp;&amp; fallbackFrom == null</ID>
+    <ID>ComplexCondition:Updates.kt:Updates$s is UpdateState.Available || s is UpdateState.UpToDate || (s is UpdateState.Failed &amp;&amp; s.release != null &amp;&amp; !hasDownload(s.release))</ID>
+    <ID>CyclomaticComplexMethod:AgentRunner.kt:AgentRunner$private fun startRun: String?</ID>
+    <ID>CyclomaticComplexMethod:AgentRunner.kt:AgentRunner$private suspend fun newBudget: RunBudget?</ID>
+    <ID>CyclomaticComplexMethod:AgentRunner.kt:AgentRunner$private suspend fun recoverInterrupted</ID>
+    <ID>CyclomaticComplexMethod:AgentRunner.kt:AgentRunner$private suspend fun run</ID>
+    <ID>CyclomaticComplexMethod:AgentRunner.kt:AgentRunner$private suspend fun runOverride: Message?</ID>
+    <ID>CyclomaticComplexMethod:AgentRunner.kt:AgentRunner$private suspend fun runProposal: ProposalApproval</ID>
+    <ID>CyclomaticComplexMethod:AgentService.kt:AgentService$private fun statusNotification: Notification</ID>
+    <ID>CyclomaticComplexMethod:AgentStatus.kt:internal fun agentStatus: AgentStatus</ID>
+    <ID>CyclomaticComplexMethod:AnalyticsRepository.kt:AnalyticsRepository.Companion$fun buildReport: AnalyticsReport</ID>
+    <ID>CyclomaticComplexMethod:AndroidImagePreparer.kt:AndroidImagePreparer$override fun prepare: PreparedImage</ID>
+    <ID>CyclomaticComplexMethod:AutomationRequest.kt:AutomationRequest.Companion$fun parse: Parsed</ID>
+    <ID>CyclomaticComplexMethod:AutomationRequest.kt:AutomationRequest.Companion$private fun params: ParamsResult</ID>
+    <ID>CyclomaticComplexMethod:BackupArchive.kt:BackupArchive$fun extract: ExtractedBackup</ID>
+    <ID>CyclomaticComplexMethod:CalendarWriteTools.kt:Recurrence$fun normalize: String</ID>
+    <ID>CyclomaticComplexMethod:CalendarWriteTools.kt:internal fun parseTimes: EventTimes</ID>
+    <ID>CyclomaticComplexMethod:ChangeRepository.kt:ChangeRepository$override suspend fun record</ID>
+    <ID>CyclomaticComplexMethod:ChangeRepository.kt:ChangeRepository$private fun recordEdit</ID>
+    <ID>CyclomaticComplexMethod:ChatGptExport.kt:ChatGptExport$private fun readMessage: Read</ID>
+    <ID>CyclomaticComplexMethod:ChatHistoryTools.kt:ChatHistoryRead$private fun entry: String?</ID>
+    <ID>CyclomaticComplexMethod:ClaudeExport.kt:ClaudeExport$fun parse: ParsedEntry</ID>
+    <ID>CyclomaticComplexMethod:ConversationRepository.kt:ConversationRepository$private suspend fun buildPrompt: BuiltPrompt</ID>
+    <ID>CyclomaticComplexMethod:EventSources.kt:CalendarEvents$override suspend fun poll: Poll</ID>
+    <ID>CyclomaticComplexMethod:EventSources.kt:NtfyEvents$override suspend fun poll: Poll</ID>
+    <ID>CyclomaticComplexMethod:ExportReader.kt:ExportReader$private suspend fun readZip: FileResult</ID>
+    <ID>CyclomaticComplexMethod:ExportTree.kt:ExportTree$fun build: Result</ID>
+    <ID>CyclomaticComplexMethod:HomeAssistantSafety.kt:HomeAssistantSafety$fun title: String</ID>
+    <ID>CyclomaticComplexMethod:HomeAssistantSafety.kt:HomeAssistantSafety.Call.Companion$fun of: Call</ID>
+    <ID>CyclomaticComplexMethod:LinuxSetup.kt:LinuxSetup$suspend fun execute</ID>
+    <ID>CyclomaticComplexMethod:NeedsYouFeed.kt:fun needsYouFeed: NeedsYouFeed</ID>
+    <ID>CyclomaticComplexMethod:PendingRestore.kt:PendingRestore$private fun swap: Boolean</ID>
+    <ID>CyclomaticComplexMethod:PhoneHandoffTools.kt:SaveFile.Companion$internal fun mimeOf: String</ID>
+    <ID>CyclomaticComplexMethod:ReachMeSetup.kt:ReachMeSetup$internal suspend fun value: String</ID>
+    <ID>CyclomaticComplexMethod:ReachMeSetup.kt:ReachMeSetup$private suspend fun &lt;T&gt; matrixCall: T</ID>
+    <ID>CyclomaticComplexMethod:ReleaseSource.kt:ReleaseSource$suspend fun latest: CheckOutcome</ID>
+    <ID>CyclomaticComplexMethod:RemoteExecution.kt:RemoteExecution$override suspend fun run: RemoteRun</ID>
+    <ID>CyclomaticComplexMethod:RemoteSync.kt:RemoteSync$fun scanLocal: LocalScan</ID>
+    <ID>CyclomaticComplexMethod:RemoteSync.kt:RemoteSync$suspend fun down: Pair&lt;SyncState, SyncReport&gt;</ID>
+    <ID>CyclomaticComplexMethod:RemoteSync.kt:RemoteSync$suspend fun scanRemote: RemoteScan</ID>
+    <ID>CyclomaticComplexMethod:RemoteSync.kt:RemoteSync$suspend fun up: Pair&lt;SyncState, SyncReport&gt;</ID>
+    <ID>CyclomaticComplexMethod:ScheduledRun.kt:ScheduledRun$suspend fun run: Result</ID>
+    <ID>CyclomaticComplexMethod:ScheduledRun.kt:internal fun stopReasonText: String</ID>
+    <ID>CyclomaticComplexMethod:SftpTransfer.kt:SftpTransfer$suspend fun read: Long</ID>
+    <ID>CyclomaticComplexMethod:SideQuestions.kt:SideQuestions$private suspend fun answer</ID>
+    <ID>CyclomaticComplexMethod:SshService.kt:SftpDownload$private suspend fun folder: ToolResult</ID>
+    <ID>CyclomaticComplexMethod:SshService.kt:SftpUpload$override suspend fun execute: ToolResult</ID>
+    <ID>CyclomaticComplexMethod:SshService.kt:SshService$suspend fun &lt;T&gt; withClient: T</ID>
+    <ID>CyclomaticComplexMethod:SubagentRunner.kt:SubagentRunner$override suspend fun prepare: PreparedChild</ID>
+    <ID>CyclomaticComplexMethod:TemporaryChats.kt:TemporaryChats$suspend fun delete: Boolean</ID>
+    <ID>CyclomaticComplexMethod:TriggerEngine.kt:TriggerEngine$suspend fun deliver: Outcome</ID>
+    <ID>CyclomaticComplexMethod:Updates.kt:Updates$internal suspend fun runDownload</ID>
+    <ID>CyclomaticComplexMethod:Updates.kt:Updates$suspend fun check: UpdateState</ID>
+    <ID>DestructuringDeclarationWithTooManyEntries:AndroidCalendar.kt:AndroidCalendar.Companion$val (w, d, h, min, s) = m.destructured</ID>
+    <ID>DestructuringDeclarationWithTooManyEntries:LibraryRepository.kt:LibraryRepository$(names, health, status, projectList)</ID>
+    <ID>DestructuringDeclarationWithTooManyEntries:VaultIsolationTest.kt:VaultIsolationTest$val (anthropicChat, openAiChat, openAiList, anthropicList) = graph.requests</ID>
+    <ID>FunctionNaming:CalendarWriteTools.kt:CalendarWriter$fun when_: String</ID>
+    <ID>LargeClass:AgentRunner.kt:AgentRunner</ID>
+    <ID>LongMethod:AgentRunner.kt:AgentRunner$private fun startRun: String?</ID>
+    <ID>LongMethod:AgentRunner.kt:AgentRunner$private suspend fun run</ID>
+    <ID>LongMethod:AgentRunner.kt:AgentRunner$private suspend fun runOverride: Message?</ID>
+    <ID>LongMethod:AgentRunner.kt:AgentRunner$private suspend fun runProposal: ProposalApproval</ID>
+    <ID>LongMethod:AnalyticsRepository.kt:AnalyticsRepository.Companion$fun buildReport: AnalyticsReport</ID>
+    <ID>LongMethod:BackupArchive.kt:BackupArchive$fun extract: ExtractedBackup</ID>
+    <ID>LongMethod:ChatGptExport.kt:ChatGptExport$private fun readMessage: Read</ID>
+    <ID>LongMethod:ClaudeExport.kt:ClaudeExport$fun parse: ParsedEntry</ID>
+    <ID>LongMethod:ExportTree.kt:ExportTree$fun build: Result</ID>
+    <ID>LongMethod:LinuxSetup.kt:LinuxSetup$suspend fun execute</ID>
+    <ID>LongMethod:RemoteExecution.kt:RemoteExecution$override suspend fun run: RemoteRun</ID>
+    <ID>LongMethod:RemoteSync.kt:RemoteSync$suspend fun down: Pair&lt;SyncState, SyncReport&gt;</ID>
+    <ID>LongMethod:ScheduledRun.kt:ScheduledRun$suspend fun run: Result</ID>
+    <ID>LongMethod:SubagentRunner.kt:SubagentRunner$override suspend fun prepare: PreparedChild</ID>
+    <ID>LongMethod:TriggerEngine.kt:TriggerEngine$suspend fun deliver: Outcome</ID>
+    <ID>LoopWithTooManyJumpStatements:AgentRunner.kt:AgentRunner$for</ID>
+    <ID>LoopWithTooManyJumpStatements:BackupArchive.kt:BackupArchive$while</ID>
+    <ID>LoopWithTooManyJumpStatements:ChatHistoryTools.kt:ChatHistoryRead$for</ID>
+    <ID>LoopWithTooManyJumpStatements:EventSources.kt:CalendarEvents$for</ID>
+    <ID>LoopWithTooManyJumpStatements:ExportReader.kt:ExportReader$while</ID>
+    <ID>LoopWithTooManyJumpStatements:ExportTree.kt:ExportTree$while</ID>
+    <ID>LoopWithTooManyJumpStatements:FakeStdioServer.kt:FakeStdioServer.Proc$while</ID>
+    <ID>LoopWithTooManyJumpStatements:LoopbackRedirect.kt:LoopbackRedirect$while</ID>
+    <ID>LoopWithTooManyJumpStatements:ReleaseSource.kt:ReleaseSource$while</ID>
+    <ID>LoopWithTooManyJumpStatements:RemoteSync.kt:RemoteSync$for</ID>
+    <ID>LoopWithTooManyJumpStatements:SftpTransfer.kt:SftpTransfer$while</ID>
+    <ID>MagicNumber:AgentRunner.kt:200</ID>
+    <ID>MagicNumber:AgentRunner.kt:AgentRunner$160</ID>
+    <ID>MagicNumber:AgentRunner.kt:AgentRunner$4</ID>
+    <ID>MagicNumber:AgentRunner.kt:AgentRunner$500</ID>
+    <ID>MagicNumber:AgentService.kt:AgentService$34</ID>
+    <ID>MagicNumber:AgentService.kt:AgentService$37</ID>
+    <ID>MagicNumber:AgentService.kt:AgentService$40</ID>
+    <ID>MagicNumber:AgentStatus.kt:3</ID>
+    <ID>MagicNumber:AnalyticsRepository.kt:1_000L</ID>
+    <ID>MagicNumber:AnalyticsRepository.kt:AnalyticsPeriod.Month$30</ID>
+    <ID>MagicNumber:AnalyticsRepository.kt:AnalyticsPeriod.Week$7</ID>
+    <ID>MagicNumber:AnalyticsRepository.kt:AnalyticsRepository.Companion$0.5</ID>
+    <ID>MagicNumber:AnalyticsRepository.kt:AnalyticsRepository.Companion$0.95</ID>
+    <ID>MagicNumber:AndroidCalendar.kt:AndroidCalendar$3</ID>
+    <ID>MagicNumber:AndroidImagePreparer.kt:AndroidImagePreparer$0.75f</ID>
+    <ID>MagicNumber:AndroidImagePreparer.kt:AndroidImagePreparer$180f</ID>
+    <ID>MagicNumber:AndroidImagePreparer.kt:AndroidImagePreparer$90f</ID>
+    <ID>MagicNumber:AndroidPhone.kt:AndroidPhone$3</ID>
+    <ID>MagicNumber:AndroidPhone.kt:AndroidPhone$4</ID>
+    <ID>MagicNumber:AndroidPhone.kt:AndroidPhone$5</ID>
+    <ID>MagicNumber:AndroidPhone.kt:AndroidPhone$6</ID>
+    <ID>MagicNumber:AndroidPhone.kt:AndroidPhone$7</ID>
+    <ID>MagicNumber:AndroidPhone.kt:AndroidPhone$8</ID>
+    <ID>MagicNumber:AndroidReminders.kt:AndroidReminderAlarms$31</ID>
+    <ID>MagicNumber:AndroidUpdatePlatform.kt:AndroidUpdatePlatform$1024</ID>
+    <ID>MagicNumber:AndroidUpdatePlatform.kt:AndroidUpdatePlatform$28</ID>
+    <ID>MagicNumber:AndroidUpdatePlatform.kt:AndroidUpdatePlatform$64</ID>
+    <ID>MagicNumber:AutomationRequest.kt:AutomationRequest.Companion$100</ID>
+    <ID>MagicNumber:AutomationRequest.kt:AutomationRequest.Companion$40</ID>
+    <ID>MagicNumber:BackupArchive.kt:BackupArchive$0xff</ID>
+    <ID>MagicNumber:BackupArchive.kt:BackupArchive$10</ID>
+    <ID>MagicNumber:BackupArchive.kt:BackupArchive$1024</ID>
+    <ID>MagicNumber:BackupArchive.kt:BackupArchive$1024L</ID>
+    <ID>MagicNumber:BackupArchive.kt:BackupArchive$16</ID>
+    <ID>MagicNumber:BackupArchive.kt:BackupArchive$24</ID>
+    <ID>MagicNumber:BackupArchive.kt:BackupArchive$500</ID>
+    <ID>MagicNumber:BackupArchive.kt:BackupArchive$60</ID>
+    <ID>MagicNumber:BackupArchive.kt:BackupArchive$61</ID>
+    <ID>MagicNumber:BackupArchive.kt:BackupArchive$62</ID>
+    <ID>MagicNumber:BackupArchive.kt:BackupArchive$63</ID>
+    <ID>MagicNumber:BackupArchive.kt:BackupArchive$8</ID>
+    <ID>MagicNumber:BackupCrypto.kt:BackupCrypto$16</ID>
+    <ID>MagicNumber:BackupCrypto.kt:BackupCrypto$24</ID>
+    <ID>MagicNumber:BackupCrypto.kt:BackupCrypto$4</ID>
+    <ID>MagicNumber:BackupCrypto.kt:BackupCrypto$8</ID>
+    <ID>MagicNumber:BackupManager.kt:BackupManager$1024</ID>
+    <ID>MagicNumber:BackupManager.kt:BackupManager$256</ID>
+    <ID>MagicNumber:CalendarWriteTools.kt:10</ID>
+    <ID>MagicNumber:CalendarWriteTools.kt:1000</ID>
+    <ID>MagicNumber:CalendarWriteTools.kt:4</ID>
+    <ID>MagicNumber:CalendarWriteTools.kt:6</ID>
+    <ID>MagicNumber:CalendarWriteTools.kt:60</ID>
+    <ID>MagicNumber:CalendarWriteTools.kt:8</ID>
+    <ID>MagicNumber:CalendarWriteTools.kt:86_400_000L</ID>
+    <ID>MagicNumber:CalendarWriteTools.kt:CalendarCreate$80</ID>
+    <ID>MagicNumber:CalendarWriteTools.kt:Recurrence$12</ID>
+    <ID>MagicNumber:CalendarWriteTools.kt:Recurrence$31</ID>
+    <ID>MagicNumber:CalendarWriteTools.kt:Recurrence$730</ID>
+    <ID>MagicNumber:CalendarWriteTools.kt:Recurrence$99</ID>
+    <ID>MagicNumber:ChatHistoryTools.kt:ChatHistoryRead$200</ID>
+    <ID>MagicNumber:ChatShortcuts.kt:ChatShortcuts$1_000</ID>
+    <ID>MagicNumber:ConversationRepository.kt:ConversationRepository$500</ID>
+    <ID>MagicNumber:ConversationRepository.kt:ConversationRepository$60</ID>
+    <ID>MagicNumber:CustomTrust.kt:Certificates$64</ID>
+    <ID>MagicNumber:CustomTrust.kt:ExtraCaTrustManager$8</ID>
+    <ID>MagicNumber:DataModule.kt:NetworkModule$30</ID>
+    <ID>MagicNumber:DataModule.kt:NetworkModule$6</ID>
+    <ID>MagicNumber:DeviceIntegrationTools.kt:CalendarRead$7</ID>
+    <ID>MagicNumber:DeviceIntegrationTools.kt:CalendarRead.Companion$200</ID>
+    <ID>MagicNumber:DeviceTools.kt:Alarm$23</ID>
+    <ID>MagicNumber:DeviceTools.kt:Alarm$59</ID>
+    <ID>MagicNumber:DeviceTools.kt:Timer$60</ID>
+    <ID>MagicNumber:DeviceTools.kt:Timer$86_400</ID>
+    <ID>MagicNumber:Diagnostics.kt:DiagnosticsRepository$30</ID>
+    <ID>MagicNumber:EmailSetup.kt:EmailSetup$404</ID>
+    <ID>MagicNumber:EventSources.kt:NtfyEvents.Companion$120</ID>
+    <ID>MagicNumber:ExportJson.kt:1000</ID>
+    <ID>MagicNumber:ExportJson.kt:1e11</ID>
+    <ID>MagicNumber:ExportReader.kt:ExportReader$0xBB</ID>
+    <ID>MagicNumber:ExportReader.kt:ExportReader$0xBF</ID>
+    <ID>MagicNumber:ExportReader.kt:ExportReader$0xEF</ID>
+    <ID>MagicNumber:ExportReader.kt:ExportReader$3</ID>
+    <ID>MagicNumber:ExportReader.kt:ExportReader$4</ID>
+    <ID>MagicNumber:ExportReader.kt:ExportReader$8</ID>
+    <ID>MagicNumber:HelperModel.kt:HelperModel.Companion$3</ID>
+    <ID>MagicNumber:HelperModel.kt:HelperModel.Companion$6</ID>
+    <ID>MagicNumber:ImportedChat.kt:ExportIds$12</ID>
+    <ID>MagicNumber:LibraryRepository.kt:LibraryRepository$200</ID>
+    <ID>MagicNumber:LinuxPanel.kt:InstallEstimate.Companion$60.0</ID>
+    <ID>MagicNumber:LinuxSetup.kt:LinuxSetup$6</ID>
+    <ID>MagicNumber:LinuxSetupWorker.kt:LinuxSetupWorker$100</ID>
+    <ID>MagicNumber:LinuxSetupWorker.kt:LinuxSetupWorker$29</ID>
+    <ID>MagicNumber:LocalMcp.kt:LocalMcpServers$10</ID>
+    <ID>MagicNumber:LocalMcp.kt:LocalMcpServers$1_500</ID>
+    <ID>MagicNumber:LocalMcp.kt:LocalMcpServers$25</ID>
+    <ID>MagicNumber:LocalMcp.kt:LocalMcpServers$4</ID>
+    <ID>MagicNumber:LocalMcp.kt:LocalMcpServers$500</ID>
+    <ID>MagicNumber:LocalMcp.kt:LocalMcpServers$60_000</ID>
+    <ID>MagicNumber:LocalMcp.kt:LocalMcpServers$60_000L</ID>
+    <ID>MagicNumber:LocalMcp.kt:StderrTail$500</ID>
+    <ID>MagicNumber:LockedNotifications.kt:LockedNotifications$31</ID>
+    <ID>MagicNumber:LoopbackRedirect.kt:LoopbackRedirect$200</ID>
+    <ID>MagicNumber:LoopbackRedirect.kt:LoopbackRedirect$404</ID>
+    <ID>MagicNumber:LoopbackRedirect.kt:LoopbackRedirect$8_192</ID>
+    <ID>MagicNumber:McpTemplates.kt:McpTemplates$3</ID>
+    <ID>MagicNumber:McpTools.kt:McpCall$40_000</ID>
+    <ID>MagicNumber:McpTools.kt:McpClients$401</ID>
+    <ID>MagicNumber:MemorySuggestRepository.kt:SuggestPeriod.MONTHS_3$91</ID>
+    <ID>MagicNumber:MemorySuggestRepository.kt:SuggestPeriod.YEAR$365</ID>
+    <ID>MagicNumber:NeedsYou.kt:NeedsYou$60_000L</ID>
+    <ID>MagicNumber:NotificationIntents.kt:NotificationIntents$29</ID>
+    <ID>MagicNumber:OpenChatLink.kt:OpenChatLink$32</ID>
+    <ID>MagicNumber:PhoneHandoffTools.kt:ContactAdd$80</ID>
+    <ID>MagicNumber:PhoneHandoffTools.kt:ContactAdd.Companion$200</ID>
+    <ID>MagicNumber:PhoneHandoffTools.kt:ContactAdd.Companion$2000</ID>
+    <ID>MagicNumber:PhoneHandoffTools.kt:ContactAdd.Companion$3</ID>
+    <ID>MagicNumber:PhoneHandoffTools.kt:Copy$60</ID>
+    <ID>MagicNumber:PhoneHandoffTools.kt:SaveFile$1_000_000</ID>
+    <ID>MagicNumber:PhoneHandoffTools.kt:SaveFile.Companion$120</ID>
+    <ID>MagicNumber:PhoneIntents.kt:PhoneIntents$3</ID>
+    <ID>MagicNumber:PhoneIntents.kt:PhoneIntents$33</ID>
+    <ID>MagicNumber:Proposal.kt:Proposal.Companion$1_000</ID>
+    <ID>MagicNumber:Proposal.kt:Proposal.Companion$200</ID>
+    <ID>MagicNumber:Proposal.kt:Proposal.Companion$2_000</ID>
+    <ID>MagicNumber:ProposalRepository.kt:ProposalRepository$500</ID>
+    <ID>MagicNumber:ProviderHttpClients.kt:4</ID>
+    <ID>MagicNumber:ProviderHttpClients.kt:ScrubbingChatModel$4</ID>
+    <ID>MagicNumber:Proxies.kt:0xFFFF</ID>
+    <ID>MagicNumber:Proxies.kt:127</ID>
+    <ID>MagicNumber:Proxies.kt:16</ID>
+    <ID>MagicNumber:Proxies.kt:255</ID>
+    <ID>MagicNumber:ReachMeSetup.kt:ReachMeSetup$300</ID>
+    <ID>MagicNumber:ReachMeSetup.kt:ReachMeSetup$399</ID>
+    <ID>MagicNumber:ReachMeSetup.kt:ReachMeSetup$401</ID>
+    <ID>MagicNumber:ReachMeSetup.kt:ReachMeSetup$403</ID>
+    <ID>MagicNumber:ReachMeSetup.kt:ReachMeSetup$404</ID>
+    <ID>MagicNumber:ReachMeSetup.kt:ReachMeSetup$500</ID>
+    <ID>MagicNumber:ReleaseSource.kt:8</ID>
+    <ID>MagicNumber:ReleaseSource.kt:ReleaseSource$1000</ID>
+    <ID>MagicNumber:ReleaseSource.kt:ReleaseSource$400</ID>
+    <ID>MagicNumber:ReleaseSource.kt:ReleaseSource$429</ID>
+    <ID>MagicNumber:ReleaseSource.kt:ReleaseSource$60_000</ID>
+    <ID>MagicNumber:Reminders.kt:RemindMe$525_600</ID>
+    <ID>MagicNumber:Reminders.kt:RemindMe$60_000L</ID>
+    <ID>MagicNumber:Reminders.kt:RemindMe$8</ID>
+    <ID>MagicNumber:Reminders.kt:RemindMe$80</ID>
+    <ID>MagicNumber:Reminders.kt:RemindersList$8</ID>
+    <ID>MagicNumber:RemoteExecution.kt:RemoteExecution$200</ID>
+    <ID>MagicNumber:RemoteExecution.kt:RemoteExecution$24</ID>
+    <ID>MagicNumber:RemoteExecution.kt:RemoteExecution$30_000</ID>
+    <ID>MagicNumber:RemoteExecution.kt:RemoteExecution$8</ID>
+    <ID>MagicNumber:RemoteExecution.kt:RemoteExecution.Companion$30_000</ID>
+    <ID>MagicNumber:RemoteExecution.kt:RemoteExecution.Companion$6</ID>
+    <ID>MagicNumber:RemoteFs.kt:SftpFs$0b001_001_001</ID>
+    <ID>MagicNumber:RemoteFs.kt:SftpFs$0b110_100_100</ID>
+    <ID>MagicNumber:RemoteFs.kt:SftpFs$0b111_101_101</ID>
+    <ID>MagicNumber:RemoteFs.kt:SftpFs$0b111_111_111</ID>
+    <ID>MagicNumber:RemoteSync.kt:RemoteSync$1024</ID>
+    <ID>MagicNumber:RemoteSync.kt:RemoteSync$256</ID>
+    <ID>MagicNumber:SafDocTree.kt:SafDocTree$3</ID>
+    <ID>MagicNumber:SafDocTree.kt:SafDocTree$4</ID>
+    <ID>MagicNumber:SandboxScriptEngine.kt:SandboxScriptEngine$5_000</ID>
+    <ID>MagicNumber:SelfTest.kt:SelfTestRules$3</ID>
+    <ID>MagicNumber:SelfTest.kt:SelfTestRules$300</ID>
+    <ID>MagicNumber:SelfTest.kt:SelfTestRules$400</ID>
+    <ID>MagicNumber:SelfTest.kt:SelfTestRules$401</ID>
+    <ID>MagicNumber:SelfTest.kt:SelfTestRules$403</ID>
+    <ID>MagicNumber:SelfTest.kt:SelfTestRules$404</ID>
+    <ID>MagicNumber:SelfTest.kt:SelfTestRules$405</ID>
+    <ID>MagicNumber:ServiceConnections.kt:ServiceConnections$200</ID>
+    <ID>MagicNumber:ServiceConnections.kt:ServiceConnections$299</ID>
+    <ID>MagicNumber:ServiceConnections.kt:ServiceConnections$300</ID>
+    <ID>MagicNumber:ServiceConnections.kt:ServiceConnections$399</ID>
+    <ID>MagicNumber:ServiceConnections.kt:ServiceConnections$401</ID>
+    <ID>MagicNumber:ServiceConnections.kt:ServiceConnections$403</ID>
+    <ID>MagicNumber:ServiceConnections.kt:ServiceConnections$404</ID>
+    <ID>MagicNumber:ServiceConnections.kt:ServiceConnections$500</ID>
+    <ID>MagicNumber:ServiceConnections.kt:ServiceConnections$80</ID>
+    <ID>MagicNumber:SharedImport.kt:SharedImport$1024</ID>
+    <ID>MagicNumber:SideQuestions.kt:SideQuestions$1_000</ID>
+    <ID>MagicNumber:SshService.kt:SftpLimits$1000.0</ID>
+    <ID>MagicNumber:SshService.kt:SftpLimits$1024</ID>
+    <ID>MagicNumber:SshService.kt:SftpLimits$1024.0</ID>
+    <ID>MagicNumber:SshService.kt:SftpUpload$1024</ID>
+    <ID>MagicNumber:SshService.kt:SftpUpload$256</ID>
+    <ID>MagicNumber:StreamCoalescer.kt:StreamCoalescer$1_000_000</ID>
+    <ID>MagicNumber:SubagentRunner.kt:SubagentRunner$60_000L</ID>
+    <ID>MagicNumber:TaskRepository.kt:TaskRepository$2_000</ID>
+    <ID>MagicNumber:TaskRepository.kt:TaskRepository$300</ID>
+    <ID>MagicNumber:TaskRepository.kt:TaskRepository$500</ID>
+    <ID>MagicNumber:TaskTiming.kt:TaskTiming$60</ID>
+    <ID>MagicNumber:TaskWork.kt:WorkManagerTaskWork$15</ID>
+    <ID>MagicNumber:TaskWorker.kt:TaskWorker$120</ID>
+    <ID>MagicNumber:TaskWorker.kt:TaskWorker$1500</ID>
+    <ID>MagicNumber:TelegramRemoteHub.kt:TelegramRemoteHub$401</ID>
+    <ID>MagicNumber:TelegramRemoteHub.kt:TelegramRemoteHub$404</ID>
+    <ID>MagicNumber:TelegramRemoteService.kt:TelegramRemoteService$34</ID>
+    <ID>MagicNumber:TriggerChecker.kt:AndroidCalendarReader$200</ID>
+    <ID>MagicNumber:TriggerChecker.kt:AndroidCalendarReader$3</ID>
+    <ID>MagicNumber:TriggerChecker.kt:AndroidCalendarReader$4</ID>
+    <ID>MagicNumber:TriggerChecker.kt:AndroidCalendarReader$5</ID>
+    <ID>MagicNumber:TriggerChecker.kt:AndroidCalendarReader$6</ID>
+    <ID>MagicNumber:TriggerChecker.kt:AndroidCalendarReader$7</ID>
+    <ID>MagicNumber:TriggerEngine.kt:TriggerEngine$120</ID>
+    <ID>MagicNumber:TriggerRules.kt:TriggerRules$60</ID>
+    <ID>MagicNumber:TriggerRules.kt:TriggerRules$60_000L</ID>
+    <ID>MagicNumber:WidgetFeed.kt:WidgetText$12</ID>
+    <ID>MagicNumber:WorkspaceRepository.kt:WorkspaceRepository$1024</ID>
+    <ID>MagicNumber:WorkspaceRepository.kt:WorkspaceRepository$4</ID>
+    <ID>MayBeConstant:AgentRunner.kt:AgentRunner.Companion$val costNeedsCatalog = "Cost needs model prices: turn on model details (models.dev) in Settings → Models. Until then the cost limit is off."</ID>
+    <ID>NestedBlockDepth:BackupArchive.kt:BackupArchive$fun extract: ExtractedBackup</ID>
+    <ID>NestedBlockDepth:BackupArchive.kt:BackupArchive$fun write</ID>
+    <ID>NestedBlockDepth:CalendarWriteTools.kt:Recurrence$fun normalize: String</ID>
+    <ID>NestedBlockDepth:ChatGptExport.kt:ChatGptExport$private fun readMessage: Read</ID>
+    <ID>NestedBlockDepth:RemoteSync.kt:RemoteSync$suspend fun scanRemote: RemoteScan</ID>
+    <ID>ReturnCount:AgentRunner.kt:AgentRunner$fun edit: Boolean</ID>
+    <ID>ReturnCount:AgentRunner.kt:AgentRunner$fun send</ID>
+    <ID>ReturnCount:AgentRunner.kt:AgentRunner$fun sendCompare: Boolean</ID>
+    <ID>ReturnCount:AgentRunner.kt:AgentRunner$fun sendRemote: RemoteSend</ID>
+    <ID>ReturnCount:AgentRunner.kt:AgentRunner$private fun &lt;T&gt; holdSlot: kotlinx.coroutines.Deferred&lt;T&gt;?</ID>
+    <ID>ReturnCount:AgentRunner.kt:AgentRunner$private fun startRun: String?</ID>
+    <ID>ReturnCount:AgentRunner.kt:AgentRunner$private suspend fun boundaryMessages: List&lt;Message&gt;</ID>
+    <ID>ReturnCount:AgentRunner.kt:AgentRunner$private suspend fun compact</ID>
+    <ID>ReturnCount:AgentRunner.kt:AgentRunner$private suspend fun needsCompaction: Boolean</ID>
+    <ID>ReturnCount:AgentRunner.kt:AgentRunner$private suspend fun newBudget: RunBudget?</ID>
+    <ID>ReturnCount:AgentRunner.kt:AgentRunner$private suspend fun notifyIfResearch</ID>
+    <ID>ReturnCount:AgentRunner.kt:AgentRunner$private suspend fun planRunProblem: String?</ID>
+    <ID>ReturnCount:AgentRunner.kt:AgentRunner$private suspend fun run</ID>
+    <ID>ReturnCount:AgentRunner.kt:AgentRunner$private suspend fun runOverride: Message?</ID>
+    <ID>ReturnCount:AgentRunner.kt:AgentRunner$private suspend fun runProposal: ProposalApproval</ID>
+    <ID>ReturnCount:AgentRunner.kt:AgentRunner$suspend fun approveProposal: ProposalApproval</ID>
+    <ID>ReturnCount:AndroidCalendar.kt:AndroidCalendar.Companion$fun parseDuration: Long?</ID>
+    <ID>ReturnCount:AndroidPhone.kt:AndroidPhone$override suspend fun calendar: UserPick&lt;List&lt;CalendarItem&gt;&gt;</ID>
+    <ID>ReturnCount:AndroidPhone.kt:AndroidPhone$override suspend fun pickContact: UserPick&lt;PickedContact&gt;</ID>
+    <ID>ReturnCount:AndroidPhone.kt:AndroidPhone$override suspend fun pickPhotos: UserPick&lt;List&lt;String&gt;&gt;</ID>
+    <ID>ReturnCount:AndroidPhone.kt:AndroidPhone$override suspend fun saveAs: UserPick&lt;String&gt;</ID>
+    <ID>ReturnCount:AndroidPhone.kt:AndroidPhone$private fun readContact: PickedContact?</ID>
+    <ID>ReturnCount:AndroidUpdatePlatform.kt:AndroidUpdatePlatform$@Suppress("DEPRECATION") private fun facts: ApkCheck.Facts?</ID>
+    <ID>ReturnCount:AutomationBridge.kt:AutomationBridge$private suspend fun runWorkflow: AutomationStart</ID>
+    <ID>ReturnCount:AutomationBridge.kt:AutomationBridge$private suspend fun startChat: AutomationStart</ID>
+    <ID>ReturnCount:AutomationRequest.kt:AutomationRequest.Companion$fun parse: Parsed</ID>
+    <ID>ReturnCount:AutomationRequest.kt:AutomationRequest.Companion$private fun params: ParamsResult</ID>
+    <ID>ReturnCount:CalendarWriteTools.kt:private fun instant: Long</ID>
+    <ID>ReturnCount:CalendarWriteTools.kt:private suspend fun calendarScope: ApprovalScope?</ID>
+    <ID>ReturnCount:ChangeHistory.kt:ChangeHistory$fun forTurn: List&lt;FileEdit&gt;</ID>
+    <ID>ReturnCount:ChangeRepository.kt:ChangeRepository$private fun beforePayload: File?</ID>
+    <ID>ReturnCount:ChangeRepository.kt:ChangeRepository$private fun changedSince: Boolean</ID>
+    <ID>ReturnCount:ChangeRepository.kt:ChangeRepository$private fun check: UndoCheck</ID>
+    <ID>ReturnCount:ChangeRepository.kt:ChangeRepository$private fun diffOf: LineDiff.Result?</ID>
+    <ID>ReturnCount:ChatApprovalMemory.kt:ChatApprovalMemory$override suspend fun match: RememberedApproval?</ID>
+    <ID>ReturnCount:ChatApprovalMemory.kt:ChatApprovalMemory$override suspend fun matchScope: RememberedApproval?</ID>
+    <ID>ReturnCount:ChatGptExport.kt:ChatGptExport$fun parse: ParsedEntry</ID>
+    <ID>ReturnCount:ChatGptExport.kt:ChatGptExport$private fun readMessage: Read</ID>
+    <ID>ReturnCount:ChatHistoryTools.kt:ChatHistorySearch$override suspend fun execute: ToolResult</ID>
+    <ID>ReturnCount:ChatOnlyRule.kt:ModelChatOnlyRule$override suspend fun startsChatOnly: Boolean</ID>
+    <ID>ReturnCount:ClaudeExport.kt:ClaudeExport$fun parse: ParsedEntry</ID>
+    <ID>ReturnCount:ConversationRepository.kt:ConversationRepository$suspend fun fork: Conversation?</ID>
+    <ID>ReturnCount:ConversationRepository.kt:ConversationRepository$suspend fun moveToModelDefaultEffort: Int</ID>
+    <ID>ReturnCount:CustomTrust.kt:ExtraCaTrustManager$fun chainsToExtra: Boolean</ID>
+    <ID>ReturnCount:DeviceIntegrationTools.kt:CalendarRead$override suspend fun execute: ToolResult</ID>
+    <ID>ReturnCount:EventSources.kt:CalendarEvents$override suspend fun poll: Poll</ID>
+    <ID>ReturnCount:EventSources.kt:MailEvents$override suspend fun poll: Poll</ID>
+    <ID>ReturnCount:EventSources.kt:NtfyEvents$override suspend fun poll: Poll</ID>
+    <ID>ReturnCount:ExportFixtures.kt:ExportFixtures.GeneratedExport$override fun read: Int</ID>
+    <ID>ReturnCount:ExportJson.kt:internal fun JsonElement?.epochMillis: Long?</ID>
+    <ID>ReturnCount:ExportReader.kt:ExportReader$private fun sniff: Kind</ID>
+    <ID>ReturnCount:ExportReader.kt:ExportReader$private fun startsArray: Boolean</ID>
+    <ID>ReturnCount:ExportReader.kt:ExportReader$private suspend fun readZip: FileResult</ID>
+    <ID>ReturnCount:ExportTree.kt:ExportTree$fun nearestShownAbove: String?</ID>
+    <ID>ReturnCount:FakeStdioServer.kt:FakeStdioServer.Proc$private fun serve</ID>
+    <ID>ReturnCount:HelperModel.kt:HelperModel$suspend fun complete: String?</ID>
+    <ID>ReturnCount:HelperModel.kt:HelperModel.Companion$fun shouldTitle: Boolean</ID>
+    <ID>ReturnCount:HomeAssistantSafety.kt:HomeAssistantSafety$fun reason: String?</ID>
+    <ID>ReturnCount:HomeAssistantSafety.kt:HomeAssistantSafety$fun title: String</ID>
+    <ID>ReturnCount:HomeAssistantSafety.kt:HomeAssistantSafety.Call$fun matches: Boolean</ID>
+    <ID>ReturnCount:LibraryRepository.kt:LibraryRepository$suspend fun testHomeAssistant: ConnectionCheck</ID>
+    <ID>ReturnCount:LibraryRepository.kt:LibraryRepository$suspend fun testService: ConnectionCheck</ID>
+    <ID>ReturnCount:LocalMcp.kt:LocalMcpServers$private suspend fun diedAfter: Boolean</ID>
+    <ID>ReturnCount:LoopbackRedirect.kt:LoopbackRedirect$private suspend fun serve: Map&lt;String, String&gt;?</ID>
+    <ID>ReturnCount:McpTemplates.kt:McpTemplates$private fun vendorTemplate: McpTemplate?</ID>
+    <ID>ReturnCount:McpToolPinning.kt:McpToolPinStore$private suspend fun chatStartedAt: Long?</ID>
+    <ID>ReturnCount:McpToolRisk.kt:McpToolRisk.Companion$fun of: McpToolRisk</ID>
+    <ID>ReturnCount:McpTools.kt:McpCall$override suspend fun mustConfirm: String?</ID>
+    <ID>ReturnCount:McpTools.kt:McpCall$override suspend fun precheck: String?</ID>
+    <ID>ReturnCount:McpTools.kt:McpListTools$override suspend fun execute: ToolResult</ID>
+    <ID>ReturnCount:MemorySuggestRepository.kt:MemorySuggestRepository$suspend fun propose: SuggestOutcome</ID>
+    <ID>ReturnCount:MemoryTidyRepository.kt:MemoryTidyRepository$suspend fun availability: TidyAvailability</ID>
+    <ID>ReturnCount:MemoryTidyRepository.kt:MemoryTidyRepository$suspend fun propose: TidyOutcome</ID>
+    <ID>ReturnCount:ModelDirectory.kt:ModelDirectory$private fun load</ID>
+    <ID>ReturnCount:NeedsYouNotifier.kt:NeedsYouNotifier$suspend fun refresh</ID>
+    <ID>ReturnCount:PendingRestore.kt:PendingRestore$fun failure: RestoreFailure?</ID>
+    <ID>ReturnCount:ProjectRepository.kt:ProjectRepository$suspend fun create: Project?</ID>
+    <ID>ReturnCount:ProjectRepository.kt:ProjectRepository$suspend fun scopeOf: ChatScopeSpec?</ID>
+    <ID>ReturnCount:Proposal.kt:Proposal.Companion$internal fun previewOf: ApprovalPreview?</ID>
+    <ID>ReturnCount:ProposalRepository.kt:ProposalRepository$suspend fun record: ProposalReceipt</ID>
+    <ID>ReturnCount:ProviderAccess.kt:ProviderCredentials$suspend fun chatModel: ChatModel</ID>
+    <ID>ReturnCount:ProviderErrorLog.kt:ProviderErrorLog$fun record</ID>
+    <ID>ReturnCount:ProviderHttpClients.kt:ProviderHttpClients.Companion$internal fun readProxyCredentials: ProxyCredentials?</ID>
+    <ID>ReturnCount:Proxies.kt:SocksCredentials$fun answer: PasswordAuthentication?</ID>
+    <ID>ReturnCount:Proxies.kt:internal fun isLoopbackHost: Boolean</ID>
+    <ID>ReturnCount:Proxies.kt:private fun expandIpv6: List&lt;Int&gt;?</ID>
+    <ID>ReturnCount:ReleaseFiles.kt:ReleaseFiles$fun apkFor: ReleaseAsset?</ID>
+    <ID>ReturnCount:ReleaseFiles.kt:ReleaseFiles$fun digestHex: String?</ID>
+    <ID>ReturnCount:ReleaseSource.kt:ReleaseSource$internal fun rateLimit: Long?</ID>
+    <ID>ReturnCount:Reminders.kt:RemindMe$private fun time: Pair&lt;Long, LocalDateTime?&gt;</ID>
+    <ID>ReturnCount:RemoteExecution.kt:RemoteExecution$override suspend fun target: RemoteTarget?</ID>
+    <ID>ReturnCount:RemoteExecution.kt:RemoteExecution.Companion$internal fun lastLines: String</ID>
+    <ID>ReturnCount:RemoteSync.kt:RemoteSync$fun local: File?</ID>
+    <ID>ReturnCount:ReviewerModel.kt:ReviewerModel$suspend fun reviewerFor: ToolReviewer?</ID>
+    <ID>ReturnCount:SafDocTree.kt:SafDocTree$private fun read: Child?</ID>
+    <ID>ReturnCount:SavedKeys.kt:SavedKeys$fun source: Integration?</ID>
+    <ID>ReturnCount:ScheduledRun.kt:ScheduledRun$suspend fun run: Result</ID>
+    <ID>ReturnCount:SelfTest.kt:SelfTestRules$fun linux: SelfTestResult</ID>
+    <ID>ReturnCount:SftpFsUploadTest.kt:SftpFsUploadTest.&lt;no name provided&gt;$override suspend fun rename: SftpResult&lt;Unit&gt;</ID>
+    <ID>ReturnCount:SftpFsUploadTest.kt:SftpFsUploadTest.FakeSftp$override suspend fun rename: SftpResult&lt;Unit&gt;</ID>
+    <ID>ReturnCount:ShellChangeTracker.kt:ShellChangeTracker$override suspend fun track: ToolResult</ID>
+    <ID>ReturnCount:ShellNotes.kt:ShellNotes$private fun load: List&lt;ShellNote&gt;</ID>
+    <ID>ReturnCount:SyncRules.kt:SyncRules$fun skip: Skip?</ID>
+    <ID>ReturnCount:SyncRules.kt:SyncRules.Companion$fun containsSecret: Boolean</ID>
+    <ID>ReturnCount:SyncRules.kt:SyncRules.Companion$fun isSecretName: Boolean</ID>
+    <ID>ReturnCount:TaskRepository.kt:TaskRepository$suspend fun update: Boolean</ID>
+    <ID>ReturnCount:TaskWorker.kt:TaskWorker$private suspend fun enqueueNextDaily</ID>
+    <ID>ReturnCount:TaskWorker.kt:TaskWorker$private suspend fun runTask: Result</ID>
+    <ID>ReturnCount:Updates.kt:Updates$fun download</ID>
+    <ID>ReturnCount:Updates.kt:Updates$fun install</ID>
+    <ID>ReturnCount:Updates.kt:Updates$internal suspend fun runDownload</ID>
+    <ID>ReturnCount:Versions.kt:Versions$fun compare: Int?</ID>
+    <ID>ReturnCount:Versions.kt:Versions$private fun compare: Int</ID>
+    <ID>ReturnCount:Versions.kt:Versions$private fun parse: Parsed?</ID>
+    <ID>ReturnCount:WidgetFeed.kt:WidgetText$fun clean: String</ID>
+    <ID>ReturnCount:WidgetFeed.kt:fun widgetStatus: WidgetStatus</ID>
+    <ID>ReturnCount:WorkflowRepository.kt:WorkflowRepository$suspend fun lacksTools: Boolean</ID>
+    <ID>ReturnCount:WorkspaceDocuments.kt:WorkspaceDocuments$fun isChild: Boolean</ID>
+    <ID>SwallowedException:ConnectedFolderRepository.kt:AndroidFolderGrants$e: SecurityException</ID>
+    <ID>SwallowedException:ConnectedFolderRepository.kt:ConnectedFolderRepository$e: Exception</ID>
+    <ID>SwallowedException:ConnectedFolderRepository.kt:ConnectedFolderRepository$e: SecurityException</ID>
+    <ID>SwallowedException:CustomTrust.kt:ExtraCaTrustManager$e: java.security.GeneralSecurityException</ID>
+    <ID>SwallowedException:DeviceTools.kt:IntentLauncher$e: ActivityNotFoundException</ID>
+    <ID>SwallowedException:EmailSetup.kt:EmailSetup$e: java.io.IOException</ID>
+    <ID>SwallowedException:EmailSetup.kt:EmailSetup$e: kotlinx.coroutines.TimeoutCancellationException</ID>
+    <ID>SwallowedException:EventSources.kt:CalendarEvents$e: SecurityException</ID>
+    <ID>SwallowedException:FakeStdioServer.kt:FakeStdioServer.Proc$e: Exception</ID>
+    <ID>SwallowedException:LocalMcp.kt:LocalMcpServers$e: Exception</ID>
+    <ID>SwallowedException:LocalMcp.kt:LocalMcpServers$e: StartFailure</ID>
+    <ID>SwallowedException:McpDiscovery.kt:McpDiscovery$e: TimeoutCancellationException</ID>
+    <ID>SwallowedException:McpTools.kt:McpClients$e: Exception</ID>
+    <ID>SwallowedException:PhoneHandoffTools.kt:SaveFile$e: Exception</ID>
+    <ID>SwallowedException:ProviderAccess.kt:ProviderAccess$e: LlmException</ID>
+    <ID>SwallowedException:ReachMeSetup.kt:ReachMeSetup$e: ChannelHttpException</ID>
+    <ID>SwallowedException:ReachMeSetup.kt:ReachMeSetup$e: Matrix.Failure</ID>
+    <ID>SwallowedException:ReleaseSource.kt:ReleaseSource$e: Exception</ID>
+    <ID>SwallowedException:ReleaseSource.kt:ReleaseSource$e: IOException</ID>
+    <ID>SwallowedException:ReleaseSource.kt:ReleaseSource$e: TimeoutCancellationException</ID>
+    <ID>SwallowedException:Reminders.kt:RemindMe$e: IllegalArgumentException</ID>
+    <ID>SwallowedException:RemoteExecution.kt:RemoteExecution$e: Exception</ID>
+    <ID>SwallowedException:SafDocTree.kt:SafDocTree$e: FileNotFoundException</ID>
+    <ID>SwallowedException:SafDocTree.kt:SafDocTree$e: IllegalArgumentException</ID>
+    <ID>SwallowedException:SafDocTree.kt:SafDocTree$e: IllegalStateException</ID>
+    <ID>SwallowedException:SafDocTree.kt:SafDocTree$e: SecurityException</ID>
+    <ID>SwallowedException:SafDocTree.kt:SafDocTree$e: UnsupportedOperationException</ID>
+    <ID>SwallowedException:SafDocTree.kt:SafDocTree$e: java.io.IOException</ID>
+    <ID>SwallowedException:SettingsProviderDrafts.kt:SettingsProviderDrafts$e: IllegalStateException</ID>
+    <ID>SwallowedException:Updates.kt:Updates$e: IOException</ID>
+    <ID>SwallowedException:Updates.kt:Updates$e: SecurityException</ID>
+    <ID>SwallowedException:WorkspaceRepository.kt:WorkspaceRepository$e: Exception</ID>
+    <ID>ThrowsCount:AgentRunner.kt:AgentRunner$private suspend fun draftSummary</ID>
+    <ID>ThrowsCount:BackupArchive.kt:BackupArchive$fun checkVersions</ID>
+    <ID>ThrowsCount:BackupArchive.kt:BackupArchive$fun extract: ExtractedBackup</ID>
+    <ID>ThrowsCount:BackupCrypto.kt:BackupCrypto$fun open: Opened</ID>
+    <ID>ThrowsCount:BackupCrypto.kt:BackupCrypto$fun unlock: Key</ID>
+    <ID>ThrowsCount:CalendarWriteTools.kt:CalendarUpdate$private fun change: EventChange</ID>
+    <ID>ThrowsCount:CalendarWriteTools.kt:Recurrence$fun normalize: String</ID>
+    <ID>ThrowsCount:CalendarWriteTools.kt:internal fun parseTimes: EventTimes</ID>
+    <ID>ThrowsCount:EmailSetup.kt:EmailSetup$suspend fun lookUp: EmailAutoconfig.Found?</ID>
+    <ID>ThrowsCount:ExportReader.kt:ExportReader$@OptIn(ExperimentalSerializationApi::class) private suspend fun readJson: Boolean</ID>
+    <ID>ThrowsCount:ExportReader.kt:ExportReader$private suspend fun readZip: FileResult</ID>
+    <ID>ThrowsCount:ExportReader.kt:ExportReader$suspend fun read: ReadSummary</ID>
+    <ID>ThrowsCount:LocalMcp.kt:LocalMcpServers$private suspend fun startOnce: Live</ID>
+    <ID>ThrowsCount:LocalMcp.kt:LocalMcpServers$suspend fun &lt;T&gt; use: T</ID>
+    <ID>ThrowsCount:McpTools.kt:McpCall$override suspend fun execute: ToolResult</ID>
+    <ID>ThrowsCount:McpTools.kt:McpClients$suspend fun &lt;T&gt; use: T</ID>
+    <ID>ThrowsCount:PhoneHandoffTools.kt:ContactAdd.Companion$internal fun contact: NewContact</ID>
+    <ID>ThrowsCount:PhoneHandoffTools.kt:Copy$override suspend fun execute: ToolResult</ID>
+    <ID>ThrowsCount:PhoneHandoffTools.kt:SaveFile$private fun file: File</ID>
+    <ID>ThrowsCount:ProviderAccess.kt:ProviderAccess$suspend fun listModels: List&lt;RemoteModel&gt;</ID>
+    <ID>ThrowsCount:ReachMeSetup.kt:ReachMeSetup$suspend fun sendTest: String?</ID>
+    <ID>ThrowsCount:Reminders.kt:RemindMe$private fun time: Pair&lt;Long, LocalDateTime?&gt;</ID>
+    <ID>ThrowsCount:Reminders.kt:ReminderCancel$override suspend fun execute: ToolResult</ID>
+    <ID>ThrowsCount:RemoteExecution.kt:RemoteExecution$private suspend fun follow: RemoteJobs.Probe</ID>
+    <ID>ThrowsCount:SafDocTree.kt:SafDocTree$private fun idOf: String</ID>
+    <ID>ThrowsCount:ServiceConnections.kt:ServiceConnections$suspend fun googleReaderLogin: String</ID>
+    <ID>ThrowsCount:SshService.kt:SftpUpload$override suspend fun execute: ToolResult</ID>
+    <ID>ThrowsCount:SubagentRunner.kt:SubagentRunner$override suspend fun prepare: PreparedChild</ID>
+    <ID>ThrowsCount:SubagentRunner.kt:SubagentRunner$private suspend fun savedProvider: dev.locus.core.model.ProviderConfig</ID>
+    <ID>ThrowsCount:WorkspaceDocuments.kt:WorkspaceDocuments$fun create: File</ID>
+    <ID>ThrowsCount:WorkspaceDocuments.kt:WorkspaceDocuments$fun rename: File</ID>
+    <ID>TooGenericExceptionCaught:AgentRunner.kt:AgentRunner$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:AgentRunner.kt:AgentRunner$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:AndroidUpdatePlatform.kt:AndroidUpdatePlatform$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:AutomationBridge.kt:AutomationBridge$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:BackupManager.kt:BackupManager$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:BackupManager.kt:BackupManager$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:ConnectedFolderRepository.kt:ConnectedFolderRepository$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:EventSources.kt:MailEvents$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:EventSources.kt:NtfyEvents$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ExportReader.kt:ExportReader$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:LinuxSetup.kt:LinuxSetup$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:LocalMcp.kt:LocalMcpServers$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:LocalMcp.kt:LocalMcpServers$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:McpDiscovery.kt:McpDiscovery$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:McpSignIn.kt:McpSignIn$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:McpTools.kt:McpCall$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:McpTools.kt:McpClients$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:MessageQueue.kt:MessageQueue$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:PendingRestore.kt:PendingRestore$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:PhoneHandoffTools.kt:SaveFile$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ReachMeSetup.kt:ReachMeSetup$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ReleaseSource.kt:ReleaseSource$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:RemoteExecution.kt:RemoteExecution$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:RemoteFs.kt:SftpFs$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:ScheduledRun.kt:ScheduledRun$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ScheduledRun.kt:ScheduledRun$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:ServiceConnections.kt:ServiceConnections$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:SftpTransfer.kt:SftpTransfer$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:SideQuestions.kt:SideQuestions$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:SshService.kt:SftpDownload$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:TaskWorker.kt:TaskWorker$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:TriggerChecker.kt:TriggerChecker$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:TriggerEngine.kt:TriggerEngine$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:Updates.kt:Updates$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:WorkspaceRepository.kt:WorkspaceRepository$e: Exception</ID>
+    <ID>TooManyFunctions:AgentRunner.kt:AgentRunner</ID>
+    <ID>TooManyFunctions:AgentService.kt:AgentService : LifecycleService</ID>
+    <ID>TooManyFunctions:AppLock.kt:AppLock</ID>
+    <ID>TooManyFunctions:BackupManager.kt:BackupManager</ID>
+    <ID>TooManyFunctions:CalendarWriteTools.kt:dev.locus.core.data.device.CalendarWriteTools.kt</ID>
+    <ID>TooManyFunctions:ChangeRepository.kt:ChangeRepository : ChangeRecorder</ID>
+    <ID>TooManyFunctions:ConversationRepository.kt:ConversationRepository : TranscriptStore</ID>
+    <ID>TooManyFunctions:DataModule.kt:DataModule</ID>
+    <ID>TooManyFunctions:Diagnostics.kt:DiagnosticsRepository</ID>
+    <ID>TooManyFunctions:HelperModel.kt:HelperModel$Companion</ID>
+    <ID>TooManyFunctions:LibraryRepository.kt:LibraryRepository</ID>
+    <ID>TooManyFunctions:LinuxSetup.kt:LinuxSetup</ID>
+    <ID>TooManyFunctions:LocalMcp.kt:LocalMcpServers</ID>
+    <ID>TooManyFunctions:McpTools.kt:McpClients</ID>
+    <ID>TooManyFunctions:MessageQueue.kt:MessageQueue</ID>
+    <ID>TooManyFunctions:PendingRestore.kt:PendingRestore</ID>
+    <ID>TooManyFunctions:ProjectRepository.kt:ProjectRepository</ID>
+    <ID>TooManyFunctions:ReachMeSetup.kt:ReachMeSetup</ID>
+    <ID>TooManyFunctions:RemoteExecution.kt:RemoteExecution : RemoteBackend</ID>
+    <ID>TooManyFunctions:RemoteFs.kt:SftpFs : RemoteFs</ID>
+    <ID>TooManyFunctions:SafDocTree.kt:SafDocTree : DocTree</ID>
+    <ID>TooManyFunctions:SettingsRepository.kt:SettingsRepository</ID>
+    <ID>TooManyFunctions:SubagentRunner.kt:SubagentRunner : SubagentBackend</ID>
+    <ID>TooManyFunctions:TaskRepository.kt:TaskRepository</ID>
+    <ID>TooManyFunctions:TaskWork.kt:WorkManagerTaskWork : TaskWork</ID>
+    <ID>TooManyFunctions:Updates.kt:Updates</ID>
+    <ID>TooManyFunctions:WorkspaceDocumentsProvider.kt:WorkspaceDocumentsProvider : DocumentsProvider</ID>
+    <ID>TooManyFunctions:WorkspaceRepository.kt:WorkspaceRepository</ID>
+    <ID>UnusedParameter:McpToolPinning.kt:McpToolPinStore$now: Long</ID>
+  </CurrentIssues>
+</SmellBaseline>
