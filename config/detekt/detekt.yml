@@ -1,0 +1,42 @@
+# Locus's detekt settings (docs/design/ci.md, "Static analysis"). The Gradle plugin builds on detekt's
+# own defaults (buildUponDefaultConfig in build-logic/.../Detekt.kt), and the Compose rules bring their
+# defaults with them, so this file lists only what differs. Existing findings live in each module's
+# detekt-baseline.xml; new code must pass.
+
+# Size and complexity limits (#359): detekt's defaults are kept and on, for production code. Tests
+# read best as long, flat lists of cases, so these skip them, the way detekt's defaults already skip
+# tests for TooManyFunctions.
+complexity:
+  CyclomaticComplexMethod:
+    active: true
+    excludes: ['**/test/**', '**/androidTest/**']
+  LongMethod:
+    active: true
+    excludes: ['**/test/**', '**/androidTest/**']
+  LargeClass:
+    active: true
+    excludes: ['**/test/**', '**/androidTest/**']
+  LongParameterList:
+    active: true
+    excludes: ['**/test/**', '**/androidTest/**']
+  NestedBlockDepth:
+    active: true
+    excludes: ['**/test/**', '**/androidTest/**']
+  # Compose: previews are not API (https://detekt.dev/docs/introduction/compose/).
+  TooManyFunctions:
+    ignoreAnnotatedFunctions: ['Preview']
+
+# Compose settings from https://detekt.dev/docs/introduction/compose/: composables are PascalCase,
+# and so are top-level constants such as colours and shapes (SCREAMING_CASE constants stay allowed).
+naming:
+  FunctionNaming:
+    ignoreAnnotated: ['Composable']
+  TopLevelPropertyNaming:
+    constantPattern: '[A-Z][_A-Za-z0-9]*'
+
+style:
+  # A formatting rule the code doesn't follow: 14,000 of 243,000 lines are over 120 characters and no
+  # other limit fits either (2,800 are over 160), and .editorconfig sets none. Its baseline entries
+  # would also break whenever a long line is edited.
+  MaxLineLength:
+    active: false

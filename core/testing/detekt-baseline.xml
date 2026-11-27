@@ -1,0 +1,14 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:FakeDatabase.kt:FakeDatabase.&lt;no name provided&gt;$c.effort == null &amp;&amp; c.parentConversationId == null &amp;&amp; follows &amp;&amp; t.messages.any { it.conversationId == c.id }</ID>
+    <ID>ThrowsCount:FakeFolderGrants.kt:DirectoryTree$private fun at: File</ID>
+    <ID>TooManyFunctions:FakeDatabase.kt:FakeDatabase$&lt;no name provided&gt; : AuditDao</ID>
+    <ID>TooManyFunctions:FakeDatabase.kt:FakeDatabase$&lt;no name provided&gt; : ConversationDao</ID>
+    <ID>TooManyFunctions:FakeDatabase.kt:FakeDatabase$&lt;no name provided&gt; : FileChangeDao</ID>
+    <ID>TooManyFunctions:FakeDatabase.kt:FakeDatabase$&lt;no name provided&gt; : MessageDao</ID>
+    <ID>TooManyFunctions:FakeDatabase.kt:FakeDatabase$&lt;no name provided&gt; : ScheduledTaskDao</ID>
+    <ID>TooManyFunctions:FakeTaskWork.kt:FakeTaskWork : TaskWork</ID>
+  </CurrentIssues>
+</SmellBaseline>

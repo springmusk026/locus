@@ -1,4 +1,5 @@
 import com.android.build.api.dsl.LibraryExtension
+import dev.locus.buildlogic.configureDetekt
 import dev.locus.buildlogic.configureKover
 import dev.locus.buildlogic.configureKotlinAndroid
 import dev.locus.buildlogic.lib
@@ -17,6 +18,7 @@ class AndroidLibraryConventionPlugin : Plugin<Project> {
             configureKotlinAndroid(this)
         }
         configureKover(androidVariant = "debug")
+        configureDetekt()
         registerUnitTests("testDebugUnitTest")
         dependencies {
             "testImplementation"(libs.lib("kotlin.test"))

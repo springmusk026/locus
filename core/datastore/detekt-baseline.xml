@@ -1,0 +1,22 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:Integrity.kt:SealedSettingsStore$trusted !== stored || (stored.policySeal.isEmpty() &amp;&amp; !PolicySeal.isDefault(stored)) || endpointsUnsealed(stored)</ID>
+    <ID>LoopWithTooManyJumpStatements:VaultKeys.kt:VaultKeys$for</ID>
+    <ID>MagicNumber:DataStoreModule.kt:DataStoreModule$33</ID>
+    <ID>MagicNumber:DiagnosticsLog.kt:DiagnosticsLog$200</ID>
+    <ID>MagicNumber:VaultKeys.kt:10</ID>
+    <ID>MagicNumber:VaultKeys.kt:33</ID>
+    <ID>MagicNumber:VaultKeys.kt:VaultKeys$200</ID>
+    <ID>ReturnCount:Integrity.kt:SealedSettingsStore$private fun trusted: AppSettings</ID>
+    <ID>ReturnCount:VaultKeys.kt:VaultKeys$@Synchronized override fun ensureOpen: VaultState</ID>
+    <ID>ReturnCount:VaultKeys.kt:VaultKeys$@Synchronized override fun reset: VaultState</ID>
+    <ID>ReturnCount:VaultKeys.kt:VaultKeys$private fun attempt: VaultState</ID>
+    <ID>ReturnCount:VaultKeys.kt:VaultKeys$private fun finishPendingMove: Boolean</ID>
+    <ID>ThrowsCount:VaultKeysTest.kt:VaultKeysTest.Phone$fun open: Aead</ID>
+    <ID>TooGenericExceptionCaught:VaultKeys.kt:VaultKeys$e: Exception</ID>
+    <ID>TooManyFunctions:SecretStore.kt:SecretStore$Companion</ID>
+    <ID>TooManyFunctions:VaultKeys.kt:VaultKeys : VaultAccess</ID>
+  </CurrentIssues>
+</SmellBaseline>

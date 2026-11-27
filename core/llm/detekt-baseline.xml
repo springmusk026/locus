@@ -1,0 +1,153 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:ChatModel.kt:LlmException$(requestId == null || this.requestId != null) &amp;&amp; (responseId == null || this.responseId != null)</ID>
+    <ID>ComplexCondition:HttpErrors.kt:status == 429 &amp;&amp; codes.any { it in BILLING_LIMIT_CODES } || status == 402 || "billing_error" in codes || usageLimit</ID>
+    <ID>ComplexCondition:ModelCatalog.kt:ModelCatalogIndex.Companion$h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".lan") || h.endsWith(".home.arpa")</ID>
+    <ID>ComplexCondition:OpenAiChatModel.kt:OpenAiChatModel$(withEffort || withCache || withUsage) &amp;&amp; (status == 400 || status == 422)</ID>
+    <ID>ComplexCondition:OpenAiResponsesModel.kt:OpenAiResponsesModel$(response.status.value == 400 || response.status.value == 422) &amp;&amp; (withReasoning || withCacheKey || perMessage || systemInInput)</ID>
+    <ID>CyclomaticComplexMethod:AnthropicChatModel.kt:AnthropicChatModel$internal fun buildBody: JsonObject</ID>
+    <ID>CyclomaticComplexMethod:AnthropicChatModel.kt:AnthropicChatModel$internal fun toWireMessages: JsonArray</ID>
+    <ID>CyclomaticComplexMethod:AnthropicChatModel.kt:AnthropicChatModel$override fun stream: Flow&lt;ChatEvent&gt;</ID>
+    <ID>CyclomaticComplexMethod:AnthropicChatModel.kt:AnthropicChatModel.StreamAccumulator$fun handle: ChatEvent?</ID>
+    <ID>CyclomaticComplexMethod:ChatGptErrors.kt:ChatGptErrors$fun fromCode: LlmException</ID>
+    <ID>CyclomaticComplexMethod:ChatGptErrors.kt:ChatGptErrors$fun fromHttp: LlmException</ID>
+    <ID>CyclomaticComplexMethod:HelperModelChoice.kt:HelperModelChoice$internal fun fromCatalog: String?</ID>
+    <ID>CyclomaticComplexMethod:HttpErrors.kt:internal fun httpError: LlmException</ID>
+    <ID>CyclomaticComplexMethod:LlmErrorText.kt:LlmErrorText$private fun render: String</ID>
+    <ID>CyclomaticComplexMethod:ModelCapabilities.kt:CapabilityRules$private fun family: ModelCapabilities</ID>
+    <ID>CyclomaticComplexMethod:ModelCatalog.kt:ModelCatalogIndex.Companion$internal fun isLocal: Boolean</ID>
+    <ID>CyclomaticComplexMethod:ModelLister.kt:ModelLister$suspend fun list: List&lt;RemoteModel&gt;</ID>
+    <ID>CyclomaticComplexMethod:OpenAiChatModel.kt:OpenAiChatModel$internal fun buildBody: JsonObject</ID>
+    <ID>CyclomaticComplexMethod:OpenAiChatModel.kt:OpenAiChatModel$internal fun toWireMessages: List&lt;JsonObject&gt;</ID>
+    <ID>CyclomaticComplexMethod:OpenAiChatModel.kt:OpenAiChatModel$override fun stream: Flow&lt;ChatEvent&gt;</ID>
+    <ID>CyclomaticComplexMethod:OpenAiChatModel.kt:OpenAiChatModel.StreamAccumulator$fun handle: List&lt;ChatEvent&gt;</ID>
+    <ID>CyclomaticComplexMethod:OpenAiResponsesModel.kt:OpenAiResponsesModel$internal fun buildBody: JsonObject</ID>
+    <ID>CyclomaticComplexMethod:OpenAiResponsesModel.kt:OpenAiResponsesModel$internal fun toInputItems: List&lt;JsonObject&gt;</ID>
+    <ID>CyclomaticComplexMethod:OpenAiResponsesModel.kt:OpenAiResponsesModel$internal fun toTurn: AssistantTurn</ID>
+    <ID>CyclomaticComplexMethod:OpenAiResponsesModel.kt:OpenAiResponsesModel$override fun stream: Flow&lt;ChatEvent&gt;</ID>
+    <ID>CyclomaticComplexMethod:ProviderErrorText.kt:ProviderErrorText$fun statusMessage: LlmErrorText</ID>
+    <ID>CyclomaticComplexMethod:ResponsesInput.kt:ResponsesInput$fun normalize: List&lt;JsonObject&gt;</ID>
+    <ID>CyclomaticComplexMethod:Sse.kt:internal suspend fun ByteReadChannel.forEachSseEvent</ID>
+    <ID>LongMethod:AnthropicChatModel.kt:AnthropicChatModel$internal fun buildBody: JsonObject</ID>
+    <ID>LongMethod:AnthropicChatModel.kt:AnthropicChatModel.StreamAccumulator$fun handle: ChatEvent?</ID>
+    <ID>LongMethod:OpenAiResponsesModel.kt:OpenAiResponsesModel$internal fun toInputItems: List&lt;JsonObject&gt;</ID>
+    <ID>LongMethod:OpenAiResponsesModel.kt:OpenAiResponsesModel$override fun stream: Flow&lt;ChatEvent&gt;</ID>
+    <ID>LoopWithTooManyJumpStatements:ResponsesInput.kt:ResponsesInput$for</ID>
+    <ID>MagicNumber:AnthropicChatModel.kt:AnthropicChatModel$2000</ID>
+    <ID>MagicNumber:AnthropicChatModel.kt:AnthropicChatModel$400</ID>
+    <ID>MagicNumber:ChatGptErrors.kt:ChatGptErrors$400</ID>
+    <ID>MagicNumber:ChatGptErrors.kt:ChatGptErrors$401</ID>
+    <ID>MagicNumber:ChatGptErrors.kt:ChatGptErrors$403</ID>
+    <ID>MagicNumber:ChatGptErrors.kt:ChatGptErrors$429</ID>
+    <ID>MagicNumber:ChatGptErrors.kt:ChatGptErrors$503</ID>
+    <ID>MagicNumber:ChatModel.kt:408</ID>
+    <ID>MagicNumber:ChatModel.kt:409</ID>
+    <ID>MagicNumber:ChatModel.kt:429</ID>
+    <ID>MagicNumber:ChatModel.kt:500</ID>
+    <ID>MagicNumber:ChatModel.kt:PromptCacheKey$32</ID>
+    <ID>MagicNumber:HttpErrors.kt:1000</ID>
+    <ID>MagicNumber:HttpErrors.kt:402</ID>
+    <ID>MagicNumber:HttpErrors.kt:429</ID>
+    <ID>MagicNumber:HttpErrors.kt:498</ID>
+    <ID>MagicNumber:MidChatEffort.kt:MidChatEffort$6</ID>
+    <ID>MagicNumber:ModelCapabilities.kt:Fit.Companion$0.05</ID>
+    <ID>MagicNumber:ModelCapabilities.kt:Fit.Companion$1_000</ID>
+    <ID>MagicNumber:ModelCapabilities.kt:Fit.Companion$1_000_000</ID>
+    <ID>MagicNumber:ModelCapabilities.kt:Fit.Companion$500</ID>
+    <ID>MagicNumber:ModelCapabilities.kt:ModelRequirements.Companion$3</ID>
+    <ID>MagicNumber:ModelCapabilities.kt:ModelRequirements.Companion$4</ID>
+    <ID>MagicNumber:ModelCapabilities.kt:ModelRequirements.Companion$50</ID>
+    <ID>MagicNumber:ModelCapabilities.kt:ModelRequirements.Companion$8</ID>
+    <ID>MagicNumber:ModelCatalog.kt:ModelCatalog$200</ID>
+    <ID>MagicNumber:ModelCatalog.kt:ModelCatalog$299</ID>
+    <ID>MagicNumber:ModelCatalog.kt:ModelCatalog$304</ID>
+    <ID>MagicNumber:ModelCatalog.kt:ModelCatalogIndex.Companion$0xfc00</ID>
+    <ID>MagicNumber:ModelCatalog.kt:ModelCatalogIndex.Companion$0xfe00</ID>
+    <ID>MagicNumber:ModelCatalog.kt:ModelCatalogIndex.Companion$0xfe80</ID>
+    <ID>MagicNumber:ModelCatalog.kt:ModelCatalogIndex.Companion$0xffc0</ID>
+    <ID>MagicNumber:ModelCatalog.kt:ModelCatalogIndex.Companion$10</ID>
+    <ID>MagicNumber:ModelCatalog.kt:ModelCatalogIndex.Companion$100</ID>
+    <ID>MagicNumber:ModelCatalog.kt:ModelCatalogIndex.Companion$127</ID>
+    <ID>MagicNumber:ModelCatalog.kt:ModelCatalogIndex.Companion$16</ID>
+    <ID>MagicNumber:ModelCatalog.kt:ModelCatalogIndex.Companion$168</ID>
+    <ID>MagicNumber:ModelCatalog.kt:ModelCatalogIndex.Companion$169</ID>
+    <ID>MagicNumber:ModelCatalog.kt:ModelCatalogIndex.Companion$172</ID>
+    <ID>MagicNumber:ModelCatalog.kt:ModelCatalogIndex.Companion$192</ID>
+    <ID>MagicNumber:ModelCatalog.kt:ModelCatalogIndex.Companion$254</ID>
+    <ID>MagicNumber:ModelCatalog.kt:ModelCatalogIndex.Companion$255</ID>
+    <ID>MagicNumber:ModelCatalog.kt:ModelCatalogIndex.Companion$31</ID>
+    <ID>MagicNumber:ModelCatalog.kt:ModelCatalogIndex.Companion$4</ID>
+    <ID>MagicNumber:ModelCatalog.kt:ModelCatalogIndex.Companion$64</ID>
+    <ID>MagicNumber:ModelLister.kt:ModelLister$200</ID>
+    <ID>MagicNumber:ModelLister.kt:ModelLister$2000</ID>
+    <ID>MagicNumber:ModelLister.kt:ModelLister$299</ID>
+    <ID>MagicNumber:OpenAiChatModel.kt:OpenAiChatModel$2000</ID>
+    <ID>MagicNumber:OpenAiChatModel.kt:OpenAiChatModel$400</ID>
+    <ID>MagicNumber:OpenAiChatModel.kt:OpenAiChatModel$422</ID>
+    <ID>MagicNumber:OpenAiResponsesModel.kt:OpenAiResponsesModel$200</ID>
+    <ID>MagicNumber:OpenAiResponsesModel.kt:OpenAiResponsesModel$2000</ID>
+    <ID>MagicNumber:OpenAiResponsesModel.kt:OpenAiResponsesModel$299</ID>
+    <ID>MagicNumber:OpenAiResponsesModel.kt:OpenAiResponsesModel$400</ID>
+    <ID>MagicNumber:OpenAiResponsesModel.kt:OpenAiResponsesModel$422</ID>
+    <ID>MagicNumber:OpenAiResponsesModel.kt:OpenAiResponsesModel.Companion$4</ID>
+    <ID>MagicNumber:OpenAiResponsesModel.kt:OpenAiResponsesModel.Companion$5</ID>
+    <ID>MagicNumber:OpenAiResponsesModel.kt:OpenAiResponsesModel.Companion$50</ID>
+    <ID>MagicNumber:ProviderErrorText.kt:ProviderErrorText$400</ID>
+    <ID>MagicNumber:ProviderErrorText.kt:ProviderErrorText$401</ID>
+    <ID>MagicNumber:ProviderErrorText.kt:ProviderErrorText$403</ID>
+    <ID>MagicNumber:ProviderErrorText.kt:ProviderErrorText$404</ID>
+    <ID>MagicNumber:ProviderErrorText.kt:ProviderErrorText$408</ID>
+    <ID>MagicNumber:ProviderErrorText.kt:ProviderErrorText$413</ID>
+    <ID>MagicNumber:ProviderErrorText.kt:ProviderErrorText$429</ID>
+    <ID>MagicNumber:ProviderErrorText.kt:ProviderErrorText$500</ID>
+    <ID>MagicNumber:ProviderErrorText.kt:ProviderErrorText$502</ID>
+    <ID>MagicNumber:ProviderErrorText.kt:ProviderErrorText$503</ID>
+    <ID>MagicNumber:ProviderErrorText.kt:ProviderErrorText$504</ID>
+    <ID>MagicNumber:ProviderErrorText.kt:ProviderErrorText$520</ID>
+    <ID>MagicNumber:ProviderErrorText.kt:ProviderErrorText$521</ID>
+    <ID>MagicNumber:ProviderErrorText.kt:ProviderErrorText$522</ID>
+    <ID>MagicNumber:ProviderErrorText.kt:ProviderErrorText$523</ID>
+    <ID>MagicNumber:ProviderErrorText.kt:ProviderErrorText$524</ID>
+    <ID>MagicNumber:ProviderErrorText.kt:ProviderErrorText$529</ID>
+    <ID>MagicNumber:ProviderErrorText.kt:ProviderErrorText$80</ID>
+    <ID>MagicNumber:Sse.kt:100</ID>
+    <ID>MagicNumber:Sse.kt:200</ID>
+    <ID>MagicNumber:Sse.kt:299</ID>
+    <ID>MagicNumber:Sse.kt:StreamIdleException$1000</ID>
+    <ID>MagicNumber:Sse.kt:StreamLimits$16</ID>
+    <ID>MagicNumber:Sse.kt:StreamLimits$64L</ID>
+    <ID>MagicNumber:Sse.kt:StreamLimits$8</ID>
+    <ID>MagicNumber:SystemPlacement.kt:SystemPlacement$6</ID>
+    <ID>MatchingDeclarationName:Attachments.kt:AttachmentPayload</ID>
+    <ID>MatchingDeclarationName:TestSupport.kt:RecordingEngine</ID>
+    <ID>NestedBlockDepth:AnthropicChatModel.kt:AnthropicChatModel.StreamAccumulator$fun handle: ChatEvent?</ID>
+    <ID>ReturnCount:AnthropicChatModel.kt:AnthropicChatModel$internal fun withCacheBreakpointOnLastMessage: JsonArray</ID>
+    <ID>ReturnCount:AnthropicChatModel.kt:AnthropicChatModel.StreamAccumulator$fun handle: ChatEvent?</ID>
+    <ID>ReturnCount:ContextOverflow.kt:ContextOverflow$fun matches: Boolean</ID>
+    <ID>ReturnCount:HelperModelChoice.kt:HelperModelChoice$fun fits: Boolean</ID>
+    <ID>ReturnCount:HelperModelChoice.kt:HelperModelChoice$internal fun fromCatalog: String?</ID>
+    <ID>ReturnCount:HttpErrors.kt:fun retryAfterMs: Long?</ID>
+    <ID>ReturnCount:HttpErrors.kt:internal fun httpError: LlmException</ID>
+    <ID>ReturnCount:HttpErrors.kt:internal fun refusesReasoningField: Boolean</ID>
+    <ID>ReturnCount:HttpErrors.kt:private fun httpDateMs: Long?</ID>
+    <ID>ReturnCount:KeyPool.kt:KeyPool$@Synchronized fun pick: Int?</ID>
+    <ID>ReturnCount:ModelCapabilities.kt:CapabilityRules$fun cachingOf: CacheStyle</ID>
+    <ID>ReturnCount:ModelCapabilities.kt:CapabilityRules$fun of: ModelCapabilities</ID>
+    <ID>ReturnCount:ModelCatalog.kt:ModelCatalogIndex$fun lookup: CatalogModel?</ID>
+    <ID>ReturnCount:ModelCatalog.kt:ModelCatalogIndex$internal fun providersFor: List&lt;String&gt;</ID>
+    <ID>ReturnCount:ModelCatalog.kt:ModelCatalogIndex.Companion$internal fun isLocal: Boolean</ID>
+    <ID>ReturnCount:ModelCatalog.kt:RawModel$private fun priceOf: ModelPrice?</ID>
+    <ID>ReturnCount:ModelLister.kt:ModelLister$suspend fun list: List&lt;RemoteModel&gt;</ID>
+    <ID>ReturnCount:OpenAiChatModel.kt:OpenAiChatModel$internal fun effort: Pair&lt;EffortField, String&gt;?</ID>
+    <ID>ReturnCount:OpenAiChatModel.kt:OpenAiChatModel.StreamAccumulator$fun handle: List&lt;ChatEvent&gt;</ID>
+    <ID>ReturnCount:OpenAiResponsesModel.kt:OpenAiResponsesModel.Companion$internal fun namespaceOf: String</ID>
+    <ID>ReturnCount:ProviderErrorText.kt:ProviderErrorText$private fun jsonMessage: String?</ID>
+    <ID>ReturnCount:SystemPlacement.kt:SystemPlacement$fun documented: Boolean</ID>
+    <ID>ThrowsCount:ModelLister.kt:ModelLister$private suspend fun chatGpt: List&lt;RemoteModel&gt;</ID>
+    <ID>ThrowsCount:Sse.kt:internal suspend fun ByteReadChannel.forEachSseEvent</ID>
+    <ID>TooManyFunctions:AnthropicChatModel.kt:AnthropicChatModel : ChatModel</ID>
+    <ID>TooManyFunctions:OpenAiResponsesModel.kt:OpenAiResponsesModel : ChatModel</ID>
+  </CurrentIssues>
+</SmellBaseline>

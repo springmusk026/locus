@@ -1,0 +1,272 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:AndroidVoice.kt:SystemEars.&lt;no name provided&gt;$!onDevice &amp;&amp; preferOffline &amp;&amp; (language || error == SpeechRecognizer.ERROR_NETWORK || error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT)</ID>
+    <ID>ComplexCondition:ChatScreen.kt:!canResume &amp;&amp; !state.run.running &amp;&amp; state.run.notice == null &amp;&amp; state.run.queued.isEmpty() &amp;&amp; state.items.lastOrNull() is ChatItem.User</ID>
+    <ID>ComplexCondition:ChatScreen.kt:!state.loading &amp;&amp; state.items.isEmpty() &amp;&amp; !state.run.running &amp;&amp; panel == null</ID>
+    <ID>ComplexCondition:ChatScreen.kt:groups.isEmpty() &amp;&amp; calls.isEmpty() &amp;&amp; reads.isEmpty() &amp;&amp; shown.all { it is ChatItem.Thought }</ID>
+    <ID>ComplexCondition:SpeechText.kt:SpeechText$i + 1 &lt; lines.size &amp;&amp; lines[i + 1].trim().let { it.startsWith("|") || (it.contains('|') &amp;&amp; it.isNotBlank()) }</ID>
+    <ID>ComplexCondition:TranscriptRows.kt:waiting || none { it is TranscriptRow.Single &amp;&amp; it.item is ChatItem.Plan &amp;&amp; it.item.status == PlanStatus.Waiting }</ID>
+    <ID>ComplexCondition:TranscriptScroll.kt:follower.landed &amp;&amp; follower.following &amp;&amp; !follower.userScrolling &amp;&amp; distance &gt; 0f</ID>
+    <ID>ComplexCondition:VoiceSession.kt:VoiceSession$transient &amp;&amp; (phaseNow is VoicePhase.Listening || bargeListening) &amp;&amp; now() - listenStartedAt &lt; RECOGNIZER_FOCUS_MS</ID>
+    <ID>ComposableParamOrder:ChatScreen.kt:@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class) @Composable internal fun ChatScreen</ID>
+    <ID>ComposableParamOrder:ConversationsScreen.kt:@Composable fun ConversationsRoute</ID>
+    <ID>CompositionLocalAllowlist:BrowserPageUi.kt:/** Loads a past browser step's page for this chat; null where there's no chat (previews, the home screen). */ internal val LocalBrowserPages = staticCompositionLocalOf&lt;(suspend (callId: String, result: String?) -&gt; PageView)?&gt; { null }</ID>
+    <ID>CompositionLocalAllowlist:LinkGuardUi.kt:internal val LocalLinkContext = compositionLocalOf { LinkContext() }</ID>
+    <ID>CompositionLocalAllowlist:MemoryReadUi.kt:internal val LocalMemoryReads = compositionLocalOf { MemoryReadActions() }</ID>
+    <ID>CompositionLocalAllowlist:ProviderDraftCard.kt:/** This chat's [ProviderDraftStatus]; empty in previews, where every card reads as waiting on nothing. */ internal val LocalProviderDrafts = compositionLocalOf { ProviderDraftStatus() }</ID>
+    <ID>CompositionLocalAllowlist:SentFileCard.kt:/** * Opens a workspace file (its path relative to the workspace) in Locus's own viewer, the Workspace's; * back returns to the chat. Null where there's nowhere to go (previews); Open then uses another app. */ internal val LocalOpenWorkspaceFile = staticCompositionLocalOf&lt;((String) -&gt; Unit)?&gt; { null }</ID>
+    <ID>CyclomaticComplexMethod:ChangesCard.kt:@Composable internal fun ChangesCard</ID>
+    <ID>CyclomaticComplexMethod:ChangesCard.kt:@Composable private fun DiffSheet</ID>
+    <ID>CyclomaticComplexMethod:ChangesCard.kt:internal fun changeSummary: String</ID>
+    <ID>CyclomaticComplexMethod:ChatCode.kt:internal fun languageDisplayName: String</ID>
+    <ID>CyclomaticComplexMethod:ChatCode.kt:internal fun syntaxLanguageFor: SyntaxLanguage?</ID>
+    <ID>CyclomaticComplexMethod:ChatExport.kt:ChatExport$fun markdown: String</ID>
+    <ID>CyclomaticComplexMethod:ChatExport.kt:ChatExport$internal fun changeSummaryEnglish: String</ID>
+    <ID>CyclomaticComplexMethod:ChatPage.kt:ChatPage$fun build: BuiltPage</ID>
+    <ID>CyclomaticComplexMethod:ChatPdf.kt:PdfLayout$fun blocks: List&lt;PdfBlock&gt;</ID>
+    <ID>CyclomaticComplexMethod:ChatProjectSheet.kt:@Composable internal fun ChatProjectSheet</ID>
+    <ID>CyclomaticComplexMethod:ChatScreen.kt:@Composable fun ChatRoute</ID>
+    <ID>CyclomaticComplexMethod:ChatScreen.kt:@Composable private fun AssistantText</ID>
+    <ID>CyclomaticComplexMethod:ChatScreen.kt:@Composable private fun StepsGroup</ID>
+    <ID>CyclomaticComplexMethod:ChatScreen.kt:@Composable private fun TerminalLog</ID>
+    <ID>CyclomaticComplexMethod:ChatScreen.kt:@Composable private fun ToolCallRow</ID>
+    <ID>CyclomaticComplexMethod:ChatScreen.kt:@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class) @Composable internal fun ChatScreen</ID>
+    <ID>CyclomaticComplexMethod:ChatViewModel.kt:internal fun transcriptItems: List&lt;ChatItem&gt;</ID>
+    <ID>CyclomaticComplexMethod:ChatViewModel.kt:internal fun turnItems: List&lt;ChatItem&gt;</ID>
+    <ID>CyclomaticComplexMethod:ConversationsScreen.kt:@Composable private fun AllChats</ID>
+    <ID>CyclomaticComplexMethod:ConversationsScreen.kt:@Composable private fun HomeList</ID>
+    <ID>CyclomaticComplexMethod:ConversationsScreen.kt:@OptIn(ExperimentalFoundationApi::class) @Composable private fun ConversationRowItem</ID>
+    <ID>CyclomaticComplexMethod:ConversationsScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable internal fun ConversationsScreen</ID>
+    <ID>CyclomaticComplexMethod:LocusComposer.kt:@Composable internal fun LocusComposer</ID>
+    <ID>CyclomaticComplexMethod:LocusComposer.kt:@Composable private fun ComposerSheets</ID>
+    <ID>CyclomaticComplexMethod:ModelPick.kt:internal fun buildModelPicker: List&lt;PickerSection&gt;</ID>
+    <ID>CyclomaticComplexMethod:ModelSheet.kt:@Composable internal fun ModelSheet</ID>
+    <ID>CyclomaticComplexMethod:ProjectEditorScreen.kt:@Composable fun ProjectEditorRoute</ID>
+    <ID>CyclomaticComplexMethod:ProjectRulesScreen.kt:@Composable private fun RuleEditorSheet</ID>
+    <ID>CyclomaticComplexMethod:ProviderDraftCard.kt:@Composable internal fun ProviderDraftCard</ID>
+    <ID>CyclomaticComplexMethod:PublishSheet.kt:@Composable internal fun PublishSheet</ID>
+    <ID>CyclomaticComplexMethod:ReceiptCard.kt:@OptIn(ExperimentalLayoutApi::class) @Composable internal fun ReceiptSheet</ID>
+    <ID>CyclomaticComplexMethod:ReceiptCard.kt:internal fun receiptExportText: String</ID>
+    <ID>CyclomaticComplexMethod:RemoteUi.kt:@Composable internal fun RemoteBackendSheet</ID>
+    <ID>CyclomaticComplexMethod:RewindUi.kt:internal fun messageActions: Map&lt;String, MessageActions&gt;</ID>
+    <ID>CyclomaticComplexMethod:RunTextUi.kt:internal fun llmErrorInWords: String</ID>
+    <ID>CyclomaticComplexMethod:RunTextUi.kt:internal fun runNoteInWords: String</ID>
+    <ID>CyclomaticComplexMethod:SentFileCard.kt:@Composable internal fun SentFileCard</ID>
+    <ID>CyclomaticComplexMethod:SideQuestionUi.kt:@Composable internal fun SideQuestionCard</ID>
+    <ID>CyclomaticComplexMethod:SpeechText.kt:SpeechText$fun prepare: String</ID>
+    <ID>CyclomaticComplexMethod:SubagentRow.kt:@Composable internal fun SubagentRow</ID>
+    <ID>CyclomaticComplexMethod:SubagentRow.kt:@Composable private fun SubagentTranscriptSheet</ID>
+    <ID>CyclomaticComplexMethod:TranscriptRows.kt:private fun checkLabelRes: Int</ID>
+    <ID>CyclomaticComplexMethod:VerificationCard.kt:@Composable internal fun CheckGroupRow</ID>
+    <ID>CyclomaticComplexMethod:VoiceApprovals.kt:VoiceApprovals$fun parse: VoiceReply</ID>
+    <ID>CyclomaticComplexMethod:VoiceModeScreen.kt:@Composable internal fun phaseTitle: String</ID>
+    <ID>CyclomaticComplexMethod:VoiceSession.kt:VoiceSession$fun onAgent</ID>
+    <ID>CyclomaticComplexMethod:VoiceSession.kt:VoiceSession$private fun next</ID>
+    <ID>DestructuringDeclarationWithTooManyEntries:ChatViewModel.kt:ChatViewModel$val (items, rows, tokens, todos, savedNeeds) = transcript</ID>
+    <ID>DestructuringDeclarationWithTooManyEntries:ConversationsViewModel.kt:ConversationsViewModel$(everything, empty, ids, q)</ID>
+    <ID>LambdaParameterInRestartableEffect:BrowserPageUi.kt:load: suspend () -&gt; PageView</ID>
+    <ID>LambdaParameterInRestartableEffect:ChatScreen.kt:/** The composer's unsent text changed (not a message being edited), to keep it when the chat is left (#319). */ onDraftChange: (String) -&gt; Unit = {}</ID>
+    <ID>LambdaParameterInRestartableEffect:LocusComposer.kt:onTextChange: (String) -&gt; Unit</ID>
+    <ID>LambdaParameterInRestartableEffect:ModelSheet.kt:onOpen: () -&gt; Unit</ID>
+    <ID>LambdaParameterInRestartableEffect:TranscriptScroll.kt:streamLength: () -&gt; Int</ID>
+    <ID>LambdaParameterInRestartableEffect:VoiceModeScreen.kt:onExit: () -&gt; Unit</ID>
+    <ID>LargeClass:ChatViewModel.kt:ChatViewModel : ViewModel</ID>
+    <ID>LongMethod:ChangesCard.kt:@Composable internal fun ChangesCard</ID>
+    <ID>LongMethod:ChangesCard.kt:@Composable private fun DiffSheet</ID>
+    <ID>LongMethod:ChatExport.kt:ChatExport$fun markdown: String</ID>
+    <ID>LongMethod:ChatPage.kt:ChatPage$fun build: BuiltPage</ID>
+    <ID>LongMethod:ChatScreen.kt:@Composable fun ChatRoute</ID>
+    <ID>LongMethod:ChatScreen.kt:@Composable private fun AssistantText</ID>
+    <ID>LongMethod:ChatScreen.kt:@Composable private fun TokensSheet</ID>
+    <ID>LongMethod:ChatScreen.kt:@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class) @Composable internal fun ChatScreen</ID>
+    <ID>LongMethod:ChatViewModel.kt:internal fun turnItems: List&lt;ChatItem&gt;</ID>
+    <ID>LongMethod:ConversationsScreen.kt:@Composable fun ConversationsRoute</ID>
+    <ID>LongMethod:ConversationsScreen.kt:@Composable private fun AllChats</ID>
+    <ID>LongMethod:ConversationsScreen.kt:@Composable private fun Launcher</ID>
+    <ID>LongMethod:ConversationsScreen.kt:@OptIn(ExperimentalFoundationApi::class) @Composable private fun ConversationRowItem</ID>
+    <ID>LongMethod:ConversationsScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable internal fun ConversationsScreen</ID>
+    <ID>LongMethod:LocusComposer.kt:@Composable internal fun LocusComposer</ID>
+    <ID>LongMethod:LocusComposer.kt:@Composable private fun MoreSheet</ID>
+    <ID>LongMethod:ModelSheet.kt:@Composable internal fun ModelSheet</ID>
+    <ID>LongMethod:ProjectEditorScreen.kt:@Composable fun ProjectEditorRoute</ID>
+    <ID>LongMethod:ProjectRulesScreen.kt:@Composable private fun RuleEditorSheet</ID>
+    <ID>LongMethod:ProjectRulesScreen.kt:@Composable private fun RulesList</ID>
+    <ID>LongMethod:ProjectsScreen.kt:@Composable fun ProjectRoute</ID>
+    <ID>LongMethod:PublishSheet.kt:@Composable private fun Destination</ID>
+    <ID>LongMethod:ReceiptCard.kt:@OptIn(ExperimentalLayoutApi::class) @Composable internal fun ReceiptSheet</ID>
+    <ID>LongMethod:RemoteUi.kt:@Composable internal fun RemoteBackendSheet</ID>
+    <ID>LongMethod:SentFileCard.kt:@Composable internal fun SentFileCard</ID>
+    <ID>LongMethod:SentSheet.kt:@Composable private fun SentContent</ID>
+    <ID>LongMethod:SubagentRow.kt:@Composable internal fun SubagentRow</ID>
+    <ID>MagicNumber:AndroidVoice.kt:SystemEars$31</ID>
+    <ID>MagicNumber:ChangesCard.kt:270f</ID>
+    <ID>MagicNumber:ChangesCard.kt:90f</ID>
+    <ID>MagicNumber:ChatControlsUi.kt:1_000</ID>
+    <ID>MagicNumber:ChatControlsUi.kt:270f</ID>
+    <ID>MagicNumber:ChatControlsUi.kt:60</ID>
+    <ID>MagicNumber:ChatControlsUi.kt:90f</ID>
+    <ID>MagicNumber:ChatExport.kt:ChatExport$199</ID>
+    <ID>MagicNumber:ChatExport.kt:ChatExport$200</ID>
+    <ID>MagicNumber:ChatPage.kt:ChatPage$300</ID>
+    <ID>MagicNumber:ChatPdf.kt:ChatPdf$4f</ID>
+    <ID>MagicNumber:ChatPdf.kt:PdfLayout$0.28f</ID>
+    <ID>MagicNumber:ChatPdf.kt:PdfStyle.Body$10.5f</ID>
+    <ID>MagicNumber:ChatPdf.kt:PdfStyle.Body$6f</ID>
+    <ID>MagicNumber:ChatPdf.kt:PdfStyle.Bullet$10f</ID>
+    <ID>MagicNumber:ChatPdf.kt:PdfStyle.Code$8.5f</ID>
+    <ID>MagicNumber:ChatPdf.kt:PdfStyle.Heading$11f</ID>
+    <ID>MagicNumber:ChatPdf.kt:PdfStyle.Heading$8f</ID>
+    <ID>MagicNumber:ChatPdf.kt:PdfStyle.Meta$4f</ID>
+    <ID>MagicNumber:ChatPdf.kt:PdfStyle.Meta$9f</ID>
+    <ID>MagicNumber:ChatPdf.kt:PdfStyle.Speaker$11f</ID>
+    <ID>MagicNumber:ChatPdf.kt:PdfStyle.Speaker$14f</ID>
+    <ID>MagicNumber:ChatPdf.kt:PdfStyle.Title$18f</ID>
+    <ID>MagicNumber:ChatScreen.kt:0.8f</ID>
+    <ID>MagicNumber:ChatScreen.kt:100</ID>
+    <ID>MagicNumber:ChatScreen.kt:1_500</ID>
+    <ID>MagicNumber:ChatScreen.kt:1_600</ID>
+    <ID>MagicNumber:ChatScreen.kt:270f</ID>
+    <ID>MagicNumber:ChatScreen.kt:4</ID>
+    <ID>MagicNumber:ChatScreen.kt:4000</ID>
+    <ID>MagicNumber:ChatScreen.kt:6_000</ID>
+    <ID>MagicNumber:ChatScreen.kt:90f</ID>
+    <ID>MagicNumber:CompareUi.kt:0.001</ID>
+    <ID>MagicNumber:ConversationsScreen.kt:0.6f</ID>
+    <ID>MagicNumber:ConversationsScreen.kt:3</ID>
+    <ID>MagicNumber:ConversationsScreen.kt:30</ID>
+    <ID>MagicNumber:ConversationsScreen.kt:7</ID>
+    <ID>MagicNumber:LocusComposer.kt:CameraCapture$86_400_000L</ID>
+    <ID>MagicNumber:ModelFit.kt:50</ID>
+    <ID>MagicNumber:ModelSheet.kt:90f</ID>
+    <ID>MagicNumber:ProjectEditorScreen.kt:1000</ID>
+    <ID>MagicNumber:ProjectRulesScreen.kt:3</ID>
+    <ID>MagicNumber:ProjectsViewModel.kt:ProjectsViewModel$5_000</ID>
+    <ID>MagicNumber:ReadAloud.kt:ReadAloud$0.7f</ID>
+    <ID>MagicNumber:ReceiptCard.kt:0.32f</ID>
+    <ID>MagicNumber:ReceiptCard.kt:0.68f</ID>
+    <ID>MagicNumber:RemoteUi.kt:1024</ID>
+    <ID>MagicNumber:RemoteUi.kt:1024.0</ID>
+    <ID>MagicNumber:RunTextUi.kt:3600</ID>
+    <ID>MagicNumber:RunTextUi.kt:3_600_000</ID>
+    <ID>MagicNumber:RunTextUi.kt:60</ID>
+    <ID>MagicNumber:RunTextUi.kt:60_000</ID>
+    <ID>MagicNumber:SentFileCard.kt:512</ID>
+    <ID>MagicNumber:SentSheet.kt:300</ID>
+    <ID>MagicNumber:SentSheet.kt:400</ID>
+    <ID>MagicNumber:SentSheet.kt:90f</ID>
+    <ID>MagicNumber:SubagentRow.kt:2_000</ID>
+    <ID>MagicNumber:SubagentRow.kt:4_000</ID>
+    <ID>MagicNumber:VerificationCard.kt:1000</ID>
+    <ID>MagicNumber:VerificationCard.kt:1000.0</ID>
+    <ID>MagicNumber:VerificationCard.kt:10_000</ID>
+    <ID>MagicNumber:VerificationCard.kt:60_000</ID>
+    <ID>MagicNumber:VoiceApprovals.kt:VoiceApprovals$3</ID>
+    <ID>MagicNumber:VoiceModeScreen.kt:1_000</ID>
+    <ID>MagicNumber:VoiceSession.kt:10</ID>
+    <ID>MagicNumber:VoiceSession.kt:11</ID>
+    <ID>MagicNumber:VoiceSession.kt:12</ID>
+    <ID>MagicNumber:VoiceSession.kt:13</ID>
+    <ID>MagicNumber:VoiceSession.kt:3</ID>
+    <ID>MagicNumber:VoiceSession.kt:4</ID>
+    <ID>MagicNumber:VoiceSession.kt:5</ID>
+    <ID>MagicNumber:VoiceSession.kt:6</ID>
+    <ID>MagicNumber:VoiceSession.kt:7</ID>
+    <ID>MagicNumber:VoiceSession.kt:8</ID>
+    <ID>MagicNumber:VoiceSession.kt:9</ID>
+    <ID>MatchingDeclarationName:BrowserPageUi.kt:PageView</ID>
+    <ID>MatchingDeclarationName:ChangesCard.kt:ChangeActions</ID>
+    <ID>MatchingDeclarationName:ChatControlsUi.kt:ControlSheet</ID>
+    <ID>MatchingDeclarationName:ChatProjectSheet.kt:ChatProjectInfo</ID>
+    <ID>MatchingDeclarationName:LinkGuardUi.kt:LinkContext</ID>
+    <ID>MatchingDeclarationName:MemoryReadUi.kt:MemoryReadActions</ID>
+    <ID>MatchingDeclarationName:NeedsYouUi.kt:NeedsYouActions</ID>
+    <ID>MatchingDeclarationName:ProviderDraftCard.kt:ProviderDraftStatus</ID>
+    <ID>MatchingDeclarationName:PublishSheet.kt:PublishActions</ID>
+    <ID>MatchingDeclarationName:ScreenshotFixtures.kt:Fx</ID>
+    <ID>MatchingDeclarationName:SendWarningUi.kt:SendWarningActions</ID>
+    <ID>MatchingDeclarationName:SentSheet.kt:SentState</ID>
+    <ID>MatchingDeclarationName:SideQuestionUi.kt:SideCommand</ID>
+    <ID>MatchingDeclarationName:TemporaryChatUi.kt:TemporaryPoint</ID>
+    <ID>MatchingDeclarationName:TranscriptScroll.kt:TranscriptFollower</ID>
+    <ID>ModifierMissing:ChatScreen.kt:@Composable fun ChatRoute</ID>
+    <ID>ModifierMissing:ProjectEditorScreen.kt:@Composable fun ProjectEditorRoute</ID>
+    <ID>ModifierMissing:ProjectRulesScreen.kt:@Composable fun ProjectRulesRoute</ID>
+    <ID>ModifierMissing:ProjectsScreen.kt:@Composable fun ProjectRoute</ID>
+    <ID>ModifierMissing:ProjectsScreen.kt:@Composable fun ProjectsRoute</ID>
+    <ID>ModifierWithoutDefault:ChatScreen.kt:modifier: Modifier</ID>
+    <ID>ModifierWithoutDefault:SentSheet.kt:modifier: Modifier</ID>
+    <ID>MultipleEmitters:CompareUi.kt:@Composable internal fun CompareSheetHeader</ID>
+    <ID>MultipleEmitters:PlanRunUi.kt:@Composable internal fun PlanRunRow</ID>
+    <ID>MultipleEmitters:RewindUi.kt:@Composable internal fun HistoryMenuItems</ID>
+    <ID>ParameterNaming:ChatControlsUi.kt:onSetEnabled: (key: String, enabled: Boolean) -&gt; Unit</ID>
+    <ID>ParameterNaming:ChatScreen.kt:/** An imported archive's "Continue in Locus" (docs/design/import-chats.md). */ onContinueImported: () -&gt; Unit = {}</ID>
+    <ID>ParameterNaming:ChatScreen.kt:/** Opens it for a reply's request (its message id), or the chat's latest request when null. */ onShowSent: (String?) -&gt; Unit = {}</ID>
+    <ID>ParameterNaming:ChatScreen.kt:onHideSent: () -&gt; Unit = {}</ID>
+    <ID>ParameterNaming:ChatScreen.kt:onShowSent: () -&gt; Unit</ID>
+    <ID>ParameterNaming:ChatScreen.kt:onWhatWasSent: () -&gt; Unit = {}</ID>
+    <ID>ParameterNaming:ProjectEditorScreen.kt:onDeleted: () -&gt; Unit</ID>
+    <ID>ParameterNaming:ProjectEditorScreen.kt:onSaved: (String) -&gt; Unit</ID>
+    <ID>ParameterNaming:ProjectRulesScreen.kt:onEnabled: (Boolean) -&gt; Unit</ID>
+    <ID>ReturnCount:AndroidVoice.kt:SystemEars.&lt;no name provided&gt;$override fun onError</ID>
+    <ID>ReturnCount:ChatCode.kt:@Composable private fun rememberHighlighted: AnnotatedString</ID>
+    <ID>ReturnCount:ChatPage.kt:ChatPage$fun picture: String?</ID>
+    <ID>ReturnCount:ChatPdf.kt:PdfLayout$fun wrap: List&lt;String&gt;</ID>
+    <ID>ReturnCount:ChatViewModel.kt:ChatViewModel$fun send</ID>
+    <ID>ReturnCount:ChatViewModel.kt:ChatViewModel$private fun heatHoldFor: HeatHold?</ID>
+    <ID>ReturnCount:ChatViewModel.kt:ChatViewModel$private fun warningFor: SendWarning?</ID>
+    <ID>ReturnCount:ChatViewModel.kt:internal fun fallbackNote: UiText?</ID>
+    <ID>ReturnCount:ChatViewModel.kt:internal fun verificationOf: ChatItem.Verification?</ID>
+    <ID>ReturnCount:CompareModels.kt:internal fun replyModel: ModelRef?</ID>
+    <ID>ReturnCount:CompareModels.kt:private fun ChatItem.Assistant.withCompare: ChatItem.Assistant</ID>
+    <ID>ReturnCount:PlanRunUi.kt:internal fun planRanOn: ModelRef?</ID>
+    <ID>ReturnCount:ProjectsViewModel.kt:ProjectEditorViewModel$private suspend fun persist: String?</ID>
+    <ID>ReturnCount:PublishFlow.kt:PublishViewModel$fun publish</ID>
+    <ID>ReturnCount:PublishFlow.kt:PublishViewModel.Companion$fun dataUrl: String?</ID>
+    <ID>ReturnCount:ReadAloud.kt:ReadAloud$private fun guessLanguage: Locale?</ID>
+    <ID>ReturnCount:ReadAloud.kt:ReadAloud$private suspend fun engine: TextToSpeech?</ID>
+    <ID>ReturnCount:RunTextUi.kt:internal fun receiptCost: String?</ID>
+    <ID>ReturnCount:SpeechText.kt:SpeechText$fun forVoice: String</ID>
+    <ID>ReturnCount:TranscriptScroll.kt:TranscriptFollower$fun distanceToEnd: Float</ID>
+    <ID>ReturnCount:VoiceSession.kt:VoiceSession$fun heard</ID>
+    <ID>ReturnCount:VoiceSession.kt:VoiceSession$fun onAgent</ID>
+    <ID>ReturnCount:VoiceSession.kt:VoiceSession$fun tick</ID>
+    <ID>ReturnCount:VoiceSession.kt:VoiceSession$private fun maybeSayStatus: Boolean</ID>
+    <ID>ReturnCount:VoiceSession.kt:VoiceSession$private fun next</ID>
+    <ID>SwallowedException:ChatWorkflows.kt:ChatWorkflowsViewModel$e: Exception</ID>
+    <ID>SwallowedException:ComposerPrompts.kt:ComposerPromptsViewModel$e: Exception</ID>
+    <ID>SwallowedException:PublishFlow.kt:PublishViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ChatWorkflows.kt:ChatWorkflowsViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ComposerPrompts.kt:ComposerPromptsViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ProjectsViewModel.kt:ProjectEditorViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:PublishFlow.kt:PublishViewModel$e: Exception</ID>
+    <ID>TooManyFunctions:ChangesCard.kt:dev.locus.feature.chat.ChangesCard.kt</ID>
+    <ID>TooManyFunctions:ChatControlsUi.kt:dev.locus.feature.chat.ChatControlsUi.kt</ID>
+    <ID>TooManyFunctions:ChatScreen.kt:dev.locus.feature.chat.ChatScreen.kt</ID>
+    <ID>TooManyFunctions:ChatViewModel.kt:ChatViewModel : ViewModel</ID>
+    <ID>TooManyFunctions:ChatViewModel.kt:dev.locus.feature.chat.ChatViewModel.kt</ID>
+    <ID>TooManyFunctions:ConversationsScreen.kt:dev.locus.feature.chat.ConversationsScreen.kt</ID>
+    <ID>TooManyFunctions:ConversationsViewModel.kt:ConversationsViewModel : ViewModel</ID>
+    <ID>TooManyFunctions:LocusComposer.kt:dev.locus.feature.chat.LocusComposer.kt</ID>
+    <ID>TooManyFunctions:ModelFit.kt:dev.locus.feature.chat.ModelFit.kt</ID>
+    <ID>TooManyFunctions:NeedsYouUi.kt:dev.locus.feature.chat.NeedsYouUi.kt</ID>
+    <ID>TooManyFunctions:ProjectsViewModel.kt:ProjectEditorViewModel : ViewModel</ID>
+    <ID>TooManyFunctions:PublishFlow.kt:PublishViewModel : ViewModel</ID>
+    <ID>TooManyFunctions:PublishSheet.kt:dev.locus.feature.chat.PublishSheet.kt</ID>
+    <ID>TooManyFunctions:ReceiptCard.kt:dev.locus.feature.chat.ReceiptCard.kt</ID>
+    <ID>TooManyFunctions:RewindUi.kt:dev.locus.feature.chat.RewindUi.kt</ID>
+    <ID>TooManyFunctions:RunTextUi.kt:dev.locus.feature.chat.RunTextUi.kt</ID>
+    <ID>TooManyFunctions:SentSheet.kt:dev.locus.feature.chat.SentSheet.kt</ID>
+    <ID>TooManyFunctions:VoiceModeScreen.kt:dev.locus.feature.chat.voice.VoiceModeScreen.kt</ID>
+    <ID>TooManyFunctions:VoiceSession.kt:VoiceSession</ID>
+    <ID>ViewModelForwarding:ProjectRulesScreen.kt:RulesList(state, onBack, onOpenLinux, viewModel)</ID>
+    <ID>ViewModelInjection:ChatScreen.kt:val chatLock: ChatLockViewModel = hiltViewModel()</ID>
+    <ID>ViewModelInjection:ChatScreen.kt:val publishing: PublishViewModel = hiltViewModel(key = "publish-$conversationId")</ID>
+    <ID>ViewModelInjection:ChatScreen.kt:val viewModel = hiltViewModel&lt;ChatViewModel, ChatViewModel.Factory&gt;(key = conversationId) { it.create(conversationId) }</ID>
+    <ID>ViewModelInjection:ChatScreen.kt:val waitingChats: WaitingChatsViewModel = hiltViewModel()</ID>
+    <ID>ViewModelInjection:ConversationsScreen.kt:val chatLock: ChatLockViewModel = hiltViewModel()</ID>
+    <ID>ViewModelInjection:ConversationsScreen.kt:val waitingChats: WaitingChatsViewModel = hiltViewModel()</ID>
+    <ID>ViewModelInjection:ProjectEditorScreen.kt:val viewModel = hiltViewModel&lt;ProjectEditorViewModel, ProjectEditorViewModel.Factory&gt;(key = "project-editor-${projectId ?: "new"}") { it.create(projectId) }</ID>
+  </CurrentIssues>
+</SmellBaseline>

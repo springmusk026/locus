@@ -1,0 +1,67 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:EmailSheet.kt:fields.security == MailSecurity.NONE || fields.host.trim().let { it == "localhost" || it.startsWith("127.") || it == "::1" }</ID>
+    <ID>ComplexCondition:TelegramSheet.kt:(type != null &amp;&amp; type != "private") || (type == null &amp;&amp; chatId != null &amp;&amp; chatId &lt; 0)</ID>
+    <ID>CyclomaticComplexMethod:ApprovalCard.kt:@Composable fun ApprovalCard</ID>
+    <ID>CyclomaticComplexMethod:EmailSheet.kt:@Composable fun EmailSheet</ID>
+    <ID>CyclomaticComplexMethod:EmailSheet.kt:@Composable private fun ServerEditor</ID>
+    <ID>CyclomaticComplexMethod:EmailSheet.kt:@Composable private fun ServerSettings</ID>
+    <ID>CyclomaticComplexMethod:EmailSheet.kt:@Composable private fun TestResults</ID>
+    <ID>CyclomaticComplexMethod:MatrixSheet.kt:@OptIn(ExperimentalLayoutApi::class) @Composable internal fun MatrixSheet</ID>
+    <ID>CyclomaticComplexMethod:PromptSheets.kt:@Composable fun PromptEditorSheet</ID>
+    <ID>CyclomaticComplexMethod:QuestionCard.kt:@Composable @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class) fun QuestionCard</ID>
+    <ID>CyclomaticComplexMethod:ReachMeSheet.kt:@OptIn(ExperimentalLayoutApi::class) @Composable fun ReachMeSheet</ID>
+    <ID>CyclomaticComplexMethod:TelegramSheet.kt:@Composable fun TelegramSheet</ID>
+    <ID>CyclomaticComplexMethod:WorkflowSheets.kt:@Composable fun WorkflowEditorSheet</ID>
+    <ID>CyclomaticComplexMethod:WorkflowToolNames.kt:internal fun workflowToolNameRes: Int?</ID>
+    <ID>LongMethod:ApprovalCard.kt:@Composable fun ApprovalCard</ID>
+    <ID>LongMethod:EmailSheet.kt:@Composable fun EmailSheet</ID>
+    <ID>LongMethod:MatrixSheet.kt:@OptIn(ExperimentalLayoutApi::class) @Composable internal fun MatrixSheet</ID>
+    <ID>LongMethod:QuestionCard.kt:@Composable @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class) fun QuestionCard</ID>
+    <ID>LongMethod:ReachMeSheet.kt:@OptIn(ExperimentalLayoutApi::class) @Composable fun ReachMeSheet</ID>
+    <ID>LongMethod:TelegramSheet.kt:@Composable fun TelegramSheet</ID>
+    <ID>LongMethod:WorkflowSheets.kt:@Composable fun WorkflowEditorSheet</ID>
+    <ID>MagicNumber:ApprovalCard.kt:3000</ID>
+    <ID>MagicNumber:DeviceAuth.kt:PlatformDeviceAuthenticator$29</ID>
+    <ID>MagicNumber:DeviceAuth.kt:PlatformDeviceAuthenticator$30</ID>
+    <ID>MagicNumber:PromptSheets.kt:8</ID>
+    <ID>MagicNumber:SshAuthFields.kt:3f</ID>
+    <ID>MagicNumber:TelegramSheet.kt:60_000</ID>
+    <ID>MagicNumber:WorkflowSheets.kt:1.3f</ID>
+    <ID>MagicNumber:WorkflowSheets.kt:3</ID>
+    <ID>MatchingDeclarationName:LockGates.kt:UnlockState</ID>
+    <ID>MatchingDeclarationName:LockScreen.kt:LockScreenKind</ID>
+    <ID>MatchingDeclarationName:TelegramSheet.kt:TelegramActions</ID>
+    <ID>MatchingDeclarationName:WorkflowSheets.kt:WorkflowDraftState</ID>
+    <ID>ModifierMissing:ApprovalCard.kt:@Composable fun ApprovalDetailsSheet</ID>
+    <ID>ModifierMissing:ApprovalCard.kt:@Composable fun DenyReasonSheet</ID>
+    <ID>ModifierMissing:ApprovalCard.kt:@Composable fun MemoryChangeRows</ID>
+    <ID>ModifierMissing:EmailSheet.kt:@Composable fun EmailSheet</ID>
+    <ID>ModifierMissing:LockGates.kt:@Composable fun AppLockGate</ID>
+    <ID>ModifierMissing:PromptSheets.kt:@Composable fun PromptEditorSheet</ID>
+    <ID>ModifierMissing:PromptSheets.kt:@Composable fun PromptFormSheet</ID>
+    <ID>ModifierMissing:PromptSheets.kt:@Composable fun PromptPickerSheet</ID>
+    <ID>ModifierMissing:ReachMeSheet.kt:@OptIn(ExperimentalLayoutApi::class) @Composable fun ReachMeSheet</ID>
+    <ID>ModifierMissing:ResearchWorkflowUi.kt:@Composable fun ResearchRunSheet</ID>
+    <ID>ModifierMissing:SaveLoginSheet.kt:@Composable fun SaveLoginSheet</ID>
+    <ID>ModifierMissing:SshAuthFields.kt:@Composable fun SshAddressFields</ID>
+    <ID>ModifierMissing:SshAuthFields.kt:@Composable fun SshAuthFields</ID>
+    <ID>ModifierMissing:TelegramSheet.kt:@Composable fun TelegramSheet</ID>
+    <ID>ModifierMissing:WorkflowSheets.kt:@Composable fun WorkflowEditorSheet</ID>
+    <ID>ModifierMissing:WorkflowSheets.kt:@Composable fun WorkflowInputFields</ID>
+    <ID>ModifierMissing:WorkflowSheets.kt:@Composable fun WorkflowPickerSheet</ID>
+    <ID>ModifierMissing:WorkflowSheets.kt:@Composable fun WorkflowRunSheet</ID>
+    <ID>MultipleEmitters:EmailSheet.kt:@Composable private fun BusyLabel</ID>
+    <ID>MultipleEmitters:EmailSheet.kt:@Composable private fun ServerSettings</ID>
+    <ID>MultipleEmitters:SshAuthFields.kt:@Composable fun SshAddressFields</ID>
+    <ID>MultipleEmitters:SshAuthFields.kt:@Composable fun SshAuthFields</ID>
+    <ID>MultipleEmitters:TelegramSheet.kt:@Composable @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class) private fun TelegramRemoteSection</ID>
+    <ID>MultipleEmitters:TelegramSheet.kt:@Composable private fun BusyLabel</ID>
+    <ID>MutableParams:WorkflowSheets.kt:/** The input values, when the caller needs to read them as they change (the research sheet's depth); null keeps them here. */ values: MutableMap&lt;String, String&gt;? = null</ID>
+    <ID>MutableParams:WorkflowSheets.kt:values: MutableMap&lt;String, String&gt;</ID>
+    <ID>ParameterNaming:LockGates.kt:onSucceeded: () -&gt; Unit = {}</ID>
+    <ID>TooManyFunctions:CatalogText.kt:dev.locus.core.ui.CatalogText.kt</ID>
+  </CurrentIssues>
+</SmellBaseline>

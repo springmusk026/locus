@@ -62,8 +62,10 @@ python3 tools/coverage/summary.py     # the tables below, from those XML files
 
 Use the `Unit` tasks: plain `koverHtmlReport` also runs the release unit tests. Generated Hilt, Room
 and Compose classes are left out (`build-logic/.../Kover.kt`). The HTML report shows lines; branch
-coverage is in the XML and the summary. There are no thresholds yet. CI builds the report from its
-test run and uploads it as the `coverage` artifact.
+coverage is in the XML and the summary. CI builds the report from its test run and uploads it as
+the `coverage` artifact, then runs `./gradlew :koverVerifyUnit`, which fails when the merged line
+coverage is under `KOVER_MIN_LINE_COVERAGE` in `Kover.kt` (59%; it was 59.6% on 2026-11-27). Raise
+the bound as coverage grows; docs/design/ci.md, "Coverage bound".
 
 ### Numbers
 
@@ -310,5 +312,5 @@ the alternative; it needs the same KVM setup on GitHub's runners and adds AVD ma
   Workspace and Analytics ViewModels.
 - **Trash ids** in `Workspace.restore`/`purgeTrash` aren't validated; they only ever come from the
   trash listing (the UI), never from the agent.
-- No coverage thresholds yet; once the numbers settle, `kover { reports { verify { ... } } }` can
-  hold the merged line coverage.
+- The coverage bound (59% of lines, merged) only stops coverage falling; it says nothing about
+  which code is covered.
