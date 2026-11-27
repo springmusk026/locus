@@ -8,6 +8,8 @@ import dev.locus.core.agent.ToolResult
 import dev.locus.core.agent.int
 import dev.locus.core.agent.str
 import dev.locus.core.data.repository.SettingsRepository
+import dev.locus.core.model.ApprovalLineText
+import dev.locus.core.model.ApprovalPhrase
 import dev.locus.core.model.DeviceIntegrations
 import dev.locus.core.model.Reminder
 import dev.locus.core.model.ToolPolicy
@@ -277,7 +279,8 @@ internal class ReminderCancel(private val reminders: Reminders, private val zone
         ObjectSchema().string("id", "The reminder's id (its first 8 characters are enough).").build(),
     )
 
-    override fun describe(args: JsonObject) = "Cancel a reminder"
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) = ApprovalLineText(ApprovalPhrase.CANCEL_REMINDER)
 
     override suspend fun execute(args: JsonObject): ToolResult {
         val prefix = args.str("id")?.trim()?.lowercase()?.takeIf { it.length >= 4 } ?: throw ToolException("Give the reminder's id.")

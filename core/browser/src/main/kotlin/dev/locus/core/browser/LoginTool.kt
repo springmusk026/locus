@@ -8,6 +8,8 @@ import dev.locus.core.agent.ToolCallContext
 import dev.locus.core.agent.ToolException
 import dev.locus.core.agent.ToolResult
 import dev.locus.core.agent.str
+import dev.locus.core.model.ApprovalLineText
+import dev.locus.core.model.ApprovalPhrase
 import dev.locus.core.model.SiteOrigin
 import dev.locus.core.model.ToolPolicy
 import dev.locus.core.model.ToolRisk
@@ -96,8 +98,11 @@ class BrowserLogin(
         ObjectSchema().string("origin", "The page's origin exactly as the snapshot's saved-login note gives it, e.g. https://github.com.").build(),
     )
 
-    override fun describe(args: JsonObject): String =
-        "Fill your saved login for " + (SiteOrigin.of(args.str("origin"))?.let(SiteOrigin::host) ?: args.str("origin") ?: "this page")
+    override fun describe(args: JsonObject): String = describeText(args).english
+
+    override fun describeText(args: JsonObject): ApprovalLineText =
+        (SiteOrigin.of(args.str("origin"))?.let(SiteOrigin::host) ?: args.str("origin"))?.let { ApprovalLineText(ApprovalPhrase.BROWSER_LOGIN, it) }
+            ?: ApprovalLineText(ApprovalPhrase.BROWSER_LOGIN_THIS_PAGE)
 
     // A sign-in, not an observation: refused in read-only background runs. It types values the model never
     // chose (the vault's, to the vault's site), so it isn't text that taint's typing rule is about.

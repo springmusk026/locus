@@ -145,4 +145,20 @@ class DeviceIntegrationToolsTest {
         assertTrue(DeviceIntegrations.ALL.none { it in ToolDiscovery.CORE_V1 })
         assertTrue(DeviceIntegrations.ALL.all { it in ToolDiscovery.DISCOVERY_ONLY })
     }
+
+    @Test
+    fun approvalLinesSayWhatTheyAlwaysSaidAndAreData() {
+        // The English is the audit log's and the reviewer's (docs/design/localization.md); the card words the same line from resources.
+        val t = tools(FakePhone())
+        fun says(english: String, name: String, a: JsonObject) {
+            assertEquals(english, t.getValue(name).describe(a))
+            assertEquals(english, t.getValue(name).describeText(a)?.english)
+        }
+        says("Read your calendar for the next 7 days", DeviceIntegrations.CALENDAR_READ, args())
+        says("Read your calendar for the next 1 days (“dentist”)", DeviceIntegrations.CALENDAR_READ, args("days" to 1, "query" to "dentist"))
+        says("Ask you to pick a contact", DeviceIntegrations.CONTACTS_PICK, args())
+        says("Ask you to pick a contact: to email them", DeviceIntegrations.CONTACTS_PICK, args("reason" to "to email them"))
+        says("Ask you to pick up to 1 photo", DeviceIntegrations.PHOTOS_PICK, args())
+        says("Ask you to pick up to 3 photos: for the album", DeviceIntegrations.PHOTOS_PICK, args("max" to 3, "reason" to "for the album"))
+    }
 }

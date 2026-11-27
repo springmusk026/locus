@@ -7,6 +7,8 @@ import dev.locus.core.agent.ToolResult
 import dev.locus.core.agent.home.SecretResolver
 import dev.locus.core.agent.int
 import dev.locus.core.agent.str
+import dev.locus.core.model.ApprovalLineText
+import dev.locus.core.model.ApprovalPhrase
 import dev.locus.core.model.ToolPolicy
 import dev.locus.core.model.ToolRisk
 import dev.locus.core.model.ToolSpec
@@ -237,7 +239,8 @@ private class GitHubCreateIssue(private val api: GitHubApi) : Tool {
             .build(),
     )
 
-    override fun describe(args: JsonObject) = "Open issue “${args.str("title")}” in ${args.str("repo")}"
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) = ApprovalLineText(ApprovalPhrase.GITHUB_CREATE_ISSUE, "${args.str("title")}", "${args.str("repo")}")
 
     override suspend fun execute(args: JsonObject): ToolResult {
         val repo = repoPath(args)
@@ -260,7 +263,8 @@ private class GitHubComment(private val api: GitHubApi) : Tool {
         ObjectSchema().string("repo", "owner/name.").integer("number", "Issue or PR number.").string("body", "Comment in Markdown.").build(),
     )
 
-    override fun describe(args: JsonObject) = "Comment on ${args.str("repo")}#${args.int("number")}"
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) = ApprovalLineText(ApprovalPhrase.GITHUB_COMMENT, "${args.str("repo")}", "${args.int("number")}")
 
     override suspend fun execute(args: JsonObject): ToolResult {
         val repo = repoPath(args)

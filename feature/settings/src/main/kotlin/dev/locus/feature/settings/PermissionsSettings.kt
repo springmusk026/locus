@@ -39,11 +39,11 @@ import dev.locus.core.designsystem.Sizes
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.codeSpans
+import dev.locus.core.designsystem.localizedToolLabel
 import dev.locus.core.designsystem.accentFor
 import androidx.compose.material3.TextButton
 import dev.locus.core.model.ApprovalScopeKind
 import dev.locus.core.model.RememberedApproval
-import dev.locus.core.model.toolLabel
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import dev.locus.core.model.ReviewerMode
@@ -141,23 +141,28 @@ internal fun rememberedTitle(res: Resources, rule: RememberedApproval): Annotate
     return if (rule.kind == ApprovalScopeKind.COMMAND) codeSpans(text) else AnnotatedString(text)
 }
 
-// The tool's verb comes from toolLabel (core/agent, English); the words put into it stay English with
-// it, so a title doesn't mix languages. A calendar rule's title is ours, from resources.
+// The tool's verb comes from its tool step's words in the user's language (localizedToolLabel, the same
+// phrase core/model's toolLabel says in English); the words Locus puts into it ("files in", "any machine")
+// come from resources too, and the rule's own value (a command, folder or site) stays as it is.
 private fun rememberedTitleText(res: Resources, rule: RememberedApproval): String {
     fun label(vararg args: Pair<String, String>): String =
-        toolLabel(rule.tool, JsonObject(args.associate { (k, v) -> k to JsonPrimitive(v) }).toString(), done = false)
+        localizedToolLabel(res, rule.tool, JsonObject(args.associate { (k, v) -> k to JsonPrimitive(v) }).toString(), done = false)
     return when (rule.kind) {
-        ApprovalScopeKind.COMMAND -> label("command" to "${rule.value}\u00A0…", "host" to "any machine")
+        ApprovalScopeKind.COMMAND -> label("command" to "${rule.value}\u00A0…", "host" to res.getString(R.string.settings_permissions_remembered_any_machine))
         ApprovalScopeKind.FOLDER -> {
-            val folder = if (rule.value.isEmpty()) "the top folder" else "${rule.value}/"
-            // The tool's verb ("Write", "Edit", "Delete") with the folder in place of one path.
-            label("path" to FOLDER_SLOT, "from" to FOLDER_SLOT).replace(FOLDER_SLOT, "files in $folder")
+            val files = if (rule.value.isEmpty()) {
+                res.getString(R.string.settings_permissions_remembered_files_top)
+            } else {
+                res.getString(R.string.settings_permissions_remembered_files_in, "${rule.value}/")
+            }
+            // The tool's verb ("Write", "Edit", "Delete") with the folder's files in place of one path.
+            label("path" to FOLDER_SLOT, "from" to FOLDER_SLOT).replace(FOLDER_SLOT, files)
         }
         ApprovalScopeKind.SITE -> {
             // fetch_url's rules carry the method first ("GET https://api.github.com").
             val method = rule.value.substringBefore(' ', "").takeIf { it.isNotEmpty() && it.all(Char::isUpperCase) }
             val site = if (method != null) rule.value.substringAfter(' ') else rule.value
-            label("url" to site) + (method?.let { " ($it)" } ?: "")
+            method?.let { res.getString(R.string.settings_permissions_remembered_with_method, label("url" to site), it) } ?: label("url" to site)
         }
         ApprovalScopeKind.RECIPIENT -> label("to" to rule.value, "number" to rule.value)
         // "12:Personal": the calendar's name after its id.

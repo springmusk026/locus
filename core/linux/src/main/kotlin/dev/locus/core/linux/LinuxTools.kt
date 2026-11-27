@@ -11,6 +11,8 @@ import dev.locus.core.agent.tools.CommandChangeTracker
 import dev.locus.core.agent.tools.RemoteBackend
 import dev.locus.core.agent.tools.RemoteTarget
 import dev.locus.core.agent.tools.Workspace
+import dev.locus.core.model.ApprovalLineText
+import dev.locus.core.model.ApprovalPhrase
 import dev.locus.core.model.LINUX_INSTALL_ACTION
 import dev.locus.core.model.LINUX_INSTALL_PATH
 import kotlinx.coroutines.Dispatchers
@@ -83,7 +85,8 @@ private class RunCommand(
             .build(),
     )
 
-    override fun describe(args: JsonObject) = "Run: ${args.str("command")}"
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) = ApprovalLineText(ApprovalPhrase.RUN_COMMAND, "${args.str("command")}")
 
     override suspend fun sendsOffPhone(args: JsonObject): String? = remote.offPhone()
 
@@ -195,7 +198,8 @@ private class ServiceStart(private val linux: LinuxEnvironment, private val remo
             .build(),
     )
 
-    override fun describe(args: JsonObject) = "Start “${args.str("name")}”: ${args.str("command")}"
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) = ApprovalLineText(ApprovalPhrase.START_SERVICE, "${args.str("name")}", "${args.str("command")}")
 
     override suspend fun sendsOffPhone(args: JsonObject): String? = remote.offPhone()
 

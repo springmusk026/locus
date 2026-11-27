@@ -35,6 +35,17 @@ class RememberedRowsTest {
     }
 
     @Test
+    fun `titles follow the app's language, with the rule's own value as it is`() {
+        val config = android.content.res.Configuration(res.configuration).apply { setLocale(java.util.Locale.forLanguageTag("es")) }
+        val spanish = ApplicationProvider.getApplicationContext<Context>().createConfigurationContext(config).resources
+        assertEquals("Ejecutar ./gradlew test\u00A0…", rememberedTitle(spanish, RememberedApproval("1", "run_command", ApprovalScopeKind.COMMAND, "./gradlew test")).text)
+        assertEquals("Escribir archivos de src/main/", rememberedTitle(spanish, RememberedApproval("2", "write_file", ApprovalScopeKind.FOLDER, "src/main")).text)
+        assertEquals("Escribir archivos de la carpeta principal", rememberedTitle(spanish, RememberedApproval("3", "write_file", ApprovalScopeKind.FOLDER, "")).text)
+        assertEquals("Abrir github.com", rememberedTitle(spanish, RememberedApproval("5", "browser_open", ApprovalScopeKind.SITE, "github.com")).text)
+        assertEquals("Ejecutar make\u00A0… en cualquier máquina", rememberedTitle(spanish, RememberedApproval("8", "ssh_exec", ApprovalScopeKind.COMMAND, "make")).text)
+    }
+
+    @Test
     fun `a command is set in the code font, without backticks`() {
         val title = rememberedTitle(res, RememberedApproval("1", "run_command", ApprovalScopeKind.COMMAND, "npm test"))
         val code = title.spanStyles.single { it.item == InlineCode }
