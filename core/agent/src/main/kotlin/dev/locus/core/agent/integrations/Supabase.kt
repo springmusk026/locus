@@ -9,6 +9,8 @@ import dev.locus.core.agent.home.SecretResolver
 import dev.locus.core.agent.int
 import dev.locus.core.agent.str
 import dev.locus.core.agent.tools.Workspace
+import dev.locus.core.model.ApprovalLineText
+import dev.locus.core.model.ApprovalPhrase
 import dev.locus.core.model.ToolPolicy
 import dev.locus.core.model.ToolRisk
 import dev.locus.core.model.ToolSpec
@@ -216,7 +218,8 @@ private class SupabaseSql(private val api: SupabaseApi) : Tool {
     )
 
     // The approval card shows the SQL itself so the user sees exactly what runs.
-    override fun describe(args: JsonObject) = "Run SQL on ${args.str("project")}: ${oneLine(args.str("sql").orEmpty(), 400)}"
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) = ApprovalLineText(ApprovalPhrase.SUPABASE_SQL, "${args.str("project")}", oneLine(args.str("sql").orEmpty(), 400))
 
     override suspend fun mustConfirm(args: JsonObject): String {
         val words = SqlCheck.destructiveWords(args.str("sql").orEmpty())
@@ -290,7 +293,8 @@ private class SupabaseFunctionDeploy(private val api: SupabaseApi, private val w
             .build(),
     )
 
-    override fun describe(args: JsonObject) = "Deploy ${args.str("path")} as Edge Function ${args.str("slug")} on ${args.str("project")}"
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) = ApprovalLineText(ApprovalPhrase.SUPABASE_FUNCTION_DEPLOY, "${args.str("path")}", "${args.str("slug")}", "${args.str("project")}")
 
     override suspend fun mustConfirm(args: JsonObject) =
         "This deploys Edge Function ${args.str("slug")} to ${args.str("project")} and it goes live immediately" +

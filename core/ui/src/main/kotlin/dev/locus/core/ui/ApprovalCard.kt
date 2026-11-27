@@ -63,6 +63,7 @@ import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.accentFor
 import dev.locus.core.designsystem.codeSpans
+import dev.locus.core.designsystem.localizedApprovalSummary
 import dev.locus.core.model.ApprovalScopeKind
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -131,7 +132,7 @@ fun ApprovalCard(
                 Text(title ?: request.origin?.let { stringResource(R.string.ui_approval_origin_wants, it.label) } ?: stringResource(R.string.ui_approval_title), style = LocusType.cardTitle)
                 byline?.let { SupportingText(it, style = LocusType.rowSupporting, maxLines = 2) }
                 // Whole at a large font: the address or command is what's being decided on.
-                SupportingText(request.summary, style = LocusType.rowSupporting, maxLines = if (large) Int.MAX_VALUE else 3)
+                SupportingText(localizedApprovalSummary(request.summary, request.summaryText), style = LocusType.rowSupporting, maxLines = if (large) Int.MAX_VALUE else 3)
                 // What the safety reviewer made of it, when it was asked: read whole, in the readable caution shade.
                 request.reviewerNote?.let { note ->
                     Text(note, style = LocusType.supporting, color = Locus.colors.onCautionContainer, modifier = Modifier.padding(top = Spacing.xxs))
@@ -225,7 +226,7 @@ fun ApprovalCard(
  */
 @Composable
 fun ApprovalDetailsSheet(request: ApprovalRequest, onDismiss: () -> Unit) {
-    LocusSheet(title = stringResource(R.string.ui_approval_details), subtitle = request.summary, onDismiss = onDismiss) {
+    LocusSheet(title = stringResource(R.string.ui_approval_details), subtitle = localizedApprovalSummary(request.summary, request.summaryText), onDismiss = onDismiss) {
         // The sheet gives its content the title's left edge already.
         Column(Modifier.fillMaxWidth().padding(bottom = Spacing.xl)) {
             request.origin?.let { SupportingText(stringResource(R.string.ui_approval_asked_by, it.label), modifier = Modifier.padding(bottom = Spacing.sm)) }
@@ -290,7 +291,7 @@ fun DenyReasonSheet(request: ApprovalRequest, onDeny: (String) -> Unit, onDismis
         onDismiss = onDismiss,
     ) {
         // What is being denied, as the card says it.
-        KeyValueRow(stringResource(R.string.ui_approval_reason_denying), request.summary, dense = true, valueMaxLines = 3)
+        KeyValueRow(stringResource(R.string.ui_approval_reason_denying), localizedApprovalSummary(request.summary, request.summaryText), dense = true, valueMaxLines = 3)
         OutlinedTextField(
             value = reason,
             onValueChange = { reason = it.take(DenyReason.MAX_CHARS) },

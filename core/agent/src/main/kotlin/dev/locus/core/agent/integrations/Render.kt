@@ -8,6 +8,8 @@ import dev.locus.core.agent.bool
 import dev.locus.core.agent.home.SecretResolver
 import dev.locus.core.agent.int
 import dev.locus.core.agent.str
+import dev.locus.core.model.ApprovalLineText
+import dev.locus.core.model.ApprovalPhrase
 import dev.locus.core.model.ToolPolicy
 import dev.locus.core.model.ToolRisk
 import dev.locus.core.model.ToolSpec
@@ -228,9 +230,17 @@ private class RenderDeploy(private val api: RenderApi) : Tool {
             .build(),
     )
 
-    override fun describe(args: JsonObject) =
-        "Deploy Render service ${args.str("service")}" + (args.str("commit")?.let { " at ${it.take(7)}" } ?: "") +
-            (if (args.bool("clear_cache") == true) " (clear cache)" else "")
+    override fun describe(args: JsonObject) = describeText(args).english
+
+    override fun describeText(args: JsonObject): ApprovalLineText {
+        val service = "${args.str("service")}"
+        val commit = args.str("commit")?.take(7)
+        val clear = args.bool("clear_cache") == true
+        return when {
+            commit != null -> ApprovalLineText(if (clear) ApprovalPhrase.RENDER_DEPLOY_AT_CLEAR_CACHE else ApprovalPhrase.RENDER_DEPLOY_AT, service, commit)
+            else -> ApprovalLineText(if (clear) ApprovalPhrase.RENDER_DEPLOY_CLEAR_CACHE else ApprovalPhrase.RENDER_DEPLOY, service)
+        }
+    }
 
     override suspend fun mustConfirm(args: JsonObject) = "This starts a new deploy of ${args.str("service")} on Render, which replaces the live version when it succeeds."
 
@@ -337,7 +347,8 @@ private class RenderEnvSet(private val api: RenderApi) : Tool {
     )
 
     // The value is left out on purpose so it never appears in the approval card or activity log.
-    override fun describe(args: JsonObject) = "Set ${args.str("key")} on Render service ${args.str("service")}"
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) = ApprovalLineText(ApprovalPhrase.RENDER_ENV_SET, "${args.str("key")}", "${args.str("service")}")
 
     override suspend fun execute(args: JsonObject): ToolResult {
         val key = args.str("key")?.trim().orEmpty()
@@ -362,8 +373,12 @@ private class RenderSuspend(private val api: RenderApi) : Tool {
             .build(),
     )
 
-    override fun describe(args: JsonObject) =
-        "${if (args.str("action")?.trim()?.lowercase() == "resume") "Resume" else "Suspend"} Render service ${args.str("service")}"
+    override fun describe(args: JsonObject) = describeText(args).english
+
+    override fun describeText(args: JsonObject) = ApprovalLineText(
+        if (args.str("action")?.trim()?.lowercase() == "resume") ApprovalPhrase.RENDER_RESUME else ApprovalPhrase.RENDER_SUSPEND,
+        "${args.str("service")}",
+    )
 
     override suspend fun mustConfirm(args: JsonObject) =
         if (args.str("action")?.trim()?.lowercase() == "resume") {

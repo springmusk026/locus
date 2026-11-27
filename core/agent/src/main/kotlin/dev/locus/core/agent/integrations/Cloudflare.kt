@@ -8,6 +8,8 @@ import dev.locus.core.agent.bool
 import dev.locus.core.agent.home.SecretResolver
 import dev.locus.core.agent.int
 import dev.locus.core.agent.str
+import dev.locus.core.model.ApprovalLineText
+import dev.locus.core.model.ApprovalPhrase
 import dev.locus.core.model.ToolPolicy
 import dev.locus.core.model.ToolRisk
 import dev.locus.core.model.ToolSpec
@@ -233,8 +235,15 @@ private class CloudflareDnsSet(private val api: CloudflareApi) : Tool {
             .build(),
     )
 
-    override fun describe(args: JsonObject) =
-        "Set DNS ${args.str("type")?.uppercase()} ${args.str("name")} → ${args.str("content")?.take(80)} in ${args.str("zone")}"
+    override fun describe(args: JsonObject) = describeText(args).english
+
+    override fun describeText(args: JsonObject) = ApprovalLineText(
+        ApprovalPhrase.CLOUDFLARE_DNS_SET,
+        "${args.str("type")?.uppercase()}",
+        "${args.str("name")}",
+        "${args.str("content")?.take(80)}",
+        "${args.str("zone")}",
+    )
 
     override suspend fun mustConfirm(args: JsonObject) =
         if (args.str("record_id") != null) "This changes an existing DNS record; a wrong value can take the site or email offline." else null
@@ -285,7 +294,8 @@ private class CloudflareDnsDelete(private val api: CloudflareApi) : Tool {
         ObjectSchema().string("zone", "Domain (example.com) or zone ID.").string("record_id", "Record ID.").build(),
     )
 
-    override fun describe(args: JsonObject) = "Delete DNS record ${args.str("record_id")} from ${args.str("zone")}"
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) = ApprovalLineText(ApprovalPhrase.CLOUDFLARE_DNS_DELETE, "${args.str("record_id")}", "${args.str("zone")}")
     override suspend fun mustConfirm(args: JsonObject) = "Deleting a DNS record can take a site or email offline and can't be undone."
 
     override suspend fun execute(args: JsonObject): ToolResult {
@@ -367,7 +377,9 @@ private class CloudflarePagesDeploy(private val api: CloudflareApi) : Tool {
             .build(),
     )
 
-    override fun describe(args: JsonObject) = "Deploy Pages project ${args.str("project")}" + (args.str("branch")?.let { " from $it" } ?: " (production)")
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) = args.str("branch")?.let { ApprovalLineText(ApprovalPhrase.CLOUDFLARE_PAGES_DEPLOY_BRANCH, "${args.str("project")}", it) }
+        ?: ApprovalLineText(ApprovalPhrase.CLOUDFLARE_PAGES_DEPLOY_PRODUCTION, "${args.str("project")}")
     override suspend fun mustConfirm(args: JsonObject) = "This builds and deploys the Cloudflare Pages project" + (if (args.str("branch") == null) ", updating the live site." else ".")
 
     override suspend fun execute(args: JsonObject): ToolResult {

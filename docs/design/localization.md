@@ -83,6 +83,16 @@ The engine's modules make text the screens show: Linux's health checks, setup st
 
 Tests: core/linux and core/data check which resource and arguments each case gets; `LinuxEngineTextTest` (feature/workspace), `EngineTextTest` (feature/settings), `CatalogTextTest` (core/ui) and core/data's `EngineEnglishTest` render them in English and compare with the English the code wrote before, word for word, and fail when a catalogue entry has no resource.
 
+## Approval lines
+
+A tool that asks before it acts says what the call would do in one English line, `Tool.describe`, which the audit log, the safety reviewer, notifications and Telegram keep. Those tools define it from data, `Tool.describeText` (`ApprovalLineText`: an `ApprovalPhrase` and the call's own values, core/model), so `describe` is that line's English by construction. `ApprovalRequest.summaryText` (and `ReviewerBlock.summaryText`) carries it to the screen, and `localizedApprovalSummary` (core/designsystem `ApprovalLines.kt`) words it from `designsystem_approval_*`: the approval card, its Details sheet and Deny-with-a-reason sheet, the reviewer's blocked chips and voice mode. The values (paths, commands, hosts, addresses, subjects) are put in as they are; a line Locus writes inside a line ("(no subject)", "all changes") is a line too. The card words only a summary that starts with the line's English, and keeps what follows it (why it asks), so it never shows something other than what was asked. A plural whose English says the plural for one too ("Edit a.kt (1 changes)") keeps the audit log's English, and is translated properly. Tests: each tool module's describe tests (`ApprovalLinesTest` in core/agent, core/data's device tools, core/model's `ApprovalLineTest` for core/browser and core/linux, whose tools can't be built in a unit test) pin the English the tools said before; `ApprovalLinesResourcesTest` checks every phrase's English string against it and that every language keeps the values.
+
+Settings → Permissions → Remembered names a rule with the tool step's words in the app's language (`localizedToolLabel`), and the words Locus puts into them ("files in", "any machine") from resources; the rule's own value stays as it is.
+
+## Voice mode
+
+Voice mode's own words, what it says and shows (prompts, pauses, errors, the recognizer's name and notes, "Code block." for read-aloud), are `VoiceWords` and `SpeechWords` (feature/chat): the defaults are the English the session tests compare, and `voiceWords` / `speechWords` build them from the module's strings (`VoiceWordsTest` checks the English strings say exactly the defaults). The model's own words (replies, `ask_user` questions, provider errors) are said as they came. Approvals by voice are answered in the app's language and in English: `chat_voice_answer_*` lists the words, which match without accents (si, nao), and in Chinese wherever they are in what was heard; a negation still wins over a yes ("no permitir", "不允许"), and the confirm step still needs a confirm word. The voice speaks the app's language when the phone's text-to-speech engine has it.
+
 ## Formats
 
 Dates, times and money follow the app's language, never a fixed pattern (core/designsystem `LocaleFormats.kt`):
@@ -98,9 +108,8 @@ The design guard's `fixed-format` rule counts `ofPattern(`, `SimpleDateFormat("�
 
 - **Text from the engine not covered above**: exception messages core/data throws for the user (`LibraryRepository`'s "needs an https:// address", `ProviderAccess.missing`, `ServiceAddress` checks, Linux repair failures), which screens show as they are.
 - **Catalogue names that are words** stay English because they are saved or match logos: provider preset names ("On this phone (Gemma 4, offline)", "Custom") and MCP template names ("Files", "Knowledge graph").
-- **What the chat shows while the agent works has that split**: core keeps writing the English (for the model, logs and Diagnostics) and hands the same text over as data, which the app words from its strings. Tool steps and activity lines: `toolLabelText` / `toolActivityOf` (core/model, `ToolPhrase`, `ToolActivity`), worded by `localizedToolLabel` / `localizedToolActivity` (core/designsystem `ToolLabels.kt`). Provider errors: `LlmException.text` (`LlmErrorText`, core/llm); the run's overflow error, budget notices, progress lines and notices: `ContextOverflowText`, `BudgetReached` (core/agent), `RunNote` and `RunState.*Note` (core/data); receipts, budget figures, `RunFailure.advice` and on-device speeds from their data. All worded in feature/chat `RunTextUi.kt`. Tests check that every English string says exactly the core's English. What stays English there: the provider's own words inside a message, persisted run details (a receipt's stored reason), what the agent or a backup list adds after a message ("Backup models skipped: …"), tool `describe()` text on approval cards (also the audit log's), the notification lines (core/data), Settings → Permissions rule titles, and the voice mode.
-- **View-model messages and helpers that tests compare in English** in chat, settings and tasks (notes in each extraction PR). They move with their tests.
-- **The voice-mode spoken layer** in chat.
+- **What the chat shows while the agent works has that split**: core keeps writing the English (for the model, logs and Diagnostics) and hands the same text over as data, which the app words from its strings. Tool steps and activity lines: `toolLabelText` / `toolActivityOf` (core/model, `ToolPhrase`, `ToolActivity`), worded by `localizedToolLabel` / `localizedToolActivity` (core/designsystem `ToolLabels.kt`). Provider errors: `LlmException.text` (`LlmErrorText`, core/llm); the run's overflow error, budget notices, progress lines and notices: `ContextOverflowText`, `BudgetReached` (core/agent), `RunNote` and `RunState.*Note` (core/data); receipts, budget figures, `RunFailure.advice` and on-device speeds from their data. All worded in feature/chat `RunTextUi.kt`, including the backups a failed run passed over ("Backup models skipped: …", `AgentLoop.BACKUPS_SKIPPED`), whose reasons are worded from the same `Need` strings as the model picker. Tests check that every English string says exactly the core's English. What stays English there: the provider's own words inside a message, persisted run details (a receipt's stored reason), what the agent adds after a message, and the notification lines (core/data).
+- **Approval cards, partly**: a tool that doesn't define its line as data (the ones that don't ask by default: reads, connectors' and MCP tools' own names, `fetch_url`'s method and address) shows its `describe()` as it is; so do the reasons a card adds under the line (taint, `mustConfirm`), the field rows of `Tool.preview` (a calendar event's "Applies to", "Repeats"), and a proposal in Needs you, whose line is stored with it.
 
 ## Native-speaker review
 
@@ -166,6 +175,8 @@ One term per concept, reused across modules. New translations follow this table;
 | library | biblioteca | biblioteca | 资料库 |
 | insights | estadísticas | estatísticas | 统计 |
 | take over / hand back (browser) | tomar control / devolver | assumir / devolver | 接管 / 交还 |
+| backup model | modelo de respaldo | modelo de reserva | 备用模型 |
+| voice mode | modo de voz | modo de voz | 语音模式 |
 
 Notes:
 

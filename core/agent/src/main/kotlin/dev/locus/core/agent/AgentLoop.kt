@@ -93,6 +93,11 @@ data class ApprovalRequest(
     val siteForTask: String? = null,
     /** What the call writes or deletes, field by field ([Tool.preview]); shown on the card only. */
     val preview: ApprovalPreview? = null,
+    /**
+     * [summary]'s first part, the tool's line ([Tool.describe]), as data ([Tool.describeText]), for the card and
+     * voice mode to say in the user's language; its English is where [summary] starts. Null: shown as [summary] is.
+     */
+    val summaryText: dev.locus.core.model.ApprovalLineText? = null,
 ) {
     /**
      * Why only a tap in Locus may answer this, never a remote button (docs/design/telegram-remote.md); null
@@ -1003,6 +1008,12 @@ class AgentLoop(
 
         /** How a [AgentEvent.Retrying] reason starts when the stream broke rather than the provider refused. */
         const val CONNECTION_DROPPED = "The connection dropped"
+
+        /**
+         * What a failed run's error says after the provider's words when backups were passed over: this, then
+         * "model: why" for each, joined by "; ", then a full stop. The chat words it from its strings.
+         */
+        const val BACKUPS_SKIPPED = "Backup models skipped: "
     }
 
     /**
@@ -1028,7 +1039,7 @@ class AgentLoop(
 
         /** [e], with the backups that were passed over named, when there were any. */
         fun explain(e: LlmException): LlmException =
-            if (skipped.isEmpty()) e else e.withMessage("${e.message}\nBackup models skipped: ${skipped.joinToString("; ")}.", cause = e)
+            if (skipped.isEmpty()) e else e.withMessage("${e.message}\n$BACKUPS_SKIPPED${skipped.joinToString("; ")}.", cause = e)
 
         /**
          * Moves to the next backup that can serve [request] and opens, telling the UI with
@@ -1986,6 +1997,7 @@ class AgentLoop(
         call.argumentsJson,
         reviewerNote = note,
         flags = flags,
+        summaryText = tool.describeText(args),
     )
 
     /** Records [call] as a proposal for the user ([AgentConfig.proposals]); the model is told it hasn't run. */

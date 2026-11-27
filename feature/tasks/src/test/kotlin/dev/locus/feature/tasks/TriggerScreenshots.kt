@@ -129,7 +129,7 @@ class TriggerScreenshots : ScreenshotTest() {
     )
 
     @Test
-    fun digest() = sheet("task-sheet-digest", TaskDraft.morningDigest(TaskConditions()), heightDp = 1400)
+    fun digest() = sheet("task-sheet-digest", TaskDraft.morningDigest(TaskConditions(), "Morning digest"), heightDp = 1400)
 
     @Test
     fun testSheet() {

@@ -1,5 +1,6 @@
 package dev.locus.core.agent
 
+import dev.locus.core.model.ApprovalLineText
 import dev.locus.core.model.DiscoveryTools
 import dev.locus.core.model.Part
 import dev.locus.core.model.ToolPolicy
@@ -99,6 +100,13 @@ interface Tool {
 
     /** One line shown to the user when asking for approval and in the activity log. */
     fun describe(args: JsonObject): String
+
+    /**
+     * [describe] as data, for the approval card to word in the user's language (docs/design/localization.md):
+     * its English is [describe]'s, word for word. Null: the card shows [describe] as it is. The tools that
+     * ask before they act define [describe] from it.
+     */
+    fun describeText(args: JsonObject): ApprovalLineText? = null
 
     /**
      * A reason this particular call must be confirmed even when the tool is set to Allow (for

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <!-- RunTextUi.kt: provider errors, run notices and progress, budget, receipts and speeds from core (LlmErrorText, RunNote, BudgetReached, TaskReceipt) -->
     <string name="chat_error_provider_words">%1$s 返回 HTTP %2$s：%3$s</string>
     <string name="chat_error_bad_request">%1$s 无法接受该请求（HTTP 400）。</string>
@@ -1642,4 +1642,78 @@
     <string name="chat_export_type">在页面中输入</string>
     <string name="chat_export_field">%1$s：%2$s</string>
     <string name="chat_export_receipt">任务回执：%1$s</string>
+    <string name="chat_voice_say_tap_to_talk">点按即可说话</string>
+    <string name="chat_voice_say_nothing_heard">没有听到声音。点按即可说话</string>
+    <string name="chat_voice_say_note_ack">收到。Locus 会在这一步之后读取。</string>
+    <string name="chat_voice_say_no_reply">任务已结束，没有可朗读的回复。</string>
+    <string name="chat_voice_say_mic_needed">语音模式需要使用麦克风。请允许后点按重试。</string>
+    <string name="chat_voice_say_paused_transient">其他应用正在使用音频，已暂停。结束后 Locus 会继续。</string>
+    <string name="chat_voice_say_paused_focus">其他应用正在播放音频，已暂停。点按即可继续。</string>
+    <string name="chat_voice_say_paused_background">Locus 在后台时已暂停。点按即可继续。</string>
+    <string name="chat_voice_say_did_not_start">Locus 没有开始处理这条消息。</string>
+    <string name="chat_voice_say_needs_screen">%1$s 请查看对话，然后点按再次说话。</string>
+    <string name="chat_voice_say_recognizer_busy">其他应用正在使用语音识别。点按重试。</string>
+    <string name="chat_voice_say_answering">正在回答</string>
+    <string name="chat_voice_say_sending">正在发送</string>
+    <string name="chat_voice_say_finishing">正在收尾</string>
+    <string name="chat_voice_say_thinking">正在思考</string>
+    <string name="chat_voice_say_denied">已拒绝。</string>
+    <string name="chat_voice_say_allowed">已允许。</string>
+    <string name="chat_voice_say_not_clear">语音没有得到明确的回答。</string>
+    <string name="chat_voice_say_went_wrong">出了点问题。%1$s</string>
+    <string name="chat_voice_say_first_status">正在处理。%1$s。</string>
+    <string name="chat_voice_say_status">%1$s。</string>
+    <string name="chat_voice_say_tap_memory">这会更改 Locus 记住的内容，笔记显示在屏幕上，需要你看一下并点按。</string>
+    <string name="chat_voice_say_tap_reviewer">安全审查器标记了此操作，需要你点按。</string>
+    <string name="chat_voice_say_tap_unknown">这需要你点按。</string>
+    <string name="chat_voice_say_tap_must_confirm">这看起来像付款或其他必须确认的操作，需要你点按。</string>
+    <string name="chat_voice_say_tap_tainted">Locus 在此任务中读取了外部内容，需要你点按。</string>
+    <string name="chat_voice_say_tap_private_data">此任务读取了你的私人数据，而这会打开一个新地址，需要你点按。</string>
+    <string name="chat_voice_say_tap_scope">这超出了任务设定的范围，需要你点按。</string>
+    <string name="chat_voice_say_locus_wants">Locus 想要：%1$s</string>
+    <string name="chat_voice_say_helper_wants">%1$s 想要：%2$s</string>
+    <string name="chat_voice_say_ask_prompt">%1$s。请说允许或拒绝。</string>
+    <string name="chat_voice_say_confirm_prompt">要允许，请说确认。或者说不。</string>
+    <string name="chat_voice_say_tap_prompt">%1$s。%2$s请在屏幕上点按允许或拒绝。</string>
+    <string name="chat_voice_say_unclear_tap">我没听清。请在屏幕上点按允许或拒绝。</string>
+    <string name="chat_voice_say_unclear_again">抱歉，请说允许或拒绝。</string>
+    <string name="chat_voice_say_unclear_confirm">抱歉，请说确认以允许，或者说不。</string>
+    <string name="chat_voice_say_asks">%1$s 问：%2$s</string>
+    <string name="chat_voice_say_you_can_say">%1$s 你可以说%2$s。</string>
+    <string name="chat_voice_say_list_join">%1$s、%2$s</string>
+    <string name="chat_voice_say_list_last">%1$s或%2$s</string>
+    <string name="chat_voice_say_no_recognizer">这部手机没有语音识别服务。请安装一个（例如 Google 的 Speech Services），然后点按重试。</string>
+    <string name="chat_voice_say_could_not_start">无法启动语音识别。点按重试。</string>
+    <string name="chat_voice_say_needs_connection">语音识别现在需要网络连接。请检查后点按重试。</string>
+    <string name="chat_voice_say_service_busy">语音服务繁忙。请稍等，然后点按重试。</string>
+    <string name="chat_voice_say_no_language">这部手机的语音识别还不支持你的语言。请在手机的语音设置中添加。</string>
+    <string name="chat_voice_say_no_microphone">无法通过麦克风录音，可能有其他应用正在使用。点按重试。</string>
+    <string name="chat_voice_say_recognizer_closed">语音识别已关闭。点按重新启动。</string>
+    <string name="chat_voice_say_listening_stopped">已停止聆听。点按重试。</string>
+    <string name="chat_voice_say_voice_downloading">语音仍在下载。点按重试。</string>
+    <string name="chat_voice_say_could_not_speak">无法朗读回复。点按重试。</string>
+    <string name="chat_voice_say_no_engine">未安装文字转语音引擎。请添加一个（例如 Google 的 Speech Services），然后重试。</string>
+    <string name="chat_voice_say_on_device">设备端识别</string>
+    <string name="chat_voice_say_on_device_note">语音在这部手机上转换为文字。</string>
+    <string name="chat_voice_say_system_recognizer">系统语音识别</string>
+    <string name="chat_voice_say_prefer_offline_note">已要求它只在手机上处理；是否做到取决于该应用。</string>
+    <string name="chat_voice_say_online_note">此识别服务可能会把你的语音发送到它自己的服务器。</string>
+    <string name="chat_voice_say_blocked_model">此对话的模型无法接收这条消息。</string>
+    <string name="chat_voice_say_blocked_heat">手机过热或处于省电模式，因此 Locus 会在设备端回复前先询问。</string>
+    <string name="chat_voice_answer_yes" tools:ignore="Typos">允许 同意 批准 可以 好 好的 是 是的 行 对</string>
+    <string name="chat_voice_answer_confirm" tools:ignore="Typos">确认 确定</string>
+    <string name="chat_voice_answer_no" tools:ignore="Typos">不 别 拒绝 取消 否 停</string>
+    <string name="chat_voice_answer_negators" tools:ignore="Typos">不 别 不要</string>
+    <string name="chat_speech_code">代码块。</string>
+    <string name="chat_speech_table">表格。</string>
+    <string name="chat_speech_link">链接</string>
+    <string name="chat_speech_more_on_screen">其余内容在屏幕上。</string>
+    <string name="chat_speech_nothing_to_read">完成。答案在屏幕上。</string>
+    <string name="chat_screen_suggestion_web">在网上搜索本周最重要的科技新闻并总结</string>
+    <string name="chat_screen_suggestion_packing">为 3 天的旅行列一份行李清单，并保存到我的工作区</string>
+    <string name="chat_screen_suggestion_script">写一个按日期重命名我的照片的 Python 脚本，然后运行它</string>
+    <string name="chat_screen_suggestion_week">帮我规划这一周：先问我有哪些安排，然后把日程添加到我的日历</string>
+    <string name="chat_run_backups_skipped">已跳过的备用模型：%1$s。</string>
+    <string name="chat_run_skipped_model">%1$s：%2$s</string>
+    <string name="chat_run_skipped_join">%1$s；%2$s</string>
 </resources>

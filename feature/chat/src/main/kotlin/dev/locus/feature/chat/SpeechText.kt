@@ -1,5 +1,29 @@
 package dev.locus.feature.chat
 
+import android.content.res.Resources
+
+/**
+ * The words [SpeechText] puts in place of what can't be read aloud, in the app's language
+ * (docs/design/localization.md). The defaults are the English the tests compare; [speechWords] builds
+ * them from the module's strings.
+ */
+internal data class SpeechWords(
+    val code: String = SpeechText.CODE,
+    val table: String = SpeechText.TABLE,
+    val link: String = SpeechText.LINK,
+    val moreOnScreen: String = SpeechText.MORE_ON_SCREEN,
+    val nothingToRead: String = SpeechText.NOTHING_TO_READ,
+)
+
+/** [SpeechWords] in the language of [resources]. */
+internal fun speechWords(resources: Resources) = SpeechWords(
+    code = resources.getString(R.string.chat_speech_code),
+    table = resources.getString(R.string.chat_speech_table),
+    link = resources.getString(R.string.chat_speech_link),
+    moreOnScreen = resources.getString(R.string.chat_speech_more_on_screen),
+    nothingToRead = resources.getString(R.string.chat_speech_nothing_to_read),
+)
+
 /**
  * Turns a reply's Markdown into what a voice should say: no syntax, "Code block." for code, "Table."
  * for tables, link text instead of URLs, and no thinking. Pure, so it is unit tested; [ReadAloud] speaks it.
@@ -10,7 +34,7 @@ internal object SpeechText {
     const val TABLE = "Table."
     const val LINK = "link"
 
-    fun prepare(markdown: String): String {
+    fun prepare(markdown: String, words: SpeechWords = SpeechWords()): String {
         val text = markdown.replace(THINK, " ")
         val out = mutableListOf<String>()
         val lines = text.lines()
@@ -25,14 +49,14 @@ internal object SpeechText {
                     val marker = fence.groupValues[1]
                     i++
                     while (i < lines.size && !lines[i].trim().startsWith(marker)) i++
-                    out += CODE
+                    out += words.code
                 }
                 trimmed.startsWith("|") || (trimmed.contains('|') && i + 1 < lines.size && TABLE_RULE.matches(lines[i + 1].trim())) -> {
                     while (i + 1 < lines.size && lines[i + 1].trim().let { it.startsWith("|") || (it.contains('|') && it.isNotBlank()) }) i++
-                    out += TABLE
+                    out += words.table
                 }
                 RULE.matches(trimmed) || trimmed.isEmpty() -> out += ""
-                else -> inline(blockPrefix(trimmed)).takeIf { it.isNotBlank() }?.let { out += sentence(it) }
+                else -> inline(blockPrefix(trimmed), words.link).takeIf { it.isNotBlank() }?.let { out += sentence(it) }
             }
             i++
         }
@@ -50,16 +74,16 @@ internal object SpeechText {
      * dropped (in a conversation they are noise; the screen shows them), and cut at a sentence end
      * near [max] characters with [MORE_ON_SCREEN] after it, so a long report isn't read for minutes.
      */
-    fun forVoice(markdown: String, max: Int = VOICE_MAX): String {
-        val spoken = prepare(markdown).lines()
-            .filterNot { it.trim() == CODE || it.trim() == TABLE }
+    fun forVoice(markdown: String, max: Int = VOICE_MAX, speech: SpeechWords = SpeechWords()): String {
+        val spoken = prepare(markdown, speech).lines()
+            .filterNot { it.trim() == speech.code || it.trim() == speech.table }
             .joinToString("\n").replace(BLANKS, "\n\n").trim()
-        if (spoken.isEmpty()) return NOTHING_TO_READ
+        if (spoken.isEmpty()) return speech.nothingToRead
         if (spoken.length <= max) return spoken
         val head = spoken.take(max)
         val end = SENTENCE_STOP.findAll(head).lastOrNull()?.range?.last?.takeIf { it >= max / 3 }
         val cut = if (end != null) head.substring(0, end + 1) else head.substringBeforeLast(' ').trimEnd(',', ';', ':') + "…"
-        return "${cut.trim()} $MORE_ON_SCREEN"
+        return "${cut.trim()} ${speech.moreOnScreen}"
     }
 
     /** About a minute of speech at normal speed. */
@@ -94,11 +118,11 @@ internal object SpeechText {
     private fun blockPrefix(line: String): String =
         line.replace(HEADING, "").replace(QUOTE, "").replace(TASK, "").replace(BULLET, "").replace(NUMBERED, "$1. ")
 
-    private fun inline(text: String): String = text
+    private fun inline(text: String, link: String): String = text
         .replace(IMAGE) { m -> m.groupValues[1] }
         .replace(LINK_MD) { m -> m.groupValues[1] }
-        .replace(AUTOLINK, LINK)
-        .replace(BARE_URL, LINK)
+        .replace(AUTOLINK, Regex.escapeReplacement(link))
+        .replace(BARE_URL, Regex.escapeReplacement(link))
         .replace(HTML_TAG, "")
         .replace(INLINE_CODE) { m -> m.groupValues[2] }
         .replace(BOLD_STARS) { m -> m.groupValues[1] }

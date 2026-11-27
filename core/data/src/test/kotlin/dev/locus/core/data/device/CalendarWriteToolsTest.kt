@@ -308,4 +308,17 @@ class CalendarWriteToolsTest {
             assertFalse(t.spec.name in ToolDiscovery.CORE_V2)
         }
     }
+
+    @Test
+    fun approvalLinesSayWhatTheyAlwaysSaidAndAreData() {
+        // The English is the audit log's and the reviewer's (docs/design/localization.md); the card words the same line from resources.
+        val tools = setup().tools
+        fun says(english: String, name: String, a: kotlinx.serialization.json.JsonObject) {
+            assertEquals(english, tools.getValue(name).describe(a))
+            assertEquals(english, tools.getValue(name).describeText(a)?.english)
+        }
+        says("Add “Dentist” to your calendar", dev.locus.core.model.DeviceIntegrations.CALENDAR_CREATE, args("title" to "Dentist"))
+        says("Change a calendar event", dev.locus.core.model.DeviceIntegrations.CALENDAR_UPDATE, args("id" to 1))
+        says("Delete a calendar event", dev.locus.core.model.DeviceIntegrations.CALENDAR_DELETE, args("id" to 1))
+    }
 }

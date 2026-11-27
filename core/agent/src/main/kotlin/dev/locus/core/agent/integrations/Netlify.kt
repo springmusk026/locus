@@ -9,6 +9,8 @@ import dev.locus.core.agent.home.SecretResolver
 import dev.locus.core.agent.int
 import dev.locus.core.agent.str
 import dev.locus.core.agent.tools.Workspace
+import dev.locus.core.model.ApprovalLineText
+import dev.locus.core.model.ApprovalPhrase
 import dev.locus.core.model.ToolPolicy
 import dev.locus.core.model.ToolRisk
 import dev.locus.core.model.ToolSpec
@@ -196,8 +198,13 @@ private class NetlifyDeploy(private val api: NetlifyApi, private val workspace: 
             .build(),
     )
 
-    override fun describe(args: JsonObject) =
-        "Deploy ${args.str("path")} to Netlify site ${args.str("site")}" + (if (args.bool("production") == true) " (production)" else " (draft)")
+    override fun describe(args: JsonObject) = describeText(args).english
+
+    override fun describeText(args: JsonObject) = ApprovalLineText(
+        if (args.bool("production") == true) ApprovalPhrase.NETLIFY_DEPLOY_PRODUCTION else ApprovalPhrase.NETLIFY_DEPLOY_DRAFT,
+        "${args.str("path")}",
+        "${args.str("site")}",
+    )
 
     override suspend fun mustConfirm(args: JsonObject) =
         if (args.bool("production") == true) "This replaces the live Netlify site." else "This creates a new Netlify deploy."
@@ -304,7 +311,8 @@ private class NetlifyEnvSet(private val api: NetlifyApi) : Tool {
     )
 
     // The value is left out on purpose so it never appears in the approval card or activity log.
-    override fun describe(args: JsonObject) = "Set ${args.str("key")} on Netlify site ${args.str("site")}"
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) = ApprovalLineText(ApprovalPhrase.NETLIFY_ENV_SET, "${args.str("key")}", "${args.str("site")}")
 
     override suspend fun execute(args: JsonObject): ToolResult {
         val key = args.str("key")?.trim().orEmpty()

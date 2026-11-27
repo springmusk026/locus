@@ -9,6 +9,8 @@ import dev.locus.core.agent.home.SecretResolver
 import dev.locus.core.agent.int
 import dev.locus.core.agent.str
 import dev.locus.core.agent.tools.Workspace
+import dev.locus.core.model.ApprovalLineText
+import dev.locus.core.model.ApprovalPhrase
 import dev.locus.core.model.ToolPolicy
 import dev.locus.core.model.ToolRisk
 import dev.locus.core.model.ToolSpec
@@ -245,9 +247,17 @@ private class VercelDeploy(private val api: VercelApi, private val workspace: Wo
             .build(),
     )
 
-    override fun describe(args: JsonObject) =
-        (if (args.str("redeploy_id") != null) "Redeploy ${args.str("redeploy_id")}" else "Deploy ${args.str("path")}") +
-            " to Vercel project ${args.str("project")}" + (if (args.bool("production") == true) " (production)" else " (preview)")
+    override fun describe(args: JsonObject) = describeText(args).english
+
+    override fun describeText(args: JsonObject): ApprovalLineText {
+        val production = args.bool("production") == true
+        val redeploy = args.str("redeploy_id")
+        val phrase = when {
+            redeploy != null -> if (production) ApprovalPhrase.VERCEL_REDEPLOY_PRODUCTION else ApprovalPhrase.VERCEL_REDEPLOY_PREVIEW
+            else -> if (production) ApprovalPhrase.VERCEL_DEPLOY_PRODUCTION else ApprovalPhrase.VERCEL_DEPLOY_PREVIEW
+        }
+        return ApprovalLineText(phrase, redeploy ?: "${args.str("path")}", "${args.str("project")}")
+    }
 
     override suspend fun mustConfirm(args: JsonObject) =
         if (args.bool("production") == true) "This publishes to the live production site on Vercel." else "This creates a new Vercel deployment."
@@ -364,7 +374,8 @@ private class VercelEnvSet(private val api: VercelApi) : Tool {
     )
 
     // The value is deliberately left out so it never lands in the approval card or activity log.
-    override fun describe(args: JsonObject) = "Set ${args.str("key")} on Vercel project ${args.str("project")}"
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) = ApprovalLineText(ApprovalPhrase.VERCEL_ENV_SET, "${args.str("key")}", "${args.str("project")}")
 
     override suspend fun execute(args: JsonObject): ToolResult {
         val project = projectArg(args)

@@ -7,6 +7,8 @@ import dev.locus.core.agent.ToolResult
 import dev.locus.core.agent.UntrustedContent
 import dev.locus.core.agent.int
 import dev.locus.core.agent.str
+import dev.locus.core.model.ApprovalLineText
+import dev.locus.core.model.ApprovalPhrase
 import dev.locus.core.model.DeviceIntegrations
 import dev.locus.core.model.ToolPolicy
 import dev.locus.core.model.ToolRisk
@@ -114,7 +116,12 @@ internal class CalendarRead(private val phone: PhoneIntegrations, private val zo
             .build(),
     )
 
-    override fun describe(args: JsonObject) = "Read your calendar for the next ${days(args)} days" + (args.str("query")?.let { " (“$it”)" }.orEmpty())
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject): ApprovalLineText {
+        val days = days(args)
+        return args.str("query")?.let { ApprovalLineText.counted(ApprovalPhrase.READ_CALENDAR_DAYS_QUERY, days, days, it) }
+            ?: ApprovalLineText.counted(ApprovalPhrase.READ_CALENDAR_DAYS, days, days)
+    }
 
     private fun days(args: JsonObject) = (args.int("days") ?: 7).coerceIn(1, MAX_DAYS)
 
@@ -185,7 +192,9 @@ internal class ContactsPick(private val phone: PhoneIntegrations) : Tool {
             .build(),
     )
 
-    override fun describe(args: JsonObject) = "Ask you to pick a contact" + (args.str("reason")?.let { ": $it" }.orEmpty())
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) =
+        args.str("reason")?.let { ApprovalLineText(ApprovalPhrase.PICK_CONTACT_REASON, it) } ?: ApprovalLineText(ApprovalPhrase.PICK_CONTACT)
 
     override suspend fun execute(args: JsonObject): ToolResult {
         val field = field(args.str("field"))
@@ -228,7 +237,12 @@ internal class PhotosPick(private val phone: PhoneIntegrations) : Tool {
             .build(),
     )
 
-    override fun describe(args: JsonObject) = "Ask you to pick up to ${max(args)} photo${if (max(args) == 1) "" else "s"}" + (args.str("reason")?.let { ": $it" }.orEmpty())
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject): ApprovalLineText {
+        val max = max(args)
+        return args.str("reason")?.let { ApprovalLineText.counted(ApprovalPhrase.PICK_PHOTOS_REASON, max, max, it) }
+            ?: ApprovalLineText.counted(ApprovalPhrase.PICK_PHOTOS, max, max)
+    }
 
     private fun max(args: JsonObject) = (args.int("max") ?: 1).coerceIn(1, MAX)
 

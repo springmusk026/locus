@@ -8,6 +8,8 @@ import dev.locus.core.agent.bool
 import dev.locus.core.agent.int
 import dev.locus.core.agent.str
 import dev.locus.core.agent.tools.Workspace
+import dev.locus.core.model.ApprovalLineText
+import dev.locus.core.model.ApprovalPhrase
 import dev.locus.core.model.ToolRisk
 import dev.locus.core.model.ToolSpec
 import kotlinx.serialization.json.JsonArray
@@ -189,10 +191,12 @@ private class GitCommit(private val linux: LinuxEnvironment, private val ws: Wor
             .build(),
     )
 
-    override fun describe(args: JsonObject): String {
+    override fun describe(args: JsonObject): String = describeText(args).english
+
+    override fun describeText(args: JsonObject): ApprovalLineText {
         val paths = (args["paths"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.content }.orEmpty()
-        val what = if (paths.isEmpty()) "all changes" else paths.joinToString()
-        return "Commit $what: “${args.str("message").orEmpty().lineSequence().firstOrNull().orEmpty().take(80)}”"
+        val what: Any = if (paths.isEmpty()) ApprovalLineText(ApprovalPhrase.COMMIT_ALL_CHANGES) else paths.joinToString()
+        return ApprovalLineText(ApprovalPhrase.COMMIT, what, args.str("message").orEmpty().lineSequence().firstOrNull().orEmpty().take(80))
     }
 
     override suspend fun execute(args: JsonObject): ToolResult {
