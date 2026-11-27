@@ -4,8 +4,10 @@ import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.locus.core.agent.ChatScope
 import dev.locus.core.agent.tools.TrashEntry
 import dev.locus.core.agent.tools.Workspace
+import dev.locus.core.model.ChatScopeSpec
 import dev.locus.core.model.FileTrees
 import dev.locus.core.model.Part
 import androidx.core.graphics.scale
@@ -112,26 +114,59 @@ class WorkspaceRepository @Inject constructor(
     }
 
     /**
-     * Copies an attachment into `inbox/`. Photos are downscaled to at most 1568 px on the long edge
-     * (larger images cost more and gain nothing for vision models) and saved as JPEG.
+     * Copies an attachment into `inbox/` of the folder the chat's tools are rooted at: the project's
+     * folder in a project chat ([scope]; docs/design/projects.md), otherwise the whole workspace. Its
+     * [Part.Attachment.workspacePath] is relative to that same folder, so the path the model is told
+     * is the one read_file, ls and Linux's `/workspace` resolve. Photos are downscaled to at most
+     * 1568 px on the long edge (larger images cost more and gain nothing for vision models) and saved
+     * as JPEG.
      */
-    suspend fun importAttachment(uri: Uri): Part.Attachment = withContext(io) {
+    suspend fun importAttachment(uri: Uri, scope: ChatScopeSpec? = null): Part.Attachment = withContext(io) {
         val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
-        val rel = if (mime.startsWith("image/") && mime != "image/gif") {
+        if (mime.startsWith("image/") && mime != "image/gif") {
             val bitmap = context.contentResolver.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it) }
             if (bitmap != null) {
                 val scale = minOf(1f, 1568f / maxOf(bitmap.width, bitmap.height))
                 val scaled = if (scale < 1f) bitmap.scale((bitmap.width * scale).toInt(), (bitmap.height * scale).toInt()) else bitmap
                 val name = (displayName(uri) ?: "photo").substringBeforeLast('.') + ".jpg"
-                val target = uniqueFile(workspace.resolve("inbox"), name)
-                workspace.write(target) { scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, it) }
-                workspace.relative(target)
-            } else import(uri, "inbox")
-        } else import(uri, "inbox")
-        val file = workspace.resolve(rel)
-        val finalMime = if (rel.endsWith(".jpg") && mime.startsWith("image/")) "image/jpeg" else mime
-        Part.Attachment(file.name, finalMime, file.path, rel, file.length())
+                return@withContext saveAttachment(name, "image/jpeg", scope) { scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, JPEG_QUALITY, it) }
+            }
+        }
+        val name = displayName(uri) ?: "imported-${System.currentTimeMillis()}"
+        val input = context.contentResolver.openInputStream(uri) ?: error("Could not read the selected file.")
+        val finalMime = if (name.endsWith(".jpg") && mime.startsWith("image/")) "image/jpeg" else mime
+        input.use { source -> saveAttachment(name, finalMime, scope) { source.copyTo(it) } }
     }
+
+    /**
+     * Writes a new attachment named [name] into `inbox/` of [scope]'s root (see [importAttachment]),
+     * under a free name, never through a link (Workspace.write).
+     */
+    internal suspend fun saveAttachment(name: String, mime: String, scope: ChatScopeSpec?, write: (java.io.OutputStream) -> Unit): Part.Attachment =
+        withContext(io + ChatScope.element(scope)) {
+            val target = uniqueFile(workspace.resolve(INBOX), name)
+            workspace.write(target, write)
+            attachment(target, mime)
+        }
+
+    /**
+     * [a], not yet sent, made to fit a chat whose scope is now [scope] (it was just moved into or out of
+     * a project): a file already inside the new root only gets its path renamed relative to it; one
+     * outside (in the workspace's `inbox/` when the chat moved into a project) is copied into the
+     * project's `inbox/`, since the project's tools can't reach it. A file that's gone is left as it was.
+     */
+    suspend fun attachmentFor(a: Part.Attachment, scope: ChatScopeSpec?): Part.Attachment = withContext(io + ChatScope.element(scope)) {
+        val file = File(a.path)
+        if (!file.isFile || FileTrees.isLink(file)) return@withContext a
+        val real = file.canonicalFile
+        val root = workspace.root
+        val inside = real.path.startsWith(root.path + File.separator) &&
+            runCatching { workspace.resolve(workspace.relative(real)) == real }.getOrDefault(false)
+        if (inside) a.copy(path = real.path, workspacePath = workspace.relative(real))
+        else saveAttachment(real.name, a.mimeType, scope) { out -> real.inputStream().use { it.copyTo(out) } }
+    }
+
+    private fun attachment(file: File, mime: String) = Part.Attachment(file.name, mime, file.path, workspace.relative(file), file.length())
 
     suspend fun export(path: String, uri: Uri) = withContext(io) {
         context.contentResolver.openOutputStream(uri)?.use { out -> workspace.resolve(path).inputStream().use { it.copyTo(out) } }
@@ -166,6 +201,12 @@ class WorkspaceRepository @Inject constructor(
 
     private companion object {
         const val MAX_VIEW_BYTES = 50L * 1024 * 1024
+
+        /** Where attachments go, inside the chat's root. */
+        const val INBOX = "inbox"
+
+        /** Attached photos are saved as JPEG at this quality. */
+        const val JPEG_QUALITY = 85
     }
 
     suspend fun trash(): List<TrashEntry> = withContext(io) { workspace.trashEntries() }

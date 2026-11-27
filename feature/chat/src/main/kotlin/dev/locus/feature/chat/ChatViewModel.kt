@@ -488,7 +488,12 @@ class ChatViewModel @AssistedInject constructor(
     fun moveToProject(projectId: String?) = viewModelScope.launch {
         if (!conversations.moveToProject(conversationId, projectId)) {
             _notice.value = UiText.Res(R.string.chat_project_already_started)
+            return@launch
         }
+        // Files attached before the move now go to a chat rooted elsewhere: brought into its folder.
+        val scope = projectRepository?.scopeOf(conversations.get(conversationId))
+        val placed = pending.value.associateWith { runCatching { workspace.attachmentFor(it, scope) }.getOrDefault(it) }
+        pending.update { list -> list.map { placed[it] ?: it } }
     }
 
     /** Starts a chat in [projectId] that picks up from this one, through chat_history_read. */
@@ -1010,7 +1015,10 @@ class ChatViewModel @AssistedInject constructor(
     fun attach(uris: List<android.net.Uri>) = viewModelScope.launch {
         // Imported first, then added to what is pending now: reading pending before the (suspending) import
         // wrote back a stale list, bringing back attachments just sent or removed.
-        val added = uris.mapNotNull { runCatching { workspace.importAttachment(it) }.getOrNull() }
+        // Into the folder this chat's tools are rooted at (a project chat's own folder), so the path the
+        // model is told resolves with its read_file and Linux (docs/design/projects.md, "Attachments").
+        val scope = projectRepository?.scopeOf(conversations.get(conversationId))
+        val added = uris.mapNotNull { runCatching { workspace.importAttachment(it, scope) }.getOrNull() }
         pending.update { it + added }
     }
 
