@@ -58,7 +58,7 @@ class ScheduledRunTest {
         )
 
         suspend fun go(workId: String, reason: Int = WorkInfo.STOP_REASON_UNKNOWN) =
-            run.run(TASK, workId, runNow = false, stopReason = { reason }, notify = { t, x, chat -> notified += t to x; chats += chat })
+            run.run(TASK, workId, runNow = false, stopReason = { reason }, notify = { t, x, chat -> notified += dev.locus.core.data.EnglishResources.render(t) to x; chats += chat })
     }
 
     private suspend fun TestScope.fixture(): Fixture {
@@ -241,8 +241,8 @@ class ScheduledRunTest {
         f.run.afterClaim = { runInterruptible { claimed.await(10, TimeUnit.SECONDS) } }
         return withContext(Dispatchers.IO) {
             listOf(
-                async { f.run.run(TASK, periodic, runNow = false, stopReason = { 0 }, notify = { t, x, _ -> synchronized(f) { f.notified += t to x } }) },
-                async { f.run.run(TASK, once, runNow = true, stopReason = { 0 }, notify = { t, x, _ -> synchronized(f) { f.notified += t to x } }) },
+                async { f.run.run(TASK, periodic, runNow = false, stopReason = { 0 }, notify = { t, x, _ -> synchronized(f) { f.notified += dev.locus.core.data.EnglishResources.render(t) to x } }) },
+                async { f.run.run(TASK, once, runNow = true, stopReason = { 0 }, notify = { t, x, _ -> synchronized(f) { f.notified += dev.locus.core.data.EnglishResources.render(t) to x } }) },
             ).awaitAll()
         }.also { f.run.beforeClaim = {}; f.run.afterClaim = {} }
     }

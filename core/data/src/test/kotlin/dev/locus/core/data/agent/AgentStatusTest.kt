@@ -5,6 +5,10 @@ import dev.locus.core.agent.ApprovalRequest
 import dev.locus.core.agent.BudgetLimit
 import dev.locus.core.model.ToolRisk
 import dev.locus.core.agent.tools.UserQuestion
+import dev.locus.core.data.EnglishResources
+import dev.locus.core.linux.EngineText
+import dev.locus.core.model.toolActivity
+import dev.locus.core.model.toolLabel
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -12,7 +16,17 @@ import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
+/**
+ * The status notification's rules, and its words: rendered from the English strings, exactly the English
+ * core/data wrote before they followed the app's language (docs/design/localization.md, "Notifications").
+ */
 class AgentStatusTest {
+    private fun EngineText.en() = EnglishResources.render(this)
+
+    // The status's words in English, with the core's own tool and budget phrases (the app's are checked in NotificationWordsTest).
+    private val AgentStatus.text: String get() = text { toolActivity(it) }.en()
+    private val AgentStatus.chip: String get() = chip { it.en() }
+    private val AgentStatus.detail: String? get() = detail({ toolLabel(it.toolName, it.argumentsJson, done = false) }) { it.english }?.en()
 
     private fun approval(chat: String = "a", tool: String = "run_command", summary: String = "Run ls", origin: ApprovalOrigin? = null) =
         ApprovalRequest(chat, "call-$tool", tool, ToolRisk.EXECUTE, summary, """{"command":"ls"}""", origin = origin)
@@ -27,7 +41,7 @@ class AgentStatusTest {
         assertEquals("Working", status.chip)
         assertTrue(status.promotable)
         assertNull(status.detail)
-        assertEquals("Locus is working", status.title)
+        assertEquals("Locus is working", status.title.en())
         assertEquals("a", status.chatId)
     }
 
@@ -64,7 +78,7 @@ class AgentStatusTest {
         assertSame(request, status.approval)
         assertNull(status.question)
         assertEquals("Run `ls`?\nRun ls", status.detail)
-        assertEquals("Locus needs you", status.title)
+        assertEquals("Locus needs you", status.title.en())
     }
 
     @Test
@@ -96,7 +110,7 @@ class AgentStatusTest {
         val status = agentStatus(mapOf("w" to RunState(running = true), "p" to RunState(running = true, step = 5, budgetPause = pause)), emptyList())
         assertEquals("Paused at the task budget", status.text)
         assertEquals("Paused", status.chip)
-        assertEquals("Locus needs you", status.title)
+        assertEquals("Locus needs you", status.title.en())
         assertEquals("p", status.pausedChat)
         assertEquals("p", status.chatId)
         assertEquals(pause.message, status.detail)
@@ -141,7 +155,7 @@ class AgentStatusTest {
         val three = question(options = listOf("a", "b", "c"), allowOther = false)
         assertTrue(allOptionsAsButtons(three))
         assertEquals(3, questionButtons(three))
-        assertEquals("Which branch?", questionBody(three))
+        assertEquals("Which branch?", questionBody(three).en())
 
         val withOther = question(options = listOf("a", "b", "c"))
         assertFalse(allOptionsAsButtons(withOther))
@@ -149,7 +163,7 @@ class AgentStatusTest {
 
         val multi = question(options = listOf("a", "b"), multi = true)
         assertEquals(0, questionButtons(multi))
-        assertEquals("Which branch?\n1. a\n2. b\nReply with your choices.", questionBody(multi))
+        assertEquals("Which branch?\n1. a\n2. b\nReply with your choices.", questionBody(multi).en())
 
         assertEquals(0, questionButtons(question()))
     }

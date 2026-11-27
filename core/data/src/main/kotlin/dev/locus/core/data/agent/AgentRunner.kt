@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.locus.core.agent.AgentConfig
+import dev.locus.core.data.R
+import dev.locus.core.linux.EngineText
 import dev.locus.core.agent.AgentEvent
 import dev.locus.core.agent.TranscriptStore
 import kotlinx.coroutines.flow.filterIsInstance
@@ -207,9 +209,9 @@ data class BackgroundRun(
 }
 
 /** Why Locus starts a turn on its own, without the user's tap; what to say if Android won't let it run. */
-internal enum class BackgroundStart(val title: String, val notice: String) {
-    HELPER("Helper finished", "A helper finished while Locus was in the background. Continue with its report?"),
-    QUEUED("Your message is waiting", "Locus couldn't send your queued message while it was in the background. Continue?"),
+internal enum class BackgroundStart(@param:androidx.annotation.StringRes val titleRes: Int, val notice: String) {
+    HELPER(R.string.data_notif_continue_helper, "A helper finished while Locus was in the background. Continue with its report?"),
+    QUEUED(R.string.data_notif_continue_queued, "Locus couldn't send your queued message while it was in the background. Continue?"),
 }
 
 /** A task paused at a budget limit: "Paused: reached the 200k-token budget for this task." ([reached] as data). */
@@ -1138,7 +1140,7 @@ class AgentRunner @Inject constructor(
      * Called when Android refused to start [AgentService] for a turn Locus started on its own, with the
      * chat and what to tell the user; posts "tap to continue". Replaced in tests.
      */
-    internal var onBackgroundStartRefused: (conversationId: String, title: String, text: String) -> Unit = { id, title, text ->
+    internal var onBackgroundStartRefused: (conversationId: String, title: EngineText, text: EngineText) -> Unit = { id, title, text ->
         AgentService.postTapToContinue(context, id, title, text)
     }
 
@@ -1147,7 +1149,7 @@ class AgentRunner @Inject constructor(
      * Not after Stop (they were there to tap it); scheduled runs have their own notification (TaskWorker).
      * Replaced in tests.
      */
-    internal var onResearchFinished: (conversationId: String, title: String, text: String) -> Unit = { id, title, text ->
+    internal var onResearchFinished: (conversationId: String, title: EngineText, text: EngineText) -> Unit = { id, title, text ->
         val visible = runCatching {
             androidx.lifecycle.ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
         }.getOrDefault(true)
@@ -1158,13 +1160,13 @@ class AgentRunner @Inject constructor(
         if (end.outcome == dev.locus.core.model.TaskOutcome.STOPPED) return
         val plan = dev.locus.core.agent.workflow.WorkflowRender.active(conversations.history(conversationId)) ?: return
         if (plan.id != dev.locus.core.agent.workflow.ResearchWorkflow.ID) return
-        // Notification lines stay English, like the other agent notifications (docs/design/localization.md, "Still English").
+        // Worded in the app's language when posted (docs/design/localization.md, "Notifications"); the goal is the user's words.
         val title = when (end.outcome) {
-            dev.locus.core.model.TaskOutcome.DONE -> "Research finished"
-            dev.locus.core.model.TaskOutcome.BUDGET -> "Research stopped at its budget"
-            else -> "Research didn't finish"
+            dev.locus.core.model.TaskOutcome.DONE -> R.string.data_notif_research_done
+            dev.locus.core.model.TaskOutcome.BUDGET -> R.string.data_notif_research_budget
+            else -> R.string.data_notif_research_failed
         }
-        onResearchFinished(conversationId, title, plan.goal.lineSequence().first().take(160))
+        onResearchFinished(conversationId, EngineText.Res(title), EngineText.Plain(plan.goal.lineSequence().first().take(160)))
     }
 
     /**
@@ -1274,7 +1276,7 @@ class AgentRunner @Inject constructor(
             update(conversationId) { it.copy(running = false, interrupted = true).withNotice(RunNote.BackgroundRefused(helper = auto == BackgroundStart.HELPER)) }
             finishRecord(conversationId, record, TaskEnd(dev.locus.core.model.TaskOutcome.STOPPED, "Android didn't let Locus start in the background"))
             jobs.remove(conversationId, job)
-            runCatching { onBackgroundStartRefused(conversationId, auto.title, "Tap to continue.") }
+            runCatching { onBackgroundStartRefused(conversationId, EngineText.Res(auto.titleRes), EngineText.Res(R.string.data_notif_continue_text)) }
             return null
         }
         job.start()
