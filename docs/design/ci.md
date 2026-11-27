@@ -89,7 +89,7 @@ reads the test run the job has just done, so it adds a second or two, not a job.
   build of the module and analyses only `src/` (generated code under `build/` is never read). Rules
   that need types are skipped; `detektMain`/`detektDebug` would run them, at the cost of compiling.
 - **Baselines.** Each module has `detekt-baseline.xml` with the findings on main when detekt was
-  added (3,094 in all; the largest groups are magic numbers, return counts and 331 overly complex
+  added (3,097 in all; the largest groups are magic numbers, return counts and 331 overly complex
   functions). A finding is matched by rule, file and signature, not line number, so edits elsewhere in
   the file don't resurface it, but a new function, a changed signature or a move to another file
   has to pass. Regenerate a module's baseline after
