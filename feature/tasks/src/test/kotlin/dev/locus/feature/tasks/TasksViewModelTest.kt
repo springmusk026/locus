@@ -275,7 +275,7 @@ class TasksViewModelTest {
             assertEquals(TasksViewModel.Setup(calendarAllowed = true, calendars = listOf("Work")), vm.setup.first { it.calendarAllowed })
 
             vm.zone = { java.time.ZoneOffset.UTC }
-            val digest = TaskDraft.morningDigest(TaskConditions())
+            val digest = TaskDraft.morningDigest(TaskConditions(), "Morning digest")
             assertEquals(1_440, digest.intervalMinutes)
             assertNull(digest.toTrigger)
             vm.create(digest).join()

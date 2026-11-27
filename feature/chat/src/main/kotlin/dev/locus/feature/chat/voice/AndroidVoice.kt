@@ -30,7 +30,7 @@ internal data class VoiceEngine(val label: String, val onDevice: Boolean, val no
  * and, if it can't, allowed to use its service. Must be used on the main thread, as SpeechRecognizer
  * requires. No audio is kept: the recognizer gets the microphone, Locus gets only text.
  */
-internal class SystemEars(private val context: Context, private val session: () -> VoiceSession?) : VoiceEars {
+internal class SystemEars(private val context: Context, private val words: VoiceWords, private val session: () -> VoiceSession?) : VoiceEars {
 
     private var recognizer: SpeechRecognizer? = null
     private var onDevice = false
@@ -45,7 +45,7 @@ internal class SystemEars(private val context: Context, private val session: () 
 
     override fun listen() {
         val r = recognizer ?: create() ?: run {
-            session()?.hearFailed(HearError.Failed("This phone has no speech recognizer. Install one (such as Speech Services by Google), then tap to try again.", VoiceFix.SPEECH_SETTINGS))
+            session()?.hearFailed(HearError.Failed(words.noRecognizer, VoiceFix.SPEECH_SETTINGS))
             return
         }
         // One session at a time: a new one replaces any still open.
@@ -59,7 +59,7 @@ internal class SystemEars(private val context: Context, private val session: () 
         if (!onDevice && preferOffline) intent.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
         runCatching { r.startListening(intent) }.onFailure {
             active = false
-            session()?.hearFailed(HearError.Failed("Couldn't start speech recognition. Tap to try again."))
+            session()?.hearFailed(HearError.Failed(words.couldNotStart))
         }
     }
 
@@ -96,17 +96,9 @@ internal class SystemEars(private val context: Context, private val session: () 
         Build.VERSION.SDK_INT >= 31 && runCatching { SpeechRecognizer.isOnDeviceRecognitionAvailable(context) }.getOrDefault(false)
 
     private fun describe(): VoiceEngine = when {
-        onDeviceAvailable() && !fellBack -> VoiceEngine("On-device recognition", true, "Speech is turned into text on this phone.")
-        preferOffline -> VoiceEngine(
-            systemRecognizerName() ?: "System speech recognizer",
-            false,
-            "Asked to stay on the phone; whether it does is up to that app.",
-        )
-        else -> VoiceEngine(
-            systemRecognizerName() ?: "System speech recognizer",
-            false,
-            "This recognizer may send your voice to its own service.",
-        )
+        onDeviceAvailable() && !fellBack -> VoiceEngine(words.onDevice, true, words.onDeviceNote)
+        preferOffline -> VoiceEngine(systemRecognizerName() ?: words.systemRecognizer, false, words.preferOfflineNote)
+        else -> VoiceEngine(systemRecognizerName() ?: words.systemRecognizer, false, words.onlineNote)
     }
 
     /** The default recognition service's app name, when Android says which it is. */
@@ -160,7 +152,7 @@ internal class SystemEars(private val context: Context, private val session: () 
                 listen()
                 return
             }
-            session()?.hearFailed(hearError(error))
+            session()?.hearFailed(hearError(error, words))
         }
     }
 
@@ -172,7 +164,13 @@ internal class SystemEars(private val context: Context, private val session: () 
  * on Android 17 its own volume stream) and the speed from Settings → Voice. Callbacks arrive on
  * binder threads ([UtteranceProgressListener]), so they're posted to the main thread.
  */
-internal class SystemMouth(private val context: Context, private val session: () -> VoiceSession?) : VoiceMouth {
+internal class SystemMouth(
+    private val context: Context,
+    private val words: VoiceWords,
+    /** The app's language: voice mode's own words are in it, so the voice speaks it when the engine has it. */
+    private val language: java.util.Locale?,
+    private val session: () -> VoiceSession?,
+) : VoiceMouth {
     private val main = Handler(Looper.getMainLooper())
     private var tts: TextToSpeech? = null
     private var ready = false
@@ -212,13 +210,16 @@ internal class SystemMouth(private val context: Context, private val session: ()
                 if (status != TextToSpeech.SUCCESS || engine.engines.isEmpty()) {
                     val waiting = pending
                     pending = null
-                    if (waiting != null) session()?.speakFailed(waiting.second, NO_ENGINE)
+                    if (waiting != null) session()?.speakFailed(waiting.second, words.noEngine)
                     return@post
                 }
                 engine.setAudioAttributes(
                     AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANT).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build(),
                 )
                 engine.setOnUtteranceProgressListener(progress)
+                // The engine's default voice otherwise, which follows the phone, not Locus's own language.
+                language?.takeIf { runCatching { engine.isLanguageAvailable(it) }.getOrDefault(TextToSpeech.LANG_NOT_SUPPORTED) >= TextToSpeech.LANG_AVAILABLE }
+                    ?.let { runCatching { engine.setLanguage(it) } }
                 ready = true
                 pending?.let { (text, id) ->
                     pending = null
@@ -255,14 +256,10 @@ internal class SystemMouth(private val context: Context, private val session: ()
             main.post {
                 session()?.speakFailed(
                     id,
-                    if (errorCode == TextToSpeech.ERROR_NOT_INSTALLED_YET) "The voice is still downloading. Tap to try again." else "Couldn't speak the reply. Tap to try again.",
+                    if (errorCode == TextToSpeech.ERROR_NOT_INSTALLED_YET) words.voiceDownloading else words.couldNotSpeak,
                 )
             }
         }
-    }
-
-    private companion object {
-        const val NO_ENGINE = "No text-to-speech engine is installed. Add one (such as Speech Services by Google), then try again."
     }
 }
 

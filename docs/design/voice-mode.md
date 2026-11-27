@@ -98,6 +98,8 @@ A memory change is tap-only because voice reads only the one-line summary ("Reme
 
 For a request voice may answer, it says "Locus wants to: Run ls -la. Say allow, or deny." Saying "allow" (or yes, okay, go ahead) doesn't approve. Locus asks "To allow it, say confirm. Or say no.", and only "confirm" approves. "Deny", "no", "don't allow" or "cancel" deny at once, with no confirmation, because denying is safe. A negation always wins ("don't allow" denies), and "yes no" is unclear. Answers over six words are conversation, not answers. Two unclear answers in a row hand the approval to the screen.
 
+Voice mode speaks and listens in Locus's language (docs/design/localization.md, "Voice mode"): in Spanish it says "Locus quiere: Ejecutar: ls -la. Di permitir o rechazar.", and "permitir" then "confirmar" approves. The English words are always understood too. Words match without accents ("si", "nao"); Chinese has no spaces, so its words count wherever they are in what was heard, and a negation before an allow or confirm word ("no permitir", "不允许") still denies. The tool's line is the approval card's, in the same language. The voice uses the language when the phone's text-to-speech engine has it, else the engine's default.
+
 A tap-only request is read with its reason ("Locus read outside content during this task, so this needs a tap. Tap Allow or Deny on the screen."). Nothing said changes it, and the card shows the reason in caution colour. An approval answered on screen while voice mode asks about it cancels the spoken prompt.
 
 ## Exiting and pausing
@@ -152,6 +154,7 @@ Plan (roadmap "On-device speech"): swap `SystemEars` for sherpa-onnx streaming A
 - [ ] Ask a question: partial text appears, the circle follows your voice, the reply is spoken without code or tables, and it listens again.
 - [ ] Interrupt a long reply by tapping, then by speaking two or more words. Locus's own voice on the speaker doesn't interrupt it.
 - [ ] Start a task with commands: spoken status. Tap and add a note mid-task: "Got it…", and the chat shows it as "Told while working".
+- [ ] With Locus in Spanish (Settings → Language), a command set to Ask: voice says the line in Spanish, "permitir" then "confirmar" approves, and "rechazar" denies.
 - [ ] A command set to Ask: "allow" then "confirm" approves, and "deny" denies. In a task that read a web page, a sending call says it needs a tap and voice can't approve it.
 - [ ] With "Ask before saving to memory = Always", ask Locus to remember something: voice says the card needs a look, shows the whole note, and "allow" or "confirm" said aloud changes nothing until a tap.
 - [ ] Call the phone during a reply: voice mode pauses and goes on after the call.

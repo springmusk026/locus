@@ -139,6 +139,30 @@ internal fun fitReason(resources: Resources, fit: Fit): String? {
     )
 }
 
+/**
+ * [dev.locus.core.llm.Fit.reason]'s English ("no vision, context too small (128K, needs ~150K)") in words,
+ * as [fitReason] says it; null when it holds something else.
+ */
+internal fun lacksInWords(resources: Resources, english: String): String? {
+    val said = mutableListOf<String>()
+    var rest = english
+    while (rest.isNotEmpty()) {
+        val window = CONTEXT_WINDOW.find(rest)
+        val need = Need.entries.firstOrNull { rest.startsWith(it.lacking) && rest.drop(it.lacking.length).let { r -> r.isEmpty() || r.startsWith(", ") } }
+        val (text, length) = when {
+            window != null -> resources.getString(R.string.chat_fit_lacks_context_window, window.groupValues[1], window.groupValues[2]) to window.value.length
+            need != null -> resources.getString(need.lackingRes()) to need.lacking.length
+            else -> return null
+        }
+        said += text
+        rest = rest.drop(length).removePrefix(", ")
+    }
+    return said.takeIf { it.isNotEmpty() }?.let { resources.joinList(it) }
+}
+
+/** How [dev.locus.core.llm.Fit] says a window that is too small. */
+private val CONTEXT_WINDOW = Regex("""^context too small \(([^,()]+), needs ~([^()]+)\)""")
+
 @StringRes
 private fun Need.lackingRes(): Int = when (this) {
     Need.TOOLS -> R.string.chat_fit_lacks_tools
