@@ -18,6 +18,7 @@ import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /** Insights' "Turn on prices": the spend card's way out of "Unknown" (models.dev prices are opt-in). */
@@ -91,6 +92,34 @@ class AnalyticsViewModelTest {
 
         // Try again runs the same action; it fails again here, and says so again rather than hanging.
         assertEquals(PricesSetup.Failed, vm.turnOnAndWait(PricesSetup.Failed).prices)
+    }
+
+    /**
+     * The usage widget's "cost unknown" (docs/design/android-bridge.md, "The usage widget"): in a process
+     * where nothing had loaded the catalogue (no chat screen, no Insights), today's figures had no prices.
+     * Collecting them now loads it, so today's requests are priced without opening Locus.
+     */
+    @Test
+    fun `today's usage loads the catalogue itself and prices the requests`() = runTest {
+        val provider = dev.locus.core.model.ProviderConfig("a", "Anthropic", dev.locus.core.model.ApiFormat.ANTHROPIC_MESSAGES, "https://api.anthropic.com", "claude-test")
+        val g = TestGraph(backgroundScope, AppSettings(providers = listOf(provider), defaultProviderId = "a", modelCatalog = true), dispatcher = StandardTestDispatcher(testScheduler))
+        g.http = { respond(CATALOG, HttpStatusCode.OK) }
+        val usage = kotlinx.serialization.json.Json.encodeToString(dev.locus.core.model.TokenUsage.serializer(), dev.locus.core.model.TokenUsage(input = 1_000_000, output = 0))
+        g.database.usageEventDao.insert(dev.locus.core.database.UsageEventEntity(0, null, "title", System.currentTimeMillis(), "a", "claude-test", usage, null))
+        val repository = AnalyticsRepository(
+            g.database.messageDao, g.database.auditDao, g.database.conversationDao, g.settingsRepository, g.tasks, g.database.usageEventDao, g.directory,
+        )
+        assertNull(g.directory.catalog.value, "nothing else loaded the catalogue")
+
+        val today = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            kotlinx.coroutines.withTimeout(20_000) { repository.today().first { it.cost.priced > 0 } }
+        }
+
+        assertEquals(1, today.requests)
+        // $3 per million input tokens.
+        assertEquals(3.0, today.cost.usd, 1e-9)
+        assertEquals(7, today.week.size)
+        assertEquals(1, today.week.last().requests)
     }
 
     /** Your picks: Keep this one in a chat updates Insights' table, read from the phone's settings. */

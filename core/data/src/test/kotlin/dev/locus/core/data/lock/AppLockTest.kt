@@ -4,6 +4,8 @@ import dev.locus.core.agent.ApprovalRequest
 import dev.locus.core.agent.tools.UserQuestion
 import dev.locus.core.data.agent.RunState
 import dev.locus.core.data.shortcuts.ChatShortcutPlan
+import dev.locus.core.data.widget.WidgetRun
+import dev.locus.core.data.widget.WidgetRunResult
 import dev.locus.core.data.widget.WidgetStatus
 import dev.locus.core.data.widget.widgetModel
 import dev.locus.core.model.AppLockSettings
@@ -162,8 +164,11 @@ class AppLockTest {
     }
 
     @Test
-    fun `the widget leaves out the task line while Lock Locus is on`() {
-        assertEquals("Backups: done", widgetModel(WidgetStatus.IDLE, "Backups: done", appLocked = false).task)
-        assertNull(widgetModel(WidgetStatus.IDLE, "Backups: done", appLocked = true).task)
+    fun `the widget leaves out the task's answer and title while Lock Locus is on`() {
+        val run = WidgetRun("Backups", WidgetRunResult.DONE, "All pushed", 1)
+        assertEquals(run, widgetModel(WidgetStatus.IDLE, run, null, appLocked = false).run)
+        val locked = widgetModel(WidgetStatus.IDLE, run, null, appLocked = true).run
+        assertNull(locked?.text)
+        assertNull(locked?.title)
     }
 }

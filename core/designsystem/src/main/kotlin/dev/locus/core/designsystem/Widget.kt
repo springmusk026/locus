@@ -26,4 +26,27 @@ object WidgetSizes {
 
     /** The latest task result under the status (between bodySmall and bodyMedium, like [MonoCaption]). */
     val lineText = 13.sp
+
+    // How tall each part is drawn, at font scale 1, so a widget shows only the lines that fit its size
+    // (RemoteViews can't measure text for us). A little over the fonts' own line heights, to be safe.
+
+    /** One line of [lineText]. */
+    val line = 18.dp
+
+    /** The status line (the dot and [statusText]). */
+    val statusLine = 22.dp
+
+    /** The usage widget's figure ([headlineText]). */
+    val headlineLine = 30.dp
+
+    /** Glance's Button with its label (no minimum height of its own; 33dp measured on a phone). */
+    val button = 40.dp
+
+    /** The usage widget's seven-day strip: its height, a day with no use, and the space between days. */
+    val stripHeight = 32.dp
+    val barMin = 2.dp
+    val barGap = 3.dp
+
+    /** A bar's corner. */
+    val barCorner = 2.dp
 }

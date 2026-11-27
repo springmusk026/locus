@@ -6,6 +6,7 @@ import dev.locus.core.agent.BudgetMeter
 import dev.locus.core.data.agent.BudgetPause
 import dev.locus.core.data.agent.RunState
 import dev.locus.core.data.repository.CostEstimate
+import dev.locus.core.data.repository.UsageDay
 import dev.locus.core.data.repository.UsageToday
 import dev.locus.core.data.repository.dayStarts
 import dev.locus.core.model.ToolRisk
@@ -19,61 +20,104 @@ import java.time.ZoneId
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /** The usage widget's text (docs/design/android-bridge.md, "The usage widget"). */
 class UsageWidgetTest {
     private fun meter(tokens: Long, tokenLimit: Long? = null, cost: Double? = null, costLimit: Double? = null, partial: Boolean = false, unavailable: String? = null) =
         BudgetMeter(tokens, tokenLimit, cost, costLimit, elapsedMs = 61_000, timeLimitMs = 600_000, costUnavailable = unavailable, costPartial = partial)
 
-    // Today
+    // Today (worded by the widget: "$0.42", "Today · cost unknown"…, see the app's WidgetWordsTest)
 
     @Test
     fun `today's spend leads when requests had prices, with the tokens under it`() {
         val model = usageWidgetModel(UsageToday(tokens = 123_400, requests = 12, cost = CostEstimate(usd = 0.4213, priced = 12), pricesOn = true), task = null)
-        assertEquals(UsageWidgetModel("$0.42", "Today · 123k tokens"), model)
+        assertEquals(UsageFigure.Spend(0.4213), model.figure)
+        assertEquals(UsageNote.TODAY, model.note)
+        assertEquals(123_400L, model.tokens)
+        assertEquals(12, model.requests)
     }
 
     @Test
     fun `some requests without a price make the spend a floor`() {
         val model = usageWidgetModel(UsageToday(tokens = 9_500, requests = 3, cost = CostEstimate(usd = 1.5, priced = 2, unpriced = 1), pricesOn = true), task = null)
-        assertEquals("$1.50+", model.headline)
-        assertEquals("Today · 9.5k tokens", model.detail)
-        // Under a cent there's no floor to mark.
-        assertEquals("<$0.01", usageWidgetModel(UsageToday(tokens = 10, requests = 2, cost = CostEstimate(usd = 0.004, priced = 1, unpriced = 1)), task = null).headline)
+        assertEquals(UsageFigure.Spend(1.5, floor = true), model.figure)
+        assertEquals(9_500L, model.tokens)
+        // Under a cent there's no floor to mark ("<$0.01" already says "at most").
+        assertEquals(UsageFigure.Spend(0.004), usageWidgetModel(UsageToday(tokens = 10, requests = 2, cost = CostEstimate(usd = 0.004, priced = 1, unpriced = 1)), task = null).figure)
     }
 
     @Test
     fun `without any price it shows tokens and says why there's no amount`() {
         val unknown = usageWidgetModel(UsageToday(tokens = 1_200_000, requests = 4, cost = CostEstimate(unpriced = 4), pricesOn = true), task = null)
-        assertEquals(UsageWidgetModel("1.2M tokens", "Today · cost unknown"), unknown)
+        assertEquals(UsageFigure.Tokens(1_200_000), unknown.figure)
+        assertEquals(UsageNote.COST_UNKNOWN, unknown.note)
+        // The figure already is the tokens: no second tokens line.
+        assertNull(unknown.tokens)
         val off = usageWidgetModel(UsageToday(tokens = 950, requests = 1, cost = CostEstimate(unpriced = 1), pricesOn = false), task = null)
-        assertEquals(UsageWidgetModel("950 tokens", "Today · prices off"), off)
+        assertEquals(UsageFigure.Tokens(950), off.figure)
+        assertEquals(UsageNote.PRICES_OFF, off.note)
     }
 
     @Test
     fun `nothing yet today`() {
-        assertEquals(UsageWidgetModel("No usage yet", "Today"), usageWidgetModel(UsageToday(), task = null))
+        val model = usageWidgetModel(UsageToday(), task = null)
+        assertEquals(UsageFigure.Nothing, model.figure)
+        assertEquals(UsageNote.TODAY, model.note)
+        assertTrue(model.bars.isEmpty())
+    }
+
+    // The week
+
+    private fun day(tokens: Long, usd: Double? = null, unpriced: Int = 0) =
+        UsageDay(tokens, requests = if (tokens > 0) 1 + unpriced else 0, cost = if (usd != null) CostEstimate(usd, priced = 1, unpriced = unpriced) else CostEstimate(unpriced = if (tokens > 0) 1 else 0))
+
+    @Test
+    fun `the week's bars are each day against the busiest, in dollars when every day had prices`() {
+        val week = listOf(day(0), day(100, 1.0), day(0), day(400, 4.0), day(0), day(200, 2.0), day(50, 0.5))
+        val (bars, total) = weekBars(week, CostEstimate(7.5, priced = 4))
+        assertEquals(listOf(0f, 0.25f, 0f, 1f, 0f, 0.5f, 0.125f), bars)
+        assertEquals(UsageFigure.Spend(7.5), total)
+    }
+
+    @Test
+    fun `a day without prices makes the week's bars tokens, never $0`() {
+        val week = listOf(day(100, 1.0), day(300), day(0), day(0), day(0), day(0), day(150, 0.2))
+        val (bars, total) = weekBars(week, CostEstimate(1.2, priced = 2, unpriced = 1))
+        assertEquals(listOf(1f / 3, 1f, 0f, 0f, 0f, 0f, 0.5f), bars)
+        assertEquals(UsageFigure.Tokens(550), total)
+        // A partial day is still priced: its amount is a floor, and the total says so.
+        val partial = weekBars(listOf(day(100, 1.0, unpriced = 1), day(100, 1.0)), CostEstimate(2.0, priced = 2, unpriced = 1))
+        assertEquals(UsageFigure.Spend(2.0, floor = true), partial.second)
+    }
+
+    @Test
+    fun `a week without use draws no bars`() {
+        assertEquals(emptyList<Float>() to UsageFigure.Nothing, weekBars(List(7) { day(0) }, CostEstimate()))
+        assertEquals(emptyList<Float>() to UsageFigure.Nothing, weekBars(emptyList(), CostEstimate()))
     }
 
     // The running task's budget
 
     @Test
-    fun `no task line without a running task that has a budget`() {
-        assertNull(taskBudgetLine(emptyMap()))
-        assertNull(taskBudgetLine(mapOf("a" to RunState(running = true))))
+    fun `no task budget without a running task that has a budget`() {
+        assertNull(taskBudget(emptyMap()))
+        assertNull(taskBudget(mapOf("a" to RunState(running = true))))
         // A finished task's last meter isn't shown.
-        assertNull(taskBudgetLine(mapOf("a" to RunState(running = false, budget = meter(5_000, 50_000)))))
+        assertNull(taskBudget(mapOf("a" to RunState(running = false, budget = meter(5_000, 50_000)))))
     }
 
     @Test
-    fun `the task line shows tokens and cost against their limits, and never time`() {
-        val line = taskBudgetLine(mapOf("a" to RunState(running = true, budget = meter(12_000, 50_000, cost = 0.08, costLimit = 0.5))))
-        assertEquals("Task: 12k of 50k tokens · $0.08 of $0.50", line)
-        assertEquals("Task: 12k tokens", taskBudgetLine(mapOf("a" to RunState(running = true, budget = meter(12_000)))))
+    fun `the task budget has tokens and cost against their limits, and never time`() {
+        assertEquals(
+            TaskBudgetFigures(paused = false, tokens = 12_000, tokenLimit = 50_000, usd = 0.08, usdLimit = 0.5),
+            taskBudget(mapOf("a" to RunState(running = true, budget = meter(12_000, 50_000, cost = 0.08, costLimit = 0.5)))),
+        )
+        assertEquals(TaskBudgetFigures(paused = false, tokens = 12_000), taskBudget(mapOf("a" to RunState(running = true, budget = meter(12_000)))))
         // A cost limit that can't apply (prices unknown for the chat model) isn't shown as one.
         assertEquals(
-            "Task: 12k of 50k tokens · $0.08+",
-            taskBudgetLine(mapOf("a" to RunState(running = true, budget = meter(12_000, 50_000, cost = 0.08, costLimit = 0.5, partial = true, unavailable = "No prices")))),
+            TaskBudgetFigures(paused = false, tokens = 12_000, tokenLimit = 50_000, usd = 0.08, usdFloor = true),
+            taskBudget(mapOf("a" to RunState(running = true, budget = meter(12_000, 50_000, cost = 0.08, costLimit = 0.5, partial = true, unavailable = "No prices")))),
         )
     }
 
@@ -83,7 +127,7 @@ class UsageWidgetTest {
             "a" to RunState(running = true, budget = meter(1_000, 50_000)),
             "b" to RunState(running = true, budget = meter(50_000, 50_000), budgetPause = BudgetPause(BudgetLimit.TOKENS, "Paused")),
         )
-        assertEquals("Task paused: 50k of 50k tokens", taskBudgetLine(states))
+        assertEquals(TaskBudgetFigures(paused = true, tokens = 50_000, tokenLimit = 50_000), taskBudget(states))
     }
 
     @Test
@@ -95,11 +139,11 @@ class UsageWidgetTest {
                 approvals = listOf(ApprovalRequest("Salary talk", "c1", "send_email", ToolRisk.NETWORK, "Email boss@example.com", "{}")),
             ),
         )
-        val model = usageWidgetModel(UsageToday(tokens = 2_000, requests = 1, cost = CostEstimate(usd = 0.01, priced = 1), pricesOn = true), taskBudgetLine(states))
-        val text = listOfNotNull(model.headline, model.detail, model.task).joinToString(" ")
+        val model = usageWidgetModel(UsageToday(tokens = 2_000, requests = 1, cost = CostEstimate(usd = 0.01, priced = 1), pricesOn = true), taskBudget(states))
+        val text = model.toString()
         assertFalse("Salary" in text || "boss" in text || "Email" in text, text)
         // The model has no lock input: with Lock Locus on or off it reads the same (amounts aren't a chat's content).
-        assertEquals(model, usageWidgetModel(UsageToday(tokens = 2_000, requests = 1, cost = CostEstimate(usd = 0.01, priced = 1), pricesOn = true), taskBudgetLine(states)))
+        assertEquals(model, usageWidgetModel(UsageToday(tokens = 2_000, requests = 1, cost = CostEstimate(usd = 0.01, priced = 1), pricesOn = true), taskBudget(states)))
     }
 
     // Starting over at midnight

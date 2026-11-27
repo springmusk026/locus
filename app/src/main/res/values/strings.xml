@@ -24,6 +24,53 @@
     <!-- The usage widget (LocusUsageWidget). -->
     <string name="widget_usage_label">Locus usage</string>
     <string name="widget_usage_description">Today\'s spend and tokens across your providers, and the running task\'s budget</string>
+    <!-- What the widgets say (LocusWidget, LocusUsageWidget; WidgetWords). -->
+    <string name="widget_idle">Idle</string>
+    <string name="widget_working">Working</string>
+    <string name="widget_working_on">Working: %1$s</string>
+    <string name="widget_scheduled">Running a scheduled task</string>
+    <string name="widget_budget_paused">Paused at the task budget</string>
+    <plurals name="widget_approvals">
+        <item quantity="one">%d approval</item>
+        <item quantity="other">%d approvals</item>
+    </plurals>
+    <plurals name="widget_questions">
+        <item quantity="one">%d question</item>
+        <item quantity="other">%d questions</item>
+    </plurals>
+    <plurals name="widget_helpers">
+        <item quantity="one">%d helper</item>
+        <item quantity="other">%d helpers</item>
+    </plurals>
+    <string name="widget_waiting">%1$s waiting</string>
+    <string name="widget_waiting_both">%1$s, %2$s waiting</string>
+    <string name="widget_run_label">%1$s · %2$s</string>
+    <string name="widget_run_untitled">Scheduled task</string>
+    <string name="widget_run_done">Done</string>
+    <string name="widget_run_failed">Failed</string>
+    <string name="widget_run_stopped">Stopped</string>
+    <string name="widget_run_hidden">Open Locus to read it.</string>
+    <string name="widget_next">Next: %1$s · %2$s</string>
+    <string name="widget_next_untitled">Next task: %1$s</string>
+    <string name="widget_usage_today">Today</string>
+    <string name="widget_usage_cost_unknown">Today · cost unknown</string>
+    <string name="widget_usage_prices_off">Today · prices off</string>
+    <string name="widget_usage_nothing">No usage yet</string>
+    <plurals name="widget_usage_tokens">
+        <item quantity="one">%1$s token</item>
+        <item quantity="other">%1$s tokens</item>
+    </plurals>
+    <plurals name="widget_usage_requests">
+        <item quantity="one">%d request</item>
+        <item quantity="other">%d requests</item>
+    </plurals>
+    <string name="widget_usage_week">7 days · %1$s</string>
+    <string name="widget_usage_week_description">Use over the last 7 days, today last</string>
+    <string name="widget_usage_task">Task: %1$s</string>
+    <string name="widget_usage_task_paused">Task paused: %1$s</string>
+    <string name="widget_usage_of_tokens">%1$s of %2$s tokens</string>
+    <string name="widget_usage_of">%1$s of %2$s</string>
+    <string name="widget_usage_parts">%1$s · %2$s</string>
     <!-- The default-assistant entry (ACTION_ASSIST): the name in Settings → Default apps → Digital assistant app. -->
     <string name="assist_label">Locus</string>
     <!-- Notices and sheets in the main window (MainActivity.kt). -->

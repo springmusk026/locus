@@ -15,6 +15,58 @@
     <string name="widget_ask">Preguntar a Locus</string>
     <string name="widget_usage_label">Uso de Locus</string>
     <string name="widget_usage_description">Gasto y tokens de hoy en todos tus proveedores, y el presupuesto de la tarea en curso</string>
+    <!-- What the widgets say (LocusWidget, LocusUsageWidget; WidgetWords). -->
+    <string name="widget_idle">Inactivo</string>
+    <string name="widget_working">Trabajando</string>
+    <string name="widget_working_on">Trabajando: %1$s</string>
+    <string name="widget_scheduled">Ejecutando una tarea programada</string>
+    <string name="widget_budget_paused">En pausa por el presupuesto de la tarea</string>
+    <plurals name="widget_approvals">
+        <item quantity="one">%d aprobación</item>
+        <item quantity="many">%d aprobaciones</item>
+        <item quantity="other">%d aprobaciones</item>
+    </plurals>
+    <plurals name="widget_questions">
+        <item quantity="one">%d pregunta</item>
+        <item quantity="many">%d preguntas</item>
+        <item quantity="other">%d preguntas</item>
+    </plurals>
+    <plurals name="widget_helpers">
+        <item quantity="one">%d ayudante</item>
+        <item quantity="many">%d ayudantes</item>
+        <item quantity="other">%d ayudantes</item>
+    </plurals>
+    <string name="widget_waiting">%1$s en espera</string>
+    <string name="widget_waiting_both">%1$s, %2$s en espera</string>
+    <string name="widget_run_label">%1$s · %2$s</string>
+    <string name="widget_run_untitled">Tarea programada</string>
+    <string name="widget_run_done">Terminada</string>
+    <string name="widget_run_failed">Falló</string>
+    <string name="widget_run_stopped">Detenida</string>
+    <string name="widget_run_hidden">Abre Locus para leerlo.</string>
+    <string name="widget_next">Próxima: %1$s · %2$s</string>
+    <string name="widget_next_untitled">Próxima tarea: %1$s</string>
+    <string name="widget_usage_today">Hoy</string>
+    <string name="widget_usage_cost_unknown">Hoy · gasto desconocido</string>
+    <string name="widget_usage_prices_off">Hoy · precios desactivados</string>
+    <string name="widget_usage_nothing">Aún sin uso</string>
+    <plurals name="widget_usage_tokens">
+        <item quantity="one">%1$s token</item>
+        <item quantity="many">%1$s tokens</item>
+        <item quantity="other">%1$s tokens</item>
+    </plurals>
+    <plurals name="widget_usage_requests">
+        <item quantity="one">%d solicitud</item>
+        <item quantity="many">%d solicitudes</item>
+        <item quantity="other">%d solicitudes</item>
+    </plurals>
+    <string name="widget_usage_week">7 días · %1$s</string>
+    <string name="widget_usage_week_description">Uso de los últimos 7 días, hoy al final</string>
+    <string name="widget_usage_task">Tarea: %1$s</string>
+    <string name="widget_usage_task_paused">Tarea en pausa: %1$s</string>
+    <string name="widget_usage_of_tokens">%1$s de %2$s tokens</string>
+    <string name="widget_usage_of">%1$s de %2$s</string>
+    <string name="widget_usage_parts">%1$s · %2$s</string>
     <string name="assist_label">Locus</string>
     <string name="app_restore_unfinished_title">La restauración no terminó</string>
     <string name="app_restore_tasks_off_title">Las tareas programadas están desactivadas</string>
