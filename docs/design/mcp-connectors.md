@@ -395,6 +395,8 @@ A server's tool descriptions are instructions the model reads. `McpClients.tools
   - aren't offered to `find_tools` or provider-side tool search;
   - aren't called: `mcp_call.precheck` answers before anyone is asked and before the network call, and `execute` refuses too. The message tells the model the user can review them in Library → Connectors.
   - A tool the server stops listing is simply gone.
+- **A name listed twice** in one listing is refused in every copy (fail closed), on first connect as well: neither copy is pinned, usable, listed, offered as a deferred tool or used for risk hints, and `mcp_call` refuses the name ("lists more than one tool named …"). Pins are keyed by name, so otherwise the approved copy made the name usable and an unapproved copy (new text, or `readOnlyHint: true` on a tool approved as destructive) rode along, and `McpCall.find`/`risk` took whichever came first (#407). Every copy shows in the review as **Listed twice** and can't be approved; once the server lists the name once, it is checked against its pin as usual (or is *new* if it was never pinned).
+- **Each definition is checked on its own.** `McpToolPinStore.filter` and `cachedFilter` keep a tool only when its own definition's hash equals its pin (`McpPinning.Check.allows`), not merely when its name is usable.
 - **Approve** (Library → Connectors) re-pins the waiting tools with `approvedAt` = now. A chat created before then doesn't get the new version: the chat's root creation time is compared, so helpers count as their parent. The model there hears "approvals apply to new chats, so start a new chat to use it". This is the fixed-tool-list-per-chat rule of docs/design/tool-discovery.md ("Frozen per chat"): a chat's tools never change under it. Provider-side deferred specs (`McpDiscovery.cached`) aren't chat-aware, so an old chat may still see the new definition there; a direct call of it is refused by `mcp_call` all the same.
 - **Removing a connector** drops its pins. Adding it again is a first connect.
 
@@ -414,7 +416,7 @@ If the seal breaks (the settings file was changed outside Locus), `PolicySeal.re
 - **The connector's row** in Library → Connectors gets a Caution badge ("Tools changed", "New tool"). It opens expanded with a banner, "1 tool changed and 1 new tool since you approved this server. Chats don't get them until you review and approve.", and **Review changes**. Library's "To review" line counts it.
 - **Opening Connectors** lists the tools of active remote servers once per visit, so a change shows up before a chat trips over it. Local servers aren't started just for this.
 - **The sheet** ("Review tool changes", the design system's `ConfirmSheet` in the Caution tone, with **Not now** and **Approve** under the diffs so they are read before deciding) shows each waiting tool:
-  - its name and a chip: New, Changed, "Hints changed" (only the read-only or destructive hints moved) or "Check again" (after a broken seal);
+  - its name and a chip: New, Changed, "Hints changed" (only the read-only or destructive hints moved), "Check again" (after a broken seal) or "Listed twice" (every copy, not approvable; Approve is disabled when nothing else waits);
   - a diff of the description, split into sentences, and one of the arguments (pretty-printed JSON), drawn with the design system's `DiffLine`;
   - unchanged runs cut to one line of context.
   A description with hidden characters says how many (docs/design/taint.md, "Hidden characters"). The diff shows the text without them, which is what the model will read.

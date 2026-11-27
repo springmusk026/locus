@@ -339,6 +339,7 @@
     <string name="library_rules_extra_hint">Domínios, IDs de entidades, ações ou nomes, separados por vírgulas.</string>
     <string name="library_rules_sheet_subtitle">Para %1$s. O Locus pergunta antes de cada alteração na sua casa; estas também não podem ser lembradas nem respondidas remotamente.</string>
     <string name="library_toolchanges_badge_changed">Ferramentas alteradas</string>
+    <string name="library_toolchanges_badge_duplicate">Ferramenta repetida</string>
     <string name="library_toolchanges_summary_both">%1$s e %2$s desde que você aprovou este servidor. Os chats não os recebem até você revisar e aprovar.</string>
     <string name="library_toolchanges_review">Revisar alterações</string>
     <string name="library_toolchanges_sheet_title">Revisar alterações de ferramentas</string>
@@ -348,6 +349,8 @@
     <string name="library_toolchanges_chip_hints_changed">Dicas alteradas</string>
     <string name="library_toolchanges_chip_changed">Alterada</string>
     <string name="library_toolchanges_chip_check_again">Verificar de novo</string>
+    <string name="library_toolchanges_chip_duplicate">Repetida</string>
+    <string name="library_toolchanges_duplicate">O servidor lista mais de uma ferramenta com este nome, então o Locus não consegue saber qual delas uma chamada alcançaria. Todas as cópias ficam retidas até o servidor listá-la uma só vez; aprovar não muda isso.</string>
     <string name="library_toolchanges_record_changed">O registro que o Locus tem desta ferramenta foi alterado fora do Locus, então ele não pode garanti-la.</string>
     <string name="library_toolchanges_only_hints">Só as dicas dela mudaram: se ela diz que lê, grava ou exclui. Isso decide se as chamadas perguntam a você antes.</string>
     <string name="library_toolchanges_diff_description">Descrição</string>
@@ -361,6 +364,11 @@
         <item quantity="one">%1$d ferramenta mudou desde que você aprovou este servidor. Os chats não a recebem até você revisar e aprovar.</item>
         <item quantity="many">%1$d ferramentas mudaram desde que você aprovou este servidor. Os chats não as recebem até você revisar e aprovar.</item>
         <item quantity="other">%1$d ferramentas mudaram desde que você aprovou este servidor. Os chats não as recebem até você revisar e aprovar.</item>
+    </plurals>
+    <plurals name="library_toolchanges_summary_duplicate">
+        <item quantity="one">Este servidor lista %1$d nome de ferramenta mais de uma vez, então todas as cópias ficam retidas. Os chats não podem usá-la até o servidor listá-la uma só vez.</item>
+        <item quantity="many">Este servidor lista %1$d nomes de ferramentas mais de uma vez, então todas as cópias ficam retidas. Os chats não podem usá-las até o servidor listar cada uma uma só vez.</item>
+        <item quantity="other">Este servidor lista %1$d nomes de ferramentas mais de uma vez, então todas as cópias ficam retidas. Os chats não podem usá-las até o servidor listar cada uma uma só vez.</item>
     </plurals>
     <plurals name="library_toolchanges_summary_new">
         <item quantity="one">%1$d nova ferramenta desde que você aprovou este servidor. Os chats não a recebem até você revisar e aprovar.</item>
