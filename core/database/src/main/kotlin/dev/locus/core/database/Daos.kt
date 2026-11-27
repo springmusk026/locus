@@ -373,6 +373,54 @@ const val AUDIT_BROWSE_CHAT = "SELECT * FROM audit_log WHERE conversationId = :c
 const val AUDIT_BROWSE_CHAT_AND_HELPERS = "SELECT * FROM audit_log WHERE (conversationId = :conversationId " +
     "OR conversationId IN (SELECT id FROM conversations WHERE parentConversationId = :conversationId)) $AUDIT_BROWSE_FILTERS"
 
+/**
+ * The filters of an Activity text search, shared by [AUDIT_SEARCH] and [AUDIT_SEARCH_SCAN]. Neither reads
+ * `conversations`: the chats to look in ([chats], a chat and its helpers) and the chats whose title matched
+ * ([titleChats]) come in as lists, worked out from their own small queries ([AuditDao.observeTitleMatches],
+ * [AuditDao.observeHelperChats]), so writing a chat doesn't run the search again. The text test is the `LIKE` the
+ * search has always used (`\` escapes): in [AUDIT_SEARCH] it confirms each row the index found, so the results are
+ * exactly what the `LIKE` alone returns.
+ */
+private const val AUDIT_SEARCH_FILTERS = "AND startedAt >= :since AND startedAt <= :until " +
+    "AND (:allChats OR conversationId IN (:chats)) " +
+    "AND (:allTools OR toolName IN (:tools)) " +
+    "AND (:allDecisions OR (decision IN (:decisions) AND toolName != '$TASK_BUDGET_ENTRY')) " +
+    "AND (NOT :onlyErrors OR isError = 1) " +
+    "AND (toolName IN (:textTools) OR conversationId IN (:titleChats) " +
+    "OR argumentsJson LIKE :pattern ESCAPE '\\' OR resultPreview LIKE :pattern ESCAPE '\\') " +
+    "ORDER BY startedAt DESC LIMIT :limit"
+
+/**
+ * Activity's text search through the `audit_fts` index: the rows whose arguments or result preview contain the
+ * phrase [match] (trigram, so three characters or more), whose tool label matched, or whose chat's title did. Only
+ * those rows are read and sorted; the log isn't scanned.
+ */
+const val AUDIT_SEARCH = "SELECT * FROM audit_log WHERE seq IN (" +
+    "SELECT rowid FROM audit_fts WHERE audit_fts MATCH :match " +
+    "UNION SELECT seq FROM audit_log WHERE toolName IN (:textTools) " +
+    "UNION SELECT seq FROM audit_log WHERE conversationId IN (:titleChats)) $AUDIT_SEARCH_FILTERS"
+
+/** [AUDIT_SEARCH] for text too short for the index (under three characters): the log in time order, filtered. */
+const val AUDIT_SEARCH_SCAN = "SELECT * FROM audit_log WHERE 1 $AUDIT_SEARCH_FILTERS"
+
+/**
+ * The text search as it was before the index (v20 and earlier), behind [AuditDao.observeFiltered]: `LIKE` over every
+ * row, with chat titles and helper chats read from `conversations`. Kept for the rare search whose chat lists are too
+ * long to bind, and as the reference the indexed search is tested against (AuditSearchSqlTest).
+ */
+const val AUDIT_SEARCH_LIKE =
+    "SELECT * FROM audit_log WHERE startedAt >= :since AND startedAt <= :until " +
+        "AND (:conversationId IS NULL OR conversationId = :conversationId " +
+        "OR (:withHelpers AND conversationId IN (SELECT id FROM conversations WHERE parentConversationId = :conversationId))) " +
+        "AND (:allTools OR toolName IN (:tools)) " +
+        // A task's budget entries carry the user's Continue / Stop as a decision, but aren't approvals.
+        "AND (:allDecisions OR (decision IN (:decisions) AND toolName != '$TASK_BUDGET_ENTRY')) " +
+        "AND (NOT :onlyErrors OR isError = 1) " +
+        "AND (:pattern IS NULL OR toolName IN (:textTools) " +
+        "OR argumentsJson LIKE :pattern ESCAPE '\\' OR resultPreview LIKE :pattern ESCAPE '\\' " +
+        "OR conversationId IN (SELECT id FROM conversations WHERE title LIKE :pattern ESCAPE '\\')) " +
+        "ORDER BY startedAt DESC LIMIT :limit"
+
 @Dao
 interface AuditDao {
     /** Forgets a deleted temporary chat's tool calls (docs/design/temporary-chats.md). */
@@ -402,22 +450,12 @@ interface AuditDao {
      * the time span; [withHelpers] adds the helper chats [conversationId] started (a task receipt's view).
      * The window grows by raising [limit].
      *
-     * It reads `conversations` for titles, so Room runs it again on every write to that table. Browsing
-     * without text uses [observeBrowse], [observeBrowseChat] and [observeBrowseChatAndHelpers], which don't.
+     * It reads `conversations` for titles, so Room runs it again on every write to that table, and it scans the log.
+     * Browsing without text uses [observeBrowse], [observeBrowseChat] and [observeBrowseChatAndHelpers]; text search
+     * uses [observeSearch] (or [observeSearchScan]). This one is left for the rare search whose title matches are
+     * too many to pass as a list.
      */
-    @Query(
-        "SELECT * FROM audit_log WHERE startedAt >= :since AND startedAt <= :until " +
-            "AND (:conversationId IS NULL OR conversationId = :conversationId " +
-            "OR (:withHelpers AND conversationId IN (SELECT id FROM conversations WHERE parentConversationId = :conversationId))) " +
-            "AND (:allTools OR toolName IN (:tools)) " +
-            // A task's budget entries carry the user's Continue / Stop as a decision, but aren't approvals.
-            "AND (:allDecisions OR (decision IN (:decisions) AND toolName != '$TASK_BUDGET_ENTRY')) " +
-            "AND (NOT :onlyErrors OR isError = 1) " +
-            "AND (:pattern IS NULL OR toolName IN (:textTools) " +
-            "OR argumentsJson LIKE :pattern ESCAPE '\\' OR resultPreview LIKE :pattern ESCAPE '\\' " +
-            "OR conversationId IN (SELECT id FROM conversations WHERE title LIKE :pattern ESCAPE '\\')) " +
-            "ORDER BY startedAt DESC LIMIT :limit",
-    )
+    @Query(AUDIT_SEARCH_LIKE)
     fun observeFiltered(
         since: Long,
         conversationId: String?,
@@ -432,6 +470,55 @@ interface AuditDao {
         until: Long,
         withHelpers: Boolean,
     ): Flow<List<AuditEntity>>
+
+    /**
+     * Activity's text search through the index ([AUDIT_SEARCH]). [match] is an FTS5 phrase of three or more
+     * characters and [pattern] the same text as a `LIKE` pattern; [chats] (unless [allChats]) are the chats to look
+     * in and [titleChats] the chats whose title matched. Reads `audit_log` alone, so only a recorded tool call runs it again.
+     */
+    @Query(AUDIT_SEARCH)
+    fun observeSearch(
+        match: String,
+        pattern: String,
+        textTools: List<String>,
+        titleChats: List<String>,
+        allChats: Boolean,
+        chats: List<String>,
+        since: Long,
+        until: Long,
+        allTools: Boolean,
+        tools: List<String>,
+        allDecisions: Boolean,
+        decisions: List<String>,
+        onlyErrors: Boolean,
+        limit: Int,
+    ): Flow<List<AuditEntity>>
+
+    /** [observeSearch] for text under three characters, which the trigram index can't look up ([AUDIT_SEARCH_SCAN]). */
+    @Query(AUDIT_SEARCH_SCAN)
+    fun observeSearchScan(
+        pattern: String,
+        textTools: List<String>,
+        titleChats: List<String>,
+        allChats: Boolean,
+        chats: List<String>,
+        since: Long,
+        until: Long,
+        allTools: Boolean,
+        tools: List<String>,
+        allDecisions: Boolean,
+        decisions: List<String>,
+        onlyErrors: Boolean,
+        limit: Int,
+    ): Flow<List<AuditEntity>>
+
+    /** The chats whose title matches [pattern] (a `LIKE` pattern, `\` escapes), for [observeSearch]. */
+    @Query("SELECT id FROM conversations WHERE title LIKE :pattern ESCAPE '\\' ORDER BY id")
+    fun observeTitleMatches(pattern: String): Flow<List<String>>
+
+    /** The helper chats [conversationId] started, for [observeSearch] on a task receipt. */
+    @Query("SELECT id FROM conversations WHERE parentConversationId = :conversationId ORDER BY id")
+    fun observeHelperChats(conversationId: String): Flow<List<String>>
 
     /**
      * [observeFiltered] with no text to search for, across every chat. It reads only `audit_log`, in

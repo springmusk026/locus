@@ -19,6 +19,7 @@ internal object DatabaseModule {
     fun database(@ApplicationContext context: Context): LocusDatabase =
         Room.databaseBuilder(context, LocusDatabase::class.java, DatabaseBackup.NAME)
             .setDriver(BundledSQLiteDriver())
+            .addMigrations(ActivitySearchMigration)
             .setQueryCoroutineContext(Dispatchers.IO)
             .build()
 
