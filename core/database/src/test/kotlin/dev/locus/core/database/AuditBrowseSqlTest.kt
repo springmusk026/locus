@@ -23,7 +23,7 @@ class AuditBrowseSqlTest {
     fun setUp() {
         Sqlite3.assumeAvailable()
         db = Sqlite3(tmp.newFile("locus.db"))
-        db.run(ExportedSchema(20).createAll())
+        db.run(ExportedSchema(21).createAll())
         db.run(
             "INSERT INTO conversations (id, title, providerId, systemPrompt, createdAt, updatedAt) VALUES ('main', 'Main', 'p', '', 1, 1);" +
                 "INSERT INTO conversations (id, title, providerId, systemPrompt, createdAt, updatedAt, parentConversationId) VALUES ('helper', 'Helper', 'p', '', 1, 1, 'main');" +

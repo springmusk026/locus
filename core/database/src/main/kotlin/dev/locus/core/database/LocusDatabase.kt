@@ -4,12 +4,13 @@ import androidx.room3.AutoMigration
 import androidx.room3.Database
 import androidx.room3.RoomDatabase
 import androidx.room3.migration.AutoMigrationSpec
+import androidx.room3.migration.Migration
 import androidx.sqlite.SQLiteConnection
 import androidx.sqlite.execSQL
 
 @Database(
-    entities = [ConversationEntity::class, MessageEntity::class, MessageFtsEntity::class, AuditEntity::class, ScheduledTaskEntity::class, UsageEventEntity::class, FileChangeEntity::class, TaskRunEntity::class, ProjectEntity::class, TriggerEventEntity::class, ProposalEntity::class],
-    version = 20,
+    entities = [ConversationEntity::class, MessageEntity::class, MessageFtsEntity::class, AuditEntity::class, AuditFtsEntity::class, ScheduledTaskEntity::class, UsageEventEntity::class, FileChangeEntity::class, TaskRunEntity::class, ProjectEntity::class, TriggerEventEntity::class, ProposalEntity::class],
+    version = 21,
     autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3), AutoMigration(from = 3, to = 4), AutoMigration(from = 4, to = 5), AutoMigration(from = 5, to = 6), AutoMigration(from = 6, to = 7, spec = BranchesMigration::class), AutoMigration(from = 7, to = 8, spec = SearchMigration::class), AutoMigration(from = 8, to = 9), AutoMigration(from = 9, to = 10), AutoMigration(from = 10, to = 11), AutoMigration(from = 11, to = 12), AutoMigration(from = 12, to = 13), AutoMigration(from = 13, to = 14), AutoMigration(from = 14, to = 15), AutoMigration(from = 15, to = 16), AutoMigration(from = 16, to = 17), AutoMigration(from = 17, to = 18), AutoMigration(from = 18, to = 19), AutoMigration(from = 19, to = 20, spec = NeedsYouMigration::class)],
 )
 abstract class LocusDatabase : RoomDatabase() {
@@ -24,6 +25,42 @@ abstract class LocusDatabase : RoomDatabase() {
     abstract fun projectDao(): ProjectDao
     abstract fun triggerEventDao(): TriggerEventDao
     abstract fun proposalDao(): ProposalDao
+}
+
+/**
+ * v21 indexes the Activity log for search (#316, docs/design/search.md, "Activity's queries"). `audit_log` gets an
+ * INTEGER PRIMARY KEY, `seq`, for the index's rowids to point at, so the table is rebuilt: a new table, every row
+ * copied in time order (so `seq` follows `startedAt`), the old one dropped and the new one renamed, then its indexes,
+ * with `id` (the old primary key) unique. Then the trigram FTS5 table `audit_fts` over the arguments and result
+ * previews, built once from the copied rows. Room creates the index's sync triggers after migrations, as for
+ * `message_fts`. A manual migration: Room's AutoMigration refuses a new NOT NULL column without a default, and a
+ * default would give every copied row the same `seq`. Registered in [DatabaseModule].
+ */
+object ActivitySearchMigration : Migration(20, 21) {
+    override suspend fun migrate(connection: SQLiteConnection) {
+        STATEMENTS.forEach(connection::execSQL)
+    }
+
+    /** The audit columns both versions have, in the order they're copied. */
+    private const val COLUMNS = "`id`, `conversationId`, `callId`, `toolName`, `argumentsJson`, `decision`, `resultPreview`, `isError`, `startedAt`, `finishedAt`"
+
+    /** What the migration runs, in order; the tests run the same statements. */
+    val STATEMENTS = listOf(
+        "CREATE TABLE IF NOT EXISTS `_new_audit_log` (`id` TEXT NOT NULL, `conversationId` TEXT NOT NULL, `callId` TEXT NOT NULL, " +
+            "`toolName` TEXT NOT NULL, `argumentsJson` TEXT NOT NULL, `decision` TEXT NOT NULL, `resultPreview` TEXT NOT NULL, " +
+            "`isError` INTEGER NOT NULL, `startedAt` INTEGER NOT NULL, `finishedAt` INTEGER NOT NULL, `seq` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL)",
+        "INSERT INTO `_new_audit_log` ($COLUMNS) SELECT $COLUMNS FROM `audit_log` ORDER BY `startedAt`, `rowid`",
+        "DROP TABLE `audit_log`",
+        "ALTER TABLE `_new_audit_log` RENAME TO `audit_log`",
+        "CREATE INDEX IF NOT EXISTS `index_audit_log_conversationId` ON `audit_log` (`conversationId`)",
+        "CREATE INDEX IF NOT EXISTS `index_audit_log_startedAt` ON `audit_log` (`startedAt`)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS `index_audit_log_id` ON `audit_log` (`id`)",
+        "CREATE INDEX IF NOT EXISTS `index_audit_log_toolName` ON `audit_log` (`toolName`)",
+        "CREATE VIRTUAL TABLE IF NOT EXISTS `audit_fts` USING FTS5(`argumentsJson`, `resultPreview`, tokenize=`trigram`, " +
+            "content=`audit_log`, content_rowid=`seq`)",
+        // Re-reads every row of audit_log into the index (FTS5's 'rebuild' command).
+        "INSERT INTO audit_fts(audit_fts) VALUES('rebuild')",
+    )
 }
 
 /**
