@@ -3,7 +3,7 @@
 Status: shipped in 0.1.5, *not yet tried on the phone*. Roadmap: [Recommended next #7](../ROADMAP.md#recommended-next-nov-2026) and "Ways in"; research: [product P1, P2, P4, P5, P8](../research/product-platform-2026.md#p-android-platform).
 
 Code:
-- Ways in: `app/src/main/res/xml/shortcuts.xml`, `app/.../LaunchActions.kt`, `AskTileService.kt`, the `AskLocusText` alias in the app manifest, `ShareViewModel.kt` and `MainActivity.kt` (handling); `core/data/.../shortcuts/ChatShortcuts.kt` (dynamic and sharing shortcuts).
+- Ways in: `app/src/main/res/xml/shortcuts.xml`, `app/.../LaunchActions.kt`, `AskTileService.kt`, the `AskLocusText` alias in the app manifest, `ShareViewModel.kt` and `MainActivity.kt` (handling; the back-stack moves are in `AppNavigation.kt`); JVM tests in `app/src/test` (`WaysInTest`, `AskTileServiceTest`, `ShareViewModelTest`, `AppNavigationTest`); `core/data/.../shortcuts/ChatShortcuts.kt` (dynamic and sharing shortcuts).
 - Widget: `app/.../widget/LocusWidget.kt` (Glance UI and receiver), `LocusWidgetUpdater.kt`, `res/xml/locus_widget_info.xml`; `core/data/.../widget/WidgetFeed.kt` (state mapping and cleaning, tested in `WidgetFeedTest`).
 - Default assistant: the `AssistLocus` alias in the app manifest, `LaunchActions.resolve`; `DefaultAssistant` in `feature/settings/.../AutomationSettings.kt`.
 - Intent API: `app/.../AutomationActivity.kt`; `core/data/.../automation/` (`AutomationContract`, `AutomationRequest`, `AutomationAccess`, `AutomationBridge`); `ModeNote.external` (core/model); `Taint.sourcesIn` and `trustedUserMessages` (core/agent).

@@ -2,6 +2,7 @@ import dev.locus.buildlogic.configureKover
 import dev.locus.buildlogic.configureKotlinJvm
 import dev.locus.buildlogic.lib
 import dev.locus.buildlogic.libs
+import dev.locus.buildlogic.registerUnitTests
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.kotlin.dsl.apply
@@ -13,6 +14,7 @@ class JvmLibraryConventionPlugin : Plugin<Project> {
         apply(plugin = "org.jetbrains.kotlin.jvm")
         configureKotlinJvm()
         configureKover(androidVariant = null)
+        registerUnitTests("test")
         dependencies {
             "testImplementation"(libs.lib("kotlin.test"))
             "testImplementation"(libs.lib("junit"))

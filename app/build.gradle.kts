@@ -55,6 +55,9 @@ android {
     }
 
     testOptions {
+        // JVM tests (src/test, Robolectric) read the merged manifest and resources: which component an
+        // intent reaches, the static shortcuts (docs/TESTING.md).
+        unitTests.isIncludeAndroidResources = true
         // Each test in its own process (https://developer.android.com/training/testing/instrumented-tests/androidx-test-libraries/runner#use-android).
         // Hilt builds a new graph per test, and two DataStores on one file in one process throw; the
         // process-death and restore tests also need a real new process between their two phases. No
@@ -143,6 +146,12 @@ android {
             useLegacyPackaging = true
         }
     }
+}
+
+// The JVM tests (src/test) run Robolectric at SDK 36, which reaches into FileDescriptor internals on
+// JDK 17+ (the same flags AndroidScreenshotsConventionPlugin gives the screenshot modules).
+tasks.withType<Test>().configureEach {
+    jvmArgs("--add-exports=java.base/jdk.internal.access=ALL-UNNAMED", "--add-opens=java.base/java.io=ALL-UNNAMED")
 }
 
 // Per-ABI version codes: versionCode * 10 + the ABI's digit, so 0.1.4 (base 5) ships 53 (arm64-v8a)
@@ -245,6 +254,17 @@ dependencies {
     // The home-screen widget (docs/design/android-bridge.md).
     implementation(libs.androidx.glance.appwidget)
     implementation(libs.androidx.glance.material3)
+
+    // JVM tests (Robolectric): navigation, DI wiring and the ways in (share, automation, the tile).
+    // Run with the rest by ./gradlew unitTests (docs/TESTING.md).
+    testImplementation(projects.core.testing)
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlin.test)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.hilt.android.testing)
+    kspTest(libs.hilt.compiler)
 
     // Instrumentation tests: ./gradlew :app:connectedDebugAndroidTest (docs/TESTING.md).
     androidTestImplementation(projects.core.testing)
