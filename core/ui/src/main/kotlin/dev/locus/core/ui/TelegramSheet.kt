@@ -115,7 +115,7 @@ fun TelegramSheet(integration: Integration, hasKey: Boolean, actions: TelegramAc
 
     val chatId = Telegram.parseChatId(chatText)
     val tokenOk = if (token.isBlank()) hasKey else Telegram.isToken(token)
-    fun failed(e: Throwable) { error = e.message?.let { UiText.Plain(it) } ?: UiText.Res(DesignR.string.common_error_generic); note = null; running = null }
+    fun failed(e: Throwable) { error = e.userText(UiText.Res(DesignR.string.common_error_generic)); note = null; running = null }
 
     LocusSheet(
         title = integration.displayName(LocalResources.current),

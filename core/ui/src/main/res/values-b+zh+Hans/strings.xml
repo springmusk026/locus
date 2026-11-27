@@ -576,4 +576,19 @@
     <string name="ui_research_budget_change">更改预算</string>
     <string name="ui_research_scheduled_note">计划运行无法向你询问：它会跳过你未在范围说明中写明的网站，并把报告放在聊天中而不是文件里。</string>
     <string name="ui_research_outside">它读取的所有内容都算作外部内容。向手机以外发送或更改任何内容前都会先询问你，打开你未写明的网站也一样。</string>
+
+    <!-- Catalogue names that are words (CatalogRes.PRESET_NAME, MCP_NAME), and the descriptions Locus writes for connectors the user adds; the saved English stays -->
+    <string name="ui_catalog_preset_on_device_name">在此手机上（Gemma 4，离线）</string>
+    <string name="ui_catalog_preset_on_this_phone_name">在此手机上</string>
+    <string name="ui_catalog_preset_chatgpt_name">ChatGPT（你的套餐）</string>
+    <string name="ui_catalog_preset_ollama_name">Ollama（你的网络）</string>
+    <string name="ui_catalog_preset_lm_studio_name">LM Studio / llama.cpp（你的网络）</string>
+    <string name="ui_catalog_preset_custom_name">自定义</string>
+    <string name="ui_catalog_mcp_filesystem_name">文件</string>
+    <string name="ui_catalog_mcp_fetch_name">网页抓取</string>
+    <string name="ui_catalog_mcp_memory_name">知识图谱</string>
+    <string name="ui_connector_remote_description">位于 %1$s 的 MCP 服务器</string>
+    <string name="ui_connector_local_description">本地 MCP 服务器：%1$s</string>
+    <string name="ui_connector_home_assistant_full">你的 Home Assistant，拥有完全访问权限（你启用的所有工具集）。</string>
+    <string name="ui_connector_home_assistant_assist">你的 Home Assistant：你向 Assist 公开的设备。</string>
 </resources>

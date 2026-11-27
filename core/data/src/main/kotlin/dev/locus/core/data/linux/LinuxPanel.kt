@@ -100,7 +100,7 @@ fun linuxPanel(
         )
     }
     status == LinuxStatus.Ready -> LinuxPanel.Installed(facts.version, facts.diskBytes, facts.services, facts.killed)
-    status is LinuxStatus.Failed -> LinuxPanel.Failed(EngineText.Plain(status.message))
+    status is LinuxStatus.Failed -> LinuxPanel.Failed(status.text)
     // A run that failed before Linux reported anything (an unsupported CPU, a crash in setup).
     setup.error != null && !setup.cancelled -> LinuxPanel.Failed(setup.error)
     else -> LinuxPanel.NotInstalled(InstallEstimate.of(selected))

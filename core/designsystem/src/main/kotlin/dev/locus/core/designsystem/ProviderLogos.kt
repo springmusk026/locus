@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -294,7 +295,7 @@ fun ContinueWithChatGptButton(onClick: () -> Unit, modifier: Modifier = Modifier
     ) {
         Icon(painterResource(BrandLogo.OpenAI.res), contentDescription = null, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(Spacing.sm))
-        Text(if (busy) "Waiting for the browser…" else "Continue with ChatGPT", style = MaterialTheme.typography.labelLarge)
+        Text(stringResource(if (busy) R.string.designsystem_chatgpt_waiting else R.string.designsystem_chatgpt_continue), style = MaterialTheme.typography.labelLarge)
     }
 }
 

@@ -9,7 +9,11 @@ import dev.locus.core.agent.integrations.EmailConnectionTest
 import dev.locus.core.agent.integrations.EmailForm
 import dev.locus.core.agent.integrations.EmailPresets
 import dev.locus.core.agent.integrations.Integrations
+import dev.locus.core.data.R
 import dev.locus.core.datastore.SecretStore
+import dev.locus.core.linux.EngineInputException
+import dev.locus.core.linux.EngineStateException
+import dev.locus.core.linux.EngineText
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
@@ -51,7 +55,7 @@ class EmailSetup @Inject constructor(
     /** The account [form] describes, exactly as the email tools will parse it. Throws with a message to show. */
     private suspend fun account(form: EmailForm): Pair<String, EmailAccount> {
         val password = form.password.takeIf { it.isNotBlank() }?.let(form::cleanPassword) ?: savedAccount()?.password
-            ?: throw IllegalArgumentException("Enter the password first.")
+            ?: throw EngineInputException(EngineText.Res(R.string.data_email_password_first), "Enter the password first.")
         val value = form.toConfig(password)
         return value to EmailConfig.parse(value)
     }
@@ -75,16 +79,21 @@ class EmailSetup @Inject constructor(
      * list has nothing for the domain.
      */
     suspend fun lookUp(address: String): EmailAutoconfig.Found? {
-        val domain = EmailPresets.domainOf(address) ?: throw IllegalArgumentException("Enter the whole address first.")
+        val domain = EmailPresets.domainOf(address) ?: throw EngineInputException(EngineText.Res(R.string.data_email_address_first), "Enter the whole address first.")
         val response = try {
             withTimeout(LOOKUP_TIMEOUT_MS) { http.get(EmailAutoconfig.url(domain)) }
         } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-            throw IllegalStateException("Thunderbird's settings list didn't answer. Try again, or enter the settings yourself.")
+            throw EngineStateException(EngineText.Res(R.string.data_email_lookup_timeout), "Thunderbird's settings list didn't answer. Try again, or enter the settings yourself.")
         } catch (e: java.io.IOException) {
-            throw IllegalStateException("Couldn't reach Thunderbird's settings list. Check that the phone is online.")
+            throw EngineStateException(EngineText.Res(R.string.data_email_lookup_offline), "Couldn't reach Thunderbird's settings list. Check that the phone is online.")
         }
         if (response.status.value == 404) return null
-        if (!response.status.isSuccess()) throw IllegalStateException("Thunderbird's settings list answered ${response.status.value}. Try again later.")
+        if (!response.status.isSuccess()) {
+            throw EngineStateException(
+                EngineText.Res(R.string.data_email_lookup_http, response.status.value),
+                "Thunderbird's settings list answered ${response.status.value}. Try again later.",
+            )
+        }
         return EmailAutoconfig.parse(response.bodyAsText().take(MAX_LOOKUP_CHARS), address)
     }
 

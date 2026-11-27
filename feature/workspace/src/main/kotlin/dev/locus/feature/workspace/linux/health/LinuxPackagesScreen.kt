@@ -208,7 +208,7 @@ private fun Updates(state: LinuxPackagesUiState, onCheck: () -> Unit, onOpenTerm
             InlineSpinner(contentDescription = null)
             SupportingText(stringResource(R.string.workspace_packages_checking_updates))
         }
-        state.upgradesError != null -> Banner(state.upgradesError, Tone.Caution, modifier, title = stringResource(R.string.workspace_packages_updates_error_title), actionsBelow = true) {
+        state.upgradesError != null -> Banner(state.upgradesError.asString(), Tone.Caution, modifier, title = stringResource(R.string.workspace_packages_updates_error_title), actionsBelow = true) {
             TextButton(onClick = onCheck) { Text(stringResource(R.string.workspace_packages_try_again)) }
         }
         // The button goes under the note when beside it the note would be a one-word column.

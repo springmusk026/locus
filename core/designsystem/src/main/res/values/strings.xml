@@ -779,4 +779,10 @@
     <string name="designsystem_check_check_finished">Check finished</string>
     <string name="designsystem_tool_project_rule_past">Ran project rule “%1$s”</string>
     <string name="designsystem_tool_project_rule_present">Run project rule “%1$s”</string>
+
+    <!-- Attachments' counters and the ChatGPT sign-in button -->
+    <string name="designsystem_attachments_more">+%1$d</string>
+    <string name="designsystem_attachments_position">%1$d / %2$d</string>
+    <string name="designsystem_chatgpt_continue">Continue with ChatGPT</string>
+    <string name="designsystem_chatgpt_waiting">Waiting for the browser…</string>
 </resources>

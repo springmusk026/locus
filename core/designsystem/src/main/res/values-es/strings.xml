@@ -746,4 +746,10 @@
     <string name="designsystem_check_check_finished">La comprobación terminó</string>
     <string name="designsystem_tool_project_rule_past">Ejecutó la regla de proyecto «%1$s»</string>
     <string name="designsystem_tool_project_rule_present">Ejecutar la regla de proyecto «%1$s»</string>
+
+    <!-- Attachments' counters and the ChatGPT sign-in button -->
+    <string name="designsystem_attachments_more">+%1$d</string>
+    <string name="designsystem_attachments_position">%1$d / %2$d</string>
+    <string name="designsystem_chatgpt_continue">Continuar con ChatGPT</string>
+    <string name="designsystem_chatgpt_waiting">Esperando al navegador…</string>
 </resources>

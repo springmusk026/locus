@@ -256,6 +256,26 @@ internal object CatalogRes {
         "freshrss" to R.string.ui_catalog_service_freshrss_host_hint,
     )
 
+    /**
+     * Provider names that are words, by their English (what is saved as the provider's name); product names
+     * stay. "On this phone" is the name onboarding saves for the on-device model.
+     */
+    val PRESET_NAME: Map<String, Int> = mapOf(
+        "On this phone (Gemma 4, offline)" to R.string.ui_catalog_preset_on_device_name,
+        "On this phone" to R.string.ui_catalog_preset_on_this_phone_name,
+        "ChatGPT (your plan)" to R.string.ui_catalog_preset_chatgpt_name,
+        "Ollama (your network)" to R.string.ui_catalog_preset_ollama_name,
+        "LM Studio / llama.cpp (your network)" to R.string.ui_catalog_preset_lm_studio_name,
+        "Custom" to R.string.ui_catalog_preset_custom_name,
+    )
+
+    /** MCP template names that are words, by template id; product names stay. */
+    val MCP_NAME: Map<String, Int> = mapOf(
+        "filesystem" to R.string.ui_catalog_mcp_filesystem_name,
+        "fetch" to R.string.ui_catalog_mcp_fetch_name,
+        "memory" to R.string.ui_catalog_mcp_memory_name,
+    )
+
     val PRESET_NOTE: Map<String, Int> = mapOf(
         "On this phone (Gemma 4, offline)" to R.string.ui_catalog_preset_on_device_note,
         "Anthropic" to R.string.ui_catalog_preset_anthropic_note,

@@ -145,7 +145,7 @@ private fun Tile(image: GridImage, modifier: Modifier, onClick: () -> Unit, more
         if (more > 0) {
             Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim.copy(alpha = Emphasis.muted)), contentAlignment = Alignment.Center) {
                 // On the scrim in both themes, so always light.
-                Text("+$more", style = LocusType.stateTitle, color = Color.White) // design-exception: on a dark scrim over a photo in both themes
+                Text(stringResource(R.string.designsystem_attachments_more, more), style = LocusType.stateTitle, color = Color.White) // design-exception: on a dark scrim over a photo in both themes
             }
         }
     }
@@ -195,7 +195,7 @@ fun ImageGallery(count: Int, initial: Int, label: (Int) -> String, onDismiss: ()
                 }
                 Row(Modifier.fillMaxWidth().statusBarsPadding().padding(Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onDismiss) { Icon(LocusIcons.Close, contentDescription = stringResource(R.string.common_close)) }
-                    if (count > 1) Text("${pager.currentPage + 1} / $count", style = LocusType.label, modifier = Modifier.clearAndSetSemantics {})
+                    if (count > 1) Text(stringResource(R.string.designsystem_attachments_position, pager.currentPage + 1, count), style = LocusType.label, modifier = Modifier.clearAndSetSemantics {})
                 }
             }
         }

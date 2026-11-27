@@ -65,7 +65,8 @@ class ReachMeSetupTest {
         assertEquals(R.string.data_reachme_secret_invalid, problem(assertFailsWith { g.reachMe.save(ReachMeChannel.WEBHOOK, "https://h.example.com/x", "too short") }))
         // The address rule is the self-hosted one: http only on this phone or the local network.
         val http = assertFailsWith<ServiceSetupException> { g.reachMe.save(ReachMeChannel.WEBHOOK, "http://h.example.com/x", null) }
-        assertTrue(http.text is EngineText.Plain)
+        // In the user's words too (docs/design/localization.md): the address check's own text, in English its message.
+        assertEquals(EngineText.Res(R.string.data_address_http_public), http.text)
         assertNull(g.secrets.get(webhook))
     }
 

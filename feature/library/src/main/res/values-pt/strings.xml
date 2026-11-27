@@ -621,4 +621,11 @@
         <item quantity="many">%1$d ignoradas: notas com esses nomes foram salvas nesse meio-tempo</item>
         <item quantity="other">%1$d ignoradas: notas com esses nomes foram salvas nesse meio-tempo</item>
     </plurals>
+
+    <!-- Local MCP examples' names and needs, and the custom server's cleartext warning (LocalNetwork.cleartextWarning is the English) -->
+    <string name="library_localmcp_example_files">Arquivos</string>
+    <string name="library_localmcp_example_memory">Memória</string>
+    <string name="library_localmcp_example_fetch">Buscar páginas</string>
+    <string name="library_localmcp_example_git_needs">uv e git: apk add uv git</string>
+    <string name="library_connectors_custom_cleartext">Conexão sem criptografia para um endereço público: qualquer pessoa no caminho poderia ler ou alterar o que é enviado, incluindo chaves. Use https://.</string>
 </resources>

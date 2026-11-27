@@ -55,6 +55,7 @@ import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.UiText
 import dev.locus.core.designsystem.asString
 import dev.locus.core.model.ModelRef
+import dev.locus.core.ui.providerName
 
 /**
  * Pick the model for this chat: one search over every provider, favourites and recent picks on
@@ -233,7 +234,7 @@ private fun ProviderCard(
         ) {
             ProviderBadge(provider.name, provider.baseUrl, provider.onDevice, size = IconSize.tileSmall, model = provider.model)
             Column(Modifier.weight(1f).padding(start = Spacing.md)) {
-                Text(provider.name, style = LocusType.rowTitle, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(providerName(provider.name), style = LocusType.rowTitle, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 // Two lines: the default and the model count are both worth reading.
                 SupportingText(providerStatus(LocalResources.current, section.list, provider.model), maxLines = 2)
             }

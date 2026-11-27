@@ -6,10 +6,12 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.locus.core.designsystem.UiText
 import dev.locus.core.linux.LinuxEnvironment
 import dev.locus.feature.workspace.R
+import dev.locus.feature.workspace.linux.toUiText
 import dev.locus.core.model.runCatchingCancellable
 import dev.locus.core.linux.LinuxInventory
 import dev.locus.core.linux.LinuxProbe
 import dev.locus.core.linux.LinuxStatus
+import dev.locus.core.linux.engineText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -46,7 +48,7 @@ data class LinuxPackagesUiState(
     val error: UiText? = null,
     val upgrades: List<LinuxInventory.Upgrade>? = null,
     val checkingUpgrades: Boolean = false,
-    val upgradesError: String? = null,
+    val upgradesError: UiText? = null,
     val uninstalling: String? = null,
     val message: LinuxHealthUiState.Message? = null,
 ) {
@@ -115,7 +117,7 @@ class LinuxPackagesViewModel(
                 s.copy(
                     packages = pkgs,
                     loading = false,
-                    error = result.exceptionOrNull()?.let { UiText.Plain(it.message ?: it.toString()) }
+                    error = result.exceptionOrNull()?.let { it.engineText().toUiText() }
                         ?: if (pkgs == null) UiText.Res(R.string.workspace_packages_database_unreadable) else null,
                 )
             }
@@ -132,7 +134,7 @@ class LinuxPackagesViewModel(
         local.update { it.copy(checkingUpgrades = true, upgradesError = null) }
         viewModelScope.launch {
             val result = runCatchingCancellable { source.upgrades() }
-            local.update { it.copy(checkingUpgrades = false, upgrades = result.getOrNull() ?: it.upgrades, upgradesError = result.exceptionOrNull()?.let { e -> e.message ?: e.toString() }) }
+            local.update { it.copy(checkingUpgrades = false, upgrades = result.getOrNull() ?: it.upgrades, upgradesError = result.exceptionOrNull()?.let { e -> e.engineText().toUiText() }) }
         }
     }
 
@@ -148,7 +150,7 @@ class LinuxPackagesViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                LinuxHealthUiState.Message(UiText.Res(R.string.workspace_packages_remove_failed, name, e.message ?: e.toString()), problem = true)
+                LinuxHealthUiState.Message(UiText.Res(R.string.workspace_packages_remove_failed, name, e.engineText().toUiText()), problem = true)
             }
             local.update { it.copy(uninstalling = null, message = message) }
             load()

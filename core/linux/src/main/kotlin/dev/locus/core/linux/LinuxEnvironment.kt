@@ -41,15 +41,24 @@ sealed interface LinuxStatus {
 
     /** [reason] is English, for the model; screens show [reasonText]. */
     data class Unavailable(val reason: String, val reasonText: EngineText = EngineText.Plain(reason)) : LinuxStatus
-    data class Failed(val message: String) : LinuxStatus
+    /** [message] is English, for the model and logs; screens show [text]. */
+    data class Failed(val message: String, val text: EngineText = EngineText.Plain(message)) : LinuxStatus
 }
 
 /**
  * A command needed Linux, but it isn't installed (Locus never downloads it without the user asking)
  * or can't run on this phone ([unavailableReason]), so a program that needs it can't start.
  */
-class LinuxNotInstalledException(val unavailableReason: String? = null) :
-    IllegalStateException(unavailableReason ?: "Locus's Linux system isn't installed. Install it from $LINUX_INSTALL_PATH.")
+class LinuxNotInstalledException(
+    val unavailableReason: String? = null,
+    /** The message in the app's language, for a screen; the model reads the English message. */
+    override val text: EngineText = unavailableReason?.let(EngineText::Plain) ?: EngineText.Res(R.string.linux_error_not_installed),
+) : IllegalStateException(unavailableReason ?: "Locus's Linux system isn't installed. Install it from $LINUX_INSTALL_PATH."), EngineTextError
+
+/** The downloaded Linux image isn't the one this build expects ([actual] is its SHA-256). */
+class ChecksumException(actual: String) : SecurityException("Downloaded Linux image failed its checksum (got $actual)."), EngineTextError {
+    override val text: EngineText = EngineText.Res(R.string.linux_error_checksum, actual)
+}
 
 /**
  * The last time Android killed one of Locus's Linux processes while Locus was in the background
@@ -160,14 +169,16 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
      */
     suspend fun ensureInstalled() = installLock.withLock {
         if (_status.value == LinuxStatus.Ready) return@withLock
-        (_status.value as? LinuxStatus.Unavailable)?.let { throw IllegalStateException(it.reason) }
+        (_status.value as? LinuxStatus.Unavailable)?.let { throw EngineStateException(it.reasonText, it.reason) }
         withContext(Dispatchers.IO) {
             val archive = File(base, "rootfs.tar.gz")
             try {
                 val arch = when (Build.SUPPORTED_ABIS.firstOrNull()) {
                     "arm64-v8a" -> Arch.AARCH64
                     "x86_64" -> Arch.X86_64
-                    else -> throw IllegalStateException("Unsupported CPU: ${Build.SUPPORTED_ABIS.joinToString()}")
+                    else -> Build.SUPPORTED_ABIS.joinToString().let { abis ->
+                        throw EngineStateException(EngineText.Res(R.string.linux_error_unsupported_cpu, abis), "Unsupported CPU: $abis")
+                    }
                 }
                 val downloading = "Downloading Alpine Linux $ALPINE_VERSION"
                 val downloadingText = EngineText.Res(R.string.linux_status_downloading, ALPINE_VERSION)
@@ -192,7 +203,7 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
                 _status.value = initialStatus()
                 throw e
             } catch (e: Exception) {
-                _status.value = LinuxStatus.Failed(e.message ?: e.toString())
+                _status.value = LinuxStatus.Failed(e.message ?: e.toString(), e.engineText())
                 throw e
             }
         }
@@ -211,9 +222,7 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
         requireReady()
         installLock.withLock {
             withContext(Dispatchers.IO) {
-                check(File(rootfs, "bin/busybox").exists() && File(rootfs, "etc/alpine-release").exists()) {
-                    "Linux's own files are damaged or missing. Reinstall it to fix this."
-                }
+                if (!File(rootfs, "bin/busybox").exists() || !File(rootfs, "etc/alpine-release").exists()) throw damaged()
                 configure()
                 // Not emptied: running services and terminals use it.
                 tmp.mkdirs()
@@ -222,9 +231,14 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
             }
         }
         val probe = run("cat /etc/alpine-release", timeoutMs = 30_000, maxChars = 2_000)
-        check(probe.exitCode == 0) {
+        if (probe.exitCode != 0) {
             val why = if (probe.timedOut) "timed out" else "exit code ${probe.exitCode}"
-            "Linux still doesn't start ($why). Reinstall it to fix this.\n${probe.output.trim().takeLast(500)}".trim()
+            val output = probe.output.trim().takeLast(500)
+            val text = if (probe.timedOut) EngineText.Res(R.string.linux_error_repair_timed_out) else EngineText.Res(R.string.linux_error_repair_exit, probe.exitCode.toString())
+            throw EngineStateException(
+                if (output.isEmpty()) text else EngineText.Res(R.string.linux_error_with_output, text, output),
+                "Linux still doesn't start ($why). Reinstall it to fix this.\n$output".trim(),
+            )
         }
         return probe.output.trim().lines().lastOrNull().orEmpty()
     }
@@ -267,9 +281,9 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
     private fun requireReady() {
         when (val s = _status.value) {
             LinuxStatus.Ready -> Unit
-            is LinuxStatus.Unavailable -> throw LinuxNotInstalledException(s.reason)
-            is LinuxStatus.Installing -> throw LinuxNotInstalledException("Linux is still being installed.")
-            else -> throw LinuxNotInstalledException("Linux isn't installed.")
+            is LinuxStatus.Unavailable -> throw LinuxNotInstalledException(s.reason, s.reasonText)
+            is LinuxStatus.Installing -> throw LinuxNotInstalledException("Linux is still being installed.", EngineText.Res(R.string.linux_error_still_installing))
+            else -> throw LinuxNotInstalledException("Linux isn't installed.", EngineText.Res(R.string.linux_error_not_installed_short))
         }
     }
 
@@ -811,11 +825,18 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
 
     private fun writeManaged(root: File, relative: String, text: String) = writeManaged(root, relative, text.toByteArray())
 
+    /** Linux's own files can't be read or written: only a reinstall fixes that. */
+    private fun damaged(cause: Throwable? = null) = EngineStateException(
+        EngineText.Res(R.string.linux_error_damaged),
+        "Linux's own files are damaged or missing. Reinstall it to fix this.",
+        cause,
+    )
+
     private fun writeManaged(root: File, relative: String, bytes: ByteArray) {
         try {
             FileTrees.replaceFile(root, relative, bytes)
         } catch (e: java.io.IOException) {
-            throw IllegalStateException("Linux's own files are damaged or missing. Reinstall it to fix this.", e)
+            throw damaged(e)
         }
     }
 
@@ -855,7 +876,7 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
         val actual = digest.digest().joinToString("") { "%02x".format(it) }
         if (actual != sha256) {
             dest.delete()
-            throw SecurityException("Downloaded Linux image failed its checksum (got $actual).")
+            throw ChecksumException(actual)
         }
     }
 

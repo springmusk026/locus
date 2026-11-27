@@ -9,6 +9,9 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.locus.core.agent.tools.DocTree
 import dev.locus.core.agent.tools.DocTreeException
 import dev.locus.core.agent.tools.ConnectedFolderSource
+import dev.locus.core.data.R
+import dev.locus.core.linux.EngineInputException
+import dev.locus.core.linux.EngineText
 import dev.locus.core.model.AppSettings
 import dev.locus.core.model.ApprovalScopeKind
 import dev.locus.core.model.ConnectedFolder
@@ -102,7 +105,9 @@ class ConnectedFolderRepository(
     suspend fun connect(uri: String, name: String, readOnly: Boolean, source: String): ConnectedFolder = withContext(io) {
         val current = store.data.first().connectedFolders
         ConnectedFolders.nameProblem(name, current.map { it.name })?.let { throw IllegalArgumentException(it) }
-        if (current.any { it.treeUri == uri }) throw IllegalArgumentException("That folder is already connected as ${current.first { it.treeUri == uri }.name}.")
+        current.firstOrNull { it.treeUri == uri }?.let { same ->
+            throw EngineInputException(EngineText.Res(R.string.data_folder_already_connected, same.name), "That folder is already connected as ${same.name}.")
+        }
         val writable = grants.take(uri)
         val folder = ConnectedFolder(
             id = UUID.randomUUID().toString(),

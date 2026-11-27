@@ -590,4 +590,19 @@
     <string name="ui_research_budget_change">Cambiar presupuesto</string>
     <string name="ui_research_scheduled_note">Una ejecución programada no puede preguntarte nada: omite los sitios que no hayas nombrado en las notas de alcance y pone el informe en el chat en lugar de en un archivo.</string>
     <string name="ui_research_outside">Todo lo que lee cuenta como contenido externo. Enviar o cambiar algo fuera de tu teléfono te pide permiso antes, y también abrir un sitio que no hayas nombrado.</string>
+
+    <!-- Catalogue names that are words (CatalogRes.PRESET_NAME, MCP_NAME), and the descriptions Locus writes for connectors the user adds; the saved English stays -->
+    <string name="ui_catalog_preset_on_device_name">En este teléfono (Gemma 4, sin conexión)</string>
+    <string name="ui_catalog_preset_on_this_phone_name">En este teléfono</string>
+    <string name="ui_catalog_preset_chatgpt_name">ChatGPT (tu plan)</string>
+    <string name="ui_catalog_preset_ollama_name">Ollama (tu red)</string>
+    <string name="ui_catalog_preset_lm_studio_name">LM Studio / llama.cpp (tu red)</string>
+    <string name="ui_catalog_preset_custom_name">Personalizado</string>
+    <string name="ui_catalog_mcp_filesystem_name">Archivos</string>
+    <string name="ui_catalog_mcp_fetch_name">Descargar páginas</string>
+    <string name="ui_catalog_mcp_memory_name">Grafo de conocimiento</string>
+    <string name="ui_connector_remote_description">Servidor MCP en %1$s</string>
+    <string name="ui_connector_local_description">Servidor MCP local: %1$s</string>
+    <string name="ui_connector_home_assistant_full">Tu Home Assistant, con acceso completo (todos los conjuntos de herramientas que activaste).</string>
+    <string name="ui_connector_home_assistant_assist">Tu Home Assistant: los dispositivos que expusiste a Assist.</string>
 </resources>

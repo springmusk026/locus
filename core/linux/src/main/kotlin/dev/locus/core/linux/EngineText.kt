@@ -40,3 +40,22 @@ sealed interface EngineText {
             Array(args.size) { i -> args[i].let { if (it is EngineText) it.asString(resources) else it } }
     }
 }
+
+/**
+ * An error the engine throws for the user to read (docs/design/localization.md, "Text from the engine"):
+ * [text] words it in the app's language; the exception's message stays the English, for logs and for
+ * the model when the same error reaches it.
+ */
+interface EngineTextError {
+    val text: EngineText
+}
+
+/** A refused input (a `require`): [text] for the screen, [message] the same in English. */
+open class EngineInputException(override val text: EngineText, message: String) : IllegalArgumentException(message), EngineTextError
+
+/** A step that couldn't be done (a `check`): [text] for the screen, [message] the same in English. */
+open class EngineStateException(override val text: EngineText, message: String, cause: Throwable? = null) :
+    IllegalStateException(message, cause), EngineTextError
+
+/** What a screen shows for this error: its [EngineTextError.text], else its message (or its name) as it is. */
+fun Throwable.engineText(): EngineText = (this as? EngineTextError)?.text ?: EngineText.Plain(message ?: toString())

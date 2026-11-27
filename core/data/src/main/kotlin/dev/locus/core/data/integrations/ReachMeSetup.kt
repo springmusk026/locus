@@ -10,6 +10,7 @@ import dev.locus.core.agent.integrations.Webhook
 import dev.locus.core.data.R
 import dev.locus.core.data.connectors.ServiceSetupException
 import dev.locus.core.data.connectors.networkMessage
+import dev.locus.core.data.connectors.refused
 import dev.locus.core.datastore.SecretStore
 import dev.locus.core.linux.EngineText
 import io.ktor.client.HttpClient
@@ -77,7 +78,7 @@ class ReachMeSetup @Inject constructor(http: HttpClient, private val secrets: Se
             ReachMeChannel.GOTIFY, ReachMeChannel.MATRIX -> dev.locus.core.model.ServiceAddress.check(url)
             ReachMeChannel.WEBHOOK -> Webhook.check(url)
         }
-        val address = checked.url ?: throw ServiceSetupException(EngineText.Plain(checked.error.orEmpty()), checked.error.orEmpty())
+        val address = checked.url ?: throw checked.refused()
         val entered = secret?.trim()
         val kept = if (entered != null && entered.isEmpty()) {
             saved(channel)?.takeIf { ConnectorKeys.origin(it.first) == ConnectorKeys.origin(address) }?.second

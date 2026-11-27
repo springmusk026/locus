@@ -30,6 +30,7 @@ import dev.locus.core.agent.integrations.Gotify
 import dev.locus.core.agent.integrations.Integration
 import dev.locus.core.agent.integrations.Webhook
 import dev.locus.core.data.connectors.ServiceSetupException
+import dev.locus.core.data.connectors.errorText
 import dev.locus.core.data.device.PhoneIntents
 import dev.locus.core.data.integrations.ReachMeChannel
 import dev.locus.core.data.integrations.ReachMeSetup
@@ -183,7 +184,7 @@ fun ReachMeSheet(
             placeholder = { Text(stringResource(if (gotify) R.string.ui_reachme_server_placeholder else R.string.ui_reachme_url_placeholder)) },
             singleLine = true,
             isError = showError,
-            supportingText = { Text(if (showError) checked.error.orEmpty() else stringResource(if (gotify) R.string.ui_reachme_server_hint else R.string.ui_reachme_url_hint)) },
+            supportingText = { Text(if (showError) checked.errorText?.asString().orEmpty() else stringResource(if (gotify) R.string.ui_reachme_server_hint else R.string.ui_reachme_url_hint)) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false, imeAction = ImeAction.Next),
             modifier = Modifier.fillMaxWidth(),
         )

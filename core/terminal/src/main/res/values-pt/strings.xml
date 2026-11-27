@@ -2,4 +2,9 @@
   <string name="paste_text">Colar</string>
   <string name="copy_text">Copiar</string>
   <string name="text_selection_more">Mais…</string>
+    <plurals name="terminal_too_many_tabs">
+        <item quantity="one">No máximo %1$d terminal pode ficar aberto. Feche um primeiro.</item>
+        <item quantity="many">No máximo %1$d terminais podem ficar abertos. Feche um primeiro.</item>
+        <item quantity="other">No máximo %1$d terminais podem ficar abertos. Feche um primeiro.</item>
+    </plurals>
 </resources>

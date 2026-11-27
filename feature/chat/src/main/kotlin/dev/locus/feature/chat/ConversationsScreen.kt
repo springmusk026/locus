@@ -117,6 +117,7 @@ import dev.locus.core.designsystem.ShelfAddCard
 import dev.locus.core.designsystem.ShelfCard
 import dev.locus.core.model.Role
 import dev.locus.core.designsystem.localizedToolActivity
+import dev.locus.core.ui.providerName
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -739,7 +740,7 @@ private fun ConversationRowItem(row: ConversationRow, actions: RowActions, showM
                         maxLines = 1,
                     )
                     else -> SupportingText(
-                        listOf(relativeTime(row.conversation.updatedAt), if (row.isScheduledRun) stringResource(R.string.chat_home_scheduled_task) else row.providerName)
+                        listOf(relativeTime(row.conversation.updatedAt), if (row.isScheduledRun) stringResource(R.string.chat_home_scheduled_task) else providerName(row.providerName))
                             .filter { it.isNotBlank() }.joinToString(" · "),
                         maxLines = 1,
                     )

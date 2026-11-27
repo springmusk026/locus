@@ -1891,9 +1891,9 @@ class AgentRunner @Inject constructor(
         )
         if (compare != null) update(conversationId) { it.copy(comparing = FallbackChain.label(provider, provider.model)) }
         if (planRun != null) update(conversationId) { it.copy(planRun = planRun.label) }
-        access.missing(provider)?.let { problem ->
-            taskEnds[conversationId] = TaskEnd(dev.locus.core.model.TaskOutcome.FAILED, problem)
-            update(conversationId) { it.copy(error = problem) }
+        access.problem(provider)?.let { problem ->
+            taskEnds[conversationId] = TaskEnd(dev.locus.core.model.TaskOutcome.FAILED, problem.english)
+            update(conversationId) { it.withError(RunNote.ProviderNotReady(problem)) }
             return
         }
 
