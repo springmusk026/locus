@@ -1,5 +1,6 @@
 package dev.locus.feature.settings
 
+import dev.locus.core.data.connectors.errorText
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,6 +35,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import dev.locus.core.data.connectors.warningText
 import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.ConfirmSheet
@@ -67,6 +69,7 @@ import dev.locus.core.model.ProviderDraft
 import dev.locus.core.model.ProviderDraftApi
 import dev.locus.core.model.ProviderDrafts
 import dev.locus.core.model.ServiceAddress
+import dev.locus.core.ui.asString
 
 /** A provider the agent drafted, as Settings → Models lists it (docs/design/provider-drafts.md). */
 data class ProviderDraftRow(
@@ -176,7 +179,7 @@ internal fun ProviderDraftSheet(
                 title = stringResource(R.string.settings_draft_tainted_title),
             )
         }
-        address.warning?.let { Banner(it, Tone.Caution, title = stringResource(R.string.settings_draft_not_encrypted)) }
+        address.warningText?.let { Banner(it.asString(), Tone.Caution, title = stringResource(R.string.settings_draft_not_encrypted)) }
 
         SectionLabel(stringResource(R.string.settings_draft_provider_section))
         OutlinedTextField(name, { name = it.take(ProviderDrafts.MAX_NAME) }, label = { Text(stringResource(R.string.settings_draft_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -185,7 +188,7 @@ internal fun ProviderDraftSheet(
             label = { Text(stringResource(R.string.settings_draft_base_url)) },
             singleLine = true,
             isError = address.error != null,
-            supportingText = address.error?.let { { Text(it) } },
+            supportingText = address.errorText?.let { { Text(it.asString()) } },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false, imeAction = ImeAction.Next),
             modifier = Modifier.fillMaxWidth(),
         )

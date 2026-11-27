@@ -220,4 +220,49 @@
         <item quantity="other">y %1$d más</item>
     </plurals>
     <string name="data_integrity_rules">Las reglas de proyecto se cambiaron fuera de Locus. Todas las reglas quedan suspendidas hasta que las revises en Reglas de su proyecto y las reanudes.</string>
+
+    <!-- Why a provider can't answer yet (ProviderAccess.problem); the model and the run's state read the English in the code -->
+    <string name="data_provider_not_signed_in">%1$s no tiene la sesión iniciada. Continúa con ChatGPT en Ajustes → Modelos.</string>
+    <string name="data_provider_no_key">%1$s no tiene clave de API. Añádela en Ajustes → Modelos.</string>
+    <string name="data_provider_unconfirmed">La configuración de %1$s se cambió fuera de Locus, así que su clave no se envía hasta que compruebes su dirección (%2$s) y la guardes en Ajustes → Modelos.</string>
+    <string name="data_vault_needs_reset">Locus no puede abrir tus claves guardadas. Abre Locus para restablecerlas, o consulta Ajustes → Acerca de y privacidad → Diagnóstico.</string>
+    <string name="data_vault_unavailable">Locus no puede abrir tus claves guardadas ahora mismo. Vuelve a intentarlo en un momento; hay más detalles en Ajustes → Acerca de y privacidad → Diagnóstico.</string>
+
+    <!-- A server address the user typed (ServiceAddress.check); the agent reads the English in core/model -->
+    <string name="data_address_empty">Escribe la dirección de tu servidor.</string>
+    <string name="data_address_spaces">Una dirección no puede contener espacios.</string>
+    <string name="data_address_not_https">Usa una dirección https://.</string>
+    <string name="data_address_scheme">Usa una dirección https://; %1$s:// no es compatible.</string>
+    <string name="data_address_unreadable">No se puede leer esa dirección. Debería parecerse a https://server.example.com.</string>
+    <string name="data_address_user_info">No pongas un nombre de usuario ni una contraseña en la dirección; usa los campos de abajo.</string>
+    <string name="data_address_query">Quita todo lo que vaya después de ? o #.</string>
+    <string name="data_address_no_host">Esa dirección no tiene nombre de servidor.</string>
+    <string name="data_address_port">Ese puerto no es válido.</string>
+    <string name="data_address_http_public">http:// sin cifrar solo funciona con un servidor en este teléfono o en tu red doméstica. Usa https://.</string>
+    <string name="data_address_lan_http_warning">http:// sin cifrar solo es aceptable en tu propia red: cualquiera en ella podría leer la clave. Usa https:// si tu servidor lo admite.</string>
+
+    <!-- Library's setup errors (LibraryRepository, SavedKeys); the exceptions keep the English for logs -->
+    <string name="data_library_memory_gone">Esa nota ya no está en la memoria del proyecto.</string>
+    <string name="data_library_needs_https">%1$s necesita una dirección https://.</string>
+    <string name="data_library_no_saved_key">%1$s no puede usar una clave guardada.</string>
+    <string name="data_library_saved_key_host">La clave guardada de %1$s solo se envía a %2$s. Mantén esa dirección o pega una clave.</string>
+    <string name="data_saved_key_none">No hay ninguna clave guardada para %1$s. Añádela en Ajustes → Integraciones, o pega una aquí.</string>
+    <string name="data_saved_key_empty">La clave guardada para %1$s está vacía.</string>
+
+    <!-- Email and Telegram setup (EmailSetup, TelegramSetup) -->
+    <string name="data_email_password_first">Primero escribe la contraseña.</string>
+    <string name="data_email_address_first">Primero escribe la dirección completa.</string>
+    <string name="data_email_lookup_timeout">La lista de configuraciones de Thunderbird no respondió. Vuelve a intentarlo o escribe la configuración tú mismo.</string>
+    <string name="data_email_lookup_offline">No se pudo contactar con la lista de configuraciones de Thunderbird. Comprueba que el teléfono tenga conexión.</string>
+    <string name="data_email_lookup_http">La lista de configuraciones de Thunderbird respondió %1$d. Vuelve a intentarlo más tarde.</string>
+    <string name="data_telegram_token_first">Primero pega el token del bot de @BotFather.</string>
+    <string name="data_telegram_not_a_token">Eso no parece un token de bot. Tiene la forma 123456789:AAH… (cópialo completo de @BotFather).</string>
+
+    <!-- Workspace files and connected folders (WorkspaceRepository, ConnectedFolderRepository) -->
+    <string name="data_workspace_is_file">%1$s es un archivo.</string>
+    <string name="data_workspace_is_folder">%1$s es una carpeta.</string>
+    <string name="data_workspace_read_failed">No se pudo leer el archivo seleccionado.</string>
+    <string name="data_workspace_write_failed">No se pudo escribir en la ubicación elegida.</string>
+    <string name="data_workspace_too_big">%1$s ocupa más de %2$d MB; ábrelo en otra app desde tu app de archivos.</string>
+    <string name="data_folder_already_connected">Esa carpeta ya está conectada como %1$s.</string>
 </resources>

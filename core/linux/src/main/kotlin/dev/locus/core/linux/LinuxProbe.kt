@@ -127,12 +127,14 @@ class LinuxProbe(
      * throws with apk's words when it fails.
      */
     suspend fun uninstall(name: String) {
-        require(LinuxInventory.isValidName(name)) { "“$name” isn't a package name." }
-        require(name !in LinuxInventory.BASE_SYSTEM) { "$name is part of Alpine itself and can't be removed here." }
+        if (!LinuxInventory.isValidName(name)) refuse(EngineText.Res(R.string.linux_packages_not_a_name, name), "“$name” isn't a package name.")
+        if (name in LinuxInventory.BASE_SYSTEM) refuse(EngineText.Res(R.string.linux_packages_base_system, name), "$name is part of Alpine itself and can't be removed here.")
         val r = linux.run("apk del $name 2>&1", timeoutMs = 120_000, maxChars = 8_000)
-        if (r.timedOut) throw IOException("Removing $name took longer than 2 minutes.")
+        if (r.timedOut) throw ProbeException(EngineText.Res(R.string.linux_packages_remove_timed_out, name), "Removing $name took longer than 2 minutes.")
         if (r.exitCode != 0) throw IOException(r.output.trim().lines().takeLast(3).joinToString(" ").ifBlank { "apk del exited with ${r.exitCode}." })
     }
+
+    private fun refuse(text: EngineText, english: String): Nothing = throw EngineInputException(text, english)
 
     /** DNS and HTTPS from inside Linux to Alpine's mirror. Reaches the internet, so only on request. */
     suspend fun network(): LinuxReport.Network {
@@ -147,9 +149,15 @@ class LinuxProbe(
      */
     suspend fun upgrades(): List<LinuxInventory.Upgrade> {
         val r = linux.run(UPGRADES_SCRIPT, timeoutMs = 120_000, maxChars = 60_000)
-        if (r.timedOut) throw IOException("Checking for updates took longer than 2 minutes.")
+        if (r.timedOut) throw ProbeException(EngineText.Res(R.string.linux_packages_updates_timed_out), "Checking for updates took longer than 2 minutes.")
         val marker = r.output.indexOf(UPDATE_FAILED)
-        if (marker >= 0) throw IOException("Couldn't refresh the package index: ${r.output.substring(0, marker).trim().lines().takeLast(3).joinToString(" ")}".trim())
+        if (marker >= 0) {
+            val apk = r.output.substring(0, marker).trim().lines().takeLast(3).joinToString(" ")
+            throw ProbeException(
+                if (apk.isBlank()) EngineText.Res(R.string.linux_packages_index_failed_plain) else EngineText.Res(R.string.linux_packages_index_failed, apk),
+                "Couldn't refresh the package index: $apk".trim(),
+            )
+        }
         return LinuxInventory.parseUpgrades(r.output)
     }
 
@@ -343,3 +351,6 @@ internal object GuestProcesses {
             LinuxReport.GuestProcess(pid, LinuxInventory.processName(cmdline), LinuxInventory.parseRss(status) ?: 0)
         }.sortedByDescending { it.rssBytes }
 }
+
+/** A package step that failed for a reason the user reads in [text]; the message is the same in English. */
+class ProbeException(override val text: EngineText, message: String) : IOException(message), EngineTextError

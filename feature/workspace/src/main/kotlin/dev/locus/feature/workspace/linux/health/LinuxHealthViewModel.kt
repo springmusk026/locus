@@ -15,6 +15,7 @@ import dev.locus.core.linux.LinuxHealth
 import dev.locus.core.linux.LinuxProbe
 import dev.locus.core.linux.LinuxReport
 import dev.locus.core.linux.LinuxStatus
+import dev.locus.core.linux.engineText
 import dev.locus.core.terminal.TerminalSessions
 import dev.locus.feature.workspace.linux.toUiText
 import kotlinx.coroutines.CancellationException
@@ -136,7 +137,7 @@ class LinuxHealthViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                local.update { it.copy(loading = false, refreshing = false, error = UiText.Plain(e.message ?: e.toString())) }
+                local.update { it.copy(loading = false, refreshing = false, error = e.engineText().toUiText()) }
             }
         }
     }
@@ -153,7 +154,7 @@ class LinuxHealthViewModel(
                     checkingNetwork = false,
                     report = report,
                     checks = report?.let(LinuxHealth::checks).orEmpty(),
-                    message = result.exceptionOrNull()?.let { LinuxHealthUiState.Message(UiText.Res(R.string.workspace_health_network_failed, it.message ?: it.toString()), problem = true) } ?: s.message,
+                    message = result.exceptionOrNull()?.let { LinuxHealthUiState.Message(UiText.Res(R.string.workspace_health_network_failed, it.engineText().toUiText()), problem = true) } ?: s.message,
                 )
             }
         }
@@ -213,7 +214,7 @@ class LinuxHealthViewModel(
             } catch (e: Failure) {
                 LinuxHealthUiState.Message(e.text, problem = true)
             } catch (e: Exception) {
-                LinuxHealthUiState.Message(UiText.Plain(e.message ?: e.toString()), problem = true)
+                LinuxHealthUiState.Message(e.engineText().toUiText(), problem = true)
             }
             local.update { it.copy(busy = null, busyService = null, message = result) }
             refresh()

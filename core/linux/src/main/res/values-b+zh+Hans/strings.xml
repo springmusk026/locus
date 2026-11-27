@@ -102,4 +102,25 @@
     <string name="linux_kill_what_command">一个命令</string>
     <string name="linux_kill_what_service">服务 %1$s</string>
     <string name="linux_kill_what_terminal">一个终端</string>
+
+    <!-- Errors Linux throws that screens show (EngineTextError); the exception keeps the English for the model and logs -->
+    <string name="linux_error_not_installed">Locus 的 Linux 系统尚未安装。请在 首页 → 文件 → Linux 中安装。</string>
+    <string name="linux_error_not_installed_short">Linux 尚未安装。</string>
+    <string name="linux_error_still_installing">Linux 仍在安装中。</string>
+    <string name="linux_error_unsupported_cpu">不支持的处理器：%1$s</string>
+    <string name="linux_error_damaged">Linux 自身的文件已损坏或缺失。请重新安装来修复。</string>
+    <string name="linux_error_repair_timed_out">Linux 仍无法启动（超时）。请重新安装来修复。</string>
+    <string name="linux_error_repair_exit">Linux 仍无法启动（退出码 %1$s）。请重新安装来修复。</string>
+    <string name="linux_error_checksum">下载的 Linux 镜像未通过校验和检查（得到 %1$s）。</string>
+
+    <!-- The packages screen's errors (LinuxProbe); apk's own words stay as they are -->
+    <string name="linux_packages_not_a_name">“%1$s”不是软件包名称。</string>
+    <string name="linux_packages_base_system">%1$s 是 Alpine 自身的一部分，无法在这里移除。</string>
+    <string name="linux_packages_remove_timed_out">移除 %1$s 用时超过 2 分钟。</string>
+    <string name="linux_packages_updates_timed_out">检查更新用时超过 2 分钟。</string>
+    <string name="linux_packages_index_failed">无法刷新软件包索引：%1$s</string>
+    <string name="linux_packages_index_failed_plain">无法刷新软件包索引：</string>
+
+    <!-- Where Linux is installed (LINUX_INSTALL_PATH, the English the agent quotes), in the app's own labels -->
+    <string name="linux_install_path">首页 → 文件 → Linux</string>
 </resources>

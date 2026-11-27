@@ -7,6 +7,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.locus.core.agent.tools.TrashEntry
 import dev.locus.core.agent.tools.Workspace
 import dev.locus.core.designsystem.UiText
+import dev.locus.core.linux.EngineTextError
+import dev.locus.feature.workspace.linux.toUiText
 import dev.locus.feature.workspace.preview.FileLoader
 import dev.locus.feature.workspace.preview.OpenFile
 import dev.locus.core.data.repository.WorkspaceEntry
@@ -138,7 +140,7 @@ class WorkspaceViewModel @Inject constructor(
         } catch (e: Exception) {
             if (e is CancellationException || !inConnected) throw e
             // A connected folder that can't be listed shows why in place of its files.
-            _uiState.update { it.copy(entries = emptyList(), folderError = forUser(e.message), loading = false) }
+            _uiState.update { it.copy(entries = emptyList(), folderError = (e as? EngineTextError)?.text?.toUiText() ?: forUser(e.message), loading = false) }
             checkFolders()
             return
         }
@@ -326,7 +328,7 @@ class WorkspaceViewModel @Inject constructor(
             throw e
         } catch (e: Throwable) {
             // Anything else (a file too big to read included) shows as a message, as before.
-            _uiState.update { it.copy(message = e.message?.let(UiText::Plain) ?: UiText.Res(dev.locus.core.designsystem.R.string.common_error_generic), loading = false) }
+            _uiState.update { it.copy(message = (e as? EngineTextError)?.text?.toUiText() ?: e.message?.let(UiText::Plain) ?: UiText.Res(dev.locus.core.designsystem.R.string.common_error_generic), loading = false) }
         }
     }
 }

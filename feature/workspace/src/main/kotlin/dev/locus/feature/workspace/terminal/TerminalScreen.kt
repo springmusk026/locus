@@ -134,8 +134,8 @@ fun TerminalRoute(
                 status = {
                     val where = when {
                         selectedTab == null -> stringResource(R.string.workspace_terminal_status_none)
-                        selectedTab.running -> stringResource(R.string.workspace_terminal_status_running, selectedTab.label)
-                        else -> stringResource(R.string.workspace_terminal_status_exited, selectedTab.label, selectedTab.exitStatus.toString())
+                        selectedTab.running -> stringResource(R.string.workspace_terminal_status_running, tabLabel(selectedTab))
+                        else -> stringResource(R.string.workspace_terminal_status_exited, tabLabel(selectedTab), selectedTab.exitStatus.toString())
                     }
                     SupportingText(where, style = LocusType.mono, maxLines = 1)
                 },
@@ -228,13 +228,13 @@ private fun TabStrip(tabs: List<TerminalTab>, selected: Int?, onSelect: (Int) ->
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        if (tab.running) tab.label else stringResource(R.string.workspace_terminal_tab_exited, tab.label),
+                        if (tab.running) tabLabel(tab) else stringResource(R.string.workspace_terminal_tab_exited, tabLabel(tab)),
                         Modifier.clickable { onSelect(tab.id) }.padding(start = Spacing.md, top = Spacing.sm, bottom = Spacing.sm).widthIn(max = TerminalSizes.tabLabelMax),
                         style = LocusType.label,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    CompactIconButton(LocusIcons.Close, contentDescription = stringResource(R.string.workspace_terminal_tab_close, tab.label), onClick = { onClose(tab.id) }, tint = LocalContentColor.current)
+                    CompactIconButton(LocusIcons.Close, contentDescription = stringResource(R.string.workspace_terminal_tab_close, tabLabel(tab)), onClick = { onClose(tab.id) }, tint = LocalContentColor.current)
                 }
             }
         }
@@ -367,3 +367,7 @@ private fun KeyButton(label: String, description: String, on: Boolean, onClick: 
         Text(label, fontFamily = FontFamily.Monospace, fontSize = TerminalSizes.keyText, maxLines = 1)
     }
 }
+
+/** A tab's name: the title its shell set, else "Shell 2" in the app's language ([TerminalTab.label] is the English). */
+@Composable
+private fun tabLabel(tab: TerminalTab): String = tab.title?.takeIf { it.isNotBlank() } ?: stringResource(R.string.workspace_terminal_tab_shell, tab.number)

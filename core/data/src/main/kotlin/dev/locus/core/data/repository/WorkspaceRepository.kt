@@ -6,6 +6,9 @@ import android.provider.OpenableColumns
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.locus.core.agent.tools.TrashEntry
 import dev.locus.core.agent.tools.Workspace
+import dev.locus.core.data.R
+import dev.locus.core.linux.EngineStateException
+import dev.locus.core.linux.EngineText
 import dev.locus.core.model.FileTrees
 import dev.locus.core.model.Part
 import androidx.core.graphics.scale
@@ -29,7 +32,7 @@ class WorkspaceRepository @Inject constructor(
         // A connected folder (docs/design/connected-folders.md): listed through its provider.
         val c = workspace.connected
         c?.target(path)?.let { t ->
-            if (!c.existing(t).isDirectory) throw IllegalStateException("${t.path} is a file.")
+            if (!c.existing(t).isDirectory) throw EngineStateException(EngineText.Res(R.string.data_workspace_is_file, t.path), "${t.path} is a file.")
             return@withContext c.list(t, fresh = true)
                 .map { WorkspaceEntry(t.child(it.name).path, it.name, it.isDirectory, if (it.isDirectory) 0 else it.size, it.modified) }
                 .sortedWith(compareByDescending<WorkspaceEntry> { it.isDirectory }.thenBy { it.name.lowercase() })
@@ -75,7 +78,7 @@ class WorkspaceRepository @Inject constructor(
         val target = uniqueFile(workspace.resolve(intoFolder), name)
         // Never through a link a Linux program left at the name or on the way (Workspace.write).
         context.contentResolver.openInputStream(uri)?.use { input -> workspace.write(target) { input.copyTo(it) } }
-            ?: error("Could not read the selected file.")
+            ?: throw EngineStateException(EngineText.Res(R.string.data_workspace_read_failed), "Could not read the selected file.")
         workspace.relative(target)
     }
 
@@ -135,7 +138,7 @@ class WorkspaceRepository @Inject constructor(
 
     suspend fun export(path: String, uri: Uri) = withContext(io) {
         context.contentResolver.openOutputStream(uri)?.use { out -> workspace.resolve(path).inputStream().use { it.copyTo(out) } }
-            ?: error("Could not write to the chosen location.")
+            ?: throw EngineStateException(EngineText.Res(R.string.data_workspace_write_failed), "Could not write to the chosen location.")
     }
 
     suspend fun delete(path: String) = withContext(io) {
@@ -147,6 +150,9 @@ class WorkspaceRepository @Inject constructor(
     /** Whether [path] is in a connected folder rather than the workspace. */
     fun isConnected(path: String): Boolean = workspace.connected?.claims(path) == true
 
+    /** A step the user can't take here: [text] for the screen, [english] for logs. */
+    private fun fail(text: EngineText, english: String): Nothing = throw EngineStateException(text, english)
+
     /**
      * A copy of the connected folder's file [path] for the viewers, in the cache (they read files), and
      * the provider's own address for Open with… and Share. Files over [MAX_VIEW_BYTES] aren't copied.
@@ -155,8 +161,11 @@ class WorkspaceRepository @Inject constructor(
         val c = workspace.connected ?: error("No connected folders.")
         val t = c.target(path) ?: error("$path isn't in a connected folder.")
         val e = c.existing(t)
-        if (e.isDirectory) error("${t.path} is a folder.")
-        if (e.size > MAX_VIEW_BYTES) error("${t.name} is over ${MAX_VIEW_BYTES / 1024 / 1024} MB; open it in another app from your Files app.")
+        if (e.isDirectory) fail(EngineText.Res(R.string.data_workspace_is_folder, t.path), "${t.path} is a folder.")
+        if (e.size > MAX_VIEW_BYTES) {
+            val mb = (MAX_VIEW_BYTES / 1024 / 1024).toInt()
+            fail(EngineText.Res(R.string.data_workspace_too_big, t.name, mb), "${t.name} is over $mb MB; open it in another app from your Files app.")
+        }
         val dir = File(context.cacheDir, "connected-view").apply { deleteRecursively(); mkdirs() }
         val copy = File(dir, t.name)
         c.open(t).use { input -> copy.outputStream().use { input.copyTo(it) } }

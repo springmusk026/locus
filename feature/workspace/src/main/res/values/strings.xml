@@ -433,4 +433,7 @@
     <string name="workspace_preview_web_blocked">%1$s, so the page may look plain.</string>
     <!-- Clipboard label: how a clipboard manager names the copied adb command. -->
     <string name="workspace_clip_adb_command">adb command</string>
+
+    <!-- A terminal tab's name when its shell set none (TerminalTab.label is the English) -->
+    <string name="workspace_terminal_tab_shell">Shell %1$d</string>
 </resources>

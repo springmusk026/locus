@@ -184,6 +184,7 @@ internal fun runNoteInWords(resources: Resources, note: RunNote): String = when 
     RunNote.ToolGone -> resources.getString(R.string.chat_run_tool_gone)
     RunNote.BusyNotStarted -> resources.getString(R.string.chat_run_busy_not_started)
     RunNote.NoProvider -> resources.getString(R.string.chat_run_no_provider)
+    is RunNote.ProviderNotReady -> note.problem.text.asString(resources)
     is RunNote.CompareFailed -> resources.getString(R.string.chat_run_compare_failed, note.model, note.shownReason ?: resources.getString(R.string.chat_run_unknown_error))
     is RunNote.LessonsSaved ->resources.getQuantityString(R.plurals.chat_run_lessons_saved, note.count, note.count)
     is RunNote.PlanRunDone -> resources.getString(R.string.chat_run_plan_run_done, note.model, note.chat)

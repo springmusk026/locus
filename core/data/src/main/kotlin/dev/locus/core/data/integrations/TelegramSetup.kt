@@ -2,7 +2,10 @@ package dev.locus.core.data.integrations
 
 import dev.locus.core.agent.integrations.Integrations
 import dev.locus.core.agent.integrations.Telegram
+import dev.locus.core.data.R
 import dev.locus.core.datastore.SecretStore
+import dev.locus.core.linux.EngineInputException
+import dev.locus.core.linux.EngineText
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -57,8 +60,13 @@ class TelegramSetup @Inject constructor(
 
     private suspend fun token(entered: String?): String {
         val token = entered?.trim()?.takeIf { it.isNotEmpty() } ?: saved()?.token
-            ?: throw IllegalArgumentException("Paste the bot token from @BotFather first.")
-        require(Telegram.isToken(token)) { "That doesn't look like a bot token. It has the form 123456789:AAH… (copy it whole from @BotFather)." }
+            ?: throw EngineInputException(EngineText.Res(R.string.data_telegram_token_first), "Paste the bot token from @BotFather first.")
+        if (!Telegram.isToken(token)) {
+            throw EngineInputException(
+                EngineText.Res(R.string.data_telegram_not_a_token),
+                "That doesn't look like a bot token. It has the form 123456789:AAH… (copy it whole from @BotFather).",
+            )
+        }
         return token
     }
 

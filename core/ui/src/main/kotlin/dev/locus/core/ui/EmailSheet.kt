@@ -150,7 +150,7 @@ fun EmailSheet(
     val busy = state.running != null
     val ready = !busy && unsupported == null && form.isComplete(hasSavedPassword)
     fun failed(e: Throwable) {
-        state.error = e.message?.let { UiText.Plain(it) } ?: UiText.Res(DesignR.string.common_error_generic)
+        state.error = e.userText(UiText.Res(DesignR.string.common_error_generic))
         state.running = null
     }
 
@@ -283,7 +283,7 @@ private fun ServerSettings(state: EmailSheetState, problems: Map<EmailField, Str
                             state.edit { it.withServers(found.imap, found.smtp, found.username) }
                             state.note = UiText.Res(R.string.ui_email_lookup_filled)
                         }
-                    }.onFailure { state.error = it.message?.let { m -> UiText.Plain(m) } ?: UiText.Res(R.string.ui_email_lookup_failed) }
+                    }.onFailure { state.error = it.userText(UiText.Res(R.string.ui_email_lookup_failed)) }
                 }
             },
         ) { BusyLabel(stringResource(R.string.ui_email_lookup), state.running == EmailRun.LOOKUP) }

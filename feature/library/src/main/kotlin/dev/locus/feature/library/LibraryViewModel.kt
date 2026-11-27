@@ -4,7 +4,6 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dev.locus.core.data.connectors.ServiceSetupException
 import dev.locus.core.data.mcp.McpTemplate
 import dev.locus.core.agent.home.Connector
 import dev.locus.core.data.connectors.ConnectionCheck
@@ -17,7 +16,8 @@ import dev.locus.core.data.repository.LibraryRepository
 import dev.locus.core.data.repository.SkillClash
 import dev.locus.core.designsystem.UiText
 import dev.locus.core.linux.EngineText
-import dev.locus.core.ui.toUiText
+import dev.locus.core.linux.EngineTextError
+import dev.locus.core.ui.userText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -83,7 +83,7 @@ internal fun Flow<Library>.asUiStates(reloading: Boolean): Flow<LibraryUiState> 
         .onStart { if (reloading) emit(LibraryUiState.Loading) }
         .catch { e ->
             if (e is CancellationException) throw e
-            emit(LibraryUiState.Failed(e.message?.takeIf { it.isNotBlank() }?.let(UiText::Plain) ?: UiText.Res(R.string.library_load_failed_body)))
+            emit(LibraryUiState.Failed(e.userText(UiText.Res(R.string.library_load_failed_body))))
         }
 
 /**
@@ -173,7 +173,7 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _signIn.value = SignInStatus.Failed(e.message?.let(UiText::Plain) ?: UiText.Res(R.string.library_error_add_server_body), title = UiText.Res(R.string.library_error_add_named, template.name))
+                _signIn.value = SignInStatus.Failed(e.userText(UiText.Res(R.string.library_error_add_server_body)), title = UiText.Res(R.string.library_error_add_named, template.name))
             }
         }
     }
@@ -187,7 +187,7 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            _signIn.value = SignInStatus.Failed(e.message?.let(UiText::Plain) ?: UiText.Res(R.string.library_error_add_server_body), title = UiText.Res(R.string.library_error_add_server))
+            _signIn.value = SignInStatus.Failed(e.userText(UiText.Res(R.string.library_error_add_server_body)), title = UiText.Res(R.string.library_error_add_server))
         }
     }
     /** Starts begun here, so Stop can cancel one that is still starting (the process is stopped too). */
@@ -246,7 +246,7 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
                 throw e
             } catch (e: Exception) {
                 // A reason core words for the user, else the exception's own; an empty one is shown as our "The test failed."
-                ConnectionCheck.Failed((e as? ServiceSetupException)?.text ?: EngineText.Plain(e.message.orEmpty()))
+                ConnectionCheck.Failed((e as? EngineTextError)?.text ?: EngineText.Plain(e.message.orEmpty()))
             }
             _setup.value = ServiceSetup(result = result)
         }
@@ -262,7 +262,7 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                val error = (e as? ServiceSetupException)?.text?.toUiText() ?: e.message?.let(UiText::Plain) ?: UiText.Res(R.string.library_service_add_failed_body)
+                val error = e.userText(UiText.Res(R.string.library_service_add_failed_body))
                 _setup.value = _setup.value.copy(adding = false, error = error)
             }
         }
@@ -287,7 +287,7 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
             _signIn.value = SignInStatus.Working(label)
             val result = runCatching { block() }
             if (result.exceptionOrNull() is CancellationException) return@launch
-            _signIn.value = result.fold(onSuccess = { null }, onFailure = { SignInStatus.Failed(it.message?.let(UiText::Plain) ?: UiText.Res(R.string.library_connectors_sign_in_failed)) })
+            _signIn.value = result.fold(onSuccess = { null }, onFailure = { SignInStatus.Failed(it.userText(UiText.Res(R.string.library_connectors_sign_in_failed))) })
         }
     }
 
@@ -390,8 +390,7 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
             repository.refresh()
             _error.value = LibraryError(
                 title = title,
-                message = (e as? Failure)?.text ?: e.message?.takeIf { it.isNotBlank() }?.let(UiText::Plain)
-                    ?: UiText.Res(dev.locus.core.designsystem.R.string.common_error_generic),
+                message = (e as? Failure)?.text ?: e.userText(UiText.Res(dev.locus.core.designsystem.R.string.common_error_generic)),
                 retry = { _error.value = null; act(title, block) },
             )
         }

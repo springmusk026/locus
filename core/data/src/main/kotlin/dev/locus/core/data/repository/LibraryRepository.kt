@@ -10,11 +10,14 @@ import dev.locus.core.agent.home.ConnectorKeys
 import dev.locus.core.agent.mcp.McpOAuth
 import dev.locus.core.data.R
 import dev.locus.core.data.connectors.ServiceSetupException
+import dev.locus.core.data.connectors.refused
 import dev.locus.core.data.mcp.ConnectorKeyOrigins
 import dev.locus.core.data.connectors.ConnectionCheck
 import dev.locus.core.data.connectors.ConnectorTemplate
 import dev.locus.core.data.connectors.ServiceConnections
 import dev.locus.core.data.mcp.HomeAssistantSafety
+import dev.locus.core.linux.EngineInputException
+import dev.locus.core.linux.EngineStateException
 import dev.locus.core.linux.EngineText
 import dev.locus.core.model.ServiceAddress
 import dev.locus.core.data.mcp.LocalMcpHealth
@@ -199,7 +202,9 @@ class LibraryRepository @Inject constructor(
      * project no longer has it.
      */
     suspend fun moveMemoryToGeneral(projectId: String, topic: String) = io {
-        check(home.moveProjectMemoryToGlobal(projectId, topic)) { "That note isn't in the project's memory any more." }
+        if (!home.moveProjectMemoryToGlobal(projectId, topic)) {
+            throw EngineStateException(EngineText.Res(R.string.data_library_memory_gone), "That note isn't in the project's memory any more.")
+        }
     }
 
     /** Forgets a topic a chat read (its steps card), from the memory that chat uses. False when it was already gone. */
@@ -296,7 +301,7 @@ class LibraryRepository @Inject constructor(
      */
     suspend fun addMcpServer(name: String, url: String, token: String?) {
         val id = AgentHome.slug(name).take(48)
-        val description = "MCP server at ${url.substringAfter("://").substringBefore('/')}"
+        val description = REMOTE_DESCRIPTION + url.substringAfter("://").substringBefore('/')
         // A server that can't be reached or misdescribes its sign-in is reported, not saved without auth.
         if (token.isNullOrBlank() && mcpSignIn.requiresSignIn(url.trim())) {
             saveRemoteMcp(id, name, description, url, Connector.Auth("oauth", secret = "$id-oauth"), null)
@@ -329,12 +334,11 @@ class LibraryRepository @Inject constructor(
             return
         }
         val target = url.trim()
-        require(target.startsWith("https://") && target.length > "https://".length) { "${template.name} needs an https:// address." }
+        requireHttps(template, target)
         // Adding a template again replaces it; a different connector that happens to use the id is kept.
         val id = home.connector(template.id)?.takeIf { McpTemplates.official(it)?.id != template.id }?.let { "${template.id}-mcp" } ?: template.id
         if (useSavedKey) {
-            val source = SavedKeys.source(template) ?: throw IllegalArgumentException("${template.name} can't use a saved key.")
-            require(SavedKeys.sameHost(template, target)) { "The saved ${source.name} key only goes to ${template.host}. Keep that address, or paste a key instead." }
+            val source = savedKeySource(template, target)
             val auth = template.key!!.auth("$id-token")
             SavedKeys.copy(secrets, source, auth.secret)
             saveRemoteMcp(id, template.name, template.description, target, auth, token = null)
@@ -348,6 +352,27 @@ class LibraryRepository @Inject constructor(
             else -> throw IllegalArgumentException("${template.name} needs a ${template.key.label.lowercase()}.")
         }
     }
+
+    private fun requireHttps(template: McpTemplate, target: String) {
+        if (!target.startsWith("https://") || target.length <= "https://".length) {
+            refuse(EngineText.Res(R.string.data_library_needs_https, template.name), "${template.name} needs an https:// address.")
+        }
+    }
+
+    /** The integration whose saved key [template] may use at [target], or a refusal saying why not. */
+    private fun savedKeySource(template: McpTemplate, target: String): dev.locus.core.agent.integrations.Integration {
+        val source = SavedKeys.source(template) ?: refuse(EngineText.Res(R.string.data_library_no_saved_key, template.name), "${template.name} can't use a saved key.")
+        if (!SavedKeys.sameHost(template, target)) {
+            refuse(
+                EngineText.Res(R.string.data_library_saved_key_host, source.name, template.host),
+                "The saved ${source.name} key only goes to ${template.host}. Keep that address, or paste a key instead.",
+            )
+        }
+        return source
+    }
+
+    /** Refuses a setup the user can fix: [text] for the screen, [english] for logs. */
+    private fun refuse(text: EngineText, english: String): Nothing = throw EngineInputException(text, english)
 
     private val services by lazy { ServiceConnections(http) }
 
@@ -364,7 +389,7 @@ class LibraryRepository @Inject constructor(
     /** Test connection for a service template: one GET of its test path with the key, at [address]. */
     suspend fun testService(template: ConnectorTemplate, address: String, username: String, key: String): ConnectionCheck {
         val checked = ServiceAddress.check(address)
-        val server = checked.url ?: return ConnectionCheck.Failed(EngineText.Plain(checked.error.orEmpty()))
+        val server = checked.url ?: return ConnectionCheck.Failed(checked.refused().text)
         val draft = template.connector(template.id, server, "test")
         val secret = try {
             serviceSecret(template, draft.baseUrl, username, key)
@@ -380,7 +405,7 @@ class LibraryRepository @Inject constructor(
      */
     suspend fun addService(template: ConnectorTemplate, address: String, username: String, key: String) {
         val checked = ServiceAddress.check(address)
-        val server = checked.url ?: throw IllegalArgumentException(checked.error)
+        val server = checked.url ?: throw checked.refused()
         val id = home.connector(template.id)?.takeIf { it.template != template.id }?.let { "${template.id}-2" } ?: template.id
         val secretName = "$id-token"
         val connector = template.connector(id, server, secretName)
@@ -394,7 +419,7 @@ class LibraryRepository @Inject constructor(
     suspend fun testHomeAssistant(address: String, token: String): ConnectionCheck {
         val template = McpTemplates.byId(HomeAssistantSafety.TEMPLATE_ID)?.selfHosted ?: return ConnectionCheck.Failed(EngineText.Res(R.string.data_service_home_assistant_missing))
         val checked = ServiceAddress.check(address)
-        val server = checked.url ?: return ConnectionCheck.Failed(EngineText.Plain(checked.error.orEmpty()))
+        val server = checked.url ?: return ConnectionCheck.Failed(checked.refused().text)
         if (token.isBlank()) return ConnectionCheck.Failed(EngineText.Res(R.string.data_service_home_assistant_no_token))
         return when (val result = services.test(server + template.testPath, Connector.Auth("bearer", secret = "test"), token.trim())) {
             is ConnectionCheck.Passed -> ConnectionCheck.Passed(EngineText.Res(R.string.data_service_home_assistant_passed, ConnectorKeys.host(ConnectorKeys.origin(server).orEmpty())))
@@ -411,8 +436,8 @@ class LibraryRepository @Inject constructor(
         val template = McpTemplates.byId(HomeAssistantSafety.TEMPLATE_ID) ?: return
         val hosted = template.selfHosted ?: return
         val checked = ServiceAddress.check(address)
-        val server = checked.url ?: throw IllegalArgumentException(checked.error)
-        require(token.isNotBlank()) { "Paste a long-lived access token." }
+        val server = checked.url ?: throw checked.refused()
+        if (token.isBlank()) refuse(EngineText.Res(R.string.data_service_home_assistant_no_token), "Paste a long-lived access token.")
         rules.validate()
         val id = home.connector(template.id)?.takeIf { !HomeAssistantSafety.applies(it) }?.let { "${template.id}-2" } ?: template.id
         val url = server + (if (full) hosted.fullPath ?: hosted.path else hosted.path)
@@ -420,7 +445,7 @@ class LibraryRepository @Inject constructor(
             id = id,
             kind = "mcp",
             name = template.name,
-            description = if (full) "Your Home Assistant, with full access (every tool set you enabled)." else "Your Home Assistant: the devices you exposed to Assist.",
+            description = if (full) HOME_ASSISTANT_FULL else HOME_ASSISTANT_ASSIST,
             baseUrl = url,
             auth = Connector.Auth("bearer", secret = "$id-token"),
             createdBy = "user",
@@ -532,7 +557,7 @@ class LibraryRepository @Inject constructor(
             id = id,
             kind = "mcp",
             name = name.trim(),
-            description = "Local MCP server: ${command.trim().take(120)}",
+            description = LOCAL_DESCRIPTION + command.trim().take(120),
             local = Connector.Local(command.trim(), args.map { it.trim() }.filter { it.isNotEmpty() }, vars),
             createdBy = "user",
         )
@@ -587,4 +612,15 @@ class LibraryRepository @Inject constructor(
     }.getOrElse { if (it is kotlinx.coroutines.CancellationException) throw it else KeyState.Missing }
 
     private suspend fun <T> io(block: () -> T): T = withContext(ioDispatcher) { block() }.also { refresh() }
+
+    /** The descriptions Locus writes for connectors the user adds; saved in English (the model reads them), worded by Library. */
+    companion object {
+        /** A remote MCP server's, followed by its host. */
+        const val REMOTE_DESCRIPTION = "MCP server at "
+
+        /** A local MCP server's, followed by its command (the first 120 characters). */
+        const val LOCAL_DESCRIPTION = "Local MCP server: "
+        const val HOME_ASSISTANT_FULL = "Your Home Assistant, with full access (every tool set you enabled)."
+        const val HOME_ASSISTANT_ASSIST = "Your Home Assistant: the devices you exposed to Assist."
+    }
 }

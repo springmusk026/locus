@@ -30,6 +30,7 @@ import dev.locus.core.data.linux.LinuxSetupState
 import dev.locus.core.data.linux.PackageState
 import dev.locus.core.linux.LinuxEnvironment
 import dev.locus.core.linux.LinuxStatus
+import dev.locus.core.linux.engineText
 import dev.locus.core.llm.ChatEvent
 import dev.locus.core.llm.ChatRequest
 import dev.locus.core.llm.RemoteModel
@@ -48,6 +49,7 @@ import dev.locus.core.ui.TelegramActions
 import dev.locus.core.ui.integrationRows
 import dev.locus.core.ui.sshEditorSave
 import dev.locus.core.ui.sshSecretReady
+import dev.locus.core.ui.toUiText
 import dev.locus.core.ondevice.ModelState
 import dev.locus.core.ondevice.OnDeviceEngines
 import dev.locus.core.ondevice.OnDeviceModel
@@ -542,7 +544,7 @@ class OnboardingViewModel @Inject constructor(
             } catch (e: Failure) {
                 set(Job(error = e.text))
             } catch (e: Throwable) {
-                set(Job(error = UiText.Plain(e.message ?: e.toString())))
+                set(Job(error = e.engineText().toUiText()))
             }
         }
     }
@@ -639,7 +641,7 @@ class OnboardingViewModel @Inject constructor(
                 if (!models.isReady(provider.model)) fail(R.string.onboarding_test_model_downloading)
                 engines.chatModel(provider.model)
             } else {
-                access.missing(provider)?.let(::error)
+                access.problem(provider)?.let { throw Failure(it.text.toUiText()) }
                 access.chatModel(provider.copy(maxOutputTokens = 1_000, effort = "low"))
             }
             val message = Message(UUID.randomUUID().toString(), "onboarding", Role.USER, listOf(Part.Text(TEST_PROMPT)), started)
