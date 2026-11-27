@@ -29,6 +29,112 @@
     <string name="designsystem_tool_write_present">Gravar %1$s</string>
     <string name="designsystem_tool_edit_past">Editou %1$s</string>
     <string name="designsystem_tool_edit_present">Editar %1$s</string>
+    <plurals name="designsystem_approval_create_file">
+        <item quantity="one">Criar %1$s (%2$d caractere)</item>
+        <item quantity="many">Criar %1$s (%2$d caracteres)</item>
+        <item quantity="other">Criar %1$s (%2$d caracteres)</item>
+    </plurals>
+    <plurals name="designsystem_approval_overwrite_file">
+        <item quantity="one">Sobrescrever %1$s (%2$d caractere)</item>
+        <item quantity="many">Sobrescrever %1$s (%2$d caracteres)</item>
+        <item quantity="other">Sobrescrever %1$s (%2$d caracteres)</item>
+    </plurals>
+    <string name="designsystem_approval_edit_file">Editar %1$s</string>
+    <plurals name="designsystem_approval_edit_file_changes">
+        <item quantity="one">Editar %1$s (%2$d alteração)</item>
+        <item quantity="many">Editar %1$s (%2$d alterações)</item>
+        <item quantity="other">Editar %1$s (%2$d alterações)</item>
+    </plurals>
+    <string name="designsystem_approval_move">Mover %1$s → %2$s</string>
+    <string name="designsystem_approval_copy">Copiar %1$s → %2$s</string>
+    <string name="designsystem_approval_delete_to_trash">Excluir %1$s (pode ser recuperado da lixeira)</string>
+    <string name="designsystem_approval_make_folder">Criar a pasta %1$s</string>
+    <string name="designsystem_approval_remember">Memorizar “%1$s”</string>
+    <string name="designsystem_approval_forget">Esquecer “%1$s”</string>
+    <string name="designsystem_approval_draft_provider">Preparar o provedor “%1$s” para sua revisão</string>
+    <string name="designsystem_approval_draft_provider_at">Preparar o provedor “%1$s” em %2$s para sua revisão</string>
+    <string name="designsystem_approval_run_command">Executar: %1$s</string>
+    <string name="designsystem_approval_start_service">Iniciar “%1$s”: %2$s</string>
+    <string name="designsystem_approval_commit">Fazer commit de %1$s: “%2$s”</string>
+    <string name="designsystem_approval_commit_all_changes">todas as alterações</string>
+    <string name="designsystem_approval_ssh_run">Em %1$s: %2$s</string>
+    <string name="designsystem_approval_ssh_job_start">Iniciar um job em segundo plano em %1$s: %2$s</string>
+    <string name="designsystem_approval_ssh_job_stop">Parar o job %1$s em %2$s</string>
+    <string name="designsystem_approval_sftp_download">Baixar %1$s:%2$s → %3$s</string>
+    <string name="designsystem_approval_sftp_upload">Enviar %1$s → %2$s:%3$s</string>
+    <string name="designsystem_approval_browser_open">Abrir %1$s</string>
+    <string name="designsystem_approval_browser_open_new_tab">Abrir %1$s em uma nova aba</string>
+    <string name="designsystem_approval_browser_click">Tocar em %1$s</string>
+    <string name="designsystem_approval_browser_type">Digitar “%1$s” em %2$s</string>
+    <string name="designsystem_approval_browser_type_submit">Digitar “%1$s” em %2$s e enviar</string>
+    <string name="designsystem_approval_browser_choose">Escolher “%1$s” em %2$s</string>
+    <plurals name="designsystem_approval_browser_fill_fields">
+        <item quantity="one">Preencher %1$d campo</item>
+        <item quantity="many">Preencher %1$d campos</item>
+        <item quantity="other">Preencher %1$d campos</item>
+    </plurals>
+    <string name="designsystem_approval_browser_press">Pressionar %1$s</string>
+    <string name="designsystem_approval_browser_dialog_accept">Responder OK à caixa de diálogo da página</string>
+    <string name="designsystem_approval_browser_dialog_cancel">Cancelar a caixa de diálogo da página</string>
+    <string name="designsystem_approval_browser_upload">Enviar %1$s</string>
+    <string name="designsystem_approval_browser_login">Preencher seu login salvo para %1$s</string>
+    <string name="designsystem_approval_browser_login_this_page">Preencher seu login salvo para esta página</string>
+    <string name="designsystem_approval_email_send">Enviar e-mail para %1$s: “%2$s” — %3$s</string>
+    <string name="designsystem_approval_email_send_cc">Enviar e-mail para %1$s (cc %2$s): “%3$s” — %4$s</string>
+    <string name="designsystem_approval_email_no_subject">(sem assunto)</string>
+    <string name="designsystem_approval_email_reply_subject">resposta</string>
+    <string name="designsystem_approval_email_invalid_addresses">(uma lista de endereços inválida, que não será enviada)</string>
+    <string name="designsystem_approval_github_create_issue">Abrir a issue “%1$s” em %2$s</string>
+    <string name="designsystem_approval_github_comment">Comentar em %1$s#%2$s</string>
+    <string name="designsystem_approval_vercel_deploy_production">Implantar %1$s no projeto da Vercel %2$s (produção)</string>
+    <string name="designsystem_approval_vercel_deploy_preview">Implantar %1$s no projeto da Vercel %2$s (prévia)</string>
+    <string name="designsystem_approval_vercel_redeploy_production">Reimplantar %1$s no projeto da Vercel %2$s (produção)</string>
+    <string name="designsystem_approval_vercel_redeploy_preview">Reimplantar %1$s no projeto da Vercel %2$s (prévia)</string>
+    <string name="designsystem_approval_vercel_env_set">Definir %1$s no projeto da Vercel %2$s</string>
+    <string name="designsystem_approval_netlify_deploy_production">Implantar %1$s no site da Netlify %2$s (produção)</string>
+    <string name="designsystem_approval_netlify_deploy_draft">Implantar %1$s no site da Netlify %2$s (rascunho)</string>
+    <string name="designsystem_approval_netlify_env_set">Definir %1$s no site da Netlify %2$s</string>
+    <string name="designsystem_approval_render_deploy">Implantar o serviço do Render %1$s</string>
+    <string name="designsystem_approval_render_deploy_clear_cache">Implantar o serviço do Render %1$s (limpar o cache)</string>
+    <string name="designsystem_approval_render_deploy_at">Implantar o serviço do Render %1$s no commit %2$s</string>
+    <string name="designsystem_approval_render_deploy_at_clear_cache">Implantar o serviço do Render %1$s no commit %2$s (limpar o cache)</string>
+    <string name="designsystem_approval_render_env_set">Definir %1$s no serviço do Render %2$s</string>
+    <string name="designsystem_approval_render_resume">Retomar o serviço do Render %1$s</string>
+    <string name="designsystem_approval_render_suspend">Suspender o serviço do Render %1$s</string>
+    <string name="designsystem_approval_supabase_sql">Executar SQL em %1$s: %2$s</string>
+    <string name="designsystem_approval_supabase_function_deploy">Implantar %1$s como a Edge Function %2$s em %3$s</string>
+    <string name="designsystem_approval_cloudflare_dns_set">Definir o DNS %1$s %2$s → %3$s em %4$s</string>
+    <string name="designsystem_approval_cloudflare_dns_delete">Excluir o registro DNS %1$s de %2$s</string>
+    <string name="designsystem_approval_cloudflare_pages_deploy_branch">Implantar o projeto do Pages %1$s a partir de %2$s</string>
+    <string name="designsystem_approval_cloudflare_pages_deploy_production">Implantar o projeto do Pages %1$s (produção)</string>
+    <string name="designsystem_approval_cloudflare_publish">Publicar %1$s na Cloudflare como %2$s.workers.dev</string>
+    <string name="designsystem_approval_cloudflare_publish_spa">Publicar %1$s na Cloudflare como %2$s.workers.dev (aplicativo de página única)</string>
+    <plurals name="designsystem_approval_read_calendar_days">
+        <item quantity="one">Ler sua agenda do próximo %1$d dia</item>
+        <item quantity="many">Ler sua agenda dos próximos %1$d dias</item>
+        <item quantity="other">Ler sua agenda dos próximos %1$d dias</item>
+    </plurals>
+    <plurals name="designsystem_approval_read_calendar_days_query">
+        <item quantity="one">Ler sua agenda do próximo %1$d dia (“%2$s”)</item>
+        <item quantity="many">Ler sua agenda dos próximos %1$d dias (“%2$s”)</item>
+        <item quantity="other">Ler sua agenda dos próximos %1$d dias (“%2$s”)</item>
+    </plurals>
+    <string name="designsystem_approval_pick_contact">Pedir que você escolha um contato</string>
+    <string name="designsystem_approval_pick_contact_reason">Pedir que você escolha um contato: %1$s</string>
+    <plurals name="designsystem_approval_pick_photos">
+        <item quantity="one">Pedir que você escolha até %1$d foto</item>
+        <item quantity="many">Pedir que você escolha até %1$d fotos</item>
+        <item quantity="other">Pedir que você escolha até %1$d fotos</item>
+    </plurals>
+    <plurals name="designsystem_approval_pick_photos_reason">
+        <item quantity="one">Pedir que você escolha até %1$d foto: %2$s</item>
+        <item quantity="many">Pedir que você escolha até %1$d fotos: %2$s</item>
+        <item quantity="other">Pedir que você escolha até %1$d fotos: %2$s</item>
+    </plurals>
+    <string name="designsystem_approval_add_to_calendar">Adicionar “%1$s” à sua agenda</string>
+    <string name="designsystem_approval_change_event">Alterar um evento da agenda</string>
+    <string name="designsystem_approval_delete_event">Excluir um evento da agenda</string>
+    <string name="designsystem_approval_cancel_reminder">Cancelar um lembrete</string>
     <string name="designsystem_tool_move_past">Moveu %1$s → %2$s</string>
     <string name="designsystem_tool_move_present">Mover %1$s → %2$s</string>
     <string name="designsystem_tool_copy_past">Copiou %1$s → %2$s</string>
@@ -640,4 +746,10 @@
     <string name="designsystem_check_check_finished">A verificação terminou</string>
     <string name="designsystem_tool_project_rule_past">Executou a regra de projeto “%1$s”</string>
     <string name="designsystem_tool_project_rule_present">Executar a regra de projeto “%1$s”</string>
+
+    <!-- Attachments' counters and the ChatGPT sign-in button -->
+    <string name="designsystem_attachments_more">+%1$d</string>
+    <string name="designsystem_attachments_position">%1$d / %2$d</string>
+    <string name="designsystem_chatgpt_continue">Continuar com o ChatGPT</string>
+    <string name="designsystem_chatgpt_waiting">Aguardando o navegador…</string>
 </resources>

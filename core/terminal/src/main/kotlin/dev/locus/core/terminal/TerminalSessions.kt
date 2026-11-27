@@ -71,7 +71,7 @@ class TerminalSessions @Inject constructor(
      * isn't installed, and [IllegalStateException] when [TabRegistry.MAX_TABS] are open.
      */
     suspend fun open(): Int {
-        check(registry.canOpen) { "At most ${TabRegistry.MAX_TABS} terminals can be open. Close one first." }
+        if (!registry.canOpen) throw tooManyTabs()
         val launch = linux.terminalLaunch()
         return withContext(Dispatchers.Main) {
             registry.add { id ->
@@ -83,9 +83,14 @@ class TerminalSessions @Inject constructor(
                     SCROLLBACK_ROWS,
                     Client(id),
                 )
-            } ?: error("At most ${TabRegistry.MAX_TABS} terminals can be open. Close one first.")
+            } ?: throw tooManyTabs()
         }
     }
+
+    private fun tooManyTabs() = dev.locus.core.linux.EngineStateException(
+        dev.locus.core.linux.EngineText.Plural(R.plurals.terminal_too_many_tabs, TabRegistry.MAX_TABS),
+        "At most ${TabRegistry.MAX_TABS} terminals can be open. Close one first.",
+    )
 
     fun session(id: Int): TerminalSession? = registry.session(id)
 

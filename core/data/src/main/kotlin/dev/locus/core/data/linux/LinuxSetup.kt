@@ -7,6 +7,7 @@ import dev.locus.core.data.R
 import dev.locus.core.data.di.ApplicationScope
 import dev.locus.core.linux.CommandResult
 import dev.locus.core.linux.EngineText
+import dev.locus.core.linux.engineText
 import dev.locus.core.linux.LinuxEnvironment
 import dev.locus.core.linux.LinuxStatus
 import kotlinx.coroutines.CancellationException
@@ -234,7 +235,7 @@ class LinuxSetup(
                                 else -> PackageState.Failed(withOutput(EngineText.Res(R.string.data_linux_package_exit, res.exitCode.toString()), res.output))
                             }
                         },
-                        onFailure = { e -> if (e is CancellationException) throw e else PackageState.Failed(EngineText.Plain(e.message ?: e.toString())) },
+                        onFailure = { e -> if (e is CancellationException) throw e else PackageState.Failed(e.engineText()) },
                     )
                     setPackages(mapOf(p to state))
                 }
@@ -251,7 +252,7 @@ class LinuxSetup(
             cancelled = true
             throw e
         } catch (e: Throwable) {
-            _state.update { it.copy(error = EngineText.Plain(e.message ?: e.toString())) }
+            _state.update { it.copy(error = e.engineText()) }
         } finally {
             executing = false
             finish(cancelled)
@@ -310,7 +311,7 @@ class LinuxSetup(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Throwable) {
-                    _state.update { it.copy(error = EngineText.Plain(e.message ?: e.toString())) }
+                    _state.update { it.copy(error = e.engineText()) }
                 } finally {
                     finish(cancelled = false)
                 }

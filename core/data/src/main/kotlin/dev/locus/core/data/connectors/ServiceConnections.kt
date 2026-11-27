@@ -4,6 +4,7 @@ import dev.locus.core.agent.home.Connector
 import dev.locus.core.agent.home.ConnectorKeys
 import dev.locus.core.data.R
 import dev.locus.core.linux.EngineText
+import dev.locus.core.linux.EngineTextError
 import io.ktor.client.HttpClient
 import io.ktor.client.request.forms.submitForm
 import io.ktor.client.request.get
@@ -26,7 +27,7 @@ sealed interface ConnectionCheck {
 }
 
 /** A setup step that failed for a reason the user can fix, said in [text]; [message] is the same in English, for logs. */
-class ServiceSetupException(val text: EngineText, message: String) : IllegalArgumentException(message)
+class ServiceSetupException(override val text: EngineText, message: String) : IllegalArgumentException(message), EngineTextError
 
 /**
  * The setup sheets' network calls for a self-hosted service: Test connection (one harmless GET with the

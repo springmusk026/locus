@@ -52,6 +52,7 @@ import dev.locus.core.ui.displayName
 import dev.locus.core.ui.keyHelpText
 import dev.locus.core.ui.keyLabelText
 import dev.locus.core.ui.linkLabelText
+import dev.locus.core.ui.providerName
 import dev.locus.core.ui.sshHostSubtitle
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.GroupDivider
@@ -390,7 +391,7 @@ internal fun ColumnScope.TestStep(state: OnboardingUiState, viewModel: Onboardin
                 else IconTile(LocusIcons.Sparkle)
                 Column(Modifier.weight(1f).padding(start = Spacing.md)) {
                     Text(stringResource(R.string.onboarding_test_model), style = LocusType.rowTitle)
-                    SupportingText(provider?.let { stringResource(R.string.onboarding_test_model_value, it.name, dev.locus.core.model.ModelNames.short(it.model)) } ?: stringResource(R.string.onboarding_test_not_set_up), style = LocusType.rowSupporting)
+                    SupportingText(provider?.let { stringResource(R.string.onboarding_test_model_value, providerName(it.name), dev.locus.core.model.ModelNames.short(it.model)) } ?: stringResource(R.string.onboarding_test_not_set_up), style = LocusType.rowSupporting)
                 }
                 if (provider != null) TextButton(onClick = viewModel::testModel, enabled = !viewModel.modelTest.running) { Text(stringResource(R.string.onboarding_test_again)) }
             }

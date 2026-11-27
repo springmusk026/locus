@@ -2,4 +2,8 @@
   <string name="paste_text">Paste</string>
   <string name="copy_text">Copy</string>
   <string name="text_selection_more">More…</string>
+    <plurals name="terminal_too_many_tabs">
+        <item quantity="one">At most %1$d terminal can be open. Close one first.</item>
+        <item quantity="other">At most %1$d terminals can be open. Close one first.</item>
+    </plurals>
 </resources>

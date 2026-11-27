@@ -393,4 +393,7 @@
     <string name="workspace_preview_language_text">文本</string>
     <string name="workspace_preview_web_blocked">%1$s，因此页面可能显得很简陋。</string>
     <string name="workspace_clip_adb_command">adb 命令</string>
+
+    <!-- A terminal tab's name when its shell set none (TerminalTab.label is the English) -->
+    <string name="workspace_terminal_tab_shell">Shell %1$d</string>
 </resources>

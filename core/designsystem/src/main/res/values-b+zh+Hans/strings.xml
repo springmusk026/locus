@@ -29,6 +29,96 @@
     <string name="designsystem_tool_write_present">写入 %1$s</string>
     <string name="designsystem_tool_edit_past">已编辑 %1$s</string>
     <string name="designsystem_tool_edit_present">编辑 %1$s</string>
+    <plurals name="designsystem_approval_create_file">
+        <item quantity="other">创建 %1$s（%2$d 个字符）</item>
+    </plurals>
+    <plurals name="designsystem_approval_overwrite_file">
+        <item quantity="other">覆盖 %1$s（%2$d 个字符）</item>
+    </plurals>
+    <string name="designsystem_approval_edit_file">编辑 %1$s</string>
+    <plurals name="designsystem_approval_edit_file_changes">
+        <item quantity="other">编辑 %1$s（%2$d 处更改）</item>
+    </plurals>
+    <string name="designsystem_approval_move">移动 %1$s → %2$s</string>
+    <string name="designsystem_approval_copy">复制 %1$s → %2$s</string>
+    <string name="designsystem_approval_delete_to_trash">删除 %1$s（可从回收站恢复）</string>
+    <string name="designsystem_approval_make_folder">创建文件夹 %1$s</string>
+    <string name="designsystem_approval_remember">记住“%1$s”</string>
+    <string name="designsystem_approval_forget">忘记“%1$s”</string>
+    <string name="designsystem_approval_draft_provider">起草提供商“%1$s”，供你审阅</string>
+    <string name="designsystem_approval_draft_provider_at">起草位于 %2$s 的提供商“%1$s”，供你审阅</string>
+    <string name="designsystem_approval_run_command">运行：%1$s</string>
+    <string name="designsystem_approval_start_service">启动“%1$s”：%2$s</string>
+    <string name="designsystem_approval_commit">提交 %1$s：“%2$s”</string>
+    <string name="designsystem_approval_commit_all_changes">所有更改</string>
+    <string name="designsystem_approval_ssh_run">在 %1$s 上：%2$s</string>
+    <string name="designsystem_approval_ssh_job_start">在 %1$s 上启动后台作业：%2$s</string>
+    <string name="designsystem_approval_ssh_job_stop">停止 %2$s 上的作业 %1$s</string>
+    <string name="designsystem_approval_sftp_download">下载 %1$s:%2$s → %3$s</string>
+    <string name="designsystem_approval_sftp_upload">上传 %1$s → %2$s:%3$s</string>
+    <string name="designsystem_approval_browser_open">打开 %1$s</string>
+    <string name="designsystem_approval_browser_open_new_tab">在新标签页中打开 %1$s</string>
+    <string name="designsystem_approval_browser_click">点击 %1$s</string>
+    <string name="designsystem_approval_browser_type">在 %2$s 中输入“%1$s”</string>
+    <string name="designsystem_approval_browser_type_submit">在 %2$s 中输入“%1$s”并提交</string>
+    <string name="designsystem_approval_browser_choose">在 %2$s 中选择“%1$s”</string>
+    <plurals name="designsystem_approval_browser_fill_fields">
+        <item quantity="other">填写 %1$d 个字段</item>
+    </plurals>
+    <string name="designsystem_approval_browser_press">按下 %1$s</string>
+    <string name="designsystem_approval_browser_dialog_accept">对页面的对话框回答“确定”</string>
+    <string name="designsystem_approval_browser_dialog_cancel">取消页面的对话框</string>
+    <string name="designsystem_approval_browser_upload">上传 %1$s</string>
+    <string name="designsystem_approval_browser_login">填写你为 %1$s 保存的登录信息</string>
+    <string name="designsystem_approval_browser_login_this_page">填写你为此页面保存的登录信息</string>
+    <string name="designsystem_approval_email_send">发送邮件给 %1$s：“%2$s” — %3$s</string>
+    <string name="designsystem_approval_email_send_cc">发送邮件给 %1$s（抄送 %2$s）：“%3$s” — %4$s</string>
+    <string name="designsystem_approval_email_no_subject">（无主题）</string>
+    <string name="designsystem_approval_email_reply_subject">回复</string>
+    <string name="designsystem_approval_email_invalid_addresses">（无效的地址列表，不会发送）</string>
+    <string name="designsystem_approval_github_create_issue">在 %2$s 中创建问题“%1$s”</string>
+    <string name="designsystem_approval_github_comment">评论 %1$s#%2$s</string>
+    <string name="designsystem_approval_vercel_deploy_production">将 %1$s 部署到 Vercel 项目 %2$s（生产环境）</string>
+    <string name="designsystem_approval_vercel_deploy_preview">将 %1$s 部署到 Vercel 项目 %2$s（预览）</string>
+    <string name="designsystem_approval_vercel_redeploy_production">将 %1$s 重新部署到 Vercel 项目 %2$s（生产环境）</string>
+    <string name="designsystem_approval_vercel_redeploy_preview">将 %1$s 重新部署到 Vercel 项目 %2$s（预览）</string>
+    <string name="designsystem_approval_vercel_env_set">在 Vercel 项目 %2$s 上设置 %1$s</string>
+    <string name="designsystem_approval_netlify_deploy_production">将 %1$s 部署到 Netlify 站点 %2$s（生产环境）</string>
+    <string name="designsystem_approval_netlify_deploy_draft">将 %1$s 部署到 Netlify 站点 %2$s（草稿）</string>
+    <string name="designsystem_approval_netlify_env_set">在 Netlify 站点 %2$s 上设置 %1$s</string>
+    <string name="designsystem_approval_render_deploy">部署 Render 服务 %1$s</string>
+    <string name="designsystem_approval_render_deploy_clear_cache">部署 Render 服务 %1$s（清除缓存）</string>
+    <string name="designsystem_approval_render_deploy_at">按提交 %2$s 部署 Render 服务 %1$s</string>
+    <string name="designsystem_approval_render_deploy_at_clear_cache">按提交 %2$s 部署 Render 服务 %1$s（清除缓存）</string>
+    <string name="designsystem_approval_render_env_set">在 Render 服务 %2$s 上设置 %1$s</string>
+    <string name="designsystem_approval_render_resume">恢复 Render 服务 %1$s</string>
+    <string name="designsystem_approval_render_suspend">暂停 Render 服务 %1$s</string>
+    <string name="designsystem_approval_supabase_sql">在 %1$s 上运行 SQL：%2$s</string>
+    <string name="designsystem_approval_supabase_function_deploy">将 %1$s 作为 Edge Function %2$s 部署到 %3$s</string>
+    <string name="designsystem_approval_cloudflare_dns_set">在 %4$s 中设置 DNS %1$s %2$s → %3$s</string>
+    <string name="designsystem_approval_cloudflare_dns_delete">从 %2$s 删除 DNS 记录 %1$s</string>
+    <string name="designsystem_approval_cloudflare_pages_deploy_branch">从 %2$s 部署 Pages 项目 %1$s</string>
+    <string name="designsystem_approval_cloudflare_pages_deploy_production">部署 Pages 项目 %1$s（生产环境）</string>
+    <string name="designsystem_approval_cloudflare_publish">将 %1$s 发布到 Cloudflare，地址为 %2$s.workers.dev</string>
+    <string name="designsystem_approval_cloudflare_publish_spa">将 %1$s 发布到 Cloudflare，地址为 %2$s.workers.dev（单页应用）</string>
+    <plurals name="designsystem_approval_read_calendar_days">
+        <item quantity="other">读取你未来 %1$d 天的日历</item>
+    </plurals>
+    <plurals name="designsystem_approval_read_calendar_days_query">
+        <item quantity="other">读取你未来 %1$d 天的日历（“%2$s”）</item>
+    </plurals>
+    <string name="designsystem_approval_pick_contact">请你选择一个联系人</string>
+    <string name="designsystem_approval_pick_contact_reason">请你选择一个联系人：%1$s</string>
+    <plurals name="designsystem_approval_pick_photos">
+        <item quantity="other">请你选择最多 %1$d 张照片</item>
+    </plurals>
+    <plurals name="designsystem_approval_pick_photos_reason">
+        <item quantity="other">请你选择最多 %1$d 张照片：%2$s</item>
+    </plurals>
+    <string name="designsystem_approval_add_to_calendar">将“%1$s”添加到你的日历</string>
+    <string name="designsystem_approval_change_event">更改一个日程</string>
+    <string name="designsystem_approval_delete_event">删除一个日程</string>
+    <string name="designsystem_approval_cancel_reminder">取消一个提醒</string>
     <string name="designsystem_tool_move_past">已移动 %1$s → %2$s</string>
     <string name="designsystem_tool_move_present">移动 %1$s → %2$s</string>
     <string name="designsystem_tool_copy_past">已复制 %1$s → %2$s</string>
@@ -620,4 +710,10 @@
     <string name="designsystem_check_check_finished">检查已结束</string>
     <string name="designsystem_tool_project_rule_past">运行了项目规则“%1$s”</string>
     <string name="designsystem_tool_project_rule_present">运行项目规则“%1$s”</string>
+
+    <!-- Attachments' counters and the ChatGPT sign-in button -->
+    <string name="designsystem_attachments_more">+%1$d</string>
+    <string name="designsystem_attachments_position">%1$d / %2$d</string>
+    <string name="designsystem_chatgpt_continue">使用 ChatGPT 继续</string>
+    <string name="designsystem_chatgpt_waiting">正在等待浏览器…</string>
 </resources>

@@ -219,7 +219,8 @@ class OnboardingViewModelTest {
         val noKey = vm(keyed)
         noKey.testModel()
         settle { !noKey.modelTest.running }
-        assertTrue("no API key" in (noKey.modelTest.error as UiText.Plain).value, noKey.modelTest.toString())
+        // Worded from resources in the app's language (in English: "Anthropic has no API key. Add it in Settings → Models.").
+        assertEquals(UiText.Res(dev.locus.core.data.R.string.data_provider_no_key, "Anthropic"), noKey.modelTest.error, noKey.modelTest.toString())
         assertTrue(keyed.requests.isEmpty())
     }
 

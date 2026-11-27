@@ -9,6 +9,8 @@ import dev.locus.core.agent.ToolResult
 import dev.locus.core.agent.bool
 import dev.locus.core.agent.int
 import dev.locus.core.agent.str
+import dev.locus.core.model.ApprovalLineText
+import dev.locus.core.model.ApprovalPhrase
 import dev.locus.core.model.ApprovalScopeKind
 import dev.locus.core.model.DeviceIntegrations
 import dev.locus.core.model.PhoneSettings
@@ -211,7 +213,8 @@ internal class CalendarCreate(private val w: CalendarWriter) : Tool {
             .build(),
     )
 
-    override fun describe(args: JsonObject) = "Add “${args.str("title").orEmpty().take(80)}” to your calendar"
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) = ApprovalLineText(ApprovalPhrase.ADD_TO_CALENDAR, args.str("title").orEmpty().take(80))
 
     override suspend fun mustConfirm(args: JsonObject): String? = guests(args.str("guests")).takeIf { it.isNotEmpty() }?.let(::guestsReason)
 
@@ -282,7 +285,8 @@ internal class CalendarUpdate(private val w: CalendarWriter) : Tool {
             .build(),
     )
 
-    override fun describe(args: JsonObject) = "Change a calendar event"
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) = ApprovalLineText(ApprovalPhrase.CHANGE_EVENT)
 
     override suspend fun mustConfirm(args: JsonObject): String? = guests(args.str("add_guests")).takeIf { it.isNotEmpty() }?.let(::guestsReason)
 
@@ -367,7 +371,8 @@ internal class CalendarDelete(private val w: CalendarWriter) : Tool {
             .build(),
     )
 
-    override fun describe(args: JsonObject) = "Delete a calendar event"
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) = ApprovalLineText(ApprovalPhrase.DELETE_EVENT)
 
     override suspend fun mustConfirm(args: JsonObject): String = "Deleting an event always needs your confirmation; it's removed on the calendar's server too."
 

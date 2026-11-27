@@ -16,7 +16,7 @@ class TaskSheetStateTest {
     fun `a draft comes back from the saved state field for field`() {
         val drafts = listOf(
             TaskDraft(),
-            TaskDraft.morningDigest(TaskConditions(requiresCharging = true, unmeteredOnly = true, batteryNotLow = false)),
+            TaskDraft.morningDigest(TaskConditions(requiresCharging = true, unmeteredOnly = true, batteryNotLow = false), "Morning digest"),
             TaskDraft(
                 title = "Backup alerts", prompt = "Say what failed.\nAnd why.", intervalMinutes = 90, mode = StartMode.EVENT,
                 trigger = TaskTrigger(TriggerSource.NTFY, topicUrl = "https://ntfy.sh/homelab", contains = "backup", minPriority = 4),

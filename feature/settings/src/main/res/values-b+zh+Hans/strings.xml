@@ -1341,4 +1341,8 @@
         <item quantity="other">导入 %1$s 个对话</item>
     </plurals>
     <string name="settings_import_suggest_memories">建议记忆</string>
+    <string name="settings_permissions_remembered_any_machine">任意机器</string>
+    <string name="settings_permissions_remembered_files_in">%1$s 中的文件</string>
+    <string name="settings_permissions_remembered_files_top">顶层文件夹中的文件</string>
+    <string name="settings_permissions_remembered_with_method">%1$s（%2$s）</string>
 </resources>

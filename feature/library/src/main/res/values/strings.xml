@@ -616,4 +616,11 @@
         <item quantity="one">%1$d skipped: a note with that name was saved meanwhile</item>
         <item quantity="other">%1$d skipped: notes with those names were saved meanwhile</item>
     </plurals>
+
+    <!-- Local MCP examples' names and needs, and the custom server's cleartext warning (LocalNetwork.cleartextWarning is the English) -->
+    <string name="library_localmcp_example_files">Files</string>
+    <string name="library_localmcp_example_memory">Memory</string>
+    <string name="library_localmcp_example_fetch">Fetch</string>
+    <string name="library_localmcp_example_git_needs">uv and git: apk add uv git</string>
+    <string name="library_connectors_custom_cleartext">Unencrypted connection to a public address: anyone on the way could read or change what is sent, including keys. Use https://.</string>
 </resources>

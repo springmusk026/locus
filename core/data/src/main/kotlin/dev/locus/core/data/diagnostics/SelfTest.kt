@@ -133,7 +133,7 @@ class SelfTest @Inject constructor(
 
     private suspend fun provider(p: ProviderConfig): SelfTestResult {
         // Nothing is sent for a provider that can't answer anyway (no key, not signed in, address to confirm).
-        access.missing(p)?.let { return SelfTestRules.provider(p, missing = it, listed = null, error = null) }
+        access.problem(p)?.let { return SelfTestRules.provider(p, missing = it.english, listed = null, error = null, missingText = it.text) }
         val outcome = runCatchingCancellable { withTimeoutOrNull(PROVIDER_TIMEOUT_MS) { access.listModels(p, null).size } }
         val scrubber = SecretScrubber(runCatchingCancellable { secrets.valuesForScrubbing() }.getOrDefault(emptyList()))
         val error = when (val e = outcome.exceptionOrNull()) {
@@ -172,6 +172,9 @@ object SelfTestRules {
     val LINUX_TITLE: EngineText get() = EngineText.Res(R.string.data_selftest_linux_title)
 
     private fun res(id: Int, vararg args: Any) = EngineText.Res(id, *args)
+
+    /** "Not checked: …", with the reason's words when there are some (else its English, as it was before). */
+    private fun notChecked(missing: String, missingText: EngineText?) = res(R.string.data_selftest_provider_not_checked, missingText ?: missing)
 
     fun vault(check: VaultCheck): SelfTestResult {
         val id = SelfTest.VAULT
@@ -268,11 +271,12 @@ object SelfTestRules {
     }
 
     /** [missing]: why nothing was sent; else [listed] models, or the [error]. */
-    fun provider(p: ProviderConfig, missing: String?, listed: Int?, error: ProviderError?): SelfTestResult {
+    /** [missingText] is [missing] in the app's language ([dev.locus.core.data.auth.ProviderProblem.text]). */
+    fun provider(p: ProviderConfig, missing: String?, listed: Int?, error: ProviderError?, missingText: EngineText? = null): SelfTestResult {
         val id = SelfTest.providerId(p.id)
         val name = EngineText.Plain(p.name)
         return when {
-            missing != null -> SelfTestResult(id, name, SelfTestLevel.Fail, res(R.string.data_selftest_provider_not_checked, missing), SelfTestFix.OpenModels)
+            missing != null -> SelfTestResult(id, name, SelfTestLevel.Fail, notChecked(missing, missingText), SelfTestFix.OpenModels)
             error == null && listed != null ->
                 SelfTestResult(id, name, SelfTestLevel.Pass, EngineText.Plural(R.plurals.data_selftest_provider_listed, listed))
             error?.httpStatus == 401 || error?.httpStatus == 403 -> SelfTestResult(

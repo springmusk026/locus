@@ -3,7 +3,11 @@ package dev.locus.core.data.auth
 import dev.locus.core.agent.auth.ChatGptAuthException
 import dev.locus.core.data.network.ProviderHttpClients
 import dev.locus.core.data.network.ScrubbingChatModel
+import dev.locus.core.data.R
 import dev.locus.core.datastore.SecretStore
+import dev.locus.core.datastore.VaultState
+import dev.locus.core.datastore.userMessage
+import dev.locus.core.linux.EngineText
 import dev.locus.core.llm.BearerSource
 import dev.locus.core.llm.ChatModel
 import dev.locus.core.llm.ChatModels
@@ -46,15 +50,27 @@ class ProviderAccess @Inject constructor(
     /** Which key each provider is on and which are resting; process-wide, so every chat shares it. */
     private val keyPool = KeyPool()
 
-    /** Why [provider] can't answer yet (no key, not signed in), or null when it can. */
-    suspend fun missing(provider: ProviderConfig): String? = when {
-        // The settings were changed outside Locus: no key goes to an address the user hasn't checked.
-        provider.addressUnconfirmed -> unconfirmed(provider)
+    /** Why [provider] can't answer yet (no key, not signed in), in English (the model, logs and the run read it), or null when it can. */
+    suspend fun missing(provider: ProviderConfig): String? = problem(provider)?.english
+
+    /** [missing] with its words for the screen. */
+    suspend fun problem(provider: ProviderConfig): ProviderProblem? {
         // Saved keys locked (an unusable Keystore key, or before the first unlock): say so, not "no key".
-        (provider.signsIn || provider.requiresKey) && secrets.unavailableReason() != null -> secrets.unavailableReason()
-        provider.signsIn -> if (provider.id in chatGpt.signedIn.first()) null else "${provider.name} isn't signed in. Continue with ChatGPT in Settings → Models."
-        provider.requiresKey && apiKey(provider.id).isNullOrBlank() -> "${provider.name} has no API key. Add it in Settings → Models."
-        else -> null
+        val locked = if (provider.signsIn || provider.requiresKey) secrets.unavailableReason() else null
+        return when {
+            // The settings were changed outside Locus: no key goes to an address the user hasn't checked.
+            provider.addressUnconfirmed -> ProviderProblem.unconfirmed(provider)
+            locked != null -> ProviderProblem(locked, VaultTexts.text(locked))
+            provider.signsIn -> if (provider.id in chatGpt.signedIn.first()) null else ProviderProblem(
+                "${provider.name} isn't signed in. Continue with ChatGPT in Settings → Models.",
+                EngineText.Res(R.string.data_provider_not_signed_in, provider.name),
+            )
+            provider.requiresKey && apiKey(provider.id).isNullOrBlank() -> ProviderProblem(
+                "${provider.name} has no API key. Add it in Settings → Models.",
+                EngineText.Res(R.string.data_provider_no_key, provider.name),
+            )
+            else -> null
+        }
     }
 
     /**
@@ -66,7 +82,7 @@ class ProviderAccess @Inject constructor(
 
     /** A cloud model for [provider]. On-device models come from the on-device engines instead. */
     suspend fun chatModel(provider: ProviderConfig): ChatModel {
-        if (provider.addressUnconfirmed) throw LlmException(unconfirmed(provider))
+        if (provider.addressUnconfirmed) throw LlmException(ProviderProblem.unconfirmed(provider).english)
         val client = clients.clientFor(provider)
         val model = ProviderCredentials(client.http, ::apiKey, ::bearer, ::backupKeys, keyPool).chatModel(provider)
         val scrubbed = if (client.secretValues.isEmpty()) model else ScrubbingChatModel(model, client.secretValues)
@@ -76,7 +92,7 @@ class ProviderAccess @Inject constructor(
     /** The provider's models; [typedKey] is a key typed in the editor but not saved yet. */
     suspend fun listModels(config: ProviderConfig, typedKey: String?): List<RemoteModel> {
         // A key the user just typed goes where they're looking; a saved one waits for the address to be confirmed.
-        if (config.addressUnconfirmed && typedKey == null) throw LlmException(unconfirmed(config))
+        if (config.addressUnconfirmed && typedKey == null) throw LlmException(ProviderProblem.unconfirmed(config).english)
         val credential = if (config.signsIn) bearer(config.id).token() else typedKey ?: apiKey(config.id)
         val client = clients.clientFor(config)
         return try {
@@ -87,15 +103,35 @@ class ProviderAccess @Inject constructor(
         }
     }
 
-    private fun unconfirmed(provider: ProviderConfig) =
-        "${provider.name}'s settings were changed outside Locus, so its key isn't sent until you check its address (${provider.baseUrl}) and save it in Settings → Models."
-
     private fun bearer(providerId: String) = BearerSource {
         try {
             chatGpt.accessToken(providerId)
         } catch (e: ChatGptAuthException) {
             throw LlmException(e.message ?: "The ChatGPT sign-in failed.", httpStatus = 401, cause = e)
         }
+    }
+}
+
+/**
+ * Why a provider can't answer yet ([ProviderAccess.problem]): [english] is what the model, the logs and
+ * the run's state read; [text] is the same in the app's language, for the screen.
+ */
+data class ProviderProblem(val english: String, val text: EngineText) {
+    companion object {
+        fun unconfirmed(provider: ProviderConfig) = ProviderProblem(
+            "${provider.name}'s settings were changed outside Locus, so its key isn't sent until you check its address (${provider.baseUrl}) and save it in Settings → Models.",
+            EngineText.Res(R.string.data_provider_unconfirmed, provider.name, provider.baseUrl),
+        )
+    }
+}
+
+/** The saved-keys messages ([dev.locus.core.datastore.userMessage]) in the app's language; any other as it is. */
+object VaultTexts {
+    fun text(english: String): EngineText = when (english) {
+        VaultState.Locked.userMessage() -> EngineText.Res(R.string.data_selftest_vault_locked)
+        VaultState.NeedsReset("", permanent = false).userMessage() -> EngineText.Res(R.string.data_vault_needs_reset)
+        VaultState.NotOpened.userMessage() -> EngineText.Res(R.string.data_vault_unavailable)
+        else -> EngineText.Plain(english)
     }
 }
 

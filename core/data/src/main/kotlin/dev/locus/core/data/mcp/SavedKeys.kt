@@ -2,7 +2,10 @@ package dev.locus.core.data.mcp
 
 import dev.locus.core.agent.integrations.Integration
 import dev.locus.core.agent.integrations.Integrations
+import dev.locus.core.data.R
 import dev.locus.core.datastore.SecretStore
+import dev.locus.core.linux.EngineStateException
+import dev.locus.core.linux.EngineText
 import java.net.URI
 
 /**
@@ -71,8 +74,11 @@ object SavedKeys {
      */
     suspend fun copy(secrets: SecretStore, integration: Integration, to: String) {
         val saved = secrets.get(SecretStore.connectorSecret(integration.secret))
-            ?: throw IllegalStateException("No key is saved for ${integration.name}. Add it in Settings → Integrations, or paste one here.")
-        val key = keyPart(saved) ?: throw IllegalStateException("The key saved for ${integration.name} is empty.")
+            ?: throw EngineStateException(
+                EngineText.Res(R.string.data_saved_key_none, integration.name),
+                "No key is saved for ${integration.name}. Add it in Settings → Integrations, or paste one here.",
+            )
+        val key = keyPart(saved) ?: throw EngineStateException(EngineText.Res(R.string.data_saved_key_empty, integration.name), "The key saved for ${integration.name} is empty.")
         secrets.put(SecretStore.connectorSecret(to), key)
     }
 }

@@ -648,4 +648,19 @@
     <string name="ui_research_budget_change">Change budget</string>
     <string name="ui_research_scheduled_note">A scheduled run can\'t ask you anything: it skips sites you haven\'t named in the scope notes and puts the report in the chat instead of a file.</string>
     <string name="ui_research_outside">Everything it reads counts as outside content. Sending or changing anything outside your phone asks you first, and so does opening a site you haven\'t named.</string>
+
+    <!-- Catalogue names that are words (CatalogRes.PRESET_NAME, MCP_NAME), and the descriptions Locus writes for connectors the user adds; the saved English stays -->
+    <string name="ui_catalog_preset_on_device_name">On this phone (Gemma 4, offline)</string>
+    <string name="ui_catalog_preset_on_this_phone_name">On this phone</string>
+    <string name="ui_catalog_preset_chatgpt_name">ChatGPT (your plan)</string>
+    <string name="ui_catalog_preset_ollama_name">Ollama (your network)</string>
+    <string name="ui_catalog_preset_lm_studio_name">LM Studio / llama.cpp (your network)</string>
+    <string name="ui_catalog_preset_custom_name">Custom</string>
+    <string name="ui_catalog_mcp_filesystem_name">Files</string>
+    <string name="ui_catalog_mcp_fetch_name">Fetch</string>
+    <string name="ui_catalog_mcp_memory_name">Knowledge graph</string>
+    <string name="ui_connector_remote_description">MCP server at %1$s</string>
+    <string name="ui_connector_local_description">Local MCP server: %1$s</string>
+    <string name="ui_connector_home_assistant_full">Your Home Assistant, with full access (every tool set you enabled).</string>
+    <string name="ui_connector_home_assistant_assist">Your Home Assistant: the devices you exposed to Assist.</string>
 </resources>

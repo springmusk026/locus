@@ -551,4 +551,11 @@
     <plurals name="library_suggest_skipped">
         <item quantity="other">跳过 %1$d 条：其间已保存了同名笔记</item>
     </plurals>
+
+    <!-- Local MCP examples' names and needs, and the custom server's cleartext warning (LocalNetwork.cleartextWarning is the English) -->
+    <string name="library_localmcp_example_files">文件</string>
+    <string name="library_localmcp_example_memory">记忆</string>
+    <string name="library_localmcp_example_fetch">网页抓取</string>
+    <string name="library_localmcp_example_git_needs">uv 和 git：apk add uv git</string>
+    <string name="library_connectors_custom_cleartext">到公共地址的连接未加密：途中的任何人都能读取或篡改发送的内容，包括密钥。请使用 https://。</string>
 </resources>

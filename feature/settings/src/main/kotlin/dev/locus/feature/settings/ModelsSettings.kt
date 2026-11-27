@@ -75,7 +75,9 @@ import dev.locus.core.model.ProviderPresets
 import dev.locus.core.ondevice.MemoryGate
 import dev.locus.core.ondevice.ModelState
 import dev.locus.core.ondevice.OnDeviceModel
+import dev.locus.core.ui.displayName
 import dev.locus.core.ui.noteText
+import dev.locus.core.ui.providerName
 import java.net.URI
 import java.util.UUID
 import dev.locus.core.designsystem.Insets
@@ -143,7 +145,7 @@ internal fun ModelsSettings(
                 state.providers.forEachIndexed { i, row ->
                     if (i > 0) GroupDivider(inset = Insets.iconRow)
                     ListRow(
-                        title = row.config.name,
+                        title = providerName(row.config.name),
                         subtitle = row.config.model.takeIf { it.isNotBlank() }?.let(dev.locus.core.model.ModelNames::short) ?: stringResource(R.string.settings_models_not_set),
                         titleMaxLines = 2,
                         onClick = { editing = Editing.Provider(row.config, isNew = false, hasKey = row.hasKey, isDefault = row.isDefault, hasBackupKeys = row.hasBackupKeys) },
@@ -317,7 +319,7 @@ private fun BackupModels(chain: List<ModelRef>, providers: List<ProviderConfig>,
             if (i > 0) GroupDivider(inset = Insets.iconRow)
             ListRow(
                 title = model,
-                subtitle = stringResource(R.string.settings_models_backup_position, i + 1, provider.name),
+                subtitle = stringResource(R.string.settings_models_backup_position, i + 1, providerName(provider.name)),
                 leading = { ProviderBadge(provider.name, provider.baseUrl, false, size = IconSize.tile, model = model) },
                 trailing = {
                     if (i > 0) {
@@ -366,7 +368,7 @@ private fun FallbackPicker(
                 if (i > 0) GroupDivider(inset = Insets.iconRow)
                 val select = { if (id != p.id) { id = p.id; model = "" } }
                 ListRow(
-                    title = p.name,
+                    title = providerName(p.name),
                     subtitle = p.model.takeIf { it.isNotBlank() }?.let(dev.locus.core.model.ModelNames::short) ?: stringResource(R.string.settings_models_not_set),
                     onClick = select,
                     leading = { ProviderBadge(p.name, p.baseUrl, false, size = IconSize.tile, model = p.model) },
@@ -396,7 +398,7 @@ private fun PresetPicker(onPick: (ProviderPreset) -> Unit, onDismiss: () -> Unit
             ProviderPresets.all.forEachIndexed { i, preset ->
                 if (i > 0) GroupDivider(inset = Insets.iconRow)
                 ListRow(
-                    title = preset.name,
+                    title = preset.displayName(LocalResources.current),
                     subtitle = preset.noteText(LocalResources.current),
                     titleMaxLines = 2,
                     subtitleMaxLines = Int.MAX_VALUE,

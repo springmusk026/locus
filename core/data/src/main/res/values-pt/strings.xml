@@ -280,4 +280,49 @@
     <string name="data_notif_telegram_off">Desativar</string>
     <string name="data_notif_update_title">Atualização disponível: %1$s</string>
     <string name="data_notif_update_text">Veja as novidades em Configurações → Sobre e privacidade</string>
+
+    <!-- Why a provider can't answer yet (ProviderAccess.problem); the model and the run's state read the English in the code -->
+    <string name="data_provider_not_signed_in">%1$s não está conectado. Continue com o ChatGPT em Configurações → Modelos.</string>
+    <string name="data_provider_no_key">%1$s não tem chave de API. Adicione-a em Configurações → Modelos.</string>
+    <string name="data_provider_unconfirmed">As configurações de %1$s foram alteradas fora do Locus, então a chave dele não é enviada até você conferir o endereço (%2$s) e salvá-lo em Configurações → Modelos.</string>
+    <string name="data_vault_needs_reset">O Locus não consegue abrir suas chaves salvas. Abra o Locus para redefini-las, ou veja Configurações → Sobre e privacidade → Diagnóstico.</string>
+    <string name="data_vault_unavailable">O Locus não consegue abrir suas chaves salvas agora. Tente de novo em instantes; os detalhes estão em Configurações → Sobre e privacidade → Diagnóstico.</string>
+
+    <!-- A server address the user typed (ServiceAddress.check); the agent reads the English in core/model -->
+    <string name="data_address_empty">Digite o endereço do seu servidor.</string>
+    <string name="data_address_spaces">Um endereço não pode conter espaços.</string>
+    <string name="data_address_not_https">Use um endereço https://.</string>
+    <string name="data_address_scheme">Use um endereço https://; %1$s:// não é compatível.</string>
+    <string name="data_address_unreadable">Não foi possível ler esse endereço. Ele deve ser parecido com https://server.example.com.</string>
+    <string name="data_address_user_info">Não coloque nome de usuário nem senha no endereço; use os campos abaixo.</string>
+    <string name="data_address_query">Deixe de fora tudo o que vem depois de ? ou #.</string>
+    <string name="data_address_no_host">Esse endereço não tem nome de servidor.</string>
+    <string name="data_address_port">Essa porta não é válida.</string>
+    <string name="data_address_http_public">http:// sem criptografia só funciona para um servidor neste telefone ou na sua rede doméstica. Use https://.</string>
+    <string name="data_address_lan_http_warning">http:// sem criptografia só é aceitável na sua própria rede: qualquer pessoa nela poderia ler a chave. Use https:// se o seu servidor oferecer.</string>
+
+    <!-- Library's setup errors (LibraryRepository, SavedKeys); the exceptions keep the English for logs -->
+    <string name="data_library_memory_gone">Essa nota não está mais na memória do projeto.</string>
+    <string name="data_library_needs_https">%1$s precisa de um endereço https://.</string>
+    <string name="data_library_no_saved_key">%1$s não pode usar uma chave salva.</string>
+    <string name="data_library_saved_key_host">A chave salva de %1$s só é enviada para %2$s. Mantenha esse endereço ou cole uma chave.</string>
+    <string name="data_saved_key_none">Nenhuma chave está salva para %1$s. Adicione-a em Configurações → Integrações, ou cole uma aqui.</string>
+    <string name="data_saved_key_empty">A chave salva para %1$s está vazia.</string>
+
+    <!-- Email and Telegram setup (EmailSetup, TelegramSetup) -->
+    <string name="data_email_password_first">Digite a senha primeiro.</string>
+    <string name="data_email_address_first">Digite o endereço completo primeiro.</string>
+    <string name="data_email_lookup_timeout">A lista de configurações do Thunderbird não respondeu. Tente de novo ou digite as configurações você mesmo.</string>
+    <string name="data_email_lookup_offline">Não foi possível acessar a lista de configurações do Thunderbird. Verifique se o telefone está on-line.</string>
+    <string name="data_email_lookup_http">A lista de configurações do Thunderbird respondeu %1$d. Tente de novo mais tarde.</string>
+    <string name="data_telegram_token_first">Cole o token do bot do @BotFather primeiro.</string>
+    <string name="data_telegram_not_a_token">Isso não parece um token de bot. Ele tem o formato 123456789:AAH… (copie-o inteiro do @BotFather).</string>
+
+    <!-- Workspace files and connected folders (WorkspaceRepository, ConnectedFolderRepository) -->
+    <string name="data_workspace_is_file">%1$s é um arquivo.</string>
+    <string name="data_workspace_is_folder">%1$s é uma pasta.</string>
+    <string name="data_workspace_read_failed">Não foi possível ler o arquivo selecionado.</string>
+    <string name="data_workspace_write_failed">Não foi possível gravar no local escolhido.</string>
+    <string name="data_workspace_too_big">%1$s tem mais de %2$d MB; abra-o em outro app pelo seu app de arquivos.</string>
+    <string name="data_folder_already_connected">Essa pasta já está conectada como %1$s.</string>
 </resources>

@@ -227,6 +227,8 @@ data class ReviewerBlock(
     val reason: String,
     /** The user chose Run anyway while the agent was still working; it runs at the task's next step boundary. */
     val queued: Boolean = false,
+    /** [summary] as data, for the chip to say in the user's language ([ApprovalRequest.summaryText]). */
+    val summaryText: dev.locus.core.model.ApprovalLineText? = null,
 )
 
 /**
@@ -1891,9 +1893,9 @@ class AgentRunner @Inject constructor(
         )
         if (compare != null) update(conversationId) { it.copy(comparing = FallbackChain.label(provider, provider.model)) }
         if (planRun != null) update(conversationId) { it.copy(planRun = planRun.label) }
-        access.missing(provider)?.let { problem ->
-            taskEnds[conversationId] = TaskEnd(dev.locus.core.model.TaskOutcome.FAILED, problem)
-            update(conversationId) { it.copy(error = problem) }
+        access.problem(provider)?.let { problem ->
+            taskEnds[conversationId] = TaskEnd(dev.locus.core.model.TaskOutcome.FAILED, problem.english)
+            update(conversationId) { it.withError(RunNote.ProviderNotReady(problem)) }
             return
         }
 
@@ -2106,7 +2108,7 @@ class AgentRunner @Inject constructor(
                                 }
                                 is AgentEvent.ReviewerBlocked -> {
                                     val r = event.request
-                                    val block = ReviewerBlock(r.callId, r.toolName, r.summary.lineSequence().first(), r.argumentsJson, event.reason)
+                                    val block = ReviewerBlock(r.callId, r.toolName, r.summary.lineSequence().first(), r.argumentsJson, event.reason, summaryText = r.summaryText)
                                     update(conversationId) { it.copy(reviewerBlocks = it.reviewerBlocks.filterNot { b -> b.callId == r.callId } + block) }
                                 }
                                 is AgentEvent.ToolFinished -> {

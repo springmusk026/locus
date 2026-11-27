@@ -7,6 +7,8 @@ import dev.locus.core.agent.ToolCallContext
 import dev.locus.core.agent.ToolException
 import dev.locus.core.agent.ToolResult
 import dev.locus.core.agent.str
+import dev.locus.core.model.ApprovalLineText
+import dev.locus.core.model.ApprovalPhrase
 import dev.locus.core.model.HeaderRules
 import dev.locus.core.model.HeaderVerdict
 import dev.locus.core.model.ProviderDraft
@@ -69,10 +71,13 @@ class ProviderDraftTool(
         schema,
     )
 
-    override fun describe(args: JsonObject): String {
+    override fun describe(args: JsonObject) = describeText(args).english
+
+    override fun describeText(args: JsonObject): ApprovalLineText {
         val host = args.str("base_url")?.let { dev.locus.core.model.LocalNetwork.hostOf(it) }
             ?: ProviderDraftApi.of(args.str("api_type"))?.defaultBaseUrl?.let { dev.locus.core.model.LocalNetwork.hostOf(it) }
-        return "Draft provider “${args.str("name").orEmpty().take(ProviderDrafts.MAX_NAME)}”" + (host?.let { " at $it" } ?: "") + " for your review"
+        val name = args.str("name").orEmpty().take(ProviderDrafts.MAX_NAME)
+        return host?.let { ApprovalLineText(ApprovalPhrase.DRAFT_PROVIDER_AT, name, it) } ?: ApprovalLineText(ApprovalPhrase.DRAFT_PROVIDER, name)
     }
 
     override suspend fun execute(args: JsonObject): ToolResult {

@@ -13,6 +13,8 @@ import dev.locus.core.data.remote.RemoteSync
 import dev.locus.core.data.remote.SftpFs
 import dev.locus.core.data.remote.SftpTransfer
 import dev.locus.core.data.repository.SettingsRepository
+import dev.locus.core.model.ApprovalLineText
+import dev.locus.core.model.ApprovalPhrase
 import dev.locus.core.model.SshAuth
 import dev.locus.core.model.SshHost
 import dev.locus.core.model.ToolRisk
@@ -173,7 +175,8 @@ private class SshJobStart(private val ssh: SshService) : Tool {
             .build(),
     )
 
-    override fun describe(args: JsonObject) = "Start a background job on ${args.str("host")}: ${args.str("command")}"
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) = ApprovalLineText(ApprovalPhrase.SSH_JOB_START, "${args.str("host")}", "${args.str("command")}")
 
     override suspend fun execute(args: JsonObject): ToolResult {
         val id = RemoteJobs.newId(args.str("name")) { java.util.UUID.randomUUID().toString() }
@@ -215,7 +218,8 @@ private class SshJobStop(private val ssh: SshService) : Tool {
         ObjectSchema().string("host", "Machine alias.").string("id", "Job id.").build(),
     )
 
-    override fun describe(args: JsonObject) = "Stop job ${args.str("id")} on ${args.str("host")}"
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) = ApprovalLineText(ApprovalPhrase.SSH_JOB_STOP, "${args.str("id")}", "${args.str("host")}")
 
     override suspend fun execute(args: JsonObject): ToolResult {
         val id = args.str("id").orEmpty()
@@ -255,7 +259,8 @@ private class SshExec(private val ssh: SshService) : Tool {
             .build(),
     )
 
-    override fun describe(args: JsonObject) = "On ${args.str("host")}: ${args.str("command")}"
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) = ApprovalLineText(ApprovalPhrase.SSH_RUN, "${args.str("host")}", "${args.str("command")}")
 
     override suspend fun execute(args: JsonObject): ToolResult {
         val timeout = (args.int("timeout_seconds") ?: 120).coerceIn(1, 1800)
@@ -306,7 +311,8 @@ private class SftpDownload(private val ssh: SshService, private val workspace: W
             .build(),
     )
 
-    override fun describe(args: JsonObject) = "Download ${args.str("host")}:${args.str("remote_path")} → ${args.str("workspace_path")}"
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) = ApprovalLineText(ApprovalPhrase.SFTP_DOWNLOAD, "${args.str("host")}", "${args.str("remote_path")}", "${args.str("workspace_path")}")
 
     override suspend fun execute(args: JsonObject): ToolResult {
         val host = args.str("host").orEmpty()
@@ -415,7 +421,8 @@ private class SftpUpload(private val ssh: SshService, private val workspace: Wor
             .build(),
     )
 
-    override fun describe(args: JsonObject) = "Upload ${args.str("workspace_path")} → ${args.str("host")}:${args.str("remote_path")}"
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) = ApprovalLineText(ApprovalPhrase.SFTP_UPLOAD, "${args.str("workspace_path")}", "${args.str("host")}", "${args.str("remote_path")}")
 
     override suspend fun execute(args: JsonObject): ToolResult {
         val host = args.str("host").orEmpty()

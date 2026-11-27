@@ -51,7 +51,7 @@ internal fun ReviewerBlockChips(
                 gap = Spacing.xs,
                 main = {
                     Text(
-                        stringResource(R.string.chat_reviewer_blocked, block.summary, block.reason),
+                        stringResource(R.string.chat_reviewer_blocked, dev.locus.core.designsystem.localizedApprovalSummary(block.summary, block.summaryText), block.reason),
                         Modifier.padding(top = Spacing.sm, bottom = Spacing.sm, end = Spacing.md),
                         style = LocusType.supporting,
                         color = MaterialTheme.colorScheme.onSurface,

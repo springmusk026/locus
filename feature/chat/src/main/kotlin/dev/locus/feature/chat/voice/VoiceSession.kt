@@ -2,7 +2,6 @@ package dev.locus.feature.chat.voice
 
 import dev.locus.core.agent.ApprovalRequest
 import dev.locus.core.model.VoiceSettings
-import dev.locus.core.model.toolActivity
 import dev.locus.feature.chat.SpeechText
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -118,8 +117,10 @@ internal class VoiceSession(
     private val agent: VoiceAgent,
     private val now: () -> Long,
     var settings: VoiceSettings = VoiceSettings(),
+    /** What voice mode says and shows, in the app's language ([voiceWords]); English by default. */
+    private val words: VoiceWords = VoiceWords(),
 ) {
-    private val _phase = MutableStateFlow<VoicePhase>(VoicePhase.Idle(TAP_TO_TALK))
+    private val _phase = MutableStateFlow<VoicePhase>(VoicePhase.Idle(words.tapToTalk))
     val phase: StateFlow<VoicePhase> = _phase
 
     private val _level = MutableStateFlow(0f)
@@ -200,14 +201,14 @@ internal class VoiceSession(
         pauseForFocus(transient)
     }
 
-    private fun pauseForFocus(transient: Boolean) = pause(if (transient) "Paused while another app uses audio. Locus goes on when it's done." else "Paused because another app is playing audio. Tap to go on.", resume = transient)
+    private fun pauseForFocus(transient: Boolean) = pause(if (transient) words.pausedTransient else words.pausedFocus, resume = transient)
 
     fun focusGained() {
         if (phaseNow is VoicePhase.Paused && resumeOnFocus) resume()
     }
 
     /** Locus left the screen: no listening in the background. */
-    fun backgrounded() = pause("Paused while Locus was in the background. Tap to go on.", resume = false)
+    fun backgrounded() = pause(words.pausedBackground, resume = false)
 
     private fun pause(reason: String, resume: Boolean) {
         if (phaseNow == VoicePhase.Ended || phaseNow is VoicePhase.Paused) return
@@ -223,7 +224,7 @@ internal class VoiceSession(
 
     private fun resume() {
         resumeOnFocus = false
-        _phase.value = VoicePhase.Idle(TAP_TO_TALK)
+        _phase.value = VoicePhase.Idle(words.tapToTalk)
         lastHeardAt = now()
         val again = interrupted
         interrupted = null
@@ -319,14 +320,14 @@ internal class VoiceSession(
         if (!awaitingReply || view.running || phaseNow !is VoicePhase.Working) return
         if (!sawRun) {
             // Sent, but no run started: something on the chat screen is waiting for the user.
-            if (now() - sentAt >= START_WAIT_MS) needsScreen("Locus didn't start on that.")
+            if (now() - sentAt >= START_WAIT_MS) needsScreen(words.didNotStart)
             return
         }
         val ended = runEndedAt ?: return
         if (now() - ended >= REPLY_WAIT_MS) {
             awaitingReply = false
             runEndedAt = null
-            speak(NO_REPLY, SpeechKind.NOTICE) { afterReply() }
+            speak(words.noReply, SpeechKind.NOTICE) { afterReply() }
         }
     }
 
@@ -338,7 +339,7 @@ internal class VoiceSession(
         if (phaseNow == VoicePhase.Ended) return
         silence()
         awaitingReply = false
-        _phase.value = VoicePhase.Failed("$reason Check the chat, then tap to talk again.", VoiceFix.CHAT)
+        _phase.value = VoicePhase.Failed(words.fill(words.needsScreen, reason), VoiceFix.CHAT)
     }
 
     // ---------------------------------------------------------------- the recognizer
@@ -403,10 +404,10 @@ internal class VoiceSession(
                 ears.cancel()
                 ears.listen()
             } else {
-                _phase.value = VoicePhase.Failed("Another app is using speech recognition. Tap to try again.")
+                _phase.value = VoicePhase.Failed(words.recognizerBusy)
             }
-            HearError.Permission -> _phase.value = VoicePhase.Failed(MIC_NEEDED, VoiceFix.MIC_PERMISSION)
-            HearError.NothingHeard -> _phase.value = VoicePhase.Idle(NOTHING_HEARD)
+            HearError.Permission -> _phase.value = VoicePhase.Failed(words.micNeeded, VoiceFix.MIC_PERMISSION)
+            HearError.NothingHeard -> _phase.value = VoicePhase.Idle(words.nothingHeard)
             is HearError.Failed -> _phase.value = VoicePhase.Failed(error.message, error.fix)
         }
     }
@@ -420,7 +421,7 @@ internal class VoiceSession(
             // why, instead of closing under the person.
             now() - lastHeardAt >= SILENCE_END_MS -> {
                 silence()
-                _phase.value = VoicePhase.Idle(NOTHING_HEARD)
+                _phase.value = VoicePhase.Idle(words.nothingHeard)
             }
             else -> listen(ListenFor.MESSAGE)
         }
@@ -444,12 +445,12 @@ internal class VoiceSession(
                 awaitingReply = true
                 sawRun = v.running
                 sentAt = now()
-                _phase.value = VoicePhase.Working("Answering")
+                _phase.value = VoicePhase.Working(words.answering)
             }
             v.running -> {
                 // A mid-task note: read at the agent's next step, without stopping it.
                 agent.send(text)
-                speak(NOTE_ACK, SpeechKind.NOTICE) { next() }
+                speak(words.noteAck, SpeechKind.NOTICE) { next() }
             }
             else -> {
                 baseline = v.replyKey
@@ -460,7 +461,7 @@ internal class VoiceSession(
                 statusLabel = null
                 statusAt = 0L
                 agent.send(text)
-                _phase.value = VoicePhase.Working("Sending")
+                _phase.value = VoicePhase.Working(words.sending)
             }
         }
     }
@@ -470,24 +471,24 @@ internal class VoiceSession(
     private fun approvalAnswer(text: String, confirmStep: Boolean) {
         val request = view.approval?.takeIf { it.callId == approvalId }
         // Answered on screen meanwhile, or no longer one voice may answer.
-        if (request == null || !VoiceApprovals.voiceAllowed(request)) return next()
-        when (VoiceApprovals.parse(text, confirmStep)) {
+        if (request == null || !VoiceApprovals.voiceAllowed(request, words)) return next()
+        when (VoiceApprovals.parse(text, confirmStep, words.answers)) {
             VoiceReply.DENY -> {
                 agent.answer(request.callId, false)
                 approvalId = null
                 confirming = false
-                speak("Denied.", SpeechKind.NOTICE) { next() }
+                speak(words.denied, SpeechKind.NOTICE) { next() }
             }
             VoiceReply.ALLOW -> if (!confirmStep) {
                 confirming = true
                 unclear = 0
-                speak(VoiceApprovals.CONFIRM_PROMPT, SpeechKind.PROMPT) { listen(ListenFor.CONFIRM) }
+                speak(words.confirmPrompt, SpeechKind.PROMPT) { listen(ListenFor.CONFIRM) }
             } else unclearAnswer()
             VoiceReply.CONFIRM -> if (confirmStep) {
                 agent.answer(request.callId, true)
                 approvalId = null
                 confirming = false
-                speak("Allowed.", SpeechKind.NOTICE) { next() }
+                speak(words.allowed, SpeechKind.NOTICE) { next() }
             } else unclearAnswer()
             VoiceReply.UNCLEAR -> unclearAnswer()
         }
@@ -498,22 +499,22 @@ internal class VoiceSession(
         unclear++
         if (unclear >= MAX_UNCLEAR) {
             confirming = false
-            speak(VoiceApprovals.UNCLEAR_TAP, SpeechKind.PROMPT) { _phase.value = VoicePhase.TapApproval(request, "Voice didn't get a clear answer.") }
+            speak(words.unclearTap, SpeechKind.PROMPT) { _phase.value = VoicePhase.TapApproval(request, words.notClear) }
             return
         }
         val step = if (confirming) ListenFor.CONFIRM else ListenFor.APPROVAL
-        speak(if (confirming) VoiceApprovals.UNCLEAR_CONFIRM else VoiceApprovals.UNCLEAR_AGAIN, SpeechKind.PROMPT) { listen(step) }
+        speak(if (confirming) words.unclearConfirm else words.unclearAgain, SpeechKind.PROMPT) { listen(step) }
     }
 
     private fun startApproval(request: ApprovalRequest) {
         approvalId = request.callId
         confirming = false
         unclear = 0
-        val reason = VoiceApprovals.tapReason(request)
+        val reason = VoiceApprovals.tapReason(request, words)
         if (reason != null) {
-            speak(VoiceApprovals.tapPrompt(request, reason), SpeechKind.PROMPT) { _phase.value = VoicePhase.TapApproval(request, reason) }
+            speak(VoiceApprovals.tapPrompt(request, reason, words), SpeechKind.PROMPT) { _phase.value = VoicePhase.TapApproval(request, reason) }
         } else {
-            speak(VoiceApprovals.askPrompt(request), SpeechKind.PROMPT) { listen(ListenFor.APPROVAL) }
+            speak(VoiceApprovals.askPrompt(request, words), SpeechKind.PROMPT) { listen(ListenFor.APPROVAL) }
         }
     }
 
@@ -527,7 +528,7 @@ internal class VoiceSession(
         if (approval != null) {
             if (approvalId != approval.callId) return startApproval(approval)
             // Already handled: a tap-only request waits for the tap.
-            VoiceApprovals.tapReason(approval)?.let { _phase.value = VoicePhase.TapApproval(approval, it) } ?: run {
+            VoiceApprovals.tapReason(approval, words)?.let { _phase.value = VoicePhase.TapApproval(approval, it) } ?: run {
                 if (phaseNow !is VoicePhase.TapApproval) listen(if (confirming) ListenFor.CONFIRM else ListenFor.APPROVAL)
             }
             return
@@ -538,7 +539,7 @@ internal class VoiceSession(
         }
         if (awaitingReply && !v.running && !sawRun) {
             // Sent; the run hasn't shown up yet.
-            _phase.value = VoicePhase.Working("Sending")
+            _phase.value = VoicePhase.Working(words.sending)
             return
         }
         if (awaitingReply && !v.running) {
@@ -546,16 +547,16 @@ internal class VoiceSession(
             if (v.replyKey != null && v.replyKey != baseline && reply != null) {
                 awaitingReply = false
                 runEndedAt = null
-                return speak(SpeechText.forVoice(reply), SpeechKind.REPLY) { afterReply() }
+                return speak(SpeechText.forVoice(reply, speech = speechWords), SpeechKind.REPLY) { afterReply() }
             }
             if (v.error != null) {
                 awaitingReply = false
                 runEndedAt = null
-                return speak("Something went wrong. ${SpeechText.prepare(v.error)}", SpeechKind.NOTICE) { afterReply() }
+                return speak(words.fill(words.wentWrong, SpeechText.prepare(v.error, speechWords)), SpeechKind.NOTICE) { afterReply() }
             }
             // The run ended and its reply isn't in the chat yet: wait a moment ([tick]).
             if (runEndedAt == null) runEndedAt = now()
-            _phase.value = VoicePhase.Working("Finishing")
+            _phase.value = VoicePhase.Working(words.finishing)
             return
         }
         if (v.running) {
@@ -563,7 +564,7 @@ internal class VoiceSession(
             maybeSayStatus(v)
             return
         }
-        if (settings.autoListen) listen(ListenFor.MESSAGE) else _phase.value = VoicePhase.Idle(TAP_TO_TALK)
+        if (settings.autoListen) listen(ListenFor.MESSAGE) else _phase.value = VoicePhase.Idle(words.tapToTalk)
     }
 
     private fun afterReply() {
@@ -636,29 +637,26 @@ internal class VoiceSession(
         else -> false
     }
 
-    private fun statusText(v: VoiceAgentView): String = v.activeTool?.let(::toolActivity) ?: "Thinking"
+    private fun statusText(v: VoiceAgentView): String = v.activeTool?.let(words.activity) ?: words.thinking
 
     /** Says what the agent is doing, when spoken status is on and it changed, no more often than every [STATUS_GAP_MS]. */
     private fun maybeSayStatus(v: VoiceAgentView): Boolean {
         if (!settings.spokenStatus || phaseNow !is VoicePhase.Working) return false
         val tool = v.activeTool ?: return false
-        val label = toolActivity(tool)
+        val label = words.activity(tool)
         val t = now()
         if (label == statusLabel || (statusLabel != null && t - statusAt < STATUS_GAP_MS)) return false
         val first = statusLabel == null
         statusLabel = label
         statusAt = t
-        speak(if (first) "Working on it. $label." else "$label.", SpeechKind.STATUS) { next() }
+        speak(words.fill(if (first) words.firstStatus else words.status, label), SpeechKind.STATUS) { next() }
         return true
     }
 
-    companion object {
-        const val TAP_TO_TALK = "Tap to talk"
-        const val NOTHING_HEARD = "Didn't hear anything. Tap to talk"
-        const val NOTE_ACK = "Got it. Locus will read that after this step."
-        const val NO_REPLY = "The task ended without a reply to read."
-        const val MIC_NEEDED ="Voice mode needs the microphone. Allow it, then tap to try again."
+    /** Markdown as speech, with "Code block." and the like in the same language. */
+    private val speechWords = words.speech
 
+    companion object {
         /** Listening with nothing heard for this long (after the last words or reply) turns the microphone off until a tap. */
         const val SILENCE_END_MS = 30_000L
 
@@ -697,18 +695,15 @@ internal object BargeIn {
 }
 
 /** SpeechRecognizer's error codes (android.speech.SpeechRecognizer.ERROR_*), as [HearError]s. */
-internal fun hearError(code: Int): HearError = when (code) {
+internal fun hearError(code: Int, words: VoiceWords = VoiceWords()): HearError = when (code) {
     6, 7 -> HearError.NoSpeech // ERROR_SPEECH_TIMEOUT, ERROR_NO_MATCH
     8 -> HearError.Busy // ERROR_RECOGNIZER_BUSY
     9 -> HearError.Permission // ERROR_INSUFFICIENT_PERMISSIONS
     5 -> HearError.NothingHeard // ERROR_CLIENT
-    1, 2 -> HearError.Failed("Speech recognition needs a connection right now. Check it, then tap to try again.") // NETWORK_TIMEOUT, NETWORK
-    4, 10 -> HearError.Failed("The speech service is busy. Wait a moment, then tap to try again.") // SERVER, TOO_MANY_REQUESTS
-    12, 13 -> HearError.Failed( // LANGUAGE_NOT_SUPPORTED, LANGUAGE_UNAVAILABLE
-        "Speech recognition on this phone doesn't have your language yet. Add it in the phone's speech settings.",
-        VoiceFix.SPEECH_SETTINGS,
-    )
-    3 -> HearError.Failed("Couldn't record from the microphone. Another app may be using it. Tap to try again.") // ERROR_AUDIO
-    11 -> HearError.Failed("The speech recognizer closed. Tap to start it again.") // ERROR_SERVER_DISCONNECTED
-    else -> HearError.Failed("Listening stopped. Tap to try again.")
+    1, 2 -> HearError.Failed(words.needsConnection) // NETWORK_TIMEOUT, NETWORK
+    4, 10 -> HearError.Failed(words.serviceBusy) // SERVER, TOO_MANY_REQUESTS
+    12, 13 -> HearError.Failed(words.noLanguage, VoiceFix.SPEECH_SETTINGS) // LANGUAGE_NOT_SUPPORTED, LANGUAGE_UNAVAILABLE
+    3 -> HearError.Failed(words.noMicrophone) // ERROR_AUDIO
+    11 -> HearError.Failed(words.recognizerClosed) // ERROR_SERVER_DISCONNECTED
+    else -> HearError.Failed(words.listeningStopped)
 }

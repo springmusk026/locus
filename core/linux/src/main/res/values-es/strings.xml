@@ -112,4 +112,25 @@
     <string name="linux_kill_what_command">un comando</string>
     <string name="linux_kill_what_service">el servicio %1$s</string>
     <string name="linux_kill_what_terminal">una terminal</string>
+
+    <!-- Errors Linux throws that screens show (EngineTextError); the exception keeps the English for the model and logs -->
+    <string name="linux_error_not_installed">El sistema Linux de Locus no está instalado. Instálalo desde Inicio → Archivos → Linux.</string>
+    <string name="linux_error_not_installed_short">Linux no está instalado.</string>
+    <string name="linux_error_still_installing">Linux todavía se está instalando.</string>
+    <string name="linux_error_unsupported_cpu">Procesador no compatible: %1$s</string>
+    <string name="linux_error_damaged">Los archivos propios de Linux están dañados o faltan. Reinstálalo para solucionarlo.</string>
+    <string name="linux_error_repair_timed_out">Linux sigue sin iniciarse (se agotó el tiempo). Reinstálalo para solucionarlo.</string>
+    <string name="linux_error_repair_exit">Linux sigue sin iniciarse (código de salida %1$s). Reinstálalo para solucionarlo.</string>
+    <string name="linux_error_checksum">La imagen de Linux descargada no superó la comprobación de suma (se obtuvo %1$s).</string>
+
+    <!-- The packages screen's errors (LinuxProbe); apk's own words stay as they are -->
+    <string name="linux_packages_not_a_name">“%1$s” no es un nombre de paquete.</string>
+    <string name="linux_packages_base_system">%1$s forma parte de Alpine y no se puede quitar aquí.</string>
+    <string name="linux_packages_remove_timed_out">Quitar %1$s tardó más de 2 minutos.</string>
+    <string name="linux_packages_updates_timed_out">Buscar actualizaciones tardó más de 2 minutos.</string>
+    <string name="linux_packages_index_failed">No se pudo actualizar el índice de paquetes: %1$s</string>
+    <string name="linux_packages_index_failed_plain">No se pudo actualizar el índice de paquetes:</string>
+
+    <!-- Where Linux is installed (LINUX_INSTALL_PATH, the English the agent quotes), in the app's own labels -->
+    <string name="linux_install_path">Inicio → Archivos → Linux</string>
 </resources>

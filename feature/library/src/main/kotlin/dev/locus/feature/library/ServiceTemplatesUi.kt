@@ -1,5 +1,6 @@
 package dev.locus.feature.library
 
+import dev.locus.core.data.connectors.errorText
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ColumnScope
@@ -31,6 +32,7 @@ import dev.locus.core.agent.home.Connector
 import dev.locus.core.data.connectors.ConnectionCheck
 import dev.locus.core.data.connectors.ConnectorTemplate
 import dev.locus.core.data.connectors.ConnectorTemplates
+import dev.locus.core.data.connectors.warningText
 import dev.locus.core.data.mcp.HomeAssistantSafety
 import dev.locus.core.data.mcp.McpTemplate
 import dev.locus.core.data.mcp.McpTemplates
@@ -208,11 +210,11 @@ private fun ColumnScope.AddressField(form: ServiceForm, hint: String, localNetwo
         placeholder = { Text(hint) },
         singleLine = true,
         isError = showError,
-        supportingText = { Text(if (showError) checked.error.orEmpty() else stringResource(R.string.library_service_address_hint)) },
+        supportingText = { Text(if (showError) checked.errorText?.asString().orEmpty() else stringResource(R.string.library_service_address_hint)) },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false, imeAction = ImeAction.Next),
         modifier = Modifier.fillMaxWidth(),
     )
-    checked.warning?.let { Banner(it, Tone.Caution, title = stringResource(R.string.library_service_not_encrypted)) }
+    checked.warningText?.let { Banner(it.asString(), Tone.Caution, title = stringResource(R.string.library_service_not_encrypted)) }
     checked.url?.let { LocalNetworkNote(it, localNetwork) }
 }
 

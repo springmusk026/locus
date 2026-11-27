@@ -7,6 +7,8 @@ import dev.locus.core.designsystem.UiText
 import dev.locus.core.linux.LinuxNotInstalledException
 import dev.locus.feature.workspace.R
 import dev.locus.core.linux.LinuxStatus
+import dev.locus.core.linux.engineText
+import dev.locus.feature.workspace.linux.toUiText
 import dev.locus.core.terminal.TerminalSessions
 import dev.locus.core.terminal.TerminalTab
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,9 +45,9 @@ class TerminalViewModel @Inject constructor(val sessions: TerminalSessions) : Vi
             try {
                 sessions.open()
             } catch (e: LinuxNotInstalledException) {
-                _message.value = e.unavailableReason?.let(UiText::Plain) ?: UiText.Res(R.string.workspace_terminal_install_first, dev.locus.core.model.LINUX_INSTALL_PATH)
+                _message.value = if (e.unavailableReason != null) e.text.toUiText() else UiText.Res(R.string.workspace_terminal_install_first, UiText.Res(dev.locus.core.linux.R.string.linux_install_path))
             } catch (e: IllegalStateException) {
-                _message.value = e.message?.let(UiText::Plain)
+                _message.value = e.engineText().toUiText()
             } finally {
                 opening = false
             }

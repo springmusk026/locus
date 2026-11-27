@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <!-- RunTextUi.kt: provider errors, run notices and progress, budget, receipts and speeds from core (LlmErrorText, RunNote, BudgetReached, TaskReceipt) -->
     <string name="chat_error_provider_words">%1$s devolvió HTTP %2$s: %3$s</string>
     <string name="chat_error_bad_request">%1$s no pudo aceptar la solicitud (HTTP 400).</string>
@@ -1826,4 +1826,78 @@
     <string name="chat_export_type">Escribir en la página</string>
     <string name="chat_export_field">%1$s: %2$s</string>
     <string name="chat_export_receipt">Recibo de la tarea: %1$s</string>
+    <string name="chat_voice_say_tap_to_talk">Toca para hablar</string>
+    <string name="chat_voice_say_nothing_heard">No se oyó nada. Toca para hablar</string>
+    <string name="chat_voice_say_note_ack">Entendido. Locus lo leerá después de este paso.</string>
+    <string name="chat_voice_say_no_reply">La tarea terminó sin una respuesta que leer.</string>
+    <string name="chat_voice_say_mic_needed">El modo de voz necesita el micrófono. Permítelo y toca para volver a intentarlo.</string>
+    <string name="chat_voice_say_paused_transient">En pausa mientras otra app usa el audio. Locus seguirá cuando termine.</string>
+    <string name="chat_voice_say_paused_focus">En pausa porque otra app está reproduciendo audio. Toca para seguir.</string>
+    <string name="chat_voice_say_paused_background">En pausa mientras Locus estaba en segundo plano. Toca para seguir.</string>
+    <string name="chat_voice_say_did_not_start">Locus no empezó con eso.</string>
+    <string name="chat_voice_say_needs_screen">%1$s Revisa el chat y toca para volver a hablar.</string>
+    <string name="chat_voice_say_recognizer_busy">Otra app está usando el reconocimiento de voz. Toca para volver a intentarlo.</string>
+    <string name="chat_voice_say_answering">Respondiendo</string>
+    <string name="chat_voice_say_sending">Enviando</string>
+    <string name="chat_voice_say_finishing">Terminando</string>
+    <string name="chat_voice_say_thinking">Pensando</string>
+    <string name="chat_voice_say_denied">Rechazado.</string>
+    <string name="chat_voice_say_allowed">Permitido.</string>
+    <string name="chat_voice_say_not_clear">La voz no obtuvo una respuesta clara.</string>
+    <string name="chat_voice_say_went_wrong">Algo salió mal. %1$s</string>
+    <string name="chat_voice_say_first_status">Estoy en ello. %1$s.</string>
+    <string name="chat_voice_say_status">%1$s.</string>
+    <string name="chat_voice_say_tap_memory">Esto cambia lo que Locus recuerda y la nota está en la pantalla, así que necesita que la mires y toques.</string>
+    <string name="chat_voice_say_tap_reviewer">El revisor de seguridad marcó esto, así que necesita un toque.</string>
+    <string name="chat_voice_say_tap_unknown">Esto necesita un toque.</string>
+    <string name="chat_voice_say_tap_must_confirm">Parece un pago u otra acción que hay que confirmar, así que necesita un toque.</string>
+    <string name="chat_voice_say_tap_tainted">Locus leyó contenido externo durante esta tarea, así que esto necesita un toque.</string>
+    <string name="chat_voice_say_tap_private_data">Esta tarea leyó tus datos privados y esto abre una dirección nueva, así que necesita un toque.</string>
+    <string name="chat_voice_say_tap_scope">Esto va más allá de lo que la tarea debía hacer, así que necesita un toque.</string>
+    <string name="chat_voice_say_locus_wants">Locus quiere: %1$s</string>
+    <string name="chat_voice_say_helper_wants">%1$s quiere: %2$s</string>
+    <string name="chat_voice_say_ask_prompt">%1$s. Di permitir o rechazar.</string>
+    <string name="chat_voice_say_confirm_prompt">Para permitirlo, di confirmar. O di no.</string>
+    <string name="chat_voice_say_tap_prompt">%1$s. %2$s Toca Permitir o Rechazar en la pantalla.</string>
+    <string name="chat_voice_say_unclear_tap">No lo entendí. Toca Permitir o Rechazar en la pantalla.</string>
+    <string name="chat_voice_say_unclear_again">Perdona, di permitir o rechazar.</string>
+    <string name="chat_voice_say_unclear_confirm">Perdona, di confirmar para permitirlo, o di no.</string>
+    <string name="chat_voice_say_asks">%1$s pregunta: %2$s</string>
+    <string name="chat_voice_say_you_can_say">%1$s Puedes decir %2$s.</string>
+    <string name="chat_voice_say_list_join">%1$s, %2$s</string>
+    <string name="chat_voice_say_list_last">%1$s o %2$s</string>
+    <string name="chat_voice_say_no_recognizer">Este teléfono no tiene reconocimiento de voz. Instala uno (como Speech Services by Google) y toca para volver a intentarlo.</string>
+    <string name="chat_voice_say_could_not_start">No se pudo iniciar el reconocimiento de voz. Toca para volver a intentarlo.</string>
+    <string name="chat_voice_say_needs_connection">El reconocimiento de voz necesita conexión ahora. Revísala y toca para volver a intentarlo.</string>
+    <string name="chat_voice_say_service_busy">El servicio de voz está ocupado. Espera un momento y toca para volver a intentarlo.</string>
+    <string name="chat_voice_say_no_language">El reconocimiento de voz de este teléfono aún no tiene tu idioma. Añádelo en los ajustes de voz del teléfono.</string>
+    <string name="chat_voice_say_no_microphone">No se pudo grabar con el micrófono. Puede que otra app lo esté usando. Toca para volver a intentarlo.</string>
+    <string name="chat_voice_say_recognizer_closed">El reconocimiento de voz se cerró. Toca para iniciarlo de nuevo.</string>
+    <string name="chat_voice_say_listening_stopped">Se dejó de escuchar. Toca para volver a intentarlo.</string>
+    <string name="chat_voice_say_voice_downloading">La voz todavía se está descargando. Toca para volver a intentarlo.</string>
+    <string name="chat_voice_say_could_not_speak">No se pudo leer la respuesta en voz alta. Toca para volver a intentarlo.</string>
+    <string name="chat_voice_say_no_engine">No hay ningún motor de texto a voz instalado. Añade uno (como Speech Services by Google) y vuelve a intentarlo.</string>
+    <string name="chat_voice_say_on_device">Reconocimiento en el dispositivo</string>
+    <string name="chat_voice_say_on_device_note">La voz se convierte en texto en este teléfono.</string>
+    <string name="chat_voice_say_system_recognizer">Reconocimiento de voz del sistema</string>
+    <string name="chat_voice_say_prefer_offline_note">Se le pidió que no salga del teléfono; si lo hace depende de esa app.</string>
+    <string name="chat_voice_say_online_note">Este reconocimiento puede enviar tu voz a su propio servicio.</string>
+    <string name="chat_voice_say_blocked_model">El modelo del chat no puede recibir ese mensaje.</string>
+    <string name="chat_voice_say_blocked_heat">El teléfono está caliente o en ahorro de batería, así que Locus pregunta antes de responder en el dispositivo.</string>
+    <string name="chat_voice_answer_yes" tools:ignore="Typos">sí si vale permitir permite permitido permítelo aprobar apruebo aprobado acepto aceptar claro adelante ok</string>
+    <string name="chat_voice_answer_confirm" tools:ignore="Typos">confirmar confirmo confirmado confírmalo</string>
+    <string name="chat_voice_answer_no" tools:ignore="Typos">no nunca rechazar rechazo rechazado rechaza denegar deniega denegado cancelar cancela detén</string>
+    <string name="chat_voice_answer_negators" tools:ignore="Typos">no nunca</string>
+    <string name="chat_speech_code">Bloque de código.</string>
+    <string name="chat_speech_table">Tabla.</string>
+    <string name="chat_speech_link">enlace</string>
+    <string name="chat_speech_more_on_screen">El resto está en la pantalla.</string>
+    <string name="chat_speech_nothing_to_read">Listo. La respuesta está en la pantalla.</string>
+    <string name="chat_screen_suggestion_web">Busca en la web las noticias de tecnología más importantes de esta semana y resúmelas</string>
+    <string name="chat_screen_suggestion_packing">Haz una lista de equipaje para un viaje de 3 días y guárdala en mi espacio de trabajo</string>
+    <string name="chat_screen_suggestion_script">Escribe un script de Python que renombre mis fotos por fecha y luego ejecútalo</string>
+    <string name="chat_screen_suggestion_week">Planifica mi semana: pregúntame qué tengo y luego añade los eventos a mi calendario</string>
+    <string name="chat_run_backups_skipped">Modelos de respaldo omitidos: %1$s.</string>
+    <string name="chat_run_skipped_model">%1$s: %2$s</string>
+    <string name="chat_run_skipped_join">%1$s; %2$s</string>
 </resources>

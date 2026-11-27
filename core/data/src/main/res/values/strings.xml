@@ -283,4 +283,49 @@
     <string name="data_notif_telegram_off">Turn off</string>
     <string name="data_notif_update_title">Update available: %1$s</string>
     <string name="data_notif_update_text">See what\'s new in Settings → About &amp; privacy</string>
+
+    <!-- Why a provider can't answer yet (ProviderAccess.problem); the model and the run's state read the English in the code -->
+    <string name="data_provider_not_signed_in">%1$s isn\'t signed in. Continue with ChatGPT in Settings → Models.</string>
+    <string name="data_provider_no_key">%1$s has no API key. Add it in Settings → Models.</string>
+    <string name="data_provider_unconfirmed">%1$s\'s settings were changed outside Locus, so its key isn\'t sent until you check its address (%2$s) and save it in Settings → Models.</string>
+    <string name="data_vault_needs_reset">Locus can\'t open your saved keys. Open Locus to reset them, or see Settings → About &amp; privacy → Diagnostics.</string>
+    <string name="data_vault_unavailable">Locus can\'t open your saved keys right now. Try again in a moment; details are in Settings → About &amp; privacy → Diagnostics.</string>
+
+    <!-- A server address the user typed (ServiceAddress.check); the agent reads the English in core/model -->
+    <string name="data_address_empty">Enter your server\'s address.</string>
+    <string name="data_address_spaces">An address can\'t contain spaces.</string>
+    <string name="data_address_not_https">Use an https:// address.</string>
+    <string name="data_address_scheme">Use an https:// address; %1$s:// isn\'t supported.</string>
+    <string name="data_address_unreadable">That address can\'t be read. It should look like https://server.example.com.</string>
+    <string name="data_address_user_info">Don\'t put a user name or password in the address; use the fields below.</string>
+    <string name="data_address_query">Leave out anything after ? or #.</string>
+    <string name="data_address_no_host">That address has no server name.</string>
+    <string name="data_address_port">That port isn\'t valid.</string>
+    <string name="data_address_http_public">Plain http:// only works for a server on this phone or your home network. Use https://.</string>
+    <string name="data_address_lan_http_warning">Plain http:// is only acceptable on your own network: anyone on it could read the key. Use https:// if your server has it.</string>
+
+    <!-- Library's setup errors (LibraryRepository, SavedKeys); the exceptions keep the English for logs -->
+    <string name="data_library_memory_gone">That note isn\'t in the project\'s memory any more.</string>
+    <string name="data_library_needs_https">%1$s needs an https:// address.</string>
+    <string name="data_library_no_saved_key">%1$s can\'t use a saved key.</string>
+    <string name="data_library_saved_key_host">The saved %1$s key only goes to %2$s. Keep that address, or paste a key instead.</string>
+    <string name="data_saved_key_none">No key is saved for %1$s. Add it in Settings → Integrations, or paste one here.</string>
+    <string name="data_saved_key_empty">The key saved for %1$s is empty.</string>
+
+    <!-- Email and Telegram setup (EmailSetup, TelegramSetup) -->
+    <string name="data_email_password_first">Enter the password first.</string>
+    <string name="data_email_address_first">Enter the whole address first.</string>
+    <string name="data_email_lookup_timeout">Thunderbird\'s settings list didn\'t answer. Try again, or enter the settings yourself.</string>
+    <string name="data_email_lookup_offline">Couldn\'t reach Thunderbird\'s settings list. Check that the phone is online.</string>
+    <string name="data_email_lookup_http">Thunderbird\'s settings list answered %1$d. Try again later.</string>
+    <string name="data_telegram_token_first">Paste the bot token from @BotFather first.</string>
+    <string name="data_telegram_not_a_token">That doesn\'t look like a bot token. It has the form 123456789:AAH… (copy it whole from @BotFather).</string>
+
+    <!-- Workspace files and connected folders (WorkspaceRepository, ConnectedFolderRepository) -->
+    <string name="data_workspace_is_file">%1$s is a file.</string>
+    <string name="data_workspace_is_folder">%1$s is a folder.</string>
+    <string name="data_workspace_read_failed">Could not read the selected file.</string>
+    <string name="data_workspace_write_failed">Could not write to the chosen location.</string>
+    <string name="data_workspace_too_big">%1$s is over %2$d MB; open it in another app from your Files app.</string>
+    <string name="data_folder_already_connected">That folder is already connected as %1$s.</string>
 </resources>

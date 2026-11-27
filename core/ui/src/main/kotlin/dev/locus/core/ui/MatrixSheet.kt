@@ -29,6 +29,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import dev.locus.core.agent.integrations.Integration
 import dev.locus.core.agent.integrations.Matrix
 import dev.locus.core.data.connectors.ServiceSetupException
+import dev.locus.core.data.connectors.errorText
 import dev.locus.core.data.integrations.ReachMeChannel
 import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.ConfirmSheet
@@ -125,7 +126,7 @@ internal fun MatrixSheet(
             placeholder = { Text(stringResource(R.string.ui_reachme_matrix_server_placeholder)) },
             singleLine = true,
             isError = showUrlError,
-            supportingText = { Text(if (showUrlError) checked.error.orEmpty() else stringResource(R.string.ui_reachme_matrix_server_hint)) },
+            supportingText = { Text(if (showUrlError) checked.errorText?.asString().orEmpty() else stringResource(R.string.ui_reachme_matrix_server_hint)) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false, imeAction = ImeAction.Next),
             modifier = Modifier.fillMaxWidth(),
         )

@@ -74,7 +74,7 @@ class VoiceSessionTest {
     fun `with auto-listen off it waits for a tap after the reply`() {
         val s = session(VoiceSettings(autoListen = false, spokenStatus = false))
         s.start()
-        assertEquals(VoicePhase.Idle(VoiceSession.TAP_TO_TALK), s.phase.value)
+        assertEquals(VoicePhase.Idle(VoiceWords().tapToTalk), s.phase.value)
         s.tap()
         assertIs<VoicePhase.Listening>(s.phase.value)
     }
@@ -121,7 +121,7 @@ class VoiceSessionTest {
         assertEquals(VoicePhase.Working("Finishing"), s.phase.value)
         clock += VoiceSession.REPLY_WAIT_MS
         s.tick()
-        assertEquals(VoiceSession.NO_REPLY, mouth.lastText)
+        assertEquals(VoiceWords().noReply, mouth.lastText)
     }
 
     @Test
@@ -180,7 +180,7 @@ class VoiceSessionTest {
         s.tap()
         s.heard("also run the tests")
         assertEquals(listOf("build the app", "also run the tests"), agent.sent)
-        assertEquals(VoiceSession.NOTE_ACK, mouth.lastText)
+        assertEquals(VoiceWords().noteAck, mouth.lastText)
         s.done()
         assertIs<VoicePhase.Working>(s.phase.value)
     }
@@ -211,7 +211,7 @@ class VoiceSessionTest {
         assertEquals(VoicePhase.Listening("", ListenFor.APPROVAL), s.phase.value)
         s.heard("yes allow it")
         assertTrue(agent.answers.isEmpty(), "allow alone never approves")
-        assertEquals(VoiceApprovals.CONFIRM_PROMPT, mouth.lastText)
+        assertEquals(VoiceWords().confirmPrompt, mouth.lastText)
         s.done()
         assertEquals(VoicePhase.Listening("", ListenFor.CONFIRM), s.phase.value)
         s.heard("confirm")
@@ -241,7 +241,7 @@ class VoiceSessionTest {
         s.done()
         s.heard("banana")
         assertTrue(agent.answers.isEmpty())
-        assertEquals(VoiceApprovals.UNCLEAR_TAP, mouth.lastText)
+        assertEquals(VoiceWords().unclearTap, mouth.lastText)
         s.done()
         assertIs<VoicePhase.TapApproval>(s.phase.value)
     }
@@ -325,7 +325,7 @@ class VoiceSessionTest {
         assertEquals(VoicePhase.Listening("", ListenFor.MESSAGE), s.phase.value)
         clock += VoiceSession.SILENCE_END_MS
         s.hearFailed(HearError.NoSpeech)
-        assertEquals(VoicePhase.Idle(VoiceSession.NOTHING_HEARD), s.phase.value)
+        assertEquals(VoicePhase.Idle(VoiceWords().nothingHeard), s.phase.value)
         s.tap()
         assertIs<VoicePhase.Listening>(s.phase.value)
     }
@@ -342,7 +342,7 @@ class VoiceSessionTest {
         s.tap()
         assertIs<VoicePhase.Listening>(s.phase.value)
         s.hearFailed(HearError.Permission)
-        assertEquals(VoicePhase.Failed(VoiceSession.MIC_NEEDED, VoiceFix.MIC_PERMISSION), s.phase.value)
+        assertEquals(VoicePhase.Failed(VoiceWords().micNeeded, VoiceFix.MIC_PERMISSION), s.phase.value)
     }
 
     @Test
@@ -434,7 +434,7 @@ class VoiceSessionTest {
         val s = session()
         s.start()
         s.hearFailed(HearError.NothingHeard)
-        assertEquals(VoicePhase.Idle(VoiceSession.NOTHING_HEARD), s.phase.value)
+        assertEquals(VoicePhase.Idle(VoiceWords().nothingHeard), s.phase.value)
         s.tap()
         assertIs<VoicePhase.Listening>(s.phase.value)
     }

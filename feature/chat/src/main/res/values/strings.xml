@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <!-- RunTextUi.kt: provider errors, run notices and progress, budget, receipts and speeds from core (LlmErrorText, RunNote, BudgetReached, TaskReceipt) -->
     <string name="chat_error_provider_words">%1$s returned HTTP %2$s: %3$s</string>
     <string name="chat_error_bad_request">%1$s couldn\'t accept the request (HTTP 400).</string>
@@ -1782,4 +1782,83 @@
     <string name="chat_export_type">Type into the page</string>
     <string name="chat_export_field">%1$s: %2$s</string>
     <string name="chat_export_receipt">Task receipt: %1$s</string>
+    <!-- Voice mode's own words (voice/VoiceWords.kt): the English is VoiceWords()'s, word for word (VoiceWordsTest). -->
+    <string name="chat_voice_say_tap_to_talk">Tap to talk</string>
+    <string name="chat_voice_say_nothing_heard">Didn\'t hear anything. Tap to talk</string>
+    <string name="chat_voice_say_note_ack">Got it. Locus will read that after this step.</string>
+    <string name="chat_voice_say_no_reply">The task ended without a reply to read.</string>
+    <string name="chat_voice_say_mic_needed">Voice mode needs the microphone. Allow it, then tap to try again.</string>
+    <string name="chat_voice_say_paused_transient">Paused while another app uses audio. Locus goes on when it\'s done.</string>
+    <string name="chat_voice_say_paused_focus">Paused because another app is playing audio. Tap to go on.</string>
+    <string name="chat_voice_say_paused_background">Paused while Locus was in the background. Tap to go on.</string>
+    <string name="chat_voice_say_did_not_start">Locus didn\'t start on that.</string>
+    <string name="chat_voice_say_needs_screen">%1$s Check the chat, then tap to talk again.</string>
+    <string name="chat_voice_say_recognizer_busy">Another app is using speech recognition. Tap to try again.</string>
+    <string name="chat_voice_say_answering">Answering</string>
+    <string name="chat_voice_say_sending">Sending</string>
+    <string name="chat_voice_say_finishing">Finishing</string>
+    <string name="chat_voice_say_thinking">Thinking</string>
+    <string name="chat_voice_say_denied">Denied.</string>
+    <string name="chat_voice_say_allowed">Allowed.</string>
+    <string name="chat_voice_say_not_clear">Voice didn\'t get a clear answer.</string>
+    <string name="chat_voice_say_went_wrong">Something went wrong. %1$s</string>
+    <string name="chat_voice_say_first_status">Working on it. %1$s.</string>
+    <string name="chat_voice_say_status">%1$s.</string>
+    <string name="chat_voice_say_tap_memory">This changes what Locus remembers, and the note is on the screen, so it needs a look and a tap.</string>
+    <string name="chat_voice_say_tap_reviewer">The safety reviewer flagged this, so it needs a tap.</string>
+    <string name="chat_voice_say_tap_unknown">This needs a tap.</string>
+    <string name="chat_voice_say_tap_must_confirm">This looks like a payment or another action that must be confirmed, so it needs a tap.</string>
+    <string name="chat_voice_say_tap_tainted">Locus read outside content during this task, so this needs a tap.</string>
+    <string name="chat_voice_say_tap_private_data">This task read your private data and this opens a new address, so it needs a tap.</string>
+    <string name="chat_voice_say_tap_scope">This goes beyond what the task was set up to do, so it needs a tap.</string>
+    <string name="chat_voice_say_locus_wants">Locus wants to: %1$s</string>
+    <string name="chat_voice_say_helper_wants">%1$s wants to: %2$s</string>
+    <string name="chat_voice_say_ask_prompt">%1$s. Say allow, or deny.</string>
+    <string name="chat_voice_say_confirm_prompt">To allow it, say confirm. Or say no.</string>
+    <string name="chat_voice_say_tap_prompt">%1$s. %2$s Tap Allow or Deny on the screen.</string>
+    <string name="chat_voice_say_unclear_tap">I didn\'t catch that. Tap Allow or Deny on the screen.</string>
+    <string name="chat_voice_say_unclear_again">Sorry, say allow, or deny.</string>
+    <string name="chat_voice_say_unclear_confirm">Sorry, say confirm to allow it, or no.</string>
+    <string name="chat_voice_say_asks">%1$s asks: %2$s</string>
+    <string name="chat_voice_say_you_can_say">%1$s You can say %2$s.</string>
+    <string name="chat_voice_say_list_join">%1$s, %2$s</string>
+    <string name="chat_voice_say_list_last">%1$s, or %2$s</string>
+    <string name="chat_voice_say_no_recognizer">This phone has no speech recognizer. Install one (such as Speech Services by Google), then tap to try again.</string>
+    <string name="chat_voice_say_could_not_start">Couldn\'t start speech recognition. Tap to try again.</string>
+    <string name="chat_voice_say_needs_connection">Speech recognition needs a connection right now. Check it, then tap to try again.</string>
+    <string name="chat_voice_say_service_busy">The speech service is busy. Wait a moment, then tap to try again.</string>
+    <string name="chat_voice_say_no_language">Speech recognition on this phone doesn\'t have your language yet. Add it in the phone\'s speech settings.</string>
+    <string name="chat_voice_say_no_microphone">Couldn\'t record from the microphone. Another app may be using it. Tap to try again.</string>
+    <string name="chat_voice_say_recognizer_closed">The speech recognizer closed. Tap to start it again.</string>
+    <string name="chat_voice_say_listening_stopped">Listening stopped. Tap to try again.</string>
+    <string name="chat_voice_say_voice_downloading">The voice is still downloading. Tap to try again.</string>
+    <string name="chat_voice_say_could_not_speak">Couldn\'t speak the reply. Tap to try again.</string>
+    <string name="chat_voice_say_no_engine">No text-to-speech engine is installed. Add one (such as Speech Services by Google), then try again.</string>
+    <string name="chat_voice_say_on_device">On-device recognition</string>
+    <string name="chat_voice_say_on_device_note">Speech is turned into text on this phone.</string>
+    <string name="chat_voice_say_system_recognizer">System speech recognizer</string>
+    <string name="chat_voice_say_prefer_offline_note">Asked to stay on the phone; whether it does is up to that app.</string>
+    <string name="chat_voice_say_online_note">This recognizer may send your voice to its own service.</string>
+    <string name="chat_voice_say_blocked_model">The chat\'s model can\'t take that message.</string>
+    <string name="chat_voice_say_blocked_heat">The phone is hot or in battery saver, so Locus is asking before an on-device reply.</string>
+    <!-- The words that answer an approval by voice, separated by spaces: what the recognizer writes when someone says them in this language. English is always understood too. Negators turn the allow or confirm word right after them into a no. -->
+    <string name="chat_voice_answer_yes" tools:ignore="Typos">yes yeah yep yup allow allowed approve approved ok okay sure accept</string>
+    <string name="chat_voice_answer_confirm" tools:ignore="Typos">confirm confirmed</string>
+    <string name="chat_voice_answer_no" tools:ignore="Typos">no nope nah deny denied don\'t dont not cancel stop reject never decline</string>
+    <string name="chat_voice_answer_negators" tools:ignore="Typos">don\'t dont not never</string>
+    <!-- Read aloud and voice mode: what is said in place of code, tables and links (SpeechText.kt); English as SpeechWords() says it. -->
+    <string name="chat_speech_code">Code block.</string>
+    <string name="chat_speech_table">Table.</string>
+    <string name="chat_speech_link">link</string>
+    <string name="chat_speech_more_on_screen">The rest is on the screen.</string>
+    <string name="chat_speech_nothing_to_read">Done. The answer is on the screen.</string>
+    <!-- A new chat's suggestions: tapping one sends it as the user's own message. -->
+    <string name="chat_screen_suggestion_web">Search the web for this week\'s top tech news and summarise it</string>
+    <string name="chat_screen_suggestion_packing">Make a packing list for a 3-day trip and save it to my workspace</string>
+    <string name="chat_screen_suggestion_script">Write a Python script that renames my photos by date, then run it</string>
+    <string name="chat_screen_suggestion_week">Plan my week: ask me what\'s on, then add the events to my calendar</string>
+    <!-- After a failed run's error: the backup models passed over, each with why (Need lacks in chat_fit_lacks_*). -->
+    <string name="chat_run_backups_skipped">Backup models skipped: %1$s.</string>
+    <string name="chat_run_skipped_model">%1$s: %2$s</string>
+    <string name="chat_run_skipped_join">%1$s; %2$s</string>
 </resources>

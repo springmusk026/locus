@@ -248,4 +248,49 @@
     <string name="data_notif_telegram_off">关闭</string>
     <string name="data_notif_update_title">有可用更新：%1$s</string>
     <string name="data_notif_update_text">在 设置 → 关于与隐私 中查看新内容</string>
+
+    <!-- Why a provider can't answer yet (ProviderAccess.problem); the model and the run's state read the English in the code -->
+    <string name="data_provider_not_signed_in">%1$s 尚未登录。请在 设置 → 模型 中选择“使用 ChatGPT 继续”。</string>
+    <string name="data_provider_no_key">%1$s 没有 API 密钥。请在 设置 → 模型 中添加。</string>
+    <string name="data_provider_unconfirmed">%1$s 的设置在 Locus 之外被更改，因此在你检查其地址（%2$s）并在 设置 → 模型 中保存之前，不会发送它的密钥。</string>
+    <string name="data_vault_needs_reset">Locus 无法打开你保存的密钥。请打开 Locus 重置它们，或查看 设置 → 关于与隐私 → 诊断。</string>
+    <string name="data_vault_unavailable">Locus 暂时无法打开你保存的密钥。请稍后再试；详情见 设置 → 关于与隐私 → 诊断。</string>
+
+    <!-- A server address the user typed (ServiceAddress.check); the agent reads the English in core/model -->
+    <string name="data_address_empty">请输入你的服务器地址。</string>
+    <string name="data_address_spaces">地址中不能包含空格。</string>
+    <string name="data_address_not_https">请使用 https:// 地址。</string>
+    <string name="data_address_scheme">请使用 https:// 地址；不支持 %1$s://。</string>
+    <string name="data_address_unreadable">无法识别该地址。它应类似于 https://server.example.com。</string>
+    <string name="data_address_user_info">不要在地址中填写用户名或密码，请使用下方的字段。</string>
+    <string name="data_address_query">请去掉 ? 或 # 之后的所有内容。</string>
+    <string name="data_address_no_host">该地址没有服务器名称。</string>
+    <string name="data_address_port">该端口无效。</string>
+    <string name="data_address_http_public">未加密的 http:// 仅适用于本手机或家庭网络中的服务器。请使用 https://。</string>
+    <string name="data_address_lan_http_warning">未加密的 http:// 只适合在你自己的网络中使用：网络中的任何人都能读取密钥。如果你的服务器支持，请使用 https://。</string>
+
+    <!-- Library's setup errors (LibraryRepository, SavedKeys); the exceptions keep the English for logs -->
+    <string name="data_library_memory_gone">该笔记已不在项目的记忆中。</string>
+    <string name="data_library_needs_https">%1$s 需要 https:// 地址。</string>
+    <string name="data_library_no_saved_key">%1$s 无法使用已保存的密钥。</string>
+    <string name="data_library_saved_key_host">已保存的 %1$s 密钥只会发送到 %2$s。请保留该地址，或改为粘贴密钥。</string>
+    <string name="data_saved_key_none">%1$s 没有已保存的密钥。请在 设置 → 集成 中添加，或在这里粘贴一个。</string>
+    <string name="data_saved_key_empty">为 %1$s 保存的密钥为空。</string>
+
+    <!-- Email and Telegram setup (EmailSetup, TelegramSetup) -->
+    <string name="data_email_password_first">请先输入密码。</string>
+    <string name="data_email_address_first">请先输入完整的地址。</string>
+    <string name="data_email_lookup_timeout">Thunderbird 的设置列表没有响应。请重试，或自行填写设置。</string>
+    <string name="data_email_lookup_offline">无法连接 Thunderbird 的设置列表。请检查手机是否联网。</string>
+    <string name="data_email_lookup_http">Thunderbird 的设置列表返回了 %1$d。请稍后再试。</string>
+    <string name="data_telegram_token_first">请先粘贴来自 @BotFather 的机器人令牌。</string>
+    <string name="data_telegram_not_a_token">这看起来不像机器人令牌。它的格式是 123456789:AAH…（请从 @BotFather 完整复制）。</string>
+
+    <!-- Workspace files and connected folders (WorkspaceRepository, ConnectedFolderRepository) -->
+    <string name="data_workspace_is_file">%1$s 是一个文件。</string>
+    <string name="data_workspace_is_folder">%1$s 是一个文件夹。</string>
+    <string name="data_workspace_read_failed">无法读取所选文件。</string>
+    <string name="data_workspace_write_failed">无法写入所选位置。</string>
+    <string name="data_workspace_too_big">%1$s 超过 %2$d MB；请从“文件”应用中用其他应用打开它。</string>
+    <string name="data_folder_already_connected">该文件夹已作为 %1$s 连接。</string>
 </resources>

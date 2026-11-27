@@ -8,6 +8,8 @@ import dev.locus.core.agent.bool
 import dev.locus.core.agent.home.SecretResolver
 import dev.locus.core.agent.int
 import dev.locus.core.agent.str
+import dev.locus.core.model.ApprovalLineText
+import dev.locus.core.model.ApprovalPhrase
 import dev.locus.core.model.ToolPolicy
 import dev.locus.core.model.ToolRisk
 import dev.locus.core.model.ToolSpec
@@ -245,9 +247,15 @@ object EmailFormat {
      * How [text]'s recipients are shown on an approval card: only the parsed addresses the mail would go
      * to, never display names. A list that doesn't parse says so (sending it would fail anyway).
      */
-    fun shownRecipients(text: String?, field: String): String =
+    fun shownRecipients(text: String?, field: String): String = shownRecipientsText(text, field).let { if (it is ApprovalLineText) it.english else it.toString() }
+
+    /**
+     * [shownRecipients] for the approval line ([ApprovalLineText]): the addresses as a String, or Locus's
+     * own words, as an [ApprovalLineText], when they can't be read.
+     */
+    fun shownRecipientsText(text: String?, field: String): Any =
         runCatching { recipients(text, field, addressLikeNames = true).joinToString { it.address } }
-            .getOrElse { "(an invalid address list, which won't be sent)" }
+            .getOrElse { ApprovalLineText(ApprovalPhrase.EMAIL_INVALID_ADDRESSES) }
 
     fun subject(s: String?): String = s.orEmpty().replace(Regex("[\\r\\n\\t]+"), " ").trim().take(250)
 
@@ -412,11 +420,15 @@ private class EmailSend(private val mail: MailClient) : Tool {
             .build(),
     )
 
-    override fun describe(args: JsonObject): String {
-        val cc = args.str("cc")?.takeIf { it.isNotBlank() }?.let { " (cc ${EmailFormat.shownRecipients(it, "cc")})" }.orEmpty()
-        val subject = EmailFormat.subject(args.str("subject")).ifEmpty { if (args.str("reply_to_message_id") != null) "reply" else "(no subject)" }
+    override fun describe(args: JsonObject) = describeText(args).english
+
+    override fun describeText(args: JsonObject): ApprovalLineText {
+        val cc = args.str("cc")?.takeIf { it.isNotBlank() }?.let { EmailFormat.shownRecipientsText(it, "cc") }
+        val subject: Any = EmailFormat.subject(args.str("subject")).takeIf { it.isNotEmpty() }
+            ?: ApprovalLineText(if (args.str("reply_to_message_id") != null) ApprovalPhrase.EMAIL_REPLY_SUBJECT else ApprovalPhrase.EMAIL_NO_SUBJECT)
         val preview = args.str("body").orEmpty().replace(Regex("\\s+"), " ").take(80)
-        return "Send email to ${EmailFormat.shownRecipients(args.str("to"), "to")}$cc: “$subject” — $preview"
+        val to = EmailFormat.shownRecipientsText(args.str("to"), "to")
+        return if (cc != null) ApprovalLineText(ApprovalPhrase.EMAIL_SEND_CC, to, cc, subject, preview) else ApprovalLineText(ApprovalPhrase.EMAIL_SEND, to, subject, preview)
     }
 
     override suspend fun mustConfirm(args: JsonObject) = "Sends a real email to ${EmailFormat.shownRecipients(args.str("to"), "to")} from the agent's mailbox."

@@ -99,6 +99,11 @@ sealed interface RunNote {
         override val english get() = "Add a model provider in Settings → Models first."
     }
 
+    /** The chat's provider can't answer yet (no key, not signed in, an address to check), as [problem] says. */
+    data class ProviderNotReady(val problem: dev.locus.core.data.auth.ProviderProblem) : RunNote {
+        override val english get() = problem.english
+    }
+
     /** "Summarising from the chosen message", while Summarise from here writes its draft (docs/design/rewind.md). */
     data object SummarisingFrom : RunNote {
         override val english get() = "Summarising from the chosen message"

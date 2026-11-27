@@ -90,24 +90,26 @@ import dev.locus.feature.chat.ChatUiState
 import dev.locus.feature.chat.R
 import kotlinx.coroutines.delay
 
-/** What voice mode needs from the chat's state. Pure, so it's tested. */
-internal fun voiceView(state: ChatUiState): VoiceAgentView {
+/** What voice mode needs from the chat's state, with voice mode's own words from [words]. Pure, so it's tested. */
+internal fun voiceView(state: ChatUiState, words: VoiceWords = VoiceWords()): VoiceAgentView {
     val reply = state.items.lastOrNull { it is ChatItem.Assistant } as ChatItem.Assistant?
     val question = state.pendingQuestion
     return VoiceAgentView(
         running = state.run.running,
         approval = state.pendingApproval,
         question = question?.let { q ->
-            buildString {
-                q.origin?.let { append(it.label).append(" asks: ") }
-                append(q.question.trim())
-                if (q.options.isNotEmpty()) {
-                    if (last() !in ".?!") append('.')
-                    append(" You can say ")
-                    append(if (q.options.size == 1) q.options.single() else q.options.dropLast(1).joinToString(", ") + ", or " + q.options.last())
-                    append('.')
+            var said = q.question.trim()
+            q.origin?.let { said = words.fill(words.asks, it.label, said) }
+            if (q.options.isNotEmpty()) {
+                if (said.lastOrNull() !in SENTENCE_ENDS) said += "."
+                val options = if (q.options.size == 1) {
+                    q.options.single()
+                } else {
+                    words.fill(words.listLast, q.options.dropLast(1).reduce { all, next -> words.fill(words.listJoin, all, next) }, q.options.last())
                 }
+                said = words.fill(words.youCanSay, said, options)
             }
+            said
         },
         questionId = question?.callId,
         replyKey = reply?.key,
@@ -181,18 +183,20 @@ private fun VoiceLoop(
     onExit: () -> Unit,
 ) {
     val context = LocalContext.current.applicationContext
+    val words = rememberVoiceWords()
+    val language = androidx.compose.ui.platform.LocalResources.current.configuration.locales[0]
     val sendNow = androidx.compose.runtime.rememberUpdatedState(onSend)
     val answerNow = androidx.compose.runtime.rememberUpdatedState(onAnswer)
     val parts = remember {
         var holder: VoiceSession? = null
-        val ears = SystemEars(context) { holder }
-        val mouth = SystemMouth(context) { holder }
+        val ears = SystemEars(context, words) { holder }
+        val mouth = SystemMouth(context, words, language) { holder }
         val focus = VoiceFocus(context) { holder }
         val agent = object : VoiceAgent {
             override fun send(text: String) = sendNow.value(text)
             override fun answer(callId: String, approved: Boolean) = answerNow.value(callId, approved)
         }
-        val session = VoiceSession(ears, mouth, agent, System::currentTimeMillis, settings)
+        val session = VoiceSession(ears, mouth, agent, System::currentTimeMillis, settings, words)
         holder = session
         VoiceParts(session, ears, mouth, focus)
     }
@@ -202,9 +206,9 @@ private fun VoiceLoop(
         session.settings = settings
         parts.mouth.rate = settings.rate
     }
-    LaunchedEffect(voiceView(state)) { session.onAgent(voiceView(state)) }
+    LaunchedEffect(voiceView(state, words)) { session.onAgent(voiceView(state, words)) }
     DisposableEffect(parts) {
-        session.onAgent(voiceView(state))
+        session.onAgent(voiceView(state, words))
         parts.mouth.rate = settings.rate
         session.start()
         parts.focus.request()
@@ -215,12 +219,8 @@ private fun VoiceLoop(
             parts.focus.abandon()
         }
     }
-    LaunchedEffect(session) {
-        while (true) {
-            delay(1_000)
-            session.tick()
-        }
-    }
+    // About once a second: lets a finished run whose reply never showed move on.
+    LaunchedEffect(session) { while (true) { delay(1_000); session.tick() } }
     LaunchedEffect(blocked) { blocked?.let(session::needsScreen) }
     // No microphone in the background: leaving the screen pauses it.
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -393,11 +393,11 @@ private fun Orb(phase: VoicePhase, level: Float, onTap: () -> Unit, size: androi
 /** The approval waiting: allow or deny by tap always; by voice only when [VoiceApprovals] allows it, and why not otherwise. */
 @Composable
 private fun VoiceApprovalCard(request: ApprovalRequest, phase: VoicePhase, onAnswer: (String, Boolean) -> Unit) {
-    val reason = VoiceApprovals.tapReason(request)
+    val reason = VoiceApprovals.tapReason(request, rememberVoiceWords())
     val caution = Locus.colors.caution
     LocusCard(Modifier.fillMaxWidth(), outline = caution.copy(alpha = Emphasis.toneOutline)) {
         Text(request.origin?.let { stringResource(R.string.chat_voice_wants_to, it.label) } ?: stringResource(R.string.chat_voice_allow_this), style = LocusType.cardTitle)
-        SupportingText(request.summary, style = LocusType.rowSupporting, maxLines = 3)
+        SupportingText(dev.locus.core.designsystem.localizedApprovalSummary(request.summary, request.summaryText), style = LocusType.rowSupporting, maxLines = 3)
         // A memory change is answered by tap only, after a look at what it saves: the whole note, scrolling in place.
         request.preview?.memory?.let { change ->
             Column(Modifier.heightIn(max = Sizes.inlineScroll).verticalScroll(rememberScrollState())) { dev.locus.core.ui.MemoryChangeRows(change) }
@@ -487,6 +487,16 @@ private fun tapLabel(phase: VoicePhase): String = when (phase) {
     is VoicePhase.Failed -> stringResource(R.string.chat_voice_try_again)
     else -> stringResource(R.string.chat_voice_tap_talk)
 }
+
+/** Voice mode's own words in the app's language; the composition's resources follow a language change. */
+@Composable
+private fun rememberVoiceWords(): VoiceWords {
+    val resources = androidx.compose.ui.platform.LocalResources.current
+    return remember(resources) { voiceWords(resources) }
+}
+
+/** Where a question already ends a sentence, so "You can say…" needs no full stop before it. */
+private val SENTENCE_ENDS = setOf('.', '?', '!', '。', '？', '！')
 
 /** From this font scale the voice screen scrolls and shrinks its orb for an approval. */
 private const val LARGE_FONT = 1.3f

@@ -101,4 +101,7 @@
     <string name="app_automation_never">Nunca</string>
     <string name="app_automation_always">Permitir siempre</string>
     <string name="app_automation_unknown_caller">Android no indicó de qué app se trata, así que Locus pregunta cada vez. Las apps que inician Locus para obtener un resultado, o que comparten su identidad al iniciarlo (Android 14+), pueden permitirse siempre.</string>
+
+    <!-- Activity narrowed to a task that has no label -->
+    <string name="app_activity_this_task">Esta tarea</string>
 </resources>
