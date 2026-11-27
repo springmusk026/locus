@@ -59,43 +59,55 @@ internal object WidgetWords {
         },
     )
 
-    /** "Next: Evening recap · 18:00"; "Next task: 18:00" without a title. */
-    fun next(res: Resources, next: WidgetNext, time: String): String =
-        next.title?.let { res.getString(R.string.widget_next, it, time) } ?: res.getString(R.string.widget_next_untitled, time)
+    /**
+     * "Next: Evening recap · 18:00"; "Next task: 18:00" without a title; "… · tomorrow 2:46 PM or later" when
+     * the time is only the earliest Android may run it ([WidgetNext.earliest]).
+     */
+    fun next(res: Resources, next: WidgetNext, time: String): String {
+        val shown = if (next.earliest) res.getString(R.string.widget_time_or_later, time) else time
+        return next.title?.let { res.getString(R.string.widget_next, it, shown) } ?: res.getString(R.string.widget_next_untitled, shown)
+    }
 
     /** How far a time is from now decides how it's written: a time, a weekday and time, or a date. */
-    enum class When { TIME, WEEKDAY_TIME, DATE }
+    enum class When { TIME, TOMORROW, YESTERDAY, WEEKDAY_TIME, DATE }
 
-    /** Within the same day (or, ahead, the next 24 hours): the time; within a week: weekday and time; else the date. */
+    /** Today: the time; the day after or before: "tomorrow" or "yesterday" and the time; within a week: weekday and time; else the date. */
     fun whenOf(at: Long, now: Long, zone: ZoneId): When {
         val day = Instant.ofEpochMilli(at).atZone(zone).toLocalDate()
         val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
-        val days = kotlin.math.abs(ChronoUnit.DAYS.between(today, day))
+        val days = ChronoUnit.DAYS.between(today, day)
         return when {
-            day == today || (at > now && at - now < DAY_MS) -> When.TIME
-            days < WEEK_DAYS -> When.WEEKDAY_TIME
+            days == 0L -> When.TIME
+            days == 1L -> When.TOMORROW
+            days == -1L -> When.YESTERDAY
+            kotlin.math.abs(days) < WEEK_DAYS -> When.WEEKDAY_TIME
             else -> When.DATE
         }
     }
 
     /**
-     * [at] written for the widget ([whenOf]): "7:02" or "18:00" as the phone's 12/24-hour setting says
-     * ([is24Hour]), "Mon 07:00", or "Nov 21".
+     * [at] written for the widget ([whenOf]): "7:02 AM" or "18:00" as the phone's 12/24-hour setting says
+     * ([is24Hour]), "tomorrow 7:00 AM", "yesterday 2:46 PM", "Mon 07:00", or "Nov 21". The widget is
+     * redrawn at local midnight, so "tomorrow" never goes stale.
      */
     fun time(res: Resources, at: Long, now: Long, zone: ZoneId, is24Hour: Boolean): String {
-        val locale = res.locale
         val clock = if (is24Hour) "Hm" else "hm"
-        val skeleton = when (whenOf(at, now, zone)) {
-            When.TIME -> clock
+        val style = whenOf(at, now, zone)
+        val skeleton = when (style) {
+            When.TIME, When.TOMORROW, When.YESTERDAY -> clock
             When.WEEKDAY_TIME -> "EEE$clock"
             When.DATE -> "MMMd"
         }
-        val format = DateFormat.getInstanceForSkeleton(skeleton, locale)
+        val format = DateFormat.getInstanceForSkeleton(skeleton, res.locale)
         format.timeZone = android.icu.util.TimeZone.getTimeZone(zone.id)
         format.setContext(DisplayContext.CAPITALIZATION_FOR_STANDALONE)
-        return format.format(Date(at))
+        val text = format.format(Date(at))
+        return when (style) {
+            When.TOMORROW -> res.getString(R.string.widget_time_tomorrow, text)
+            When.YESTERDAY -> res.getString(R.string.widget_time_yesterday, text)
+            else -> text
+        }
     }
 
-    private const val DAY_MS = 24 * 60 * 60 * 1000L
     private const val WEEK_DAYS = 7
 }

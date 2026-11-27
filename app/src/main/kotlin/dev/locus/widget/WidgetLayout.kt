@@ -39,11 +39,12 @@ internal object WidgetLayout {
      * The usage widget: whether its [note] ("Today"), the [tokens] under a spend, the seven-day [strip]
      * with its total, and today's [requests] show, and how many lines the running task's budget gets.
      */
-    data class Usage(val note: Boolean, val tokens: Boolean, val strip: Boolean, val requests: Boolean, val taskLines: Int)
+    data class Usage(val note: Boolean, val tokens: Boolean, val strip: Boolean, val requests: Boolean, val taskLines: Int, val stripHeight: Float = 0f)
 
     /**
      * The usage widget at [heightDp]: the figure always; then its note, the tokens, the task's first line,
-     * the week, today's requests and the task's second line while they fit.
+     * the week, today's requests and the task's second line while they fit. The week's bars then take the
+     * height that's left, up to [WidgetSizes.stripMaxHeight], so a tall tile has no empty band.
      */
     fun usage(heightDp: Float, fontScale: Float, hasTokens: Boolean, hasWeek: Boolean, hasTask: Boolean): Usage {
         val room = Room(heightDp - 2 * WidgetSizes.padding.value - WidgetSizes.headlineLine.value * fontScale)
@@ -54,11 +55,15 @@ internal object WidgetLayout {
         val strip = hasWeek && room.take(WidgetSizes.stripHeight.value + Spacing.sm.value + line + Spacing.xxs.value)
         val requests = room.take(line + Spacing.xxs.value)
         if (task in 1 until MAX_TASK_LINES && room.take(line)) task++
-        return Usage(note, tokens, strip, requests, task)
+        val stripHeight = if (strip) (WidgetSizes.stripHeight.value + room.left).coerceAtMost(WidgetSizes.stripMaxHeight.value) else 0f
+        return Usage(note, tokens, strip, requests, task, stripHeight)
     }
 
     /** The height left, in dp; [take] spends [cost] of it when it's there. */
-    private class Room(private var left: Float) {
+    private class Room(left: Float) {
+        var left: Float = left
+            private set
+
         fun take(cost: Float): Boolean = (left >= cost).also { if (it) left -= cost }
     }
 }

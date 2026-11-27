@@ -5,6 +5,8 @@ import android.content.Intent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
@@ -94,7 +96,7 @@ class LocusUsageWidget : GlanceAppWidget() {
             }
             if (plan.strip) {
                 Spacer(GlanceModifier.defaultWeight())
-                Week(model.bars, res.getString(R.string.widget_usage_week_description))
+                Week(model.bars, plan.stripHeight.dp, res.getString(R.string.widget_usage_week_description))
                 Spacer(GlanceModifier.height(Spacing.xxs))
                 Line(UsageWords.week(res, model.week), colors.onSurfaceVariant)
             }
@@ -103,11 +105,11 @@ class LocusUsageWidget : GlanceAppWidget() {
 
     /** The last seven days as bars, today last and in the accent colour: plain coloured boxes, no bitmaps. */
     @Composable
-    private fun Week(bars: List<Float>, description: String) {
+    private fun Week(bars: List<Float>, height: Dp, description: String) {
         val colors = GlanceTheme.colors
-        val span = WidgetSizes.stripHeight - WidgetSizes.barMin
+        val span = height - WidgetSizes.barMin
         Row(
-            GlanceModifier.fillMaxWidth().height(WidgetSizes.stripHeight).semantics { contentDescription = description },
+            GlanceModifier.fillMaxWidth().height(height).semantics { contentDescription = description },
             verticalAlignment = Alignment.Bottom,
         ) {
             bars.forEachIndexed { i, fraction ->

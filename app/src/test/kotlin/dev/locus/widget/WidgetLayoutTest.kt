@@ -1,5 +1,6 @@
 package dev.locus.widget
 
+import dev.locus.core.designsystem.WidgetSizes
 import org.junit.Test
 import kotlin.test.assertEquals
 
@@ -51,9 +52,12 @@ class WidgetLayoutTest {
 
     @Test
     fun `a taller usage widget adds the week and today's requests`() {
-        assertEquals(WidgetLayout.Usage(note = true, tokens = true, strip = true, requests = true, taskLines = 0), WidgetLayout.usage(188f, 1f, hasTokens = true, hasWeek = true, hasTask = false))
+        assertEquals(WidgetLayout.Usage(note = true, tokens = true, strip = true, requests = true, taskLines = 0, stripHeight = 42f), WidgetLayout.usage(188f, 1f, hasTokens = true, hasWeek = true, hasTask = false))
         // A running task's budget comes before the week; the requests give way.
-        assertEquals(WidgetLayout.Usage(note = true, tokens = true, strip = true, requests = false, taskLines = 1), WidgetLayout.usage(188f, 1f, hasTokens = true, hasWeek = true, hasTask = true))
+        assertEquals(WidgetLayout.Usage(note = true, tokens = true, strip = true, requests = false, taskLines = 1, stripHeight = 36f), WidgetLayout.usage(188f, 1f, hasTokens = true, hasWeek = true, hasTask = true))
+        // The bars take the height left over, up to their most, so a tall tile has no empty band.
+        assertEquals(WidgetSizes.stripHeight.value + 10f, WidgetLayout.usage(188f, 1f, hasTokens = true, hasWeek = true, hasTask = false).stripHeight)
+        assertEquals(WidgetSizes.stripMaxHeight.value, WidgetLayout.usage(400f, 1f, hasTokens = true, hasWeek = true, hasTask = false).stripHeight)
         // No week without use.
         assertEquals(false, WidgetLayout.usage(188f, 1f, hasTokens = true, hasWeek = false, hasTask = false).strip)
     }

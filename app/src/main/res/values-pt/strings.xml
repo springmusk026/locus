@@ -46,6 +46,9 @@
     <string name="widget_run_hidden">Abra o Locus para ler.</string>
     <string name="widget_next">Próxima: %1$s · %2$s</string>
     <string name="widget_next_untitled">Próxima tarefa: %1$s</string>
+    <string name="widget_time_tomorrow">amanhã %1$s</string>
+    <string name="widget_time_yesterday">ontem %1$s</string>
+    <string name="widget_time_or_later">%1$s ou mais tarde</string>
     <string name="widget_usage_today">Hoje</string>
     <string name="widget_usage_cost_unknown">Hoje · gasto desconhecido</string>
     <string name="widget_usage_prices_off">Hoje · preços desativados</string>

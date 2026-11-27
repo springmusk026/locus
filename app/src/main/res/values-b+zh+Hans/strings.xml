@@ -40,6 +40,9 @@
     <string name="widget_run_hidden">打开 Locus 查看。</string>
     <string name="widget_next">下次：%1$s · %2$s</string>
     <string name="widget_next_untitled">下个任务：%1$s</string>
+    <string name="widget_time_tomorrow">明天 %1$s</string>
+    <string name="widget_time_yesterday">昨天 %1$s</string>
+    <string name="widget_time_or_later">%1$s 或之后</string>
     <string name="widget_usage_today">今天</string>
     <string name="widget_usage_cost_unknown">今天 · 费用未知</string>
     <string name="widget_usage_prices_off">今天 · 价格已关闭</string>

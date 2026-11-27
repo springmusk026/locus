@@ -52,6 +52,9 @@
     <string name="widget_run_hidden">Open Locus to read it.</string>
     <string name="widget_next">Next: %1$s · %2$s</string>
     <string name="widget_next_untitled">Next task: %1$s</string>
+    <string name="widget_time_tomorrow">tomorrow %1$s</string>
+    <string name="widget_time_yesterday">yesterday %1$s</string>
+    <string name="widget_time_or_later">%1$s or later</string>
     <string name="widget_usage_today">Today</string>
     <string name="widget_usage_cost_unknown">Today · cost unknown</string>
     <string name="widget_usage_prices_off">Today · prices off</string>

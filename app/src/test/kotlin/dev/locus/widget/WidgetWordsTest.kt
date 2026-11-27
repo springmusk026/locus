@@ -58,6 +58,7 @@ class WidgetWordsTest {
         assertEquals("Open Locus to read it.", WidgetWords.runText(res, hidden))
         assertEquals("Next: Evening recap · 18:00", WidgetWords.next(res, WidgetNext("Evening recap", 1), "18:00"))
         assertEquals("Next task: 18:00", WidgetWords.next(res, WidgetNext(null, 1), "18:00"))
+        assertEquals("Next: Morning digest · tomorrow 2:46 PM or later", WidgetWords.next(res, WidgetNext("Morning digest", 1, earliest = true), "tomorrow 2:46 PM"))
     }
 
     @Test
@@ -95,6 +96,7 @@ class WidgetWordsTest {
         assertEquals("Hoy · gasto desconocido", UsageWords.note(res, UsageNote.COST_UNKNOWN))
         assertEquals("312 solicitudes", UsageWords.requests(res, 312))
         assertEquals("Próxima: Resumen · 18:00", WidgetWords.next(res, WidgetNext("Resumen", 1), "18:00"))
+        assertEquals("Próxima: Resumen · mañana 7:00 o más tarde", WidgetWords.next(res, WidgetNext("Resumen", 1, earliest = true), "mañana 7:00"))
         // Money in the language's own way ("1,50 US$"), still a floor.
         val spend = UsageWords.figure(res, UsageFigure.Spend(1.5, floor = true))
         assertTrue("1,50" in spend && spend.endsWith("+"), spend)
@@ -109,11 +111,11 @@ class WidgetWordsTest {
     fun `a time is written as near as it is`() {
         val now = at(27, 17, 49)
         assertEquals(WidgetWords.When.TIME, WidgetWords.whenOf(at(27, 7, 2), now, zone))
-        // Ahead within a day: tomorrow's 07:00 is just "07:00".
-        assertEquals(WidgetWords.When.TIME, WidgetWords.whenOf(at(28, 7), now, zone))
-        // Yesterday's run says its weekday, so "7:02" never silently means yesterday.
-        assertEquals(WidgetWords.When.WEEKDAY_TIME, WidgetWords.whenOf(at(26, 7, 2), now, zone))
+        assertEquals(WidgetWords.When.TOMORROW, WidgetWords.whenOf(at(28, 7), now, zone))
+        // Yesterday's run says so, so "7:02" never silently means yesterday.
+        assertEquals(WidgetWords.When.YESTERDAY, WidgetWords.whenOf(at(26, 7, 2), now, zone))
         assertEquals(WidgetWords.When.WEEKDAY_TIME, WidgetWords.whenOf(at(30, 7), now, zone))
+        assertEquals(WidgetWords.When.WEEKDAY_TIME, WidgetWords.whenOf(at(24, 7), now, zone))
         assertEquals(WidgetWords.When.DATE, WidgetWords.whenOf(at(12, 7), now, zone))
     }
 
@@ -122,6 +124,8 @@ class WidgetWordsTest {
         val now = at(27, 17, 49)
         assertEquals("18:00", WidgetWords.time(res, at(27, 18), now, zone, is24Hour = true))
         assertTrue(WidgetWords.time(res, at(27, 7, 2), now, zone, is24Hour = false).startsWith("7:02"))
-        assertTrue("Thu" in WidgetWords.time(res, at(26, 7, 2), now, zone, is24Hour = true))
+        assertEquals("tomorrow 07:00", WidgetWords.time(res, at(28, 7), now, zone, is24Hour = true))
+        assertEquals("yesterday 07:02", WidgetWords.time(res, at(26, 7, 2), now, zone, is24Hour = true))
+        assertTrue("Mon" in WidgetWords.time(res, at(30, 7), now, zone, is24Hour = true))
     }
 }

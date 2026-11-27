@@ -42,8 +42,9 @@ object WidgetSizes {
     /** Glance's Button with its label (no minimum height of its own; 33dp measured on a phone). */
     val button = 40.dp
 
-    /** The usage widget's seven-day strip: its height, a day with no use, and the space between days. */
+    /** The usage widget's seven-day strip: its least and most height (it takes the room left between), a day with no use, and the space between days. */
     val stripHeight = 32.dp
+    val stripMaxHeight = 72.dp
     val barMin = 2.dp
     val barGap = 3.dp
 

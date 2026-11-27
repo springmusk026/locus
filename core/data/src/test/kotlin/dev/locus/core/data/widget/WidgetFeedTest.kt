@@ -175,8 +175,22 @@ class WidgetFeedTest {
         )
         val tasks = listOf(daily("Morning digest"), daily("Evening recap"), daily("Off", enabled = false), task("Hourly", 1))
         assertEquals(WidgetNext("Evening recap", at(27, 18)), nextTaskRun(tasks, slots::get, now, zone))
-        // Tasks on a plain period have no honest time: none.
+        // A task on a plain period that last ran long ago, with no run since: no honest time.
         assertNull(nextTaskRun(listOf(task("Hourly", 1)), slots::get, now, zone))
+    }
+
+    @Test
+    fun `a task on a plain period shows the earliest it can run, one period after its last run`() {
+        // A daily task saved before tasks could run at a time of day: a 24-hour period, no time-of-day slot.
+        val now = at(27, 18, 19)
+        val digest = ScheduledTask("d", "Morning digest", "prompt", 1_440L, true, at(27, 14, 46), "ok", TaskRunOutcome.DONE)
+        assertEquals(WidgetNext("Morning digest", at(28, 14, 46), earliest = true), nextTaskRun(listOf(digest), { null }, now, zone))
+        // Never run yet: WorkManager's first run has no time to show.
+        assertNull(nextTaskRun(listOf(digest.copy(lastRunAt = null)), { null }, now, zone))
+        // Past that time with no run (held by doze or conditions): no honest time either.
+        assertNull(nextTaskRun(listOf(digest), { null }, at(28, 15), zone))
+        // Event-triggered and turned-off tasks never count.
+        assertNull(nextTaskRun(listOf(digest.copy(enabled = false)), { null }, now, zone))
     }
 
     @Test

@@ -83,8 +83,12 @@ enum class WidgetRunResult { DONE, FAILED, STOPPED }
  */
 data class WidgetRun(val title: String?, val result: WidgetRunResult, val text: String?, val at: Long, val hidden: Boolean = false)
 
-/** The next scheduled run while Locus is idle: its [title] (null with Lock Locus on, or when it has none left) and when. */
-data class WidgetNext(val title: String?, val at: Long)
+/**
+ * The next scheduled run while Locus is idle: its [title] (null with Lock Locus on, or when it has none left)
+ * and when. [earliest] when [at] is only the soonest Android may run it (a task on a plain period), so the
+ * widget says "or later".
+ */
+data class WidgetNext(val title: String?, val at: Long, val earliest: Boolean = false)
 
 /**
  * Everything the status widget shows: the status line, the latest scheduled run and, while idle, the next
@@ -261,27 +265,39 @@ fun widgetRun(run: LatestTaskRun, scrub: (String) -> String): WidgetRun {
 }
 
 /**
- * The next scheduled run of a task that runs at a time of day: the soonest after [now] among enabled ones,
- * from each one's [slot] (its time of day and the run enqueued last). A planned run already past (it is
- * running, or Android holds it) gives way to the one after. Tasks on a plain period aren't counted: Android
- * runs those anywhere in each period, so no time would be honest; nor are tasks that events start.
+ * The next scheduled run: the soonest after [now] among enabled scheduled tasks (not ones events start).
+ *
+ * - A task that runs at a time of day: from its [slot] (its time of day and the run enqueued last). A planned
+ *   run already past (it is running, or Android holds it) gives way to the one after.
+ * - A task on a plain period (every 6 hours, or a daily task saved before tasks could run at a time of day,
+ *   2026-11-26): WorkManager runs it at the earliest one period after the last run ended, later when the
+ *   phone dozes or its conditions aren't met, so that time is shown as the earliest ([WidgetNext.earliest]).
+ *   Before its first run, or once that time has passed with no run, there's no honest time: it's left out.
  */
-fun nextTaskRun(tasks: List<ScheduledTask>, slot: (String) -> DailySlot?, now: Long, zone: ZoneId): WidgetNext? {
-    val at = Instant.ofEpochMilli(now)
-    return tasks.asSequence()
-        .filter { it.enabled && !it.eventTriggered && it.intervalMinutes > 0 && it.intervalMinutes % TaskTiming.DAY_MINUTES == 0L }
+fun nextTaskRun(tasks: List<ScheduledTask>, slot: (String) -> DailySlot?, now: Long, zone: ZoneId): WidgetNext? =
+    tasks.asSequence()
+        .filter { it.enabled && !it.eventTriggered && it.intervalMinutes > 0 }
         .mapNotNull { task ->
-            val s = slot(task.id) ?: return@mapNotNull null
-            val days = (task.intervalMinutes / TaskTiming.DAY_MINUTES).toInt()
-            val planned = s.planned?.let(Instant::ofEpochMilli)
-            val due = when {
-                planned == null -> TaskTiming.first(s.minuteOfDay, at, zone)
-                planned.isAfter(at) -> planned
-                else -> TaskTiming.next(s.minuteOfDay, days, planned, at, zone)
-            }
-            WidgetNext(task.title, due.toEpochMilli())
+            slot(task.id)?.let { dailyNext(task, it, now, zone) }
+                // On a plain period: one period after the last run ended, while that's still ahead.
+                ?: task.lastRunAt?.let { it + task.intervalMinutes * MINUTE_MS }?.takeIf { it > now }?.let { WidgetNext(task.title, it, earliest = true) }
         }
         .minByOrNull { it.at }
+
+private const val MINUTE_MS = 60_000L
+
+/** [task]'s next run at its time of day, from its [slot]; null when it isn't on whole days. */
+private fun dailyNext(task: ScheduledTask, slot: DailySlot, now: Long, zone: ZoneId): WidgetNext? {
+    if (task.intervalMinutes % TaskTiming.DAY_MINUTES != 0L) return null
+    val at = Instant.ofEpochMilli(now)
+    val days = (task.intervalMinutes / TaskTiming.DAY_MINUTES).toInt()
+    val planned = slot.planned?.let(Instant::ofEpochMilli)
+    val due = when {
+        planned == null -> TaskTiming.first(slot.minuteOfDay, at, zone)
+        planned.isAfter(at) -> planned
+        else -> TaskTiming.next(slot.minuteOfDay, days, planned, at, zone)
+    }
+    return WidgetNext(task.title, due.toEpochMilli())
 }
 
 /**
