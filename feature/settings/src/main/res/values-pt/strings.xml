@@ -1443,4 +1443,8 @@
         <item quantity="other">Importar %1$s chats</item>
     </plurals>
     <string name="settings_import_suggest_memories">Sugerir memórias</string>
+    <string name="settings_permissions_remembered_any_machine">qualquer máquina</string>
+    <string name="settings_permissions_remembered_files_in">arquivos em %1$s</string>
+    <string name="settings_permissions_remembered_files_top">arquivos na pasta principal</string>
+    <string name="settings_permissions_remembered_with_method">%1$s (%2$s)</string>
 </resources>

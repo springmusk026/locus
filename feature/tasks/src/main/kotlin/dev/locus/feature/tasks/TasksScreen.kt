@@ -199,6 +199,9 @@ private fun TasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit, viewMo
             )
         },
     ) { padding ->
+        // The digests' names, in the app's language: a new task's title the user can change.
+        val morningTitle = stringResource(R.string.tasks_list_morning_title)
+        val newsTitle = stringResource(R.string.tasks_list_news_title)
         when (val s = state) {
             TasksUiState.Loading -> LoadingState(Modifier.padding(padding))
             is TasksUiState.Error -> ErrorState(
@@ -216,7 +219,7 @@ private fun TasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit, viewMo
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Button(onClick = { sheet = SheetTarget.New() }) { Text(stringResource(R.string.tasks_list_new)) }
-                        TextButton(onClick = { sheet = SheetTarget.New(TaskDraft.morningDigest(viewModel.defaultConditions.value)) }) { Text(stringResource(R.string.tasks_list_start_digest)) }
+                        TextButton(onClick = { sheet = SheetTarget.New(TaskDraft.morningDigest(viewModel.defaultConditions.value, morningTitle)) }) { Text(stringResource(R.string.tasks_list_start_digest)) }
                     }
                 }
             } else {
@@ -245,14 +248,14 @@ private fun TasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit, viewMo
                                 stringResource(R.string.tasks_list_morning_title),
                                 subtitle = stringResource(R.string.tasks_list_morning_subtitle),
                                 leading = { IconTile(LocusIcons.Sunrise) },
-                                onClick = { sheet = SheetTarget.New(TaskDraft.morningDigest(viewModel.defaultConditions.value)) },
+                                onClick = { sheet = SheetTarget.New(TaskDraft.morningDigest(viewModel.defaultConditions.value, morningTitle)) },
                             )
                             GroupDivider(inset = Insets.iconRow)
                             ListRow(
                                 stringResource(R.string.tasks_list_news_title),
                                 subtitle = stringResource(R.string.tasks_list_news_subtitle),
                                 leading = { IconTile(LocusIcons.Note) },
-                                onClick = { sheet = SheetTarget.New(TaskDraft.newsDigest(viewModel.defaultConditions.value)) },
+                                onClick = { sheet = SheetTarget.New(TaskDraft.newsDigest(viewModel.defaultConditions.value, newsTitle)) },
                             )
                         }
                     }

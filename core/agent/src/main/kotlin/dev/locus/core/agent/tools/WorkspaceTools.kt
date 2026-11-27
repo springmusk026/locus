@@ -9,6 +9,8 @@ import dev.locus.core.agent.ToolResult
 import dev.locus.core.agent.bool
 import dev.locus.core.agent.int
 import dev.locus.core.agent.str
+import dev.locus.core.model.ApprovalLineText
+import dev.locus.core.model.ApprovalPhrase
 import dev.locus.core.model.FileTrees
 import dev.locus.core.model.ToolRisk
 import dev.locus.core.model.ToolSpec
@@ -587,10 +589,13 @@ private class WriteFile(ws: Workspace, reads: FileReads, check: SyntaxCheck?) : 
             .build(),
     )
 
-    override fun describe(args: JsonObject): String {
+    override fun describe(args: JsonObject) = describeText(args).english
+
+    override fun describeText(args: JsonObject): ApprovalLineText {
         val path = args.str("path")
         val existed = runCatching { ws.resolve(path.orEmpty()).exists() }.getOrDefault(false)
-        return "${if (existed) "Overwrite" else "Create"} $path (${args.str("content")?.length ?: 0} characters)"
+        val characters = args.str("content")?.length ?: 0
+        return ApprovalLineText.counted(if (existed) ApprovalPhrase.OVERWRITE_FILE else ApprovalPhrase.CREATE_FILE, characters, "$path", characters)
     }
 
     override fun run(args: JsonObject, chat: String?, changes: MutableList<Touched>): ToolResult {
@@ -642,7 +647,8 @@ private class EditFile(ws: Workspace, reads: FileReads, check: SyntaxCheck?) : C
             .build(),
     )
 
-    override fun describe(args: JsonObject) = "Edit ${args.str("path")}"
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) = ApprovalLineText(ApprovalPhrase.EDIT_FILE, "${args.str("path")}")
 
     override fun run(args: JsonObject, chat: String?, changes: MutableList<Touched>): ToolResult {
         val file = editable(ws, reads, arg(args, "path"))
@@ -677,7 +683,11 @@ private class MultiEdit(ws: Workspace, reads: FileReads, check: SyntaxCheck?) : 
             .build(),
     )
 
-    override fun describe(args: JsonObject) = "Edit ${args.str("path")} (${(args["edits"] as? JsonArray)?.size ?: 0} changes)"
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject): ApprovalLineText {
+        val changes = (args["edits"] as? JsonArray)?.size ?: 0
+        return ApprovalLineText.counted(ApprovalPhrase.EDIT_FILE_CHANGES, changes, "${args.str("path")}", changes)
+    }
 
     override fun run(args: JsonObject, chat: String?, changes: MutableList<Touched>): ToolResult {
         val edits = args["edits"] as? JsonArray ?: throw ToolException("Missing 'edits'.")
@@ -747,7 +757,8 @@ private class MovePath(ws: Workspace) : WorkspaceTool(ws) {
             .build(),
     )
 
-    override fun describe(args: JsonObject) = "Move ${args.str("from")} → ${args.str("to")}"
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) = ApprovalLineText(ApprovalPhrase.MOVE, "${args.str("from")}", "${args.str("to")}")
 
     override val changedKeys = listOf("from", "to")
 
@@ -842,7 +853,8 @@ private class CopyPath(ws: Workspace) : WorkspaceTool(ws) {
             .build(),
     )
 
-    override fun describe(args: JsonObject) = "Copy ${args.str("from")} → ${args.str("to")}"
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) = ApprovalLineText(ApprovalPhrase.COPY, "${args.str("from")}", "${args.str("to")}")
 
     override val changedKeys = listOf("to")
 
@@ -893,7 +905,8 @@ private class DeletePath(ws: Workspace) : WorkspaceTool(ws) {
         ObjectSchema().string("path", "Path relative to the workspace root.").build(),
     )
 
-    override fun describe(args: JsonObject) = "Delete ${args.str("path")} (recoverable from trash)"
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) = ApprovalLineText(ApprovalPhrase.DELETE_TO_TRASH, "${args.str("path")}")
 
     override val changedKeys = listOf("path")
 
@@ -928,7 +941,8 @@ private class MakeDirectory(ws: Workspace) : WorkspaceTool(ws) {
         ObjectSchema().string("path", "Folder path relative to the workspace root.").build(),
     )
 
-    override fun describe(args: JsonObject) = "Create folder ${args.str("path")}"
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) = ApprovalLineText(ApprovalPhrase.MAKE_FOLDER, "${args.str("path")}")
 
     override val changedKeys = listOf("path")
 

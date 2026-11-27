@@ -12,6 +12,8 @@ import dev.locus.core.agent.ToolCallContext
 import dev.locus.core.agent.tools.SendFile
 import dev.locus.core.agent.tools.Workspace
 import dev.locus.core.agent.tools.htmlToText
+import dev.locus.core.model.ApprovalLineText
+import dev.locus.core.model.ApprovalPhrase
 import kotlinx.coroutines.currentCoroutineContext
 import dev.locus.core.model.ToolPolicy
 import dev.locus.core.model.ToolRisk
@@ -136,7 +138,9 @@ private class Open(browser: AgentBrowser) : BrowserTool(browser) {
             .build(),
     )
 
-    override fun describe(args: JsonObject) = "Open ${args.str("url")}" + if (args.bool("new_tab") == true) " in a new tab" else ""
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) =
+        ApprovalLineText(if (args.bool("new_tab") == true) ApprovalPhrase.BROWSER_OPEN_NEW_TAB else ApprovalPhrase.BROWSER_OPEN, "${args.str("url")}")
 
     override suspend fun isObservation(args: JsonObject) = true
 
@@ -212,7 +216,8 @@ private class Click(browser: AgentBrowser) : BrowserTool(browser) {
         ObjectSchema().string("ref", REF_HELP).build(),
     )
 
-    override fun describe(args: JsonObject) = "Click ${args.str("ref")}"
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) = ApprovalLineText(ApprovalPhrase.BROWSER_CLICK, "${args.str("ref")}")
 
     override suspend fun mustConfirm(args: JsonObject): String? {
         // Fails closed: no answer from the page (or a tampered one) means the user confirms.
@@ -240,7 +245,12 @@ private class Type(browser: AgentBrowser) : BrowserTool(browser) {
             .build(),
     )
 
-    override fun describe(args: JsonObject) = "Type “${args.str("text")?.take(60)}” into ${args.str("ref")}" + if (args.bool("submit") == true) " and submit" else ""
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) = ApprovalLineText(
+        if (args.bool("submit") == true) ApprovalPhrase.BROWSER_TYPE_SUBMIT else ApprovalPhrase.BROWSER_TYPE,
+        "${args.str("text")?.take(60)}",
+        "${args.str("ref")}",
+    )
 
     override suspend fun mustConfirm(args: JsonObject): String? {
         val facts = browser.inspect(ref(args))
@@ -272,7 +282,8 @@ private class Select(browser: AgentBrowser) : BrowserTool(browser) {
         ObjectSchema().string("ref", REF_HELP).string("value", "Option text or value.").build(),
     )
 
-    override fun describe(args: JsonObject) = "Choose “${args.str("value")}” in ${args.str("ref")}"
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) = ApprovalLineText(ApprovalPhrase.BROWSER_CHOOSE, "${args.str("value")}", "${args.str("ref")}")
 
     /**
      * A native select is set in the page: no gate, as before. A custom dropdown is opened and an option
@@ -324,7 +335,11 @@ private class FillForm(browser: AgentBrowser) : BrowserTool(browser) {
             .build(),
     )
 
-    override fun describe(args: JsonObject) = "Fill ${(args["fields"] as? JsonArray)?.size ?: 0} fields"
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject): ApprovalLineText {
+        val n = (args["fields"] as? JsonArray)?.size ?: 0
+        return ApprovalLineText.counted(ApprovalPhrase.BROWSER_FILL_FIELDS, n, n)
+    }
 
     // Fields whose facts aren't verified could be disguised password or card fields: the user confirms.
     override suspend fun mustConfirm(args: JsonObject): String? {
@@ -355,7 +370,8 @@ private class PressKey(browser: AgentBrowser) : BrowserTool(browser) {
         ObjectSchema().string("key", "Key name.").build(),
     )
 
-    override fun describe(args: JsonObject) = "Press ${args.str("key")}"
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) = ApprovalLineText(ApprovalPhrase.BROWSER_PRESS, "${args.str("key")}")
 
     private fun key(args: JsonObject) = BrowserArgs.key(args.str("key").orEmpty())
         ?: throw ToolException("Unsupported key '${args.str("key")}'. Use ${BrowserArgs.SUPPORTED_KEYS}.")
@@ -482,7 +498,9 @@ private class Dialog(browser: AgentBrowser) : BrowserTool(browser) {
             .build(),
     )
 
-    override fun describe(args: JsonObject) = if (args.bool("accept") == true) "Answer OK to the page's dialog" else "Cancel the page's dialog"
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) =
+        ApprovalLineText(if (args.bool("accept") == true) ApprovalPhrase.BROWSER_DIALOG_ACCEPT else ApprovalPhrase.BROWSER_DIALOG_CANCEL)
 
     override suspend fun mustConfirm(args: JsonObject): String? {
         val d = browser.current().dialog ?: return null
@@ -515,7 +533,8 @@ private class Upload(browser: AgentBrowser, private val workspace: Workspace) : 
             .build(),
     )
 
-    override fun describe(args: JsonObject) = "Upload ${paths(args).joinToString { it.substringAfterLast('/') }}"
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) = ApprovalLineText(ApprovalPhrase.BROWSER_UPLOAD, paths(args).joinToString { it.substringAfterLast('/') })
 
     private fun paths(args: JsonObject): List<String> =
         (args["paths"] as? JsonArray)?.mapNotNull { (it as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { p -> p.isString }?.content }.orEmpty()

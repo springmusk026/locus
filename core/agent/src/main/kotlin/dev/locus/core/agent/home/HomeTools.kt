@@ -10,6 +10,8 @@ import dev.locus.core.agent.ToolCallContext
 import dev.locus.core.agent.ToolResult
 import dev.locus.core.agent.UntrustedContent
 import dev.locus.core.agent.str
+import dev.locus.core.model.ApprovalLineText
+import dev.locus.core.model.ApprovalPhrase
 import dev.locus.core.model.HiddenText
 import kotlin.coroutines.coroutineContext
 import dev.locus.core.model.ToolPolicy
@@ -137,7 +139,8 @@ private class MemorySave(home: AgentHome, writes: MemoryWrites) : MemoryWrite(ho
             .build(),
     )
 
-    override fun describe(args: JsonObject) = "Remember “${args.str("topic")}”"
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) = ApprovalLineText(ApprovalPhrase.REMEMBER, "${args.str("topic")}")
 
     override suspend fun preview(args: JsonObject): ApprovalPreview {
         val taintedBy = coroutineContext[ToolCallContext]?.taint?.sources.orEmpty()
@@ -227,7 +230,8 @@ private class MemoryForget(home: AgentHome, writes: MemoryWrites) : MemoryWrite(
         ObjectSchema().string("topic", "Topic name.").build(),
     )
 
-    override fun describe(args: JsonObject) = "Forget “${args.str("topic")}”"
+    override fun describe(args: JsonObject) = describeText(args).english
+    override fun describeText(args: JsonObject) = ApprovalLineText(ApprovalPhrase.FORGET, "${args.str("topic")}")
 
     // Nobody is asked to approve forgetting a note that isn't there; the model gets the same answer as before.
     override suspend fun precheck(args: JsonObject): String? =

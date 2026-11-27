@@ -1,6 +1,7 @@
 package dev.locus.feature.chat
 
 import android.content.res.Resources
+import dev.locus.core.agent.AgentLoop
 import dev.locus.core.agent.BudgetLimit
 import dev.locus.core.agent.BudgetMeter
 import dev.locus.core.agent.BudgetReached
@@ -122,9 +123,35 @@ internal fun runErrorInWords(resources: Resources, error: String, failure: RunFa
     val worded = failure?.overflow?.let { it.english to overflowInWords(resources, it) }
         ?: failure?.text?.let { it.english to llmErrorInWords(resources, it, withIds = !inWords) }
         ?: note?.let { it.english to runNoteInWords(resources, it) }
-    val shown = if (worded != null && error.startsWith(worded.first)) worded.second + error.removePrefix(worded.first) else error
+    val shown = backupsSkippedInWords(
+        resources,
+        if (worded != null && error.startsWith(worded.first)) worded.second + error.removePrefix(worded.first) else error,
+    )
     return if (inWords) failureMessageInWords(resources, shown) else shown
 }
+
+/**
+ * The backups a failed run passed over, which core adds after the error ([AgentLoop.BACKUPS_SKIPPED]: "Backup
+ * models skipped: Groq (gpt-oss): no vision."), in the user's language; [text] as it is when it doesn't end so.
+ */
+internal fun backupsSkippedInWords(resources: Resources, text: String): String {
+    val at = text.lastIndexOf(AgentLoop.BACKUPS_SKIPPED)
+    if (at < 0 || !text.endsWith(".")) return text
+    val items = text.substring(at + AgentLoop.BACKUPS_SKIPPED.length, text.length - 1).split("; ")
+    return text.substring(0, at) + resources.getString(R.string.chat_run_backups_skipped, skippedModelsInWords(resources, items))
+}
+
+/**
+ * Backups passed over, each "model: why" as core says it ([dev.locus.core.llm.Fit.reason]), in the user's
+ * language: the model's name as it is, the reasons from the chat's words for what a model lacks. An item
+ * whose reasons aren't the ones core writes is kept as it came.
+ */
+internal fun skippedModelsInWords(resources: Resources, items: List<String>): String =
+    items.map { item ->
+        val cut = item.lastIndexOf(": ")
+        val reasons = if (cut > 0) lacksInWords(resources, item.substring(cut + 2)) else null
+        if (reasons == null) item else resources.getString(R.string.chat_run_skipped_model, item.substring(0, cut), reasons)
+    }.reduce { all, next -> resources.getString(R.string.chat_run_skipped_join, all, next) }
 
 /** [RunFailure.advice] in the user's language: what a repeat or a usage limit probably means, and what to try. */
 internal fun failureAdviceInWords(resources: Resources, f: RunFailure): String? = when {
@@ -171,7 +198,7 @@ internal fun runNoteInWords(resources: Resources, note: RunNote): String = when 
         val switching = if (note.skipped.isEmpty()) {
             resources.getString(R.string.chat_run_fell_back, note.from, note.to)
         } else {
-            resources.getString(R.string.chat_run_fell_back_skipped, note.from, note.to, note.skipped.joinToString("; "))
+            resources.getString(R.string.chat_run_fell_back_skipped, note.from, note.to, skippedModelsInWords(resources, note.skipped))
         }
         note.unconfirmed?.let { switching + " " + resources.getString(R.string.chat_run_not_confirmed, it) } ?: switching
     }

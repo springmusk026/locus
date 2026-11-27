@@ -7,6 +7,8 @@ import dev.locus.core.agent.ToolResult
 import dev.locus.core.agent.bool
 import dev.locus.core.agent.str
 import dev.locus.core.agent.tools.Workspace
+import dev.locus.core.model.ApprovalLineText
+import dev.locus.core.model.ApprovalPhrase
 import dev.locus.core.model.ToolPolicy
 import dev.locus.core.model.ToolRisk
 import dev.locus.core.model.ToolSpec
@@ -66,8 +68,13 @@ internal class CloudflareDeployStatic(private val api: CloudflareApi, private va
             .build(),
     )
 
-    override fun describe(args: JsonObject) =
-        "Publish ${args.str("path")} to Cloudflare as ${args.str("name")}.workers.dev" + (if (args.bool("spa") == true) " (single-page app)" else "")
+    override fun describe(args: JsonObject) = describeText(args).english
+
+    override fun describeText(args: JsonObject) = ApprovalLineText(
+        if (args.bool("spa") == true) ApprovalPhrase.CLOUDFLARE_PUBLISH_SPA else ApprovalPhrase.CLOUDFLARE_PUBLISH,
+        "${args.str("path")}",
+        "${args.str("name")}",
+    )
 
     override suspend fun mustConfirm(args: JsonObject) =
         "This publishes the folder on a public workers.dev address and replaces any earlier version of this site."

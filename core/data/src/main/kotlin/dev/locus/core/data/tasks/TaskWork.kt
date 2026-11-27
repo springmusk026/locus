@@ -106,6 +106,25 @@ interface TaskWork {
     fun eventRuns(taskId: String): Flow<RunNowStatus?>
 }
 
+/**
+ * Each task's time of day and planned next run, when it runs at a time of day: what the home-screen
+ * widget's "Next" line is worked out from. Apart from [TaskWork], which only schedules.
+ */
+fun interface DailySlots {
+    /** [taskId]'s slot, or null for a task on a plain period (or one never scheduled). */
+    fun dailySlot(taskId: String): DailySlot?
+}
+
+/** [DailySlots] from what [WorkManagerTaskWork] and the worker record ([TaskTimes]). */
+internal class TaskTimesSlots(context: Context) : DailySlots {
+    private val times by lazy { TaskTimes(context) }
+
+    override fun dailySlot(taskId: String): DailySlot? = times.timeOfDay(taskId)?.let { DailySlot(it, times.planned(taskId)) }
+}
+
+/** A task that runs at [minuteOfDay] (minutes after local midnight); [planned] is the run enqueued last, epoch millis. */
+data class DailySlot(val minuteOfDay: Int, val planned: Long?)
+
 /** [TaskWork] on WorkManager. */
 internal class WorkManagerTaskWork(private val context: Context) : TaskWork {
     private val work get() = WorkManager.getInstance(context)

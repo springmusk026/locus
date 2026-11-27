@@ -70,7 +70,7 @@ internal class ReadAloud(private val context: Context, private val scope: Corout
         job = scope.launch {
             val engine = engine()
             if (engine == null) return@launch fail(id, context.getString(R.string.chat_readaloud_no_engine))
-            val text = withContext(Dispatchers.Default) { SpeechText.prepare(markdown) }
+            val text = withContext(Dispatchers.Default) { SpeechText.prepare(markdown, speechWords(context.resources)) }
             if (text.isBlank()) return@launch finish(id)
             val guessed = withContext(Dispatchers.Default) { guessLanguage(text) }
             val device = context.resources.configuration.locales[0] ?: Locale.getDefault()

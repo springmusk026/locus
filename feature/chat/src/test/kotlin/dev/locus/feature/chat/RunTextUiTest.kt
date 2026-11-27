@@ -92,6 +92,20 @@ class RunTextUiTest {
     }
 
     @Test
+    fun backupsPassedOverAreSaidInTheUsersLanguage() {
+        // AgentLoop adds them after the error, in English, for the model-free log and Diagnostics.
+        val error = "Groq refused.\n${dev.locus.core.agent.AgentLoop.BACKUPS_SKIPPED}blind (Prov): no vision; tiny (Prov): no tool calling, context too small (8K, needs ~40K)."
+        assertEquals(error, backupsSkippedInWords(english, error))
+        assertEquals(
+            "Groq refused.\nModelos de respaldo omitidos: blind (Prov): sin visión; tiny (Prov): sin llamadas a herramientas, contexto demasiado pequeño (8K, necesita ~40K).",
+            backupsSkippedInWords(spanish, error),
+        )
+        // A reason Locus didn't write is kept as it came; text without the list is left alone.
+        assertEquals("x\nModelos de respaldo omitidos: m: odd reason.", backupsSkippedInWords(spanish, "x\nBackup models skipped: m: odd reason."))
+        assertEquals("Something else", backupsSkippedInWords(spanish, "Something else"))
+    }
+
+    @Test
     fun theBannerWordsTheErrorWithoutIdsAndKeepsWhatWasAdded() {
         val e = ChatGptErrors.fromCode(null, null, requestId = "req_1")
         val failure = RunFailure.of(e, e.message.orEmpty(), "ChatGPT", "gpt-5", 0, null, "m1", null)

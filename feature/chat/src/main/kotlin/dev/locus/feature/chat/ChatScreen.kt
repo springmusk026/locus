@@ -440,8 +440,8 @@ fun ChatRoute(
             onSend = send,
             onAnswer = viewModel::answer,
             blocked = when {
-                sendWarning != null -> "The chat's model can't take that message."
-                heatHold != null -> "The phone is hot or in battery saver, so Locus is asking before an on-device reply."
+                sendWarning != null -> stringResource(R.string.chat_voice_say_blocked_model)
+                heatHold != null -> stringResource(R.string.chat_voice_say_blocked_heat)
                 else -> null
             },
             onExit = { voiceOpen = false },
@@ -1495,13 +1495,14 @@ private fun StepNote(text: String) {
 /** Narration is shown as plain text: drop the emphasis and code markers it sometimes carries. */
 private fun String.asNote(): String = trim().replace("**", "").replace("__", "").replace("`", "")
 
-private data class Suggestion(val text: String, val tool: String)
+/** A new chat's suggestion: sent as the user's own message, in the app's language. */
+private data class Suggestion(@param:androidx.annotation.StringRes val text: Int, val tool: String)
 
 private val SUGGESTIONS = listOf(
-    Suggestion("Search the web for this week's top tech news and summarise it", "web_search"),
-    Suggestion("Make a packing list for a 3-day trip and save it to my workspace", "write_file"),
-    Suggestion("Write a Python script that renames my photos by date, then run it", "run_command"),
-    Suggestion("Plan my week: ask me what's on, then add the events to my calendar", "device_calendar_event"),
+    Suggestion(R.string.chat_screen_suggestion_web, "web_search"),
+    Suggestion(R.string.chat_screen_suggestion_packing, "write_file"),
+    Suggestion(R.string.chat_screen_suggestion_script, "run_command"),
+    Suggestion(R.string.chat_screen_suggestion_week, "device_calendar_event"),
 )
 
 @Composable
@@ -1517,11 +1518,12 @@ private fun Suggestions(modifier: Modifier, onPick: (String) -> Unit, temporary:
             style = LocusType.rowSupporting,
         )
         SUGGESTIONS.forEachIndexed { i, suggestion ->
-            LocusCard(Modifier.entrance(i + 2), onClick = { onPick(suggestion.text) }) {
+            val text = stringResource(suggestion.text)
+            LocusCard(Modifier.entrance(i + 2), onClick = { onPick(text) }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     val (accent, icon) = accentFor(suggestion.tool)
                     AccentTile(accent, icon, size = IconSize.tileSmall)
-                    Text(suggestion.text, Modifier.padding(start = Spacing.md), style = LocusType.rowSupporting)
+                    Text(text, Modifier.padding(start = Spacing.md), style = LocusType.rowSupporting)
                 }
             }
         }
@@ -2101,8 +2103,9 @@ private fun TokenStat(label: String, value: Long, note: String? = null) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(label, Modifier.weight(1f), style = LocusType.rowTitle)
         if (note != null) SupportingText(note, Modifier.padding(end = Spacing.sm))
-        // One format for every count on the sheet: exact, with separators.
-        Text("%,d".format(value), style = LocusType.rowTitle.copy(fontFamily = LocusType.mono.fontFamily))
+        // One format for every count on the sheet: exact, with the app's language's separators.
+        val locale = androidx.compose.ui.platform.LocalResources.current.configuration.locales[0]
+        Text(java.text.NumberFormat.getIntegerInstance(locale).format(value), style = LocusType.rowTitle.copy(fontFamily = LocusType.mono.fontFamily))
     }
 }
 
