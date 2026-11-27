@@ -1,5 +1,9 @@
 # Versions verified against Google Maven / Maven Central on 2026-10-31.
 [versions]
+# The NDK that builds every native library (core:terminal's ndkVersion, tools/build-proot.sh and
+# tools/build-llama.sh in CI). The workflows read this line; F-Droid's recipe repeats it
+# (docs/fdroid/metadata/dev.locus.yml). Native output depends on it (docs/FDROID.md).
+ndk = "29.0.14206865"
 androidGradlePlugin = "9.5.0"
 androidDesugarJdkLibs = "2.1.5"
 kotlin = "2.4.21"

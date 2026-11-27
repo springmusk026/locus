@@ -4,7 +4,8 @@ name: Native libs
 # build server will, and checks the result against the lib*.so files committed in
 # core/linux/src/main/jniLibs. It runs on pull requests that change the script, the libraries or
 # this workflow, and by hand; the rebuilt files are uploaded so they can be committed. See
-# docs/FDROID.md.
+# docs/FDROID.md. The NDK version is read from gradle/libs.versions.toml (`ndk`), which isn't in the
+# paths below (every dependency bump would rebuild llama.cpp): after changing it, run this by hand.
 on:
   workflow_dispatch:
   pull_request:
@@ -20,18 +21,27 @@ on:
 permissions:
   contents: read
 
+# A new push to the same PR cancels the rebuild still running for the old one.
+concurrency:
+  group: native-libs-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   proot:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      NDK_VERSION: 29.0.14206865
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      # gawk: proot's loader-info.awk needs GNU awk (tools/build-proot.sh checks).
+      # gawk: proot's loader-info.awk needs GNU awk (tools/build-proot.sh checks). The runner image's
+      # package lists can be stale, so they're refreshed first.
       - name: Install NDK and gawk
         run: |
+          NDK_VERSION=$(sed -nE 's/^ndk = "([^"]+)"$/\1/p' gradle/libs.versions.toml)
+          if [ -z "$NDK_VERSION" ]; then echo "::error::No ndk = \"...\" line in gradle/libs.versions.toml."; exit 1; fi
+          sudo apt-get update > /dev/null
           sudo apt-get install -y gawk > /dev/null
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$NDK_VERSION" > /dev/null
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
@@ -62,13 +72,16 @@ jobs:
   llama:
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    env:
-      NDK_VERSION: 29.0.14206865
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install NDK, CMake and Ninja
         run: |
+          NDK_VERSION=$(sed -nE 's/^ndk = "([^"]+)"$/\1/p' gradle/libs.versions.toml)
+          if [ -z "$NDK_VERSION" ]; then echo "::error::No ndk = \"...\" line in gradle/libs.versions.toml."; exit 1; fi
+          sudo apt-get update > /dev/null
           sudo apt-get install -y cmake ninja-build > /dev/null
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$NDK_VERSION" > /dev/null
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"

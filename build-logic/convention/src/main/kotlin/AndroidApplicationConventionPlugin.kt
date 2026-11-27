@@ -3,6 +3,7 @@ import dev.locus.buildlogic.TARGET_SDK
 import dev.locus.buildlogic.configureHiltViewModelCheck
 import dev.locus.buildlogic.configureKover
 import dev.locus.buildlogic.configureKotlinAndroid
+import dev.locus.buildlogic.registerUnitTests
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.kotlin.dsl.apply
@@ -16,6 +17,7 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
             defaultConfig.targetSdk = TARGET_SDK
         }
         configureKover(androidVariant = "debug")
+        registerUnitTests("testDebugUnitTest")
         configureHiltViewModelCheck()
     }
 }

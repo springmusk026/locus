@@ -2,7 +2,8 @@
 
 Three suites, plus a build check:
 
-- **JVM unit tests** (most of them): no emulator, no Robolectric, no network. They run on every PR.
+- **JVM unit tests** (most of them): no emulator and no network; Robolectric only where a test needs
+  Android itself (screenshots, resources, the app module). `./gradlew unitTests` runs them all, on every PR.
 - **Instrumentation tests** (`app/src/androidTest`): the real app on a phone or emulator, for what
   only shows up there (startup, Hilt at runtime, the foreground service, process death, WorkManager,
   notifications). See [Instrumentation tests](#instrumentation-tests).
@@ -18,11 +19,14 @@ Three suites, plus a build check:
 ## Running
 
 ```sh
-./gradlew testDebugUnitTest :core:agent:test :core:llm:test :core:model:test
+./gradlew unitTests
 ```
 
-`:core:agent`, `:core:llm` and `:core:model` are plain Kotlin modules (`test`); the rest are Android
-modules (`testDebugUnitTest`). One test class: `./gradlew :core:data:testDebugUnitTest --tests '*VaultIsolationTest*'`.
+`unitTests` runs every module's JVM unit tests. The convention plugins (`build-logic`) register it in
+each module: an Android module's `testDebugUnitTest` (never the release unit tests), a plain Kotlin
+module's `test` (`:core:agent`, `:core:llm`, `:core:model`). A new module that applies a `locus.*`
+convention plugin is covered without a list to update; CI, the release workflow and
+`tools/update-verification-metadata.sh` all run this name. One module: `./gradlew :app:unitTests`. One test class: `./gradlew :core:data:testDebugUnitTest --tests '*VaultIsolationTest*'`.
 
 ### On a Linux host
 
@@ -111,6 +115,18 @@ the full table). Compose UI is most of what's uncovered in the feature modules.
   trash and path checks, the Library's connectors, settings and provider credentials.
 - **ViewModels**: chat, home, settings and onboarding, end to end over the real data layer.
 - **Database**: the v7→v8 migration and the full-text search SQL, on a real SQLite.
+- **The app module** (`app/src/test`, Robolectric): where each way in lands according to the merged
+  manifest (shares, "Ask Locus" on selected text, the assist gesture, the four automation actions,
+  the quick settings tile) and the static shortcuts' actions (`WaysInTest`); the tile's tap, locked
+  and unlocked (`AskTileServiceTest`: Android 14's PendingIntent form, kept by a small shadow since
+  Robolectric's TileService doesn't take one; every Robolectric test stays on SDK 36, so CI caches one
+  android-all jar); shares becoming a draft, Direct Share only into a current share target, a refused file
+  named (`ShareViewModelTest`); every route through the back stack's saved state, as after process
+  death (`RoutesSavedStateTest`); the back-stack moves in `AppNavigation` (`AppNavigationTest`); and
+  the app's Hilt graph (`AppGraphTest`, `@HiltAndroidTest` on `HiltTestApplication`: Hilt checks
+  every binding the app's entry points need when it builds the test, and an automation request that
+  doesn't parse is refused by the real activity). The Robolectric app has no native library folder,
+  so `AppGraphTest` gives it an empty one, as `TestContext` does elsewhere.
 
 ## How the tests are built
 

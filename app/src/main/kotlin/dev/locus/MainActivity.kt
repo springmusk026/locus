@@ -196,46 +196,25 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>, appLock: AppLock) 
     val context = androidx.compose.ui.platform.LocalContext.current
     // The tile asks home's ask bar to take focus (docs/design/android-bridge.md).
     var askFocus by rememberSaveable { mutableIntStateOf(0) }
-    val home: () -> Unit = {
-        while (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
-        if (backStack.firstOrNull() != ConversationsRoute) {
-            backStack.add(0, ConversationsRoute)
-            while (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
-        }
-    }
     LaunchedEffect(Unit) {
         shareIntents.collect { intent ->
             // A share or a notification tap during setup waits until setup is done: a chat needs a provider.
             snapshotFlow { OnboardingRoute in backStack }.first { !it }
             // A notification opens its chat, unless that chat is already on screen. Only Locus's own
             // notifications carry the token; another app's intent asking for a chat is ignored.
-            OpenChatLink.chatId(context, intent)?.let { id ->
-                if ((backStack.lastOrNull() as? ChatRoute)?.conversationId != id) backStack.add(ChatRoute(id))
-            }
+            OpenChatLink.chatId(context, intent)?.let { id -> AppNavigation.openChat(backStack, id) }
             OpenChatLink.clear(intent)
             share.handle(intent) { id, draft -> backStack.add(ChatRoute(id, draft)) }
             LaunchActions.resolve(intent.action)?.let { action ->
                 share.reportShortcutUsed(action)
-                when (action) {
-                    LaunchActions.NEW_CHAT -> share.newChat { id -> backStack.add(ChatRoute(id)) }
-                    // Voice mode in a new chat (docs/design/voice-mode.md).
-                    LaunchActions.VOICE -> share.newChat { id -> backStack.add(ChatRoute(id, voice = true)) }
-                    LaunchActions.ASK -> { home(); askFocus++ }
-                    LaunchActions.WORKSPACE -> if (backStack.lastOrNull() != WorkspaceRoute()) backStack.add(WorkspaceRoute())
-                    LaunchActions.INSIGHTS -> if (backStack.lastOrNull() != AnalyticsRoute) backStack.add(AnalyticsRoute)
-                    LaunchActions.UPDATES -> SettingsRoute(dev.locus.core.model.SettingsDestination.About).let { if (backStack.lastOrNull() != it) backStack.add(it) }
-                }
+                AppNavigation.launch(backStack, action, newChat = share::newChat, focusAsk = { askFocus++ })
             }
             intent.action = null // handle each share once, even after recreation
         }
     }
     // "Settings → Models" links anywhere open that page on top of the screen they're on (docs/design/design-system.md).
     val settingsLinks = remember(backStack) {
-        SettingsLinks { page ->
-            // On-device models is a screen of its own, not a page inside Settings.
-            val route = if (page == dev.locus.core.model.SettingsDestination.OnDeviceModels) OnDeviceModelsRoute else SettingsRoute(page)
-            if (backStack.lastOrNull() != route) backStack.add(route)
-        }
+        SettingsLinks { page -> AppNavigation.openOnce(backStack, AppNavigation.settingsLink(page)) }
     }
     ProvideSettingsLinks(settingsLinks) {
     NotificationPermissionOnFirstChat(inChat = backStack.lastOrNull() is ChatRoute)

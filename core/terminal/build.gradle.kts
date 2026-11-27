@@ -7,8 +7,9 @@ plugins {
 // (Apache-2.0, vendored from termux-app v0.118.3, see NOTICE) plus Locus's session list.
 android {
     namespace = "dev.locus.core.terminal"
-    // Same NDK as tools/build-proot.sh, CI and the F-Droid recipe: native output depends on it.
-    ndkVersion = "29.0.14206865"
+    // Same NDK as tools/build-proot.sh, CI and the F-Droid recipe: native output depends on it. Defined
+    // once, in gradle/libs.versions.toml, which the workflows read too.
+    ndkVersion = libs.versions.ndk.get()
 
     defaultConfig {
         consumerProguardFiles("consumer-rules.pro")

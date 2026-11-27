@@ -6,7 +6,7 @@
 
 <!-- Commands you ran, and what you tried on a device or emulator. -->
 
-- [ ] `./gradlew assembleDebug testDebugUnitTest :core:agent:test :core:llm:test :core:model:test lintDebug` passes
+- [ ] `./gradlew assembleDebug unitTests lintDebug` passes
 - [ ] New logic has unit tests (tool arguments, policies, parsing, adapters)
 - [ ] Tried on a device or emulator, or says here why not
 

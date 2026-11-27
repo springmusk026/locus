@@ -30,11 +30,11 @@ You need JDK 21 (Android Studio's bundled one works) and the Android SDK.
 
 ```sh
 ./gradlew :app:assembleDebug                                      # debug APKs, installable next to a release build
-./gradlew testDebugUnitTest :core:agent:test :core:llm:test :core:model:test   # unit tests
+./gradlew unitTests                                                # every module's JVM unit tests
 ./gradlew lintDebug
 ```
 
-`:core:agent`, `:core:llm` and `:core:model` are plain Kotlin modules (`test`); the rest are Android modules (`testDebugUnitTest`). [docs/TESTING.md](docs/TESTING.md) covers running one test class, coverage, the instrumentation suite on a phone and the agent benchmarks.
+`unitTests` is registered in every module by the convention plugins: an Android module's `testDebugUnitTest`, a plain Kotlin module's `test` (`:core:agent`, `:core:llm`, `:core:model`). A new module that applies a `locus.*` convention plugin is in it without any list to update. [docs/TESTING.md](docs/TESTING.md) covers running one test class, coverage, the instrumentation suite on a phone and the agent benchmarks.
 
 ## Code
 
@@ -58,7 +58,7 @@ tools/render-screens.sh build/screens xhdpi    # every screen at 2x, for a perso
 ## Before opening a pull request
 
 ```sh
-./gradlew assembleDebug testDebugUnitTest :core:agent:test :core:llm:test :core:model:test lintDebug
+./gradlew assembleDebug unitTests lintDebug
 ```
 
 CI runs the same commands, plus the screenshot render guard and a release build with R8, as parallel jobs behind one `build` check. Draft PRs, and PRs that change only `docs/` or top-level Markdown files, skip the Gradle jobs. See [docs/design/ci.md](docs/design/ci.md). If you changed behaviour, try it on a real device or emulator and say what you tried.

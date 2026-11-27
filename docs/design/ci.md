@@ -10,7 +10,7 @@ that run side by side, plus two small jobs around them. Instrumentation tests
 | Job | What it runs | NDK |
 |---|---|---|
 | `changes` | Lists the PR's files; says whether anything besides docs changed | – |
-| `unit-tests` | `testDebugUnitTest :core:agent:test :core:llm:test :core:model:test`, then the Kover reports (artifact `coverage`) | no |
+| `unit-tests` | `unitTests` (every module's JVM unit tests), then the Kover reports (artifact `coverage`) | no |
 | `lint` | `lintDebug` | no |
 | `debug-apk` | `:app:assembleDebug` (artifact `locus-debug-apk`) | yes |
 | `release-r8` | `:app:assembleRelease -Plocus.abi=arm64-v8a`: R8 plus `verifyReleaseR8KeptNames` | yes |
@@ -30,6 +30,40 @@ how long CI takes.
 Only `debug-apk` and `release-r8` install the NDK: `core:terminal` runs ndk-build (libtermux.so) only
 when an APK is packaged. Unit tests and lint never run `buildNdkBuild*`. `sdkmanager` installs the NDK
 in about 10 seconds, which is faster than restoring a 1–2 GB cache entry, so the NDK is not cached.
+
+## One task for the unit tests
+
+`unit-tests` and the release workflow run `./gradlew unitTests`. They used to list
+`testDebugUnitTest :core:agent:test :core:llm:test :core:model:test` by hand, so a new plain Kotlin
+module's tests would never have run while CI stayed green. The convention plugins in `build-logic`
+(`UnitTests.kt`) register `unitTests` in every module: `locus.android.library` and
+`locus.android.application` point it at `testDebugUnitTest`, `locus.jvm.library` at `test`. Gradle
+runs the task of that name in every module, so a module that applies a `locus.*` plugin is covered
+as soon as it exists. Every module does: the root's Kover aggregation already needs each one to
+apply Kover through those plugins. The Kover report tasks (`:koverHtmlReportUnit`,
+`:koverXmlReportUnit`) are unchanged and read the same test runs.
+
+## One NDK version
+
+The NDK version is defined once, as `ndk` in `gradle/libs.versions.toml`. `core:terminal` reads it
+(`ndkVersion = libs.versions.ndk.get()`), and every workflow that installs the NDK (CI's APK jobs,
+the release build, the instrumentation tests and the native-libs rebuild) reads the same line with
+`sed` and fails if it's missing. Native output depends on the NDK, so copies that drifted apart would
+break the reproducible builds F-Droid checks (docs/FDROID.md). F-Droid's recipe
+(`docs/fdroid/metadata/dev.locus.yml`) can't read the file and still repeats the version. The
+native-libs workflow isn't triggered by `libs.versions.toml` (every dependency bump would rebuild
+llama.cpp), so after changing the NDK, run it by hand.
+
+## Workflow hygiene
+
+- `actions/checkout` runs with `persist-credentials: false` in every job that doesn't push (CI,
+  benchmarks, instrumentation, native libs, dependency scan, release), so the token isn't left in
+  `.git/config` for the build and its plugins to read.
+- The native-libs workflow refreshes the runner's package lists (`apt-get update`) before installing
+  gawk, CMake and Ninja, and has a concurrency group: a new push to the PR cancels the old rebuild.
+- The instrumentation workflow's AVD snapshot cache key includes the system image's revision, read
+  from `sdkmanager --list`. A new image revision makes a new snapshot instead of restoring one taken
+  on an older image.
 
 ## Gradle caching
 

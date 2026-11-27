@@ -45,7 +45,7 @@ XML
 ${GRADLE:-./gradlew} --no-daemon --no-configuration-cache --write-verification-metadata sha256 \
   -I gradle/verification/resolve-all.init.gradle -Plocus.unsigned=true \
   help resolveAllForVerification \
-  testDebugUnitTest :core:agent:test :core:llm:test :core:model:test \
+  unitTests \
   :koverHtmlReportUnit :koverXmlReportUnit lintDebug \
   :app:assembleDebug :app:assembleRelease :app:assembleDebugAndroidTest \
   "$@"

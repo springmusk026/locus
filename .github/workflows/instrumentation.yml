@@ -52,6 +52,8 @@ jobs:
       EMULATOR_OPTIONS: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
@@ -60,9 +62,13 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
 
-      # core:terminal builds libtermux.so with this NDK (ndkVersion there; docs/design/terminal.md).
+      # core:terminal builds libtermux.so with this NDK (ndkVersion there; docs/design/terminal.md), read
+      # from its one definition in gradle/libs.versions.toml.
       - name: Install NDK
-        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;29.0.14206865" > /dev/null
+        run: |
+          NDK_VERSION=$(sed -nE 's/^ndk = "([^"]+)"$/\1/p' gradle/libs.versions.toml)
+          if [ -z "$NDK_VERSION" ]; then echo "::error::No ndk = \"...\" line in gradle/libs.versions.toml."; exit 1; fi
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$NDK_VERSION" > /dev/null
 
       # Hardware acceleration on GitHub's Linux runners (the emulator action's README;
       # https://github.blog/changelog/2024-04-02-github-actions-hardware-accelerated-android-virtualization-now-available/).
@@ -75,6 +81,20 @@ jobs:
       - name: Build the app and test APKs
         run: ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest
 
+      # The revision of the system image the emulator runs: the installed one if the runner has it, else
+      # the newest sdkmanager offers, which the emulator action installs (sdkmanager lists installed
+      # packages first). In the cache key, so a new image revision makes a new snapshot instead of
+      # restoring one taken on an older image.
+      - name: System image revision
+        id: image
+        run: |
+          PKG="system-images;android-$API_LEVEL;$TARGET;$ARCH"
+          REV=$("$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --list 2>/dev/null \
+            | awk -F'|' -v pkg="$PKG" '{ gsub(/ /, "", $1); gsub(/ /, "", $2) } $1 == pkg { print $2; exit }')
+          if [ -z "$REV" ]; then echo "::error::sdkmanager doesn't list $PKG."; exit 1; fi
+          echo "$PKG: revision $REV"
+          echo "revision=$REV" >> "$GITHUB_OUTPUT"
+
       # A booted AVD snapshot, so later runs skip the cold boot.
       - name: AVD cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -83,7 +103,7 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-${{ env.API_LEVEL }}-${{ env.TARGET }}-${{ env.ARCH }}
+          key: avd-${{ env.API_LEVEL }}-${{ env.TARGET }}-${{ env.ARCH }}-${{ steps.image.outputs.revision }}
 
       - name: Create the AVD snapshot
         if: steps.avd-cache.outputs.cache-hit != 'true'

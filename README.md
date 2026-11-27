@@ -195,7 +195,7 @@ You need JDK 21 (Android Studio's bundled one works) and the Android SDK.
 ```sh
 git clone https://github.com/springmusk026/locus.git && cd locus
 ./gradlew :app:assembleDebug   # app/build/outputs/apk/debug/app-arm64-v8a-debug.apk (x86_64 too)
-./gradlew testDebugUnitTest :core:agent:test :core:llm:test :core:model:test lintDebug
+./gradlew unitTests lintDebug   # every module's JVM unit tests, and lint
 ```
 
 A debug build is a separate app, `dev.locus.debug` ("Locus Debug"), so it installs next to Locus instead of over it. The Linux workspace uses prebuilt proot binaries from `core/linux/src/main/jniLibs`; `tools/build-proot.sh` rebuilds them from pinned sources with NDK r29.
