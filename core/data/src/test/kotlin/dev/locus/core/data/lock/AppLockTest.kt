@@ -140,16 +140,18 @@ class AppLockTest {
         val approval = ApprovalRequest("secret", "call-1", "run_command", ToolRisk.EXECUTE, "Run cat diary.txt", """{"command":"cat diary.txt"}""")
         val states = mapOf("secret" to RunState(running = true, approvals = listOf(approval)))
         val plain = dev.locus.core.data.agent.agentStatus(states, emptyList(), emptySet())
-        assertTrue(plain.detail!!.contains("diary"))
+        fun dev.locus.core.data.agent.AgentStatus.detailEn() =
+            detail({ dev.locus.core.model.toolLabel(it.toolName, it.argumentsJson, done = false) }) { it.english }?.let(dev.locus.core.data.EnglishResources::render)
+        assertTrue(plain.detailEn()!!.contains("diary"))
         val locked = dev.locus.core.data.agent.agentStatus(states, emptyList(), setOf("secret"))
         assertTrue(locked.lockedChat)
-        assertNull(locked.detail)
-        assertFalse(locked.text.contains("diary"))
+        assertNull(locked.detailEn())
+        assertFalse(dev.locus.core.data.EnglishResources.render(locked.text { dev.locus.core.model.toolActivity(it) }).contains("diary"))
 
         val question = UserQuestion("secret", "q1", "Which bank account?", listOf("Savings", "Checking"), multi = false, allowOther = false)
         val asked = dev.locus.core.data.agent.agentStatus(mapOf("secret" to RunState(running = true)), listOf(question), setOf("secret"))
         assertTrue(asked.lockedChat)
-        assertNull(asked.detail)
+        assertNull(asked.detailEn())
     }
 
     private fun chat(id: String, title: String, pinned: Boolean = false) = Conversation(id, title, null, "", createdAt = 0, updatedAt = id.hashCode().toLong(), pinned = pinned)

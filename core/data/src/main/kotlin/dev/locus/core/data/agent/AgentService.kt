@@ -24,6 +24,7 @@ import dev.locus.core.data.R
 import dev.locus.core.data.lock.AppLock
 import dev.locus.core.data.lock.LockedNotifications
 import dev.locus.core.data.lock.LockedNotifications.privateWhenLocked
+import dev.locus.core.linux.EngineText
 import dev.locus.core.model.AppLockSettings
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
@@ -44,6 +45,9 @@ class AgentService : LifecycleService() {
     @Inject lateinit var runner: AgentRunner
 
     @Inject lateinit var appLock: AppLock
+
+    /** The tool and budget phrases the chat uses, in the app's language. */
+    @Inject lateinit var phrases: NotificationPhrases
 
     /** The lock's settings as last read; the defaults (off, nothing locked) until they load. */
     private val lock: AppLockSettings get() = appLock.status.value?.settings ?: AppLockSettings()
@@ -108,7 +112,7 @@ class AgentService : LifecycleService() {
             val locked = pending.conversationId in lock.lockedChats
             manager.notify(
                 APPROVAL_NOTIFICATION_ID,
-                if (locked) lockedChatNotification(APPROVAL_CHANNEL, pending.conversationId) else approvalNotification(pending.conversationId, pending.callId, approvalTitle(pending), pending.summary),
+                if (locked) lockedChatNotification(APPROVAL_CHANNEL, pending.conversationId) else approvalNotification(pending.conversationId, pending.callId, words(approvalTitle(pending, ::label)), pending.summary),
             )
         }
         else manager.cancel(APPROVAL_NOTIFICATION_ID)
@@ -135,22 +139,25 @@ class AgentService : LifecycleService() {
      * waits for the user ([Notification.createSemanticStyleAnnotation]; the system picks the colour, and
      * only for eligible, promoted notifications). Stripped of its style, [text] says the same.
      */
-    private fun waitingStyled(status: AgentStatus, text: String): CharSequence {
+    private fun waitingStyled(status: AgentStatus, line: String, text: String): CharSequence {
         if (Build.VERSION.SDK_INT < 37 || !status.needsUser) return text
         return android.text.SpannableString(text).apply {
             setSpan(
                 Notification.createSemanticStyleAnnotation(Notification.SEMANTIC_STYLE_CAUTION),
-                0, status.text.length.coerceAtMost(length), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+                0, line.length.coerceAtMost(length), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
             )
         }
     }
 
     private fun statusNotification(appVisible: Boolean): Notification {
         val status = agentStatus(runner.states.value, runner.pendingQuestions, lock.lockedChats)
+        // Worded when posted, in the app's language: Android applies the per-app language to this service's
+        // resources too (LocaleManager.setApplicationLocales is a configuration change for the whole app).
+        val line = words(status.text { phrases.toolActivity(resources, it) })
         val builder = NotificationCompat.Builder(this, STATUS_CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_agent)
-            .setContentTitle(status.title)
-            .setContentText(waitingStyled(status, status.text))
+            .setContentTitle(words(status.title))
+            .setContentText(waitingStyled(status, line, line))
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             // Separate groups stop launchers (Samsung's One UI in testing) from bundling the status and
@@ -163,9 +170,10 @@ class AgentService : LifecycleService() {
         if (promoted) {
             // Eligible: ongoing, a title, standard or BigTextStyle, no custom views, not colorized,
             // not a group summary, and a channel above IMPORTANCE_MIN.
-            builder.setRequestPromotedOngoing(true).setShortCriticalText(status.chip)
-            val detail = status.detail ?: LockedNotifications.lockedChatText(this).takeIf { status.lockedChat }
-            detail?.let { builder.setStyle(NotificationCompat.BigTextStyle().bigText(waitingStyled(status, status.text + "\n" + it))) }
+            builder.setRequestPromotedOngoing(true).setShortCriticalText(status.chip(::words))
+            val detail = status.detail(::label) { phrases.budgetReached(resources, it) }?.let(::words)
+                ?: LockedNotifications.lockedChatText(this).takeIf { status.lockedChat }
+            detail?.let { builder.setStyle(NotificationCompat.BigTextStyle().bigText(waitingStyled(status, line, line + "\n" + it))) }
         }
         builder.privateWhenLocked(this, lock, STATUS_CHANNEL)
         // While the app is on screen its own cards take the answer. Approvals and questions have their own
@@ -216,7 +224,7 @@ class AgentService : LifecycleService() {
             .setAuthenticationRequired(LockedNotifications.authenticationRequired(lock, approve))
             .build()
         // Below Android 12 Allow couldn't ask for the unlock, so it isn't offered: the tap opens Locus.
-        return listOf(false to "Deny", true to "Allow")
+        return listOf(false to getString(R.string.data_notif_action_deny), true to getString(R.string.data_notif_action_allow))
             .filter { (approve, _) -> LockedNotifications.actionOffered(lock, Build.VERSION.SDK_INT, approve) }
             .map { (approve, label) -> action(approve, label) }
     }
@@ -236,7 +244,7 @@ class AgentService : LifecycleService() {
             .setAuthenticationRequired(LockedNotifications.authenticationRequired(lock, continueTask))
             .build()
         // Below Android 12 Continue couldn't ask for the unlock, so it isn't offered: the tap opens Locus.
-        return listOf(false to "Stop", true to "Continue")
+        return listOf(false to getString(R.string.data_notif_action_stop), true to getString(R.string.data_notif_action_continue))
             .filter { (continueTask, _) -> LockedNotifications.actionOffered(lock, Build.VERSION.SDK_INT, continueTask) }
             .map { (continueTask, label) -> action(continueTask, label) }
     }
@@ -285,9 +293,9 @@ class AgentService : LifecycleService() {
     private fun questionNotification(question: UserQuestion): Notification {
         val builder = NotificationCompat.Builder(this, QUESTION_CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_agent)
-            .setContentTitle(question.origin?.let { "${it.label} asks" } ?: "Locus asks")
+            .setContentTitle(words(questionTitle(question)))
             .setContentText(question.question)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(questionBody(question)))
+            .setStyle(NotificationCompat.BigTextStyle().bigText(words(questionBody(question))))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setOnlyAlertOnce(true)
@@ -307,13 +315,13 @@ class AgentService : LifecycleService() {
             actions += NotificationCompat.Action.Builder(0, option.take(40), pending).setAuthenticationRequired(LockedNotifications.authenticationRequired(lock, false)).build()
         }
         if (!allOptionsAsButtons(question)) {
-            val input = RemoteInput.Builder(KEY_REPLY).setLabel("Your answer").build()
+            val input = RemoteInput.Builder(KEY_REPLY).setLabel(getString(R.string.data_notif_reply_hint)).build()
             val intent = Intent(this, QuestionReceiver::class.java).setData(NotificationIntents.data("reply", question.callId)).putExtra(EXTRA_CALL_ID, question.callId)
             // Mutable so the system can add the typed text; the intent is explicit (our own receiver).
             // A holder's fill-in can't change EXTRA_CALL_ID: Intent.fillIn copies an extra only where this
             // intent has no value under that name (developer.android.com/reference/android/content/Intent#fillIn).
             val pending = PendingIntent.getBroadcast(this, (question.callId + "#reply").hashCode(), intent, PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-            actions += NotificationCompat.Action.Builder(0, "Reply", pending)
+            actions += NotificationCompat.Action.Builder(0, getString(R.string.data_notif_action_reply), pending)
                 .addRemoteInput(input)
                 .setAllowGeneratedReplies(false)
                 .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY)
@@ -323,6 +331,11 @@ class AgentService : LifecycleService() {
         }
         return actions
     }
+
+    private fun words(text: EngineText): String = text.asString(resources)
+
+    /** What [request] would do, in the chat's words ("Run `ls`"). */
+    private fun label(request: dev.locus.core.agent.ApprovalRequest): String = phrases.toolLabel(resources, request.toolName, request.argumentsJson)
 
     /** Opens Locus on [conversationId]'s chat; one request code per chat, so each notification keeps its own chat. */
     private fun openAppIntent(conversationId: String?): PendingIntent? = packageManager.getLaunchIntentForPackage(packageName)?.let {
@@ -354,12 +367,12 @@ class AgentService : LifecycleService() {
          * began on its own while in the background (AgentRunner.start). Tapping opens the chat, which
          * offers Continue; a notification tap also lets Locus start a foreground service again.
          */
-        fun postTapToContinue(context: Context, conversationId: String, title: String, text: String) {
+        fun postTapToContinue(context: Context, conversationId: String, title: EngineText, text: EngineText) {
             val manager = NotificationManagerCompat.from(context)
             if (!manager.areNotificationsEnabled()) return
             context.getSystemService(NotificationManager::class.java).createNotificationChannel(
-                NotificationChannel(CONTINUE_CHANNEL, "Waiting to continue", NotificationManager.IMPORTANCE_DEFAULT).apply {
-                    description = "When Android won't let a task continue in the background, tap to pick it up."
+                NotificationChannel(CONTINUE_CHANNEL, context.getString(R.string.data_notif_channel_continue), NotificationManager.IMPORTANCE_DEFAULT).apply {
+                    description = context.getString(R.string.data_notif_channel_continue_description)
                 },
             )
             val open = context.packageManager.getLaunchIntentForPackage(context.packageName)?.let {
@@ -371,8 +384,8 @@ class AgentService : LifecycleService() {
                 (conversationId + "#continue").hashCode(),
                 NotificationCompat.Builder(context, CONTINUE_CHANNEL)
                     .setSmallIcon(R.drawable.ic_stat_agent)
-                    .setContentTitle(title)
-                    .setContentText(text)
+                    .setContentTitle(title.asString(context.resources))
+                    .setContentText(text.asString(context.resources))
                     .setContentIntent(open)
                     .setAutoCancel(true)
                     .build(),
@@ -385,12 +398,12 @@ class AgentService : LifecycleService() {
          * "Research finished", when a long run (the research workflow, docs/design/deep-research.md) ends
          * while Locus isn't on screen. Tapping opens the chat with the report. One per chat; a newer one replaces it.
          */
-        fun postRunFinished(context: Context, conversationId: String, title: String, text: String) {
+        fun postRunFinished(context: Context, conversationId: String, title: EngineText, text: EngineText) {
             val manager = NotificationManagerCompat.from(context)
             if (!manager.areNotificationsEnabled()) return
             context.getSystemService(NotificationManager::class.java).createNotificationChannel(
-                NotificationChannel(FINISHED_CHANNEL, "Finished research", NotificationManager.IMPORTANCE_DEFAULT).apply {
-                    description = "When a research run you started finishes while Locus is in the background."
+                NotificationChannel(FINISHED_CHANNEL, context.getString(R.string.data_notif_channel_finished), NotificationManager.IMPORTANCE_DEFAULT).apply {
+                    description = context.getString(R.string.data_notif_channel_finished_description)
                 },
             )
             val open = context.packageManager.getLaunchIntentForPackage(context.packageName)?.let {
@@ -402,9 +415,9 @@ class AgentService : LifecycleService() {
                 (conversationId + "#finished").hashCode(),
                 NotificationCompat.Builder(context, FINISHED_CHANNEL)
                     .setSmallIcon(R.drawable.ic_stat_agent)
-                    .setContentTitle(title)
-                    .setContentText(text)
-                    .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+                    .setContentTitle(title.asString(context.resources))
+                    .setContentText(text.asString(context.resources))
+                    .setStyle(NotificationCompat.BigTextStyle().bigText(text.asString(context.resources)))
                     .setContentIntent(open)
                     .setAutoCancel(true)
                     .build(),
@@ -413,15 +426,17 @@ class AgentService : LifecycleService() {
 
         private fun ensureChannels(context: Context) {
             val manager = context.getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(NotificationChannel(STATUS_CHANNEL, "Agent activity", NotificationManager.IMPORTANCE_LOW))
+            // Created again on every start, so a channel's name follows the app's language (Android renames
+            // an existing channel; its id, importance and the user's settings for it stay).
+            manager.createNotificationChannel(NotificationChannel(STATUS_CHANNEL, context.getString(R.string.data_notif_channel_status), NotificationManager.IMPORTANCE_LOW))
             manager.createNotificationChannel(
-                NotificationChannel(APPROVAL_CHANNEL, "Approval requests", NotificationManager.IMPORTANCE_HIGH).apply {
-                    description = "Asks before the agent changes files, runs commands or contacts other services."
+                NotificationChannel(APPROVAL_CHANNEL, context.getString(R.string.data_notif_channel_approvals), NotificationManager.IMPORTANCE_HIGH).apply {
+                    description = context.getString(R.string.data_notif_channel_approvals_description)
                 },
             )
             manager.createNotificationChannel(
-                NotificationChannel(QUESTION_CHANNEL, "Questions", NotificationManager.IMPORTANCE_HIGH).apply {
-                    description = "Questions the agent asks you while it works, answerable from the notification."
+                NotificationChannel(QUESTION_CHANNEL, context.getString(R.string.data_notif_channel_questions), NotificationManager.IMPORTANCE_HIGH).apply {
+                    description = context.getString(R.string.data_notif_channel_questions_description)
                 },
             )
         }

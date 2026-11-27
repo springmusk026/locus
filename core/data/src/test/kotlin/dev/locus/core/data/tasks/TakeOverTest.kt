@@ -53,7 +53,7 @@ class TakeOverTest {
 
         suspend fun task() = graph.database.scheduledTaskDao.get(TASK)!!
 
-        suspend fun go() = run.run(TASK, "w1", runNow = false, stopReason = { WorkInfo.STOP_REASON_UNKNOWN }, notify = { t, x, _ -> notified += t to x })
+        suspend fun go() = run.run(TASK, "w1", runNow = false, stopReason = { WorkInfo.STOP_REASON_UNKNOWN }, notify = { t, x, _ -> notified += dev.locus.core.data.EnglishResources.render(t) to x })
 
         suspend fun chat(): String = graph.database.scheduledTaskDao.get(TASK)!!.runConversationId!!
     }

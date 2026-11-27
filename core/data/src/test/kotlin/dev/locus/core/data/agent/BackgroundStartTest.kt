@@ -34,7 +34,7 @@ class BackgroundStartTest {
         g.conversations.appendUserMessage(chat, "summarise the report when it's ready")
         val runner = g.runner
         val posted = mutableListOf<Pair<String, String>>()
-        runner.onBackgroundStartRefused = { id, title, _ -> posted += id to title }
+        runner.onBackgroundStartRefused = { id, title, _ -> posted += id to dev.locus.core.data.EnglishResources.render(title) }
         runCurrent()
 
         g.context.refuseForegroundServices = true

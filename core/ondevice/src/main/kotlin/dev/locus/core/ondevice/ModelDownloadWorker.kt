@@ -31,11 +31,15 @@ class ModelDownloadWorker @AssistedInject constructor(
 
     private fun foregroundInfo(name: String, bytes: Long, total: Long): ForegroundInfo {
         val manager = applicationContext.getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(NotificationChannel(CHANNEL, "Model downloads", NotificationManager.IMPORTANCE_LOW))
+        val res = applicationContext.resources
+        manager.createNotificationChannel(NotificationChannel(CHANNEL, res.getString(R.string.ondevice_download_channel), NotificationManager.IMPORTANCE_LOW))
         val notification = NotificationCompat.Builder(applicationContext, CHANNEL)
             .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentTitle("Downloading $name")
-            .setContentText(if (total > 0) "${bytes / 1_000_000} of ${total / 1_000_000} MB" else "Starting…")
+            .setContentTitle(res.getString(R.string.ondevice_download_title, name))
+            .setContentText(
+                if (total > 0) res.getString(R.string.ondevice_download_megabytes, bytes / 1_000_000, total / 1_000_000)
+                else res.getString(R.string.ondevice_download_starting),
+            )
             .setProgress(100, if (total > 0) (bytes * 100 / total).toInt() else 0, total == 0L)
             .setOngoing(true)
             .setOnlyAlertOnce(true)

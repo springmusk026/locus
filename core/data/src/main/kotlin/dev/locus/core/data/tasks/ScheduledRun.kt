@@ -5,7 +5,9 @@ import dev.locus.core.model.ModeNote
 import androidx.work.WorkInfo
 import dev.locus.core.agent.home.SecretResolver
 import dev.locus.core.agent.integrations.ReachMe
+import dev.locus.core.data.R
 import dev.locus.core.data.agent.AgentRunner
+import dev.locus.core.linux.EngineText
 import dev.locus.core.agent.workflow.WorkflowRender
 import dev.locus.core.data.repository.ConversationRepository
 import dev.locus.core.data.repository.SettingsRepository
@@ -132,7 +134,7 @@ class ScheduledRun @Inject constructor(
         workId: String,
         runNow: Boolean,
         stopReason: () -> Int,
-        notify: (title: String, text: String, conversationId: String) -> Unit,
+        notify: (title: EngineText, text: String, conversationId: String) -> Unit,
         /** Another app that started this run (docs/design/android-bridge.md): the run is tainted. */
         fromApp: String? = null,
         /** The trigger event that started this run (docs/design/event-triggers.md): its text rides as untrusted input, and the run is tainted. */
@@ -209,7 +211,7 @@ class ScheduledRun @Inject constructor(
             eventId?.let { tasks.recordEventRun(it, conversation.id, outcome, plain(summary)) }
             // Taken over: the user is in the chat, which says so; a notification only if they've left Locus since.
             val takenOver = run?.takenOver == true
-            if (!takenOver || !onScreen()) notify(title(task.title, outcome), withReceipt(plain(summary), conversation.id), conversation.id)
+            if (!takenOver || !onScreen()) notify(titleText(task.title, outcome), withReceipt(plain(summary), conversation.id), conversation.id)
             // Also to the user's reach-me channels (ntfy, Telegram, Gotify, a webhook) when any is set up, so the answer reaches their other devices.
             // ReachMe catches each channel's failure; this guards the rest. Not for a run the user took over: they were there.
             if (!takenOver) runCatching { ReachMe.send(http, secrets, title(task.title, outcome), summary) }
@@ -228,7 +230,7 @@ class ScheduledRun @Inject constructor(
                     val summary = "Stopped by Android (${stopReasonText(reason)}). It runs again at its next time; the chat has what it found so far."
                     tasks.recordRun(taskId, conversation.id, summary, TaskRunOutcome.STOPPED)
                     eventId?.let { tasks.recordEventRun(it, conversation.id, TaskRunOutcome.STOPPED, summary) }
-                    notify(title(task.title, TaskRunOutcome.STOPPED), withReceipt(summary, conversation.id), conversation.id)
+                    notify(titleText(task.title, TaskRunOutcome.STOPPED), withReceipt(summary, conversation.id), conversation.id)
                     // The marker stays: WorkManager retries a stopped worker, and that retry must not send the prompt again.
                 }
             }
@@ -237,7 +239,7 @@ class ScheduledRun @Inject constructor(
             val summary = "Failed: ${e.message ?: e::class.java.simpleName}"
             tasks.recordRun(taskId, conversation.id, summary, TaskRunOutcome.FAILED)
             eventId?.let { tasks.recordEventRun(it, conversation.id, TaskRunOutcome.FAILED, summary) }
-            notify(title(task.title, TaskRunOutcome.FAILED), withReceipt(summary, conversation.id), conversation.id)
+            notify(titleText(task.title, TaskRunOutcome.FAILED), withReceipt(summary, conversation.id), conversation.id)
             tasks.clearMarker(taskId, workId)
             return Result.FAILED
         }
@@ -247,12 +249,12 @@ class ScheduledRun @Inject constructor(
     suspend fun enabledTask(taskId: String): dev.locus.core.database.ScheduledTaskEntity? = tasks.get(taskId)?.takeIf { it.enabled }
 
     /** Records a run whose prompt went out but whose end was never recorded (the process died), and tells the user. */
-    private suspend fun closeInterrupted(taskId: String, title: String, marker: RunMarker, notify: ((String, String, String) -> Unit)?) {
+    private suspend fun closeInterrupted(taskId: String, title: String, marker: RunMarker, notify: ((EngineText, String, String) -> Unit)?) {
         val task = tasks.get(taskId) ?: return
         if (task.lastConversationId == marker.conversationId) return // Its stop was recorded already.
         val summary = "Stopped: Locus was closed before the run finished. It runs again at its next time; the chat has what it found so far."
         tasks.recordRun(taskId, marker.conversationId, summary, TaskRunOutcome.STOPPED)
-        notify?.invoke(title(title, TaskRunOutcome.STOPPED), summary, marker.conversationId)
+        notify?.invoke(titleText(title, TaskRunOutcome.STOPPED), summary, marker.conversationId)
     }
 
     /** [text] with the run's task receipt as one more line ("Done · 42s · ≈$0.01"), when there is one. */
@@ -274,10 +276,21 @@ class ScheduledRun @Inject constructor(
             "or writing a file isn't done now: Locus records it as a proposal the user approves later. Reply with a short plain-text " +
             "summary the user will see in a notification, including anything you proposed.)"
 
+    /** The title the reach-me channels get, in English: "Weather: failed". */
     private fun title(task: String, outcome: TaskRunOutcome) = when (outcome) {
         TaskRunOutcome.DONE -> task
         TaskRunOutcome.FAILED -> "$task: failed"
         TaskRunOutcome.STOPPED -> "$task: stopped"
+    }
+
+    /**
+     * The result notification's title, worded in the app's language when posted ([title] in English). The
+     * text under it is the run's summary as recorded, which Tasks shows too, so it stays as stored.
+     */
+    private fun titleText(task: String, outcome: TaskRunOutcome): EngineText = when (outcome) {
+        TaskRunOutcome.DONE -> EngineText.Plain(task)
+        TaskRunOutcome.FAILED -> EngineText.Res(R.string.data_notif_task_failed, task)
+        TaskRunOutcome.STOPPED -> EngineText.Res(R.string.data_notif_task_stopped, task)
     }
 
     companion object {

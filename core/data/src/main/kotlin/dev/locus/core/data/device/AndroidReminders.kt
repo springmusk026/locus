@@ -23,6 +23,7 @@ import dev.locus.core.data.agent.OpenChatLink
 import dev.locus.core.data.di.ApplicationScope
 import dev.locus.core.data.lock.AppLock
 import dev.locus.core.data.lock.LockedNotifications.privateWhenLocked
+import dev.locus.core.linux.EngineText
 import dev.locus.core.model.AppLockSettings
 import dev.locus.core.model.Reminder
 import kotlinx.coroutines.CoroutineScope
@@ -30,8 +31,6 @@ import kotlinx.coroutines.launch
 import java.net.URLEncoder
 import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -95,8 +94,8 @@ class AndroidReminderNotifier @Inject constructor(
     override fun show(reminder: Reminder, late: Boolean) {
         if (!canNotify()) return
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(
-            NotificationChannel(CHANNEL, "Reminders", NotificationManager.IMPORTANCE_HIGH).apply {
-                description = "Reminders you asked Locus to set"
+            NotificationChannel(CHANNEL, context.getString(R.string.data_notif_channel_reminders), NotificationManager.IMPORTANCE_HIGH).apply {
+                description = context.getString(R.string.data_notif_channel_reminders_description)
             },
         )
         val open = context.packageManager.getLaunchIntentForPackage(context.packageName)?.let { launch ->
@@ -116,7 +115,7 @@ class AndroidReminderNotifier @Inject constructor(
             NotificationCompat.Builder(context, CHANNEL)
                 .setSmallIcon(R.drawable.ic_stat_agent)
                 .setContentTitle(text)
-                .setContentText(reminderLine(reminder, late, ZoneId.systemDefault()))
+                .setContentText(reminderLine(late, reminderTime(reminder.at, ZoneId.systemDefault())).asString(context.resources))
                 .setStyle(NotificationCompat.BigTextStyle().bigText(text))
                 .privateWhenLocked(context, lock, CHANNEL)
                 .setCategory(NotificationCompat.CATEGORY_REMINDER)
@@ -133,19 +132,34 @@ class AndroidReminderNotifier @Inject constructor(
 
     override fun dismiss(id: String) = NotificationManagerCompat.from(context).cancel(ReminderIntents.notificationId(id))
 
+    /** When the reminder was due, in the app's language and the phone's 12/24-hour setting. */
+    private fun reminderTime(at: Long, zone: ZoneId): String {
+        val locale = context.resources.configuration.locales[0]
+        val skeleton = reminderSkeleton(at, System.currentTimeMillis(), zone, android.text.format.DateFormat.is24HourFormat(context))
+        val format = android.icu.text.DateFormat.getInstanceForSkeleton(skeleton, locale)
+        format.timeZone = android.icu.util.TimeZone.getTimeZone(zone.id)
+        return format.format(java.util.Date(at))
+    }
+
     companion object {
         const val CHANNEL = "reminders"
     }
 }
 
-private val CLOCK = DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT)
-private val DAY_CLOCK = DateTimeFormatter.ofPattern("EEE d MMM, HH:mm", Locale.ROOT)
+/**
+ * The notification's second line: "Reminder from Locus · 17:00", or "Late: it was due at 17:00 (the phone was
+ * off or asleep)" after the phone was off; [time] is when it was due ([AndroidReminderNotifier.reminderTime]).
+ */
+internal fun reminderLine(late: Boolean, time: String): EngineText =
+    EngineText.Res(if (late) R.string.data_notif_reminder_late else R.string.data_notif_reminder_line, time)
 
-/** The notification's second line: "Reminder from Locus · 17:00", or "Late: due 17:00" after the phone was off. */
-internal fun reminderLine(reminder: Reminder, late: Boolean, zone: ZoneId): String {
-    val due = Instant.ofEpochMilli(reminder.at).atZone(zone)
-    val time = if (due.toLocalDate() == Instant.now().atZone(zone).toLocalDate()) due.format(CLOCK) else due.format(DAY_CLOCK)
-    return if (late) "Late: it was due at $time (the phone was off or asleep)" else "Reminder from Locus · $time"
+/**
+ * The date-time skeleton for a reminder due at [at]: the time alone when it is today, else the weekday, day,
+ * month and time ("Tue 3 Nov, 17:00" in English); 24-hour or not as [is24Hour] says.
+ */
+internal fun reminderSkeleton(at: Long, now: Long, zone: ZoneId, is24Hour: Boolean): String {
+    val today = Instant.ofEpochMilli(at).atZone(zone).toLocalDate() == Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
+    return (if (today) "" else "EEEdMMM") + (if (is24Hour) "Hm" else "hm")
 }
 
 /** The broadcasts a reminder's alarm and notification buttons send ([ReminderReceiver]). */

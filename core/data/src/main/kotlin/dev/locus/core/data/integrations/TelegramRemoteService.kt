@@ -17,6 +17,7 @@ import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
 import dev.locus.core.data.R
+import dev.locus.core.linux.EngineText
 import dev.locus.core.data.repository.SettingsRepository
 import dev.locus.core.model.TelegramRemoteSettings
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -41,8 +42,8 @@ class TelegramRemoteService : LifecycleService() {
         super.onCreate()
         running = true
         getSystemService(NotificationManager::class.java).createNotificationChannel(
-            NotificationChannel(CHANNEL, "Telegram remote mode", NotificationManager.IMPORTANCE_LOW).apply {
-                description = "Shown while messages to your Telegram bot can start tasks."
+            NotificationChannel(CHANNEL, getString(R.string.data_notif_channel_telegram), NotificationManager.IMPORTANCE_LOW).apply {
+                description = getString(R.string.data_notif_channel_telegram_description)
             },
         )
         ServiceCompat.startForeground(
@@ -90,15 +91,12 @@ class TelegramRemoteService : LifecycleService() {
         }
         return NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_agent)
-            .setContentTitle("Telegram remote mode is on")
-            .setContentText(
-                (until?.let { "Until $it. " } ?: "") + "Messages to your bot start tasks" +
-                    if (remote?.widened == true) "." else " (read-only).",
-            )
+            .setContentTitle(getString(R.string.data_notif_telegram_title))
+            .setContentText(telegramRemoteText(until, widened = remote?.widened == true).asString(resources))
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(open)
-            .addAction(0, "Turn off", off)
+            .addAction(0, getString(R.string.data_notif_telegram_off), off)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .build()
     }
@@ -123,4 +121,13 @@ class TelegramRemoteService : LifecycleService() {
             false
         }
     }
+}
+
+/**
+ * The remote-mode notification's line: "Until 18:00. Messages to your bot start tasks (read-only)."; [until]
+ * is the end time written for the phone, null when it has none; [widened] when messages may do more than read.
+ */
+internal fun telegramRemoteText(until: String?, widened: Boolean): EngineText {
+    val line = EngineText.Res(if (widened) R.string.data_notif_telegram_text else R.string.data_notif_telegram_text_read_only)
+    return until?.let { EngineText.Res(R.string.data_notif_telegram_until, it, line) } ?: line
 }

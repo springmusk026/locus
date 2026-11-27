@@ -52,7 +52,7 @@ class TriggerRunTest {
         var now = 0L
         val notified = mutableListOf<String>()
         suspend fun go(taskId: String, eventId: String, workId: String = "w-$eventId") =
-            run.run(taskId, workId, runNow = false, stopReason = { WorkInfo.STOP_REASON_UNKNOWN }, notify = { t, _, _ -> notified += t }, eventId = eventId)
+            run.run(taskId, workId, runNow = false, stopReason = { WorkInfo.STOP_REASON_UNKNOWN }, notify = { t, _, _ -> notified += dev.locus.core.data.EnglishResources.render(t) }, eventId = eventId)
     }
 
     private suspend fun TestScope.fixture(): Fixture {

@@ -17,6 +17,7 @@ import androidx.work.workDataOf
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import dev.locus.core.data.R
+import dev.locus.core.linux.EngineText
 import dev.locus.core.data.agent.OpenChatLink
 import dev.locus.core.data.lock.AppLock
 import dev.locus.core.data.lock.LockedNotifications
@@ -95,7 +96,7 @@ class TaskWorker @AssistedInject constructor(
         val startedAt = System.currentTimeMillis()
         // The run's notifications wait until it ends: a run that proposed something is announced by Needs you's one
         // summary instead (its result is listed there too), so it doesn't post two (docs/design/needs-you.md).
-        val held = mutableListOf<Triple<String, String, String>>()
+        val held = mutableListOf<Triple<EngineText, String, String>>()
         val postHeld = { held.forEach { (title, text, conversationId) -> notify(taskId, title, text, conversationId, lock) }; held.clear() }
         val result = try {
             scheduled.run(
@@ -121,11 +122,11 @@ class TaskWorker @AssistedInject constructor(
         return if (result == ScheduledRun.Result.FAILED) Result.failure(output) else Result.success(output)
     }
 
-    private fun notify(taskId: String, title: String, text: String, conversationId: String, lock: AppLockSettings) {
+    private fun notify(taskId: String, title: EngineText, text: String, conversationId: String, lock: AppLockSettings) {
         val manager = NotificationManagerCompat.from(applicationContext)
         if (!manager.areNotificationsEnabled()) return
         applicationContext.getSystemService(NotificationManager::class.java)
-            .createNotificationChannel(NotificationChannel(CHANNEL, "Scheduled task results", NotificationManager.IMPORTANCE_DEFAULT))
+            .createNotificationChannel(NotificationChannel(CHANNEL, applicationContext.getString(R.string.data_notif_channel_tasks), NotificationManager.IMPORTANCE_DEFAULT))
         val link = TaskResultLink(taskId, conversationId)
         // The launcher intent of whichever build this is (dev.locus or dev.locus.debug), carrying the chat
         // as OpenChatLink extras that MainActivity checks against its token and opens.
@@ -140,7 +141,7 @@ class TaskWorker @AssistedInject constructor(
             link.notificationId,
             NotificationCompat.Builder(applicationContext, CHANNEL)
                 .setSmallIcon(R.drawable.ic_stat_agent)
-                .setContentTitle(title)
+                .setContentTitle(title.asString(applicationContext.resources))
                 .setContentText(shown.lineSequence().firstOrNull { it.isNotBlank() }?.take(120))
                 .setStyle(NotificationCompat.BigTextStyle().bigText(shown.take(1500)))
                 .setContentIntent(open)

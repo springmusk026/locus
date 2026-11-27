@@ -242,7 +242,7 @@ internal fun runProgress(resources: Resources, run: RunState): String = noteOr(r
 // ---- Task budget ------------------------------------------------------------------------------------
 
 /** "Paused: reached the 200k-token budget for this task." ([BudgetReached.english]) in the user's language. */
-internal fun budgetReachedInWords(resources: Resources, r: BudgetReached): String =
+fun budgetReachedInWords(resources: Resources, r: BudgetReached): String =
     resources.getString(if (r.paused) R.string.chat_budget_paused_reached else R.string.chat_budget_stopped_reached, budgetSize(resources, r))
 
 /** "Reached the 200k-token budget for this task.", for the pause card whose title says it paused. */

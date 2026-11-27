@@ -78,7 +78,7 @@ class ResearchRunTest {
         val g = graph()
         val repo = repository(g)
         val notified = kotlinx.coroutines.CompletableDeferred<Pair<String, String>>()
-        g.runner.onResearchFinished = { _, title, text -> notified.complete(title to text) }
+        g.runner.onResearchFinished = { _, title, text -> notified.complete(dev.locus.core.data.EnglishResources.render(title) to dev.locus.core.data.EnglishResources.render(text)) }
         val research = WorkflowRepository.BUILT_IN.single()
         assertTrue(research.builtIn)
         repo.refresh()

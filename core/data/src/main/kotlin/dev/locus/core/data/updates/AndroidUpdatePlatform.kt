@@ -83,8 +83,8 @@ internal class AndroidUpdatePlatform(private val context: Context) : UpdatePlatf
         val manager = NotificationManagerCompat.from(context)
         if (!manager.areNotificationsEnabled()) return
         context.getSystemService(NotificationManager::class.java)
-            .createNotificationChannel(NotificationChannel(CHANNEL, "App updates", NotificationManager.IMPORTANCE_LOW).apply {
-                description = "A newer Locus is on GitHub (only when the update check is on)"
+            .createNotificationChannel(NotificationChannel(CHANNEL, context.getString(R.string.data_notif_channel_updates), NotificationManager.IMPORTANCE_LOW).apply {
+                description = context.getString(R.string.data_notif_channel_updates_description)
             })
         val open = context.packageManager.getLaunchIntentForPackage(context.packageName)?.let {
             it.action = UpdateLinks.ACTION_OPEN
@@ -94,8 +94,8 @@ internal class AndroidUpdatePlatform(private val context: Context) : UpdatePlatf
             NOTIFICATION_ID,
             NotificationCompat.Builder(context, CHANNEL)
                 .setSmallIcon(R.drawable.ic_stat_agent)
-                .setContentTitle("Update available: $version")
-                .setContentText("See what's new in Settings → About & privacy")
+                .setContentTitle(context.getString(R.string.data_notif_update_title, version))
+                .setContentText(context.getString(R.string.data_notif_update_text))
                 .setContentIntent(open)
                 .setAutoCancel(true)
                 .setOnlyAlertOnce(true)
