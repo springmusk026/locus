@@ -1,0 +1,215 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:HiddenText.kt:HiddenText$last &lt; 0 || isSelector(last) || isJoiner(last) || Character.isWhitespace(last)</ID>
+    <ID>ComplexCondition:ImportedChats.kt:ImportedChats$c.isLetterOrDigit() &amp;&amp; c.code &lt; 128 || c == '-' || c == '_' || c == '.'</ID>
+    <ID>ComplexCondition:LocalNetwork.kt:LocalNetwork$t.any { it == '\\' || it == '\t' || it == '\n' || it == '\r' }</ID>
+    <ID>ComplexCondition:Project.kt:ProjectPolicy.Companion$parts.isEmpty() || parts.any { it.isEmpty() || it == "." || it == ".." || it.startsWith(".") || '\\' in it || '\u0000' in it }</ID>
+    <ID>CyclomaticComplexMethod:ChatControls.kt:Effort$fun wireValue: String?</ID>
+    <ID>CyclomaticComplexMethod:ChatControls.kt:ToolGroup.Companion$fun of: ToolGroup?</ID>
+    <ID>CyclomaticComplexMethod:HiddenText.kt:HiddenText$fun clean: Cleaned</ID>
+    <ID>CyclomaticComplexMethod:HiddenText.kt:HiddenText$fun isDefaultIgnorable: Boolean</ID>
+    <ID>CyclomaticComplexMethod:Integrity.kt:PolicySeal$fun check: SealCheck</ID>
+    <ID>CyclomaticComplexMethod:Integrity.kt:PolicySeal$private fun payload: ByteArray</ID>
+    <ID>CyclomaticComplexMethod:LocalNetwork.kt:LocalNetwork$private fun ipv6: IntArray?</ID>
+    <ID>CyclomaticComplexMethod:ProviderDraft.kt:ProviderDrafts$fun describeSources: String</ID>
+    <ID>CyclomaticComplexMethod:ServiceAddress.kt:ServiceAddress$fun check: Checked</ID>
+    <ID>CyclomaticComplexMethod:ToolLabels.kt:fun toolActivityOf: ToolActivity</ID>
+    <ID>CyclomaticComplexMethod:ToolLabels.kt:fun toolLabelText: ToolLabelText</ID>
+    <ID>CyclomaticComplexMethod:Verification.kt:Verification$private fun detectStep: Command?</ID>
+    <ID>LongMethod:ToolLabels.kt:fun toolLabelText: ToolLabelText</ID>
+    <ID>LongMethod:Verification.kt:Verification$private fun detectStep: Command?</ID>
+    <ID>LoopWithTooManyJumpStatements:ProjectRule.kt:ProjectRules$while</ID>
+    <ID>MagicNumber:AppLock.kt:DeviceAuthPath.Companion$29</ID>
+    <ID>MagicNumber:AppLock.kt:DeviceAuthPath.Companion$30</ID>
+    <ID>MagicNumber:AppLock.kt:LockAfter$60_000L</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x00A9</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x00AD</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x00AE</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x034F</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x0600</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x0605</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x061C</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x06DD</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x070F</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x0890</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x0891</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x08E2</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x0900</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x0DCA</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x0DFF</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x1000</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x109F</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x10AC0</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x10AFF</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x110BD</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x110CD</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x115F</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x1160</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x13000</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x13430</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x1345F</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x17B4</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x17B5</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x180B</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x180D</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x180E</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x180F</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x1820</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x18AA</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x1BCA0</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x1BCA3</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x1D173</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x1D17A</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x1F000</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x1FAFF</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x200B</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x200F</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x202A</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x202E</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x203C</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x2049</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x2060</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x206F</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x2100</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x2200</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x22FF</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x2A00</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x2AFF</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x2BFF</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x3000</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x3030</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x303D</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x303F</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x3164</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x3297</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x3299</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x4D</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x7F</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0x80</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0xA840</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0xA87F</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0xA9E0</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0xA9FF</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0xAA60</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0xAA7F</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0xAD</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0xE0000</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0xE0020</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0xE007E</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0xE0100</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0xE01EF</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0xE0FFF</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0xFE00</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0xFE0D</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0xFE0E</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0xFE0F</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0xFEFF</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0xFF00</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0xFFA0</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0xFFEF</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0xFFF0</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0xFFF8</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0xFFF9</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$0xFFFB</ID>
+    <ID>MagicNumber:HiddenText.kt:HiddenText$6</ID>
+    <ID>MagicNumber:ImportedChats.kt:ImportedChats$128</ID>
+    <ID>MagicNumber:LocalNetwork.kt:LocalNetwork$0xfc00</ID>
+    <ID>MagicNumber:LocalNetwork.kt:LocalNetwork$0xfe00</ID>
+    <ID>MagicNumber:LocalNetwork.kt:LocalNetwork$0xfe80</ID>
+    <ID>MagicNumber:LocalNetwork.kt:LocalNetwork$0xff</ID>
+    <ID>MagicNumber:LocalNetwork.kt:LocalNetwork$0xff00</ID>
+    <ID>MagicNumber:LocalNetwork.kt:LocalNetwork$0xffc0</ID>
+    <ID>MagicNumber:LocalNetwork.kt:LocalNetwork$0xffff</ID>
+    <ID>MagicNumber:LocalNetwork.kt:LocalNetwork$10</ID>
+    <ID>MagicNumber:LocalNetwork.kt:LocalNetwork$100</ID>
+    <ID>MagicNumber:LocalNetwork.kt:LocalNetwork$127</ID>
+    <ID>MagicNumber:LocalNetwork.kt:LocalNetwork$16</ID>
+    <ID>MagicNumber:LocalNetwork.kt:LocalNetwork$168</ID>
+    <ID>MagicNumber:LocalNetwork.kt:LocalNetwork$169</ID>
+    <ID>MagicNumber:LocalNetwork.kt:LocalNetwork$172</ID>
+    <ID>MagicNumber:LocalNetwork.kt:LocalNetwork$192</ID>
+    <ID>MagicNumber:LocalNetwork.kt:LocalNetwork$224</ID>
+    <ID>MagicNumber:LocalNetwork.kt:LocalNetwork$239</ID>
+    <ID>MagicNumber:LocalNetwork.kt:LocalNetwork$254</ID>
+    <ID>MagicNumber:LocalNetwork.kt:LocalNetwork$255</ID>
+    <ID>MagicNumber:LocalNetwork.kt:LocalNetwork$3</ID>
+    <ID>MagicNumber:LocalNetwork.kt:LocalNetwork$31</ID>
+    <ID>MagicNumber:LocalNetwork.kt:LocalNetwork$4</ID>
+    <ID>MagicNumber:LocalNetwork.kt:LocalNetwork$5</ID>
+    <ID>MagicNumber:LocalNetwork.kt:LocalNetwork$6</ID>
+    <ID>MagicNumber:LocalNetwork.kt:LocalNetwork$64</ID>
+    <ID>MagicNumber:LocalNetwork.kt:LocalNetwork$7</ID>
+    <ID>MagicNumber:LocalNetwork.kt:LocalNetwork$8</ID>
+    <ID>MagicNumber:Message.kt:ModeNote$80</ID>
+    <ID>MagicNumber:Network.kt:HeaderRules$0xFF</ID>
+    <ID>MagicNumber:Network.kt:HeaderRules$128</ID>
+    <ID>MagicNumber:PriceSteps.kt:PriceSteps$10</ID>
+    <ID>MagicNumber:Project.kt:ProjectPolicy.Companion$120</ID>
+    <ID>MagicNumber:Project.kt:ProjectPolicy.Companion$40</ID>
+    <ID>MagicNumber:Project.kt:ProjectRemote.Companion$300</ID>
+    <ID>MagicNumber:ProjectRule.kt:ProjectRules$3</ID>
+    <ID>MagicNumber:ProjectRule.kt:RuleNote$1000.0</ID>
+    <ID>MagicNumber:ProjectRule.kt:RuleNote$200</ID>
+    <ID>MagicNumber:ScheduleIntervals.kt:ScheduleIntervals$1_440</ID>
+    <ID>MagicNumber:ScheduleIntervals.kt:ScheduleIntervals$60</ID>
+    <ID>MagicNumber:ServiceAddress.kt:ServiceAddress$65535</ID>
+    <ID>MagicNumber:Subagents.kt:HelperTimeLimit$60</ID>
+    <ID>MagicNumber:TaskTrigger.kt:QuietHours$22</ID>
+    <ID>MagicNumber:TaskTrigger.kt:QuietHours$60</ID>
+    <ID>MagicNumber:TaskTrigger.kt:QuietHours$7</ID>
+    <ID>MagicNumber:TaskTrigger.kt:QuietHours.Companion$23</ID>
+    <ID>MagicNumber:TaskTrigger.kt:QuietHours.Companion$24</ID>
+    <ID>MagicNumber:TaskTrigger.kt:QuietHours.Companion$59</ID>
+    <ID>MagicNumber:TaskTrigger.kt:QuietHours.Companion$60</ID>
+    <ID>MagicNumber:ToolLabels.kt:40</ID>
+    <ID>MagicNumber:ToolLabels.kt:50</ID>
+    <ID>MagicNumber:ToolLabels.kt:60</ID>
+    <ID>MagicNumber:ToolLabels.kt:80</ID>
+    <ID>MatchingDeclarationName:ToolDiscovery.kt:DiscoveryTools</ID>
+    <ID>ReturnCount:DeviceState.kt:PowerPolicy$fun localWarning: LocalWarning?</ID>
+    <ID>ReturnCount:EffortDefaults.kt:EffortDefaults$fun offersModelDefault: Boolean</ID>
+    <ID>ReturnCount:HiddenText.kt:HiddenText$private fun keepJoiner: Boolean</ID>
+    <ID>ReturnCount:HiddenText.kt:HiddenText$private fun mayHide: Boolean</ID>
+    <ID>ReturnCount:HiddenText.kt:HiddenText$private fun subdivisionFlagEnd: Int</ID>
+    <ID>ReturnCount:LocalNetwork.kt:LocalNetwork$fun cleartextWarning: String?</ID>
+    <ID>ReturnCount:LocalNetwork.kt:LocalNetwork$fun isLocalHost: Boolean</ID>
+    <ID>ReturnCount:LocalNetwork.kt:LocalNetwork$fun plainHostOf: String?</ID>
+    <ID>ReturnCount:LocalNetwork.kt:LocalNetwork$private fun ipv4: IntArray?</ID>
+    <ID>ReturnCount:LocalNetwork.kt:LocalNetwork$private fun ipv6: IntArray?</ID>
+    <ID>ReturnCount:LocalNetwork.kt:LocalNetwork$private fun ipv6Text: String</ID>
+    <ID>ReturnCount:ModelCompare.kt:ModelCompare$fun keep: Pair&lt;List&lt;CompareTurn&gt;, List&lt;ModelPickTally&gt;&gt;?</ID>
+    <ID>ReturnCount:Network.kt:HeaderRules$fun check: HeaderVerdict</ID>
+    <ID>ReturnCount:PlanRun.kt:PlanRun$fun needsConfirm: Boolean</ID>
+    <ID>ReturnCount:Project.kt:ProjectPolicy$fun effective: ToolPolicy</ID>
+    <ID>ReturnCount:Project.kt:ProjectRemote.Companion$fun cleanFolder: String?</ID>
+    <ID>ReturnCount:ProjectRule.kt:ProjectRule$fun matchesFile: Boolean</ID>
+    <ID>ReturnCount:ProjectRule.kt:ProjectRules$fun normalizePath: String?</ID>
+    <ID>ReturnCount:ProviderDraft.kt:ProviderDrafts$fun call: Call?</ID>
+    <ID>ReturnCount:ServiceAddress.kt:ServiceAddress$fun check: Checked</ID>
+    <ID>ReturnCount:SettingsDestination.kt:SettingsDestination.Companion$fun inText: SettingsDestination?</ID>
+    <ID>ReturnCount:SiteLogin.kt:SiteOrigin$fun of: String?</ID>
+    <ID>ReturnCount:SmallModels.kt:SmallModels$fun billions: Double?</ID>
+    <ID>ReturnCount:TaskBudget.kt:TaskBudget.Companion$fun overrideIn: TaskBudget?</ID>
+    <ID>ReturnCount:TaskBudget.kt:TaskBudget.Companion$fun withOverride: Set&lt;String&gt;</ID>
+    <ID>ReturnCount:ToolDiscovery.kt:DiscoveryTools$fun parseMcpName: Pair&lt;String, String&gt;?</ID>
+    <ID>ReturnCount:ToolDiscovery.kt:DiscoveryTools$fun unwrap: Pair&lt;String, String&gt;</ID>
+    <ID>ReturnCount:ToolLabels.kt:fun toolLabelText: ToolLabelText</ID>
+    <ID>ReturnCount:Tools.kt:ReviewAudit.Companion$fun split: Pair&lt;ReviewAudit?, String&gt;</ID>
+    <ID>ReturnCount:Verification.kt:Verification$fun covers: Boolean</ID>
+    <ID>ReturnCount:Verification.kt:Verification$fun ofRunCommand: Outcome?</ID>
+    <ID>SwallowedException:NoFollowFiles.kt:NoFollowFiles$e: FileAlreadyExistsException</ID>
+    <ID>ThrowsCount:FileTrees.kt:FileTrees$fun replaceFile</ID>
+    <ID>ThrowsCount:NoFollowFiles.kt:NoFollowFiles$@PublishedApi internal fun openChecked: NoFollowOpener.Opened</ID>
+    <ID>ThrowsCount:NoFollowFiles.kt:NoFollowFiles$private fun folders</ID>
+    <ID>TooGenericExceptionCaught:Cancellation.kt:e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:NoFollowFiles.kt:NoFollowFiles$e: Throwable</ID>
+    <ID>TooManyFunctions:HelperPrompts.kt:HelperPrompts</ID>
+    <ID>TooManyFunctions:HiddenText.kt:HiddenText</ID>
+    <ID>TooManyFunctions:Integrity.kt:PolicySeal</ID>
+    <ID>TooManyFunctions:LocalNetwork.kt:LocalNetwork</ID>
+    <ID>TooManyFunctions:Message.kt:ModeNote</ID>
+    <ID>TooManyFunctions:Verification.kt:Verification</ID>
+  </CurrentIssues>
+</SmellBaseline>

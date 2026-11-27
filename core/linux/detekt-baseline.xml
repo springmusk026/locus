@@ -1,0 +1,62 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:LinuxSyntaxCheck.kt:path.endsWith(".bash") || (firstLine != null &amp;&amp; firstLine.startsWith("#!") &amp;&amp; "bash" in firstLine)</ID>
+    <ID>CyclomaticComplexMethod:CodingTools.kt:GitCommit$override suspend fun execute: ToolResult</ID>
+    <ID>CyclomaticComplexMethod:CodingTools.kt:internal fun gitCommand: String</ID>
+    <ID>CyclomaticComplexMethod:LinuxEnvironment.kt:LinuxEnvironment$suspend fun run: CommandResult</ID>
+    <ID>CyclomaticComplexMethod:LinuxHealth.kt:LinuxHealth$fun checks: List&lt;HealthCheck&gt;</ID>
+    <ID>CyclomaticComplexMethod:LinuxSyntaxCheck.kt:internal fun syntaxCheckFor: Check?</ID>
+    <ID>CyclomaticComplexMethod:Tar.kt:Tar$fun extract</ID>
+    <ID>LongMethod:LinuxHealth.kt:LinuxHealth$fun checks: List&lt;HealthCheck&gt;</ID>
+    <ID>LongMethod:Tar.kt:Tar$fun extract</ID>
+    <ID>LoopWithTooManyJumpStatements:Tar.kt:Tar$while</ID>
+    <ID>MagicNumber:CodingTools.kt:GitCommit$80</ID>
+    <ID>MagicNumber:CodingTools.kt:ServiceLog$100</ID>
+    <ID>MagicNumber:CodingTools.kt:ServiceLog$2000</ID>
+    <ID>MagicNumber:LinuxEnvironment.kt:LinuxEnvironment$100</ID>
+    <ID>MagicNumber:LinuxEnvironment.kt:LinuxEnvironment$2_000</ID>
+    <ID>MagicNumber:LinuxEnvironment.kt:LinuxEnvironment$3</ID>
+    <ID>MagicNumber:LinuxEnvironment.kt:LinuxEnvironment$50</ID>
+    <ID>MagicNumber:LinuxEnvironment.kt:LinuxEnvironment$500</ID>
+    <ID>MagicNumber:LinuxHealth.kt:LinuxHealth$10</ID>
+    <ID>MagicNumber:LinuxHealth.kt:LinuxHealth$1000</ID>
+    <ID>MagicNumber:LinuxHealth.kt:LinuxHealth$1000.0</ID>
+    <ID>MagicNumber:LinuxHealth.kt:LinuxHealth$1024</ID>
+    <ID>MagicNumber:LinuxHealth.kt:LinuxHealth$128</ID>
+    <ID>MagicNumber:LinuxHealth.kt:LinuxHealth$160</ID>
+    <ID>MagicNumber:LinuxHealth.kt:LinuxHealth$64</ID>
+    <ID>MagicNumber:LinuxInventory.kt:LinuxInventory$1024</ID>
+    <ID>MagicNumber:LinuxProbe.kt:LinuxProbe$1_000_000</ID>
+    <ID>MagicNumber:LinuxProbe.kt:LinuxProbe$3</ID>
+    <ID>MagicNumber:LinuxProbe.kt:LinuxProbe$4_000</ID>
+    <ID>MagicNumber:LinuxTools.kt:1024</ID>
+    <ID>MagicNumber:LinuxTools.kt:ServiceList$1_500</ID>
+    <ID>MagicNumber:LinuxTools.kt:ServiceStart$4_000</ID>
+    <ID>MagicNumber:Tar.kt:Tar$0x1ff</ID>
+    <ID>MagicNumber:Tar.kt:Tar$8</ID>
+    <ID>NestedBlockDepth:LinuxEnvironment.kt:LinuxEnvironment$private suspend fun download</ID>
+    <ID>ReturnCount:CodingTools.kt:ServiceLog$override suspend fun execute: ToolResult</ID>
+    <ID>ReturnCount:CodingTools.kt:internal fun lastLines: String</ID>
+    <ID>ReturnCount:LinuxEnvironment.kt:LinuxEnvironment$private fun linkSharedLibraries</ID>
+    <ID>ReturnCount:LinuxHealth.kt:LinuxHealth$fun headline: EngineText</ID>
+    <ID>ReturnCount:LinuxInventory.kt:LinuxInventory$fun processName: String</ID>
+    <ID>ReturnCount:LinuxProbe.kt:AndroidDeviceFacts$override fun memory: LinuxReport.Memory?</ID>
+    <ID>ReturnCount:LinuxSyntaxCheck.kt:LinuxSyntaxCheck$override suspend fun problems: String?</ID>
+    <ID>ReturnCount:LinuxTools.kt:RunCommand$override suspend fun execute: ToolResult</ID>
+    <ID>ReturnCount:LinuxTools.kt:RunCommand$override suspend fun precheck: String?</ID>
+    <ID>ReturnCount:LinuxTools.kt:ServiceList$override suspend fun execute: ToolResult</ID>
+    <ID>ReturnCount:LinuxTools.kt:ServiceStart$override suspend fun execute: ToolResult</ID>
+    <ID>ReturnCount:ServiceRecords.kt:ServiceRecords$private fun read: List&lt;Record&gt;</ID>
+    <ID>ThrowsCount:BindSources.kt:BindSources$fun inside: File</ID>
+    <ID>ThrowsCount:CodingTools.kt:internal fun gitCommand: String</ID>
+    <ID>ThrowsCount:CodingTools.kt:internal fun gitCommitCommand: String</ID>
+    <ID>ThrowsCount:LinuxEnvironment.kt:LinuxEnvironment$private fun requireReady</ID>
+    <ID>TooGenericExceptionCaught:LinuxEnvironment.kt:LinuxEnvironment$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:LinuxProbe.kt:LinuxProbe$e: Exception</ID>
+    <ID>TooManyFunctions:LinuxEnvironment.kt:LinuxEnvironment</ID>
+    <ID>TooManyFunctions:LinuxHealth.kt:LinuxHealth</ID>
+    <ID>TooManyFunctions:LinuxInventory.kt:LinuxInventory</ID>
+  </CurrentIssues>
+</SmellBaseline>

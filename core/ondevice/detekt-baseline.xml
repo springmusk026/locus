@@ -1,0 +1,140 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:GemmaCallRepair.kt:GemmaCallRepair.Parser$pos &lt; s.length &amp;&amp; (s[pos].isLetterOrDigit() || s[pos] == '_' || s[pos] == '-' || s[pos] == '.')</ID>
+    <ID>ComplexCondition:GemmaCallRepair.kt:GemmaCallRepair.Parser$pos &lt; s.length &amp;&amp; s[pos] != ',' &amp;&amp; s[pos] != '}' &amp;&amp; s[pos] != ']'</ID>
+    <ID>ComplexCondition:GgufDownloads.kt:GgufErrorText$root.cause != null &amp;&amp; root.cause !== root &amp;&amp; (root is ExceptionInInitializerError || root.message.isNullOrBlank())</ID>
+    <ID>ComplexCondition:GgufDownloads.kt:TransferRate$speed != null &amp;&amp; speed &gt; 0 &amp;&amp; total != null &amp;&amp; total &gt;= bytes</ID>
+    <ID>ComplexCondition:GgufMemory.kt:GgufMemory$layers &lt;= 0 || kvHeads &lt;= 0 || keyLength &lt;= 0 || valueLength &lt;= 0</ID>
+    <ID>ComplexCondition:GgufMemory.kt:GgufMemory$layers == null || kvHeads == null || keyLength == null || valueLength == null</ID>
+    <ID>ComplexCondition:HfHub.kt:HfHub$segments.any { it.isEmpty() || it == "." || it == ".." || '\\' in it }</ID>
+    <ID>ComplexCondition:TurnSpeed.kt:SpeedMath$decodeTokens &lt;= 0 || decodePerSecond &lt;= 0.0 || decodePerSecond.isNaN() || decodePerSecond.isInfinite()</ID>
+    <ID>CyclomaticComplexMethod:GemmaCallRepair.kt:GemmaCallRepair.Parser$fun value: JsonElement</ID>
+    <ID>CyclomaticComplexMethod:GgufChatModel.kt:GgufChatModel$override fun stream: Flow&lt;ChatEvent&gt;</ID>
+    <ID>CyclomaticComplexMethod:GgufHeader.kt:GgufReader$fun read: GgufHeader</ID>
+    <ID>CyclomaticComplexMethod:GgufModels.kt:GgufModels$fun import</ID>
+    <ID>CyclomaticComplexMethod:GgufTransfer.kt:GgufTransfer$private suspend fun fetch</ID>
+    <ID>CyclomaticComplexMethod:HfHub.kt:HfHub$fun parseFileUrl: HfFileRef?</ID>
+    <ID>CyclomaticComplexMethod:OnDeviceChatModel.kt:OnDeviceChatModel$override fun stream: Flow&lt;ChatEvent&gt;</ID>
+    <ID>CyclomaticComplexMethod:OnDeviceModels.kt:OnDeviceModels$private suspend fun fetch</ID>
+    <ID>LongMethod:GgufChatModel.kt:GgufChatModel$override fun stream: Flow&lt;ChatEvent&gt;</ID>
+    <ID>LongMethod:GgufHeader.kt:GgufReader$fun read: GgufHeader</ID>
+    <ID>LongMethod:GgufModels.kt:GgufModels$fun import</ID>
+    <ID>LongMethod:GgufTransfer.kt:GgufTransfer$private suspend fun fetch</ID>
+    <ID>LongMethod:OnDeviceChatModel.kt:OnDeviceChatModel$override fun stream: Flow&lt;ChatEvent&gt;</ID>
+    <ID>LoopWithTooManyJumpStatements:GemmaCallRepair.kt:GemmaCallRepair.Parser$while</ID>
+    <ID>LoopWithTooManyJumpStatements:GgufTransfer.kt:GgufTransfer$while</ID>
+    <ID>LoopWithTooManyJumpStatements:IcuRegexGuardTest.kt:IcuRegex$while</ID>
+    <ID>LoopWithTooManyJumpStatements:IcuRegexGuardTest.kt:RegexLiterals.Lexer$while</ID>
+    <ID>MagicNumber:GgufChatModel.kt:GgufChatModel$1000.0</ID>
+    <ID>MagicNumber:GgufChatModel.kt:GgufChatModel$300</ID>
+    <ID>MagicNumber:GgufChatModel.kt:GgufErrors$1024</ID>
+    <ID>MagicNumber:GgufChatModel.kt:GgufErrors$200</ID>
+    <ID>MagicNumber:GgufChatModel.kt:GgufErrors$300</ID>
+    <ID>MagicNumber:GgufDownloadWorker.kt:GgufDownloadText$1_000_000</ID>
+    <ID>MagicNumber:GgufDownloadWorker.kt:GgufDownloadText$1e6</ID>
+    <ID>MagicNumber:GgufDownloadWorker.kt:GgufDownloadText$1e9</ID>
+    <ID>MagicNumber:GgufDownloadWorker.kt:GgufDownloadText$3_600</ID>
+    <ID>MagicNumber:GgufDownloadWorker.kt:GgufDownloadText$59</ID>
+    <ID>MagicNumber:GgufDownloadWorker.kt:GgufDownloadText$60</ID>
+    <ID>MagicNumber:GgufDownloadWorker.kt:GgufDownloadWorker$29</ID>
+    <ID>MagicNumber:GgufDownloads.kt:GgufDownloads$1e9</ID>
+    <ID>MagicNumber:GgufDownloads.kt:GgufDownloads.Companion$48</ID>
+    <ID>MagicNumber:GgufHeader.kt:GgufReader$3</ID>
+    <ID>MagicNumber:GgufHeader.kt:GgufReader$4096</ID>
+    <ID>MagicNumber:GgufHeader.kt:GgufReader$8</ID>
+    <ID>MagicNumber:GgufHeader.kt:GgufReader$80</ID>
+    <ID>MagicNumber:GgufHeader.kt:GgufReader.LeReader$0xFF</ID>
+    <ID>MagicNumber:GgufHeader.kt:GgufReader.LeReader$4</ID>
+    <ID>MagicNumber:GgufHeader.kt:GgufReader.LeReader$8</ID>
+    <ID>MagicNumber:GgufModels.kt:GgufModels$1e9</ID>
+    <ID>MagicNumber:GgufSources.kt:GgufSources$200</ID>
+    <ID>MagicNumber:GgufSources.kt:GgufSources$299</ID>
+    <ID>MagicNumber:GgufSources.kt:GgufSources$401</ID>
+    <ID>MagicNumber:GgufSources.kt:GgufSources$403</ID>
+    <ID>MagicNumber:GgufSources.kt:GgufSources$404</ID>
+    <ID>MagicNumber:GgufSources.kt:GgufSources$429</ID>
+    <ID>MagicNumber:GgufTransfer.kt:GgufTransfer$200</ID>
+    <ID>MagicNumber:GgufTransfer.kt:GgufTransfer$206</ID>
+    <ID>MagicNumber:GgufTransfer.kt:GgufTransfer$401</ID>
+    <ID>MagicNumber:GgufTransfer.kt:GgufTransfer$403</ID>
+    <ID>MagicNumber:GgufTransfer.kt:GgufTransfer$404</ID>
+    <ID>MagicNumber:GgufTransfer.kt:GgufTransfer$410</ID>
+    <ID>MagicNumber:GgufTransfer.kt:GgufTransfer$416</ID>
+    <ID>MagicNumber:GgufTransfer.kt:GgufTransfer$429</ID>
+    <ID>MagicNumber:GgufTransfer.kt:GgufTransfer.Companion$1_000_000</ID>
+    <ID>MagicNumber:GgufTransfer.kt:GgufTransfer.Companion$1e9</ID>
+    <ID>MagicNumber:GgufTransfer.kt:GgufTransfer.Companion$3</ID>
+    <ID>MagicNumber:HfHub.kt:HfHub$443</ID>
+    <ID>MagicNumber:HfHub.kt:HfHub$5</ID>
+    <ID>MagicNumber:HfHub.kt:HfHub$59</ID>
+    <ID>MagicNumber:HfHub.kt:HfHub$60</ID>
+    <ID>MagicNumber:HfHub.kt:HfHub$90</ID>
+    <ID>MagicNumber:IdleUnloader.kt:IdleUnloader$1_000_000</ID>
+    <ID>MagicNumber:ModelDownloadWorker.kt:ModelDownloadWorker$29</ID>
+    <ID>MagicNumber:ModelHttp.kt:ModelHttp$200</ID>
+    <ID>MagicNumber:ModelHttp.kt:ModelHttp$299</ID>
+    <ID>MagicNumber:ModelHttp.kt:ModelHttp.Companion$401</ID>
+    <ID>MagicNumber:ModelHttp.kt:ModelHttp.Companion$403</ID>
+    <ID>MagicNumber:ModelHttp.kt:ModelHttp.Companion$404</ID>
+    <ID>MagicNumber:ModelHttp.kt:ModelHttp.Companion$429</ID>
+    <ID>MagicNumber:OnDeviceChatModel.kt:OnDeviceChatModel$1_000_000</ID>
+    <ID>MagicNumber:OnDeviceChatModel.kt:OnDeviceEngines$1024L</ID>
+    <ID>MagicNumber:OnDeviceChatModel.kt:OnDeviceEngines$1_000_000</ID>
+    <ID>MagicNumber:OnDeviceChatModel.kt:OnDeviceEngines$200</ID>
+    <ID>MagicNumber:OnDeviceFormat.kt:OnDeviceFormat$10</ID>
+    <ID>MagicNumber:OnDeviceModels.kt:OnDeviceModels$1024</ID>
+    <ID>MagicNumber:OnDeviceModels.kt:OnDeviceModels$200</ID>
+    <ID>MagicNumber:OnDeviceModels.kt:OnDeviceModels$299</ID>
+    <ID>MagicNumber:OnDeviceModels.kt:OnDeviceModels$8</ID>
+    <ID>MagicNumber:TurnSpeed.kt:SpeedMath$1000.0</ID>
+    <ID>ReturnCount:GemmaCallRepair.kt:GemmaCallRepair$fun fromError: List&lt;Call&gt;</ID>
+    <ID>ReturnCount:GemmaCallRepair.kt:GemmaCallRepair$fun parseAll: List&lt;Call&gt;</ID>
+    <ID>ReturnCount:GgufDownloadWorker.kt:GgufDownloadWorker$override suspend fun doWork: Result</ID>
+    <ID>ReturnCount:GgufDownloads.kt:GgufDownloads$fun start</ID>
+    <ID>ReturnCount:GgufDownloads.kt:GgufDownloads$suspend fun run: Boolean</ID>
+    <ID>ReturnCount:GgufDownloads.kt:GgufOfferJson$fun decode: GgufOffer?</ID>
+    <ID>ReturnCount:GgufHeader.kt:GgufHeader$private fun perHead: Int?</ID>
+    <ID>ReturnCount:GgufMemory.kt:GgufMemory$fun kvBytesPerToken: Long?</ID>
+    <ID>ReturnCount:GgufModels.kt:GgufModels$@Synchronized fun adopt: GgufModel</ID>
+    <ID>ReturnCount:GgufTransfer.kt:GgufTransfer.Companion$fun parseContentRange: Pair&lt;Long, Long?&gt;?</ID>
+    <ID>ReturnCount:HfHub.kt:HfHub$fun parseFileUrl: HfFileRef?</ID>
+    <ID>ReturnCount:IcuRegexGuardTest.kt:RegexLiterals$private fun argument: String?</ID>
+    <ID>ReturnCount:IcuRegexGuardTest.kt:RegexLiterals.Lexer$private fun read: Int</ID>
+    <ID>ReturnCount:ModelDownloadWorker.kt:ModelDownloadWorker$override suspend fun doWork: Result</ID>
+    <ID>ReturnCount:OnDeviceFormat.kt:OnDeviceFormat$fun backendLine: String</ID>
+    <ID>SwallowedException:GgufDownloads.kt:GgufDownloads$e: GgufException</ID>
+    <ID>SwallowedException:GgufHeader.kt:GgufReader$e: ArithmeticException</ID>
+    <ID>SwallowedException:GgufHeader.kt:GgufReader$e: EOFException</ID>
+    <ID>SwallowedException:GgufModels.kt:GgufModels$e: java.io.IOException</ID>
+    <ID>SwallowedException:GgufSources.kt:GgufSources$e: GgufException</ID>
+    <ID>SwallowedException:GgufTransfer.kt:GgufTransfer$e: IOException</ID>
+    <ID>SwallowedException:ModelHttp.kt:ModelHttp$e: java.net.UnknownHostException</ID>
+    <ID>ThrowsCount:GgufHeader.kt:GgufReader$fun read: GgufHeader</ID>
+    <ID>ThrowsCount:GgufHeader.kt:GgufReader.LeReader$fun skipArray</ID>
+    <ID>ThrowsCount:GgufModels.kt:GgufModels$@Synchronized fun adopt: GgufModel</ID>
+    <ID>ThrowsCount:GgufModels.kt:GgufModels$fun import</ID>
+    <ID>ThrowsCount:GgufSources.kt:GgufSources$suspend fun offer: GgufOffer</ID>
+    <ID>ThrowsCount:GgufTransfer.kt:GgufTransfer$private fun openPart: FileChannel</ID>
+    <ID>ThrowsCount:GgufTransfer.kt:GgufTransfer$private suspend fun fetch</ID>
+    <ID>ThrowsCount:ModelHttp.kt:ModelHttp$suspend fun &lt;T&gt; open: T</ID>
+    <ID>ThrowsCount:ModelHttp.kt:ModelHttp$suspend fun hubText: String</ID>
+    <ID>ThrowsCount:OnDeviceChatModel.kt:OnDeviceEngines$private fun load: LoadedEngine</ID>
+    <ID>ThrowsCount:OnDeviceChatModel.kt:OnDeviceEngines$private fun loadLlama: LoadedLlama</ID>
+    <ID>TooGenericExceptionCaught:BackendLoader.kt:BackendLoader$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:GgufDownloadWorker.kt:GgufDownloadWorker$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:GgufDownloads.kt:GgufDownloads$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:GgufModels.kt:GgufModels$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:OnDeviceChatModel.kt:OnDeviceEngines$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:OnDeviceChatModel.kt:OnDeviceEngines$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:OnDeviceModels.kt:OnDeviceModels$e: Exception</ID>
+    <ID>TooGenericExceptionThrown:BackendLoaderTest.kt:BackendLoaderTest$throw RuntimeException("$it broke")</ID>
+    <ID>TooManyFunctions:GgufDownloads.kt:GgufDownloads</ID>
+    <ID>TooManyFunctions:GgufModels.kt:GgufModels</ID>
+    <ID>TooManyFunctions:HfHub.kt:HfHub</ID>
+    <ID>TooManyFunctions:OnDeviceChatModel.kt:OnDeviceEngines</ID>
+    <ID>TooManyFunctions:OnDeviceModels.kt:OnDeviceModels</ID>
+    <ID>VariableNaming:GemmaCallRepairTest.kt:GemmaCallRepairTest$private val Q = "&lt;|\"|&gt;"</ID>
+  </CurrentIssues>
+</SmellBaseline>

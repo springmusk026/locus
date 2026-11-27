@@ -1,0 +1,20 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>CyclomaticComplexMethod:ActivityScreen.kt:@Composable fun ActivityRoute</ID>
+    <ID>CyclomaticComplexMethod:ActivityViewModel.kt:ActivityViewModel.Companion$fun query: AuditQuery</ID>
+    <ID>LambdaParameterEventTrailing:ActivityScreen.kt:onClick: () -&gt; Unit</ID>
+    <ID>LambdaParameterEventTrailing:ActivityScreen.kt:onToggle: () -&gt; Unit</ID>
+    <ID>LongMethod:ActivityScreen.kt:@Composable fun ActivityRoute</ID>
+    <ID>MagicNumber:ActivityScreen.kt:4</ID>
+    <ID>MagicNumber:ActivityScreen.kt:60_000</ID>
+    <ID>MagicNumber:ActivityViewModel.kt:ActivityViewModel.Companion$6</ID>
+    <ID>ModifierMissing:ActivityScreen.kt:@Composable fun ActivityRoute</ID>
+    <ID>ModifierWithoutDefault:ActivityScreen.kt:modifier: Modifier</ID>
+    <ID>TooManyFunctions:ActivityScreen.kt:dev.locus.feature.activity.ActivityScreen.kt</ID>
+    <ID>TooManyFunctions:ActivityViewModel.kt:ActivityViewModel : ViewModel</ID>
+    <ID>VariableNaming:ActivityScreen.kt:val when_ = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.MEDIUM).format(Date(entry.startedAt))</ID>
+    <ID>ViewModelForwarding:ActivityScreen.kt:Filters(state.filters, inChat = state.conversationId != null, viewModel)</ID>
+  </CurrentIssues>
+</SmellBaseline>

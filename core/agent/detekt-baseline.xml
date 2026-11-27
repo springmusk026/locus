@@ -1,0 +1,870 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:AgentLoop.kt:AgentLoop$memory == null || offPhone || remembered != null || heldBack || indirect != null || (checked != null &amp;&amp; !checked.agreed)</ID>
+    <ID>ComplexCondition:AgentLoop.kt:AgentLoop$replied &amp;&amp; turn.stopReason != StopReason.REFUSAL &amp;&amp; !completionAsked &amp;&amp; completionCheckApplies(step, transcript)</ID>
+    <ID>ComplexCondition:AgentLoop.kt:AgentLoop$serving.canSwitch &amp;&amp; (Failover.switchesNow(e) || (spent &amp;&amp; Failover.switchesAfterRetries(e)))</ID>
+    <ID>ComplexCondition:AgentLoop.kt:AgentLoop$setup.background &amp;&amp; !early.tried &amp;&amp; step &gt; compactedAtStep + 1 &amp;&amp; transcript.size &gt;= MIN_COMPACT_MESSAGES &amp;&amp; Compaction.keepsTurnsAfterSummary(serving.model.format) &amp;&amp; Compaction.due(turn.usage, setup, pending, early = true)</ID>
+    <ID>ComplexCondition:AuditRedactor.kt:AuditRedactor$sensitiveField &amp;&amp; k.lowercase() in FIELD_VALUE_KEYS &amp;&amp; v is JsonPrimitive &amp;&amp; v.contentOrNull?.isNotEmpty() == true</ID>
+    <ID>ComplexCondition:CacheSimulator.kt:CacheSimulator.Engine$mode == CacheMode.EXPLICIT &amp;&amp; !policy.firstParty &amp;&amp; (policy.conversationTtl == CacheTtl.ONE_HOUR || policy.prefixTtl == CacheTtl.ONE_HOUR)</ID>
+    <ID>ComplexCondition:ChatPolicy.kt:(end == '.' || end == '!' || end == '?' || end == ':') &amp;&amp; start.isUpperCase()</ID>
+    <ID>ComplexCondition:CodeFiles.kt:GitIgnore$(rule.regex.matches(path) &amp;&amp; (isDir || !rule.dirOnly)) || parentsMatch(rule, path)</ID>
+    <ID>ComplexCondition:CodeTools.kt:Projects$has("build.gradle.kts") || has("build.gradle") || has("settings.gradle.kts") || has("settings.gradle")</ID>
+    <ID>ComplexCondition:CodeTools.kt:Projects$has("pyproject.toml") || has("requirements.txt") || has("setup.py") || has("Pipfile")</ID>
+    <ID>ComplexCondition:CommandSafety.kt:CommandSafety$name in NEVER || name.startsWith("mkfs") || name.startsWith("python") &amp;&amp; name.endsWith("-config")</ID>
+    <ID>ComplexCondition:CommandSafety.kt:CommandSafety$name in TAR_NAMES &amp;&amp; args.firstOrNull()?.let { old -&gt; !old.startsWith("-") &amp;&amp; old.all(Char::isLetter) &amp;&amp; old.any { it in TAR_OLD_STYLE } } == true</ID>
+    <ID>ComplexCondition:JsonSchemas.kt:JsonSchemas$a is JsonPrimitive &amp;&amp; b is JsonPrimitive &amp;&amp; !a.isString &amp;&amp; !b.isString</ID>
+    <ID>ComplexCondition:JsonSchemas.kt:JsonSchemas$value is JsonNull &amp;&amp; (nullable || "null" in types || types.isEmpty())</ID>
+    <ID>ComplexCondition:LineDiff.kt:LineDiff$(before != null &amp;&amp; isBinary(before)) || (after != null &amp;&amp; isBinary(after))</ID>
+    <ID>ComplexCondition:MemorySuggest.kt:MemorySuggest$obj == null || chat == null || content.isEmpty() || proposals.size &gt;= MAX_NOTES_PER_BATCH</ID>
+    <ID>ComplexCondition:RememberedApprovals.kt:ApprovalScopes$p.startsWith("/") || p.startsWith("~") || '\\' in p || '\u0000' in p</ID>
+    <ID>ComplexCondition:RememberedApprovals.kt:ApprovalScopes$parts.any { it == ".." || it in PROTECTED_SEGMENTS || it.startsWith("-") || !FOLDER_PART.matches(it) }</ID>
+    <ID>ComplexCondition:SkillFrontmatter.kt:SkillFrontmatter$i &lt; lines.size &amp;&amp; (lines[i].isBlank() || lines[i][0].isWhitespace() || lines[i].startsWith("- "))</ID>
+    <ID>ComplexCondition:SkillFrontmatter.kt:SkillFrontmatter$line.isBlank() || line.trimStart().startsWith("#") || line[0].isWhitespace() || line.startsWith("- ")</ID>
+    <ID>ComplexCondition:SkillManifest.kt:SkillManifest.Companion$!(HOST.matches(h) &amp;&amp; '.' in h.removePrefix("*.")) &amp;&amp; !IPV4.matches(h) &amp;&amp; h != "localhost"</ID>
+    <ID>ComplexCondition:Taint.kt:Taint$h == "localhost" || h.endsWith(".localhost") || h == "127.0.0.1" || h == "::1"</ID>
+    <ID>ComplexCondition:Taint.kt:Taint$output != null &amp;&amp; UntrustedContent.isMarked(output) &amp;&amp; !(skipLocal &amp;&amp; dev.locus.core.model.RuleNote.LOCAL_OUTPUT in output)</ID>
+    <ID>ComplexCondition:Telegram.kt:Telegram$status == 429 &amp;&amp; retryAfter != null &amp;&amp; retryAfter &lt;= MAX_RETRY_WAIT_S &amp;&amp; retries &lt; 2</ID>
+    <ID>ComplexCondition:UntrustedContent.kt:UntrustedContent$text.all { it in ' '..'\u007E' || it == '\n' || it == '\t' || it == '\r' }</ID>
+    <ID>ComplexCondition:WebTools.kt:FetchGuard$address.isLoopbackAddress || address.isLinkLocalAddress || address.isSiteLocalAddress || address.isAnyLocalAddress || address.isMulticastAddress</ID>
+    <ID>ComplexCondition:WorkspaceTools.kt:CopyPath$fromT != null &amp;&amp; toT != null &amp;&amp; fromT.folder.id == toT.folder.id &amp;&amp; toT.segments.take(fromT.segments.size) == fromT.segments</ID>
+    <ID>ComplexCondition:WorkspaceTools.kt:MovePath$fromT != null &amp;&amp; toT != null &amp;&amp; fromT.folder.id == toT.folder.id &amp;&amp; fromT.parent == toT.parent</ID>
+    <ID>ComplexCondition:WorkspaceTools.kt:MovePath$fromT != null &amp;&amp; toT != null &amp;&amp; fromT.folder.id == toT.folder.id &amp;&amp; toT.segments.take(fromT.segments.size) == fromT.segments</ID>
+    <ID>ComplexCondition:WorkspaceTools.kt:SearchFiles$context &gt; 0 &amp;&amp; out.isNotEmpty() &amp;&amp; (printedTo &lt; 0 || from &gt; printedTo + 1)</ID>
+    <ID>CyclomaticComplexMethod:AgentHome.kt:AgentHome$fun snapshot: String</ID>
+    <ID>CyclomaticComplexMethod:AgentHome.kt:Connector$fun validate</ID>
+    <ID>CyclomaticComplexMethod:AgentLoop.kt:AgentLoop$private fun steps: Flow&lt;AgentEvent&gt;</ID>
+    <ID>CyclomaticComplexMethod:AgentLoop.kt:AgentLoop$private suspend fun FlowCollector&lt;AgentEvent&gt;.authorizeAndRun: Authorized</ID>
+    <ID>CyclomaticComplexMethod:AgentLoop.kt:AgentLoop$private suspend fun FlowCollector&lt;AgentEvent&gt;.compact: Boolean</ID>
+    <ID>CyclomaticComplexMethod:AgentLoop.kt:AgentLoop$private suspend fun FlowCollector&lt;AgentEvent&gt;.streamWithRetry: Streamed</ID>
+    <ID>CyclomaticComplexMethod:AgentLoop.kt:AgentLoop$private suspend fun FlowCollector&lt;AgentEvent&gt;.useEarly: Boolean</ID>
+    <ID>CyclomaticComplexMethod:AgentLoop.kt:AgentLoop$private suspend fun runsTogether: Boolean</ID>
+    <ID>CyclomaticComplexMethod:AgentLoop.kt:AgentLoop$private suspend fun settle: Pair&lt;Part.ToolResult, AgentEvent&gt;</ID>
+    <ID>CyclomaticComplexMethod:AgentLoop.kt:AgentLoop.RunReview$suspend fun check: Checked</ID>
+    <ID>CyclomaticComplexMethod:CacheSimulator.kt:CacheSimulator.Engine$fun run: SimRun</ID>
+    <ID>CyclomaticComplexMethod:ChatGptOAuth.kt:ChatGptOAuth$fun verifyIdToken: JsonObject</ID>
+    <ID>CyclomaticComplexMethod:Cloudflare.kt:CloudflareApi$private suspend fun callOrNull: JsonObject?</ID>
+    <ID>CyclomaticComplexMethod:Cloudflare.kt:CloudflareDnsSet$override suspend fun execute: ToolResult</ID>
+    <ID>CyclomaticComplexMethod:Cloudflare.kt:CloudflarePages$override suspend fun execute: ToolResult</ID>
+    <ID>CyclomaticComplexMethod:CloudflareStatic.kt:CloudflareDeployStatic.Companion$internal fun contentTypeFor: String</ID>
+    <ID>CyclomaticComplexMethod:CodeFiles.kt:CodeFiles$fun globRegex: Regex</ID>
+    <ID>CyclomaticComplexMethod:CodeTools.kt:Projects$fun describe: String</ID>
+    <ID>CyclomaticComplexMethod:CommandSafety.kt:CommandSafety$fun dangerReason: String?</ID>
+    <ID>CyclomaticComplexMethod:CompletionCheck.kt:CompletionCheck$fun open: Open</ID>
+    <ID>CyclomaticComplexMethod:Email.kt:EmailConfig$private fun server: Parsed</ID>
+    <ID>CyclomaticComplexMethod:Email.kt:MessageText$private fun collect</ID>
+    <ID>CyclomaticComplexMethod:EmailSetup.kt:EmailAutoconfig$fun parse: Found?</ID>
+    <ID>CyclomaticComplexMethod:EmailSetup.kt:EmailConnectionTest$fun explain: ServerCheck.Failed</ID>
+    <ID>CyclomaticComplexMethod:EmailSetup.kt:EmailForm$fun problems: Map&lt;EmailField, String&gt;</ID>
+    <ID>CyclomaticComplexMethod:GitHubSkills.kt:GitHubSkillFetcher$suspend fun fetch: SkillBundle</ID>
+    <ID>CyclomaticComplexMethod:GitHubSkills.kt:GitHubSkillLink.Companion$fun parse: GitHubSkillLink</ID>
+    <ID>CyclomaticComplexMethod:HelperProgress.kt:HelperProgress.Companion$fun changedPaths: List&lt;String&gt;</ID>
+    <ID>CyclomaticComplexMethod:HomeTools.kt:ConnectorCall$override suspend fun execute: ToolResult</ID>
+    <ID>CyclomaticComplexMethod:HomeTools.kt:ConnectorCall$private suspend fun follow: Reply</ID>
+    <ID>CyclomaticComplexMethod:HomeTools.kt:ConnectorCall$private suspend fun send: Reply</ID>
+    <ID>CyclomaticComplexMethod:JsonSchemas.kt:JsonSchemas$fun compact: JsonObject</ID>
+    <ID>CyclomaticComplexMethod:JsonSchemas.kt:JsonSchemas$private fun check</ID>
+    <ID>CyclomaticComplexMethod:JsonSchemas.kt:JsonSchemas$private fun matches: Boolean</ID>
+    <ID>CyclomaticComplexMethod:LineDiff.kt:LineDiff$fun unified: String?</ID>
+    <ID>CyclomaticComplexMethod:LineDiff.kt:LineDiff$private fun myers: List&lt;Line&gt;?</ID>
+    <ID>CyclomaticComplexMethod:Matrix.kt:Matrix$private suspend fun call: JsonObject</ID>
+    <ID>CyclomaticComplexMethod:MemoryTidy.kt:MemoryTidy$private fun proposal: Proposal?</ID>
+    <ID>CyclomaticComplexMethod:Netlify.kt:NetlifyApi$suspend fun call: JsonElement</ID>
+    <ID>CyclomaticComplexMethod:Netlify.kt:internal suspend fun netlifyDeployFolder: NetlifyDeployed</ID>
+    <ID>CyclomaticComplexMethod:OpenData.kt:internal fun wmo: String</ID>
+    <ID>CyclomaticComplexMethod:PromptBudget.kt:PromptBudget.Companion$fun fit: String</ID>
+    <ID>CyclomaticComplexMethod:PromptTemplate.kt:PromptTemplate.Companion$fun parse: PromptTemplate</ID>
+    <ID>CyclomaticComplexMethod:ProviderDraftTool.kt:ProviderDraftTool$internal suspend fun parse: ProviderDraft</ID>
+    <ID>CyclomaticComplexMethod:RecordedChats.kt:RecordedChats$fun sequenceOf: SimSequence</ID>
+    <ID>CyclomaticComplexMethod:Recovery.kt:fun recoverTranscript: Recovery</ID>
+    <ID>CyclomaticComplexMethod:RememberedApprovals.kt:ApprovalScopes$fun whyNot: String?</ID>
+    <ID>CyclomaticComplexMethod:RememberedApprovals.kt:ApprovalScopes$private fun workspaceFolder: String?</ID>
+    <ID>CyclomaticComplexMethod:Render.kt:RenderApi$suspend fun call: JsonElement</ID>
+    <ID>CyclomaticComplexMethod:Rewind.kt:Rewind$private fun classify: EffectKind?</ID>
+    <ID>CyclomaticComplexMethod:RunScope.kt:RunScope$infix fun and: RunScope</ID>
+    <ID>CyclomaticComplexMethod:SentView.kt:SentView.Companion$private fun responsesMessages: List&lt;SentMessage&gt;</ID>
+    <ID>CyclomaticComplexMethod:SkillManifest.kt:SkillManifest.Companion$fun parse: SkillManifest</ID>
+    <ID>CyclomaticComplexMethod:SkillManifestInference.kt:SkillManifestInference$fun infer: SkillManifest</ID>
+    <ID>CyclomaticComplexMethod:SkillScope.kt:SkillScope$fun missing: String?</ID>
+    <ID>CyclomaticComplexMethod:SqlCheck.kt:SqlCheck$fun strip: String?</ID>
+    <ID>CyclomaticComplexMethod:SubagentEngine.kt:SubagentEngine$private suspend fun execute: ChildResult</ID>
+    <ID>CyclomaticComplexMethod:SubagentEngine.kt:SubagentEngine$suspend fun send: ToolResult</ID>
+    <ID>CyclomaticComplexMethod:SubagentEngine.kt:SubagentEngine$suspend fun spawn: ToolResult</ID>
+    <ID>CyclomaticComplexMethod:Supabase.kt:SupabaseApi$suspend fun call: JsonElement</ID>
+    <ID>CyclomaticComplexMethod:Taint.kt:Taint$fun sourcesIn: Set&lt;String&gt;</ID>
+    <ID>CyclomaticComplexMethod:TaskReceipts.kt:TaskReceipts.OutsideSource.Companion$fun of: OutsideSource?</ID>
+    <ID>CyclomaticComplexMethod:Telegram.kt:Telegram$fun toHtml: String</ID>
+    <ID>CyclomaticComplexMethod:Tool.kt:ToolRegistry$fun resolve: ResolvedCall</ID>
+    <ID>CyclomaticComplexMethod:ToolDiscovery.kt:ToolIndex.Companion$private fun stem: String</ID>
+    <ID>CyclomaticComplexMethod:UntrustedContent.kt:UntrustedContent$internal fun defuseTags: String</ID>
+    <ID>CyclomaticComplexMethod:Vercel.kt:VercelDeployments$override suspend fun execute: ToolResult</ID>
+    <ID>CyclomaticComplexMethod:ViewImage.kt:ImageFiles$fun sniff: String?</ID>
+    <ID>CyclomaticComplexMethod:ViewImage.kt:ViewImage$private fun load: Pair&lt;Part.Attachment, Pair&lt;Int, Int&gt;?&gt;</ID>
+    <ID>CyclomaticComplexMethod:WebTools.kt:FetchGuard$fun isPrivate: Boolean</ID>
+    <ID>CyclomaticComplexMethod:WebTools.kt:private fun render</ID>
+    <ID>CyclomaticComplexMethod:WorkflowChecks.kt:WorkflowChecks$fun evaluate: List&lt;WorkflowCheckResult&gt;</ID>
+    <ID>CyclomaticComplexMethod:WorkflowPlan.kt:WorkflowRender$fun inputs: Map&lt;String, String&gt;</ID>
+    <ID>CyclomaticComplexMethod:WorkspaceTools.kt:ChangingTool$protected fun applyEdits: String</ID>
+    <ID>CyclomaticComplexMethod:WorkspaceTools.kt:CopyPath$private fun copyConnected: ToolResult</ID>
+    <ID>CyclomaticComplexMethod:WorkspaceTools.kt:ListFiles$override fun run: ToolResult</ID>
+    <ID>CyclomaticComplexMethod:WorkspaceTools.kt:MovePath$private fun moveConnected: ToolResult</ID>
+    <ID>CyclomaticComplexMethod:WorkspaceTools.kt:SearchFiles$override fun run: ToolResult</ID>
+    <ID>EmptyElseBlock:SubagentEngine.kt:SubagentEngine.ChildRun$if (openWaits.value == 0) waitStartedAt = clock()</ID>
+    <ID>EmptyElseBlock:WorkflowDraft.kt:WorkflowDraft$if (acc.lastOrNull() != s) acc += s</ID>
+    <ID>EmptyFunctionBlock:LongOutputTest.kt:LongOutputTest.Store${}</ID>
+    <ID>EmptyFunctionBlock:WorkflowsTest.kt:WorkflowsTest.Store${}</ID>
+    <ID>LargeClass:AgentLoop.kt:AgentLoop</ID>
+    <ID>LongMethod:AgentLoop.kt:AgentLoop$private fun steps: Flow&lt;AgentEvent&gt;</ID>
+    <ID>LongMethod:AgentLoop.kt:AgentLoop$private suspend fun FlowCollector&lt;AgentEvent&gt;.authorizeAndRun: Authorized</ID>
+    <ID>LongMethod:AgentLoop.kt:AgentLoop$private suspend fun FlowCollector&lt;AgentEvent&gt;.streamWithRetry: Streamed</ID>
+    <ID>LongMethod:CodeTools.kt:Projects$fun describe: String</ID>
+    <ID>LongMethod:PromptTemplate.kt:PromptTemplate.Companion$fun parse: PromptTemplate</ID>
+    <ID>LongMethod:SqlCheck.kt:SqlCheck$fun strip: String?</ID>
+    <ID>LongMethod:SubagentEngine.kt:SubagentEngine$private suspend fun execute: ChildResult</ID>
+    <ID>LongMethod:SubagentEngine.kt:SubagentEngine$suspend fun send: ToolResult</ID>
+    <ID>LongMethod:TaskReceipts.kt:TaskReceipts$private fun receipt: TaskReceipt?</ID>
+    <ID>LongMethod:WorkspaceTools.kt:SearchFiles$override fun run: ToolResult</ID>
+    <ID>LoopWithTooManyJumpStatements:AgentLoop.kt:AgentLoop$for</ID>
+    <ID>LoopWithTooManyJumpStatements:AgentLoop.kt:AgentLoop$while</ID>
+    <ID>LoopWithTooManyJumpStatements:AgentLoop.kt:AgentLoop.Serving$while</ID>
+    <ID>LoopWithTooManyJumpStatements:ColdClearing.kt:ColdClearing$for</ID>
+    <ID>LoopWithTooManyJumpStatements:Compaction.kt:Compaction$for</ID>
+    <ID>LoopWithTooManyJumpStatements:GitHubSkills.kt:GitHubSkillFetcher$for</ID>
+    <ID>LoopWithTooManyJumpStatements:ShellSnapshots.kt:ShellSnapshots$for</ID>
+    <ID>LoopWithTooManyJumpStatements:SkillFrontmatter.kt:SkillFrontmatter$while</ID>
+    <ID>LoopWithTooManyJumpStatements:SkillImport.kt:SkillImport$while</ID>
+    <ID>LoopWithTooManyJumpStatements:SqlCheck.kt:SqlCheck$while</ID>
+    <ID>LoopWithTooManyJumpStatements:SubagentEngine.kt:SubagentEngine$while</ID>
+    <ID>LoopWithTooManyJumpStatements:Telegram.kt:Telegram$for</ID>
+    <ID>LoopWithTooManyJumpStatements:ToolDiscovery.kt:ToolIndex$for</ID>
+    <ID>LoopWithTooManyJumpStatements:WorkflowPlan.kt:WorkflowRender$for</ID>
+    <ID>LoopWithTooManyJumpStatements:WorkspaceTools.kt:SearchFiles$for</ID>
+    <ID>MagicNumber:AgentHome.kt:AgentHome$1024</ID>
+    <ID>MagicNumber:AgentHome.kt:AgentHome.Companion$1024</ID>
+    <ID>MagicNumber:AgentHome.kt:AgentHome.Companion$25</ID>
+    <ID>MagicNumber:AgentHome.kt:AgentHome.Companion$4</ID>
+    <ID>MagicNumber:AgentHome.kt:AgentHome.Companion$40</ID>
+    <ID>MagicNumber:AgentHome.kt:AgentHome.Companion$60</ID>
+    <ID>MagicNumber:AgentHome.kt:Connector$1_000</ID>
+    <ID>MagicNumber:AgentHome.kt:Connector$32</ID>
+    <ID>MagicNumber:AgentHome.kt:Connector$40</ID>
+    <ID>MagicNumber:AgentHome.kt:Connector$48</ID>
+    <ID>MagicNumber:AgentHome.kt:Connector$64</ID>
+    <ID>MagicNumber:AgentHome.kt:Connector$8</ID>
+    <ID>MagicNumber:AgentHome.kt:Connector.HomeAssistantRules$10.0</ID>
+    <ID>MagicNumber:AgentHome.kt:Connector.HomeAssistantRules$100</ID>
+    <ID>MagicNumber:AgentHome.kt:Connector.HomeAssistantRules$100.0</ID>
+    <ID>MagicNumber:AgentHome.kt:Connector.HomeAssistantRules$50</ID>
+    <ID>MagicNumber:AgentLoop.kt:1000</ID>
+    <ID>MagicNumber:AgentLoop.kt:3_599_999</ID>
+    <ID>MagicNumber:AgentLoop.kt:3_600_000</ID>
+    <ID>MagicNumber:AgentLoop.kt:59_999</ID>
+    <ID>MagicNumber:AgentLoop.kt:60_000</ID>
+    <ID>MagicNumber:AgentLoop.kt:90</ID>
+    <ID>MagicNumber:AgentLoop.kt:90_000</ID>
+    <ID>MagicNumber:AgentLoop.kt:999</ID>
+    <ID>MagicNumber:AgentLoop.kt:AgentLoop$500</ID>
+    <ID>MagicNumber:AgentLoop.kt:AgentLoop.RunReview$120</ID>
+    <ID>MagicNumber:AskUser.kt:AskUser.Companion$20</ID>
+    <ID>MagicNumber:ChatGptOAuth.kt:ChatGptOAuth$1_000</ID>
+    <ID>MagicNumber:ChatGptOAuth.kt:ChatGptOAuth$200</ID>
+    <ID>MagicNumber:ChatGptOAuth.kt:ChatGptOAuth$299</ID>
+    <ID>MagicNumber:ChatGptOAuth.kt:ChatGptOAuth$3</ID>
+    <ID>MagicNumber:ChatGptOAuth.kt:ChatGptOAuth$400</ID>
+    <ID>MagicNumber:ChatGptOAuth.kt:ChatGptOAuth$499</ID>
+    <ID>MagicNumber:ChatGptOAuth.kt:ChatGptOAuth$500</ID>
+    <ID>MagicNumber:Cloudflare.kt:80</ID>
+    <ID>MagicNumber:Cloudflare.kt:CloudflareApi$200</ID>
+    <ID>MagicNumber:Cloudflare.kt:CloudflareApi$299</ID>
+    <ID>MagicNumber:Cloudflare.kt:CloudflareApi$401</ID>
+    <ID>MagicNumber:Cloudflare.kt:CloudflareApi$403</ID>
+    <ID>MagicNumber:Cloudflare.kt:CloudflareApi$404</ID>
+    <ID>MagicNumber:Cloudflare.kt:CloudflareApi$413</ID>
+    <ID>MagicNumber:Cloudflare.kt:CloudflareApi$429</ID>
+    <ID>MagicNumber:Cloudflare.kt:CloudflareDnsSet$4_096</ID>
+    <ID>MagicNumber:Cloudflare.kt:CloudflareDnsSet$80</ID>
+    <ID>MagicNumber:Cloudflare.kt:CloudflarePages$16</ID>
+    <ID>MagicNumber:CloudflareStatic.kt:CloudflareDeployStatic.Companion$1024</ID>
+    <ID>MagicNumber:CloudflareStatic.kt:CloudflareDeployStatic.Companion$32</ID>
+    <ID>MagicNumber:CodeFiles.kt:CodeFiles$4096</ID>
+    <ID>MagicNumber:CodeTools.kt:Projects$20</ID>
+    <ID>MagicNumber:CodeTools.kt:Projects$30</ID>
+    <ID>MagicNumber:ColdClearing.kt:ColdClearing$3</ID>
+    <ID>MagicNumber:Compaction.kt:Compaction$0x10000</ID>
+    <ID>MagicNumber:Compaction.kt:Compaction$0x1100</ID>
+    <ID>MagicNumber:Compaction.kt:Compaction$3</ID>
+    <ID>MagicNumber:Compaction.kt:Compaction$4</ID>
+    <ID>MagicNumber:Compaction.kt:Compaction$8</ID>
+    <ID>MagicNumber:CompletionCheck.kt:CompletionCheck$120</ID>
+    <ID>MagicNumber:ConnectedFiles.kt:ConnectedFiles$1024</ID>
+    <ID>MagicNumber:ConnectedFiles.kt:ConnectedFiles$3</ID>
+    <ID>MagicNumber:ConnectedFiles.kt:ConnectedFiles.Companion$0x20</ID>
+    <ID>MagicNumber:ConnectedFiles.kt:ConnectedFiles.Companion$0x7f</ID>
+    <ID>MagicNumber:ConnectedFiles.kt:ConnectedFiles.Companion$255</ID>
+    <ID>MagicNumber:ConnectorKeys.kt:ConnectorKeys$6</ID>
+    <ID>MagicNumber:Email.kt:EmailConfig$100</ID>
+    <ID>MagicNumber:Email.kt:EmailConfig$143</ID>
+    <ID>MagicNumber:Email.kt:EmailConfig$16</ID>
+    <ID>MagicNumber:Email.kt:EmailConfig$25</ID>
+    <ID>MagicNumber:Email.kt:EmailConfig$3</ID>
+    <ID>MagicNumber:Email.kt:EmailConfig$465</ID>
+    <ID>MagicNumber:Email.kt:EmailConfig$587</ID>
+    <ID>MagicNumber:Email.kt:EmailConfig$80</ID>
+    <ID>MagicNumber:Email.kt:EmailConfig$993</ID>
+    <ID>MagicNumber:Email.kt:EmailFormat$120</ID>
+    <ID>MagicNumber:Email.kt:EmailFormat$20</ID>
+    <ID>MagicNumber:Email.kt:EmailFormat$250</ID>
+    <ID>MagicNumber:Email.kt:EmailList$200</ID>
+    <ID>MagicNumber:Email.kt:MailClient$300</ID>
+    <ID>MagicNumber:Email.kt:MessageText$120</ID>
+    <ID>MagicNumber:Email.kt:MessageText$30</ID>
+    <ID>MagicNumber:Email.kt:MessageText$50</ID>
+    <ID>MagicNumber:EmailSetup.kt:EmailForm$65535</ID>
+    <ID>MagicNumber:EmailSetup.kt:MailKind$143</ID>
+    <ID>MagicNumber:EmailSetup.kt:MailKind$25</ID>
+    <ID>MagicNumber:EmailSetup.kt:MailKind$465</ID>
+    <ID>MagicNumber:EmailSetup.kt:MailKind$587</ID>
+    <ID>MagicNumber:EmailSetup.kt:MailKind$993</ID>
+    <ID>MagicNumber:GitHub.kt:GitHubApi$200</ID>
+    <ID>MagicNumber:GitHub.kt:GitHubApi$299</ID>
+    <ID>MagicNumber:GitHub.kt:GitHubApi$401</ID>
+    <ID>MagicNumber:GitHub.kt:GitHubApi$403</ID>
+    <ID>MagicNumber:GitHub.kt:GitHubApi$404</ID>
+    <ID>MagicNumber:GitHub.kt:GitHubApi$410</ID>
+    <ID>MagicNumber:GitHub.kt:GitHubApi$429</ID>
+    <ID>MagicNumber:GitHub.kt:GitHubIssues$8_000</ID>
+    <ID>MagicNumber:GitHub.kt:GitHubRead$60_000</ID>
+    <ID>MagicNumber:GitHub.kt:GitHubRepos$10</ID>
+    <ID>MagicNumber:GitHub.kt:GitHubRepos$120</ID>
+    <ID>MagicNumber:GitHubSkills.kt:GitHubSkillFetcher$200</ID>
+    <ID>MagicNumber:GitHubSkills.kt:GitHubSkillFetcher$299</ID>
+    <ID>MagicNumber:GitHubSkills.kt:GitHubSkillFetcher$401</ID>
+    <ID>MagicNumber:GitHubSkills.kt:GitHubSkillFetcher$403</ID>
+    <ID>MagicNumber:GitHubSkills.kt:GitHubSkillFetcher$404</ID>
+    <ID>MagicNumber:GitHubSkills.kt:GitHubSkillFetcher$429</ID>
+    <ID>MagicNumber:Gotify.kt:Gotify$10</ID>
+    <ID>MagicNumber:Gotify.kt:Gotify$200</ID>
+    <ID>MagicNumber:Gotify.kt:Gotify$250</ID>
+    <ID>MagicNumber:Gotify.kt:Gotify$256</ID>
+    <ID>MagicNumber:Gotify.kt:Gotify$299</ID>
+    <ID>MagicNumber:Gotify.kt:Gotify$3</ID>
+    <ID>MagicNumber:Gotify.kt:Gotify$300</ID>
+    <ID>MagicNumber:Gotify.kt:Gotify$399</ID>
+    <ID>MagicNumber:Gotify.kt:Gotify$4</ID>
+    <ID>MagicNumber:Gotify.kt:Gotify$401</ID>
+    <ID>MagicNumber:Gotify.kt:Gotify$403</ID>
+    <ID>MagicNumber:Gotify.kt:Gotify$5</ID>
+    <ID>MagicNumber:Gotify.kt:Gotify$8</ID>
+    <ID>MagicNumber:HomeTools.kt:ConnectorCall$301</ID>
+    <ID>MagicNumber:HomeTools.kt:ConnectorCall$303</ID>
+    <ID>MagicNumber:Integrations.kt:200</ID>
+    <ID>MagicNumber:Integrations.kt:299</ID>
+    <ID>MagicNumber:Integrations.kt:401</ID>
+    <ID>MagicNumber:Integrations.kt:402</ID>
+    <ID>MagicNumber:Integrations.kt:403</ID>
+    <ID>MagicNumber:Integrations.kt:429</ID>
+    <ID>MagicNumber:Integrations.kt:WebSearch$200</ID>
+    <ID>MagicNumber:Integrations.kt:WebSearch$299</ID>
+    <ID>MagicNumber:Integrations.kt:WebSearch$300</ID>
+    <ID>MagicNumber:Integrations.kt:WebSearch$401</ID>
+    <ID>MagicNumber:Integrations.kt:WebSearch$402</ID>
+    <ID>MagicNumber:Integrations.kt:WebSearch$403</ID>
+    <ID>MagicNumber:Integrations.kt:WebSearch$429</ID>
+    <ID>MagicNumber:Integrations.kt:WebSearch$432</ID>
+    <ID>MagicNumber:Integrations.kt:WebSearch$433</ID>
+    <ID>MagicNumber:JsonSchemas.kt:JsonSchemas$300</ID>
+    <ID>MagicNumber:Matrix.kt:Matrix$1000</ID>
+    <ID>MagicNumber:Matrix.kt:Matrix$1024</ID>
+    <ID>MagicNumber:Matrix.kt:Matrix$200</ID>
+    <ID>MagicNumber:Matrix.kt:Matrix$255</ID>
+    <ID>MagicNumber:Matrix.kt:Matrix$299</ID>
+    <ID>MagicNumber:Matrix.kt:Matrix$3</ID>
+    <ID>MagicNumber:Matrix.kt:Matrix$300</ID>
+    <ID>MagicNumber:Matrix.kt:Matrix$399</ID>
+    <ID>MagicNumber:Matrix.kt:Matrix$4</ID>
+    <ID>MagicNumber:Matrix.kt:Matrix$400</ID>
+    <ID>MagicNumber:Matrix.kt:Matrix$401</ID>
+    <ID>MagicNumber:Matrix.kt:Matrix$403</ID>
+    <ID>MagicNumber:Matrix.kt:Matrix$404</ID>
+    <ID>MagicNumber:Matrix.kt:Matrix$413</ID>
+    <ID>MagicNumber:Matrix.kt:Matrix$429</ID>
+    <ID>MagicNumber:Matrix.kt:Matrix$500</ID>
+    <ID>MagicNumber:Matrix.kt:Matrix$6</ID>
+    <ID>MagicNumber:Matrix.kt:Matrix$8</ID>
+    <ID>MagicNumber:Matrix.kt:Matrix$999</ID>
+    <ID>MagicNumber:McpOAuth.kt:McpOAuth$1000</ID>
+    <ID>MagicNumber:McpOAuth.kt:McpOAuth$200</ID>
+    <ID>MagicNumber:McpOAuth.kt:McpOAuth$299</ID>
+    <ID>MagicNumber:McpOAuth.kt:McpOAuth$400</ID>
+    <ID>MagicNumber:McpOAuth.kt:McpOAuth$401</ID>
+    <ID>MagicNumber:McpOAuth.kt:McpOAuth$499</ID>
+    <ID>MagicNumber:McpOAuth.kt:McpOAuth$60_000</ID>
+    <ID>MagicNumber:McpOAuth.kt:McpOAuth.Companion$3</ID>
+    <ID>MagicNumber:MemoryIndex.kt:160</ID>
+    <ID>MagicNumber:MemoryIndex.kt:MemoryIndexFallback$10</ID>
+    <ID>MagicNumber:MemoryIndex.kt:MemoryIndexFallback$4</ID>
+    <ID>MagicNumber:MemoryIndex.kt:MemorySearchIndex$3</ID>
+    <ID>MagicNumber:MemoryIndex.kt:MemorySearchIndex$4</ID>
+    <ID>MagicNumber:MemorySuggest.kt:MemorySuggest$150</ID>
+    <ID>MagicNumber:MemorySuggest.kt:MemorySuggest$56</ID>
+    <ID>MagicNumber:MemoryTrust.kt:MemoryTrust$80</ID>
+    <ID>MagicNumber:Netlify.kt:16</ID>
+    <ID>MagicNumber:Netlify.kt:NetlifyApi$100</ID>
+    <ID>MagicNumber:Netlify.kt:NetlifyApi$200</ID>
+    <ID>MagicNumber:Netlify.kt:NetlifyApi$299</ID>
+    <ID>MagicNumber:Netlify.kt:NetlifyApi$401</ID>
+    <ID>MagicNumber:Netlify.kt:NetlifyApi$403</ID>
+    <ID>MagicNumber:Netlify.kt:NetlifyApi$404</ID>
+    <ID>MagicNumber:Netlify.kt:NetlifyApi$429</ID>
+    <ID>MagicNumber:Netlify.kt:NetlifyDeploys$4_000</ID>
+    <ID>MagicNumber:Netlify.kt:NetlifySites$10</ID>
+    <ID>MagicNumber:Ntfy.kt:Ntfy$200</ID>
+    <ID>MagicNumber:Ntfy.kt:Ntfy$299</ID>
+    <ID>MagicNumber:Ntfy.kt:Ntfy$3</ID>
+    <ID>MagicNumber:Ntfy.kt:Ntfy$401</ID>
+    <ID>MagicNumber:Ntfy.kt:Ntfy$403</ID>
+    <ID>MagicNumber:Ntfy.kt:Ntfy$429</ID>
+    <ID>MagicNumber:OpenData.kt:200</ID>
+    <ID>MagicNumber:OpenData.kt:299</ID>
+    <ID>MagicNumber:OpenData.kt:3</ID>
+    <ID>MagicNumber:OpenData.kt:45</ID>
+    <ID>MagicNumber:OpenData.kt:48</ID>
+    <ID>MagicNumber:OpenData.kt:51</ID>
+    <ID>MagicNumber:OpenData.kt:53</ID>
+    <ID>MagicNumber:OpenData.kt:55</ID>
+    <ID>MagicNumber:OpenData.kt:56</ID>
+    <ID>MagicNumber:OpenData.kt:57</ID>
+    <ID>MagicNumber:OpenData.kt:61</ID>
+    <ID>MagicNumber:OpenData.kt:63</ID>
+    <ID>MagicNumber:OpenData.kt:65</ID>
+    <ID>MagicNumber:OpenData.kt:66</ID>
+    <ID>MagicNumber:OpenData.kt:67</ID>
+    <ID>MagicNumber:OpenData.kt:71</ID>
+    <ID>MagicNumber:OpenData.kt:73</ID>
+    <ID>MagicNumber:OpenData.kt:75</ID>
+    <ID>MagicNumber:OpenData.kt:77</ID>
+    <ID>MagicNumber:OpenData.kt:80</ID>
+    <ID>MagicNumber:OpenData.kt:81</ID>
+    <ID>MagicNumber:OpenData.kt:82</ID>
+    <ID>MagicNumber:OpenData.kt:85</ID>
+    <ID>MagicNumber:OpenData.kt:86</ID>
+    <ID>MagicNumber:OpenData.kt:95</ID>
+    <ID>MagicNumber:OpenData.kt:96</ID>
+    <ID>MagicNumber:OpenData.kt:99</ID>
+    <ID>MagicNumber:PolicyReport.kt:PolicyReport$1000</ID>
+    <ID>MagicNumber:PolicyReport.kt:PolicyReport$120_000</ID>
+    <ID>MagicNumber:PolicyReport.kt:PolicyReport$3_600_000</ID>
+    <ID>MagicNumber:PolicyReport.kt:PolicyReport$3_600_000.0</ID>
+    <ID>MagicNumber:PolicyReport.kt:PolicyReport$60_000</ID>
+    <ID>MagicNumber:PromptBudget.kt:TokenEstimate$0x80</ID>
+    <ID>MagicNumber:PromptBudget.kt:TokenEstimate$3</ID>
+    <ID>MagicNumber:PromptBudget.kt:TokenEstimate$4</ID>
+    <ID>MagicNumber:PromptTemplate.kt:PromptTemplate.Companion$3</ID>
+    <ID>MagicNumber:ProviderDraftTool.kt:ProviderDraftTool$200</ID>
+    <ID>MagicNumber:ProviderDraftTool.kt:ProviderDraftTool$60</ID>
+    <ID>MagicNumber:PublishPage.kt:PublishPage$16</ID>
+    <ID>MagicNumber:ReachMe.kt:NotifyMe$60</ID>
+    <ID>MagicNumber:ReachMe.kt:ReachMe$300</ID>
+    <ID>MagicNumber:ReachMe.kt:ReachMe$6</ID>
+    <ID>MagicNumber:RemoteJobs.kt:RemoteJobs$6</ID>
+    <ID>MagicNumber:RemoteJobs.kt:RemoteJobs.Probe.Companion$3</ID>
+    <ID>MagicNumber:RemoteJobs.kt:RemoteJobs.Probe.Companion$4</ID>
+    <ID>MagicNumber:RemoteJobs.kt:RemoteJobs.Probe.Companion$5</ID>
+    <ID>MagicNumber:Render.kt:100</ID>
+    <ID>MagicNumber:Render.kt:16</ID>
+    <ID>MagicNumber:Render.kt:200</ID>
+    <ID>MagicNumber:Render.kt:7</ID>
+    <ID>MagicNumber:Render.kt:80</ID>
+    <ID>MagicNumber:Render.kt:RenderApi$200</ID>
+    <ID>MagicNumber:Render.kt:RenderApi$299</ID>
+    <ID>MagicNumber:Render.kt:RenderApi$401</ID>
+    <ID>MagicNumber:Render.kt:RenderApi$403</ID>
+    <ID>MagicNumber:Render.kt:RenderApi$404</ID>
+    <ID>MagicNumber:Render.kt:RenderApi$410</ID>
+    <ID>MagicNumber:Render.kt:RenderApi$429</ID>
+    <ID>MagicNumber:Render.kt:RenderDeploy$7</ID>
+    <ID>MagicNumber:Render.kt:RenderEnv$10</ID>
+    <ID>MagicNumber:Render.kt:RenderEnv$100</ID>
+    <ID>MagicNumber:Render.kt:RenderEnvSet$65_536</ID>
+    <ID>MagicNumber:Render.kt:RenderServices$10</ID>
+    <ID>MagicNumber:Render.kt:RenderServices$200</ID>
+    <ID>MagicNumber:ResearchWorkflow.kt:ResearchWorkflow$48</ID>
+    <ID>MagicNumber:RunBudget.kt:BudgetText$3600</ID>
+    <ID>MagicNumber:RunBudget.kt:BudgetText$3_600_000</ID>
+    <ID>MagicNumber:RunBudget.kt:BudgetText$60</ID>
+    <ID>MagicNumber:RunBudget.kt:BudgetText$60_000</ID>
+    <ID>MagicNumber:RunBudget.kt:RunBudget$1e-9</ID>
+    <ID>MagicNumber:RunBudget.kt:RunBudget.Companion$0.01</ID>
+    <ID>MagicNumber:RunBudget.kt:RunBudget.Companion$10_000</ID>
+    <ID>MagicNumber:RunBudget.kt:RunBudget.Companion$1_000</ID>
+    <ID>MagicNumber:RunBudget.kt:RunBudget.Companion$1_000.0</ID>
+    <ID>MagicNumber:RunBudget.kt:RunBudget.Companion$1_000_000</ID>
+    <ID>MagicNumber:RunBudget.kt:RunBudget.Companion$1_000_000.0</ID>
+    <ID>MagicNumber:RunFailure.kt:RunFailure.Companion$1_000</ID>
+    <ID>MagicNumber:SavedOutput.kt:SavedOutput$0xfff</ID>
+    <ID>MagicNumber:SavedOutput.kt:SavedOutput$1000</ID>
+    <ID>MagicNumber:SecretScrubber.kt:SecretScrubber.Companion$1024</ID>
+    <ID>MagicNumber:SecretScrubber.kt:SecretScrubber.Companion$1024.0</ID>
+    <ID>MagicNumber:SecretScrubber.kt:SecretScrubber.Companion$3</ID>
+    <ID>MagicNumber:SecretScrubber.kt:SecretScrubber.Companion$4</ID>
+    <ID>MagicNumber:SendFile.kt:SendFile.Companion$1024</ID>
+    <ID>MagicNumber:SendFile.kt:SendFile.Companion$1024.0</ID>
+    <ID>MagicNumber:SendFile.kt:SendFile.Companion$1024L</ID>
+    <ID>MagicNumber:SentView.kt:SentView.Companion$1_000</ID>
+    <ID>MagicNumber:SentView.kt:SentView.Companion$1_000.0</ID>
+    <ID>MagicNumber:SentView.kt:SentView.Companion$1_000_000</ID>
+    <ID>MagicNumber:SentView.kt:SentView.Companion$1_000_000.0</ID>
+    <ID>MagicNumber:SentView.kt:SentView.Companion$3</ID>
+    <ID>MagicNumber:SentView.kt:SentView.Companion$4</ID>
+    <ID>MagicNumber:ShellSnapshots.kt:ShellSnapshots.Companion$0b000_000_100</ID>
+    <ID>MagicNumber:ShellSnapshots.kt:ShellSnapshots.Companion$0b000_001_000</ID>
+    <ID>MagicNumber:ShellSnapshots.kt:ShellSnapshots.Companion$0b000_010_000</ID>
+    <ID>MagicNumber:ShellSnapshots.kt:ShellSnapshots.Companion$0b000_100_000</ID>
+    <ID>MagicNumber:ShellSnapshots.kt:ShellSnapshots.Companion$0b001_000_000</ID>
+    <ID>MagicNumber:ShellSnapshots.kt:ShellSnapshots.Companion$0b010_000_000</ID>
+    <ID>MagicNumber:ShellSnapshots.kt:ShellSnapshots.Companion$0b100_000_000</ID>
+    <ID>MagicNumber:ShellSnapshots.kt:ShellSnapshots.Companion$0xfff</ID>
+    <ID>MagicNumber:ShellSnapshots.kt:ShellSnapshots.Companion$4</ID>
+    <ID>MagicNumber:ShellSnapshots.kt:ShellSnapshots.Companion$8</ID>
+    <ID>MagicNumber:SimModel.kt:CachePolicy$30L</ID>
+    <ID>MagicNumber:SimModel.kt:CachePolicy$60_000</ID>
+    <ID>MagicNumber:SimModel.kt:CacheTtl.FIVE_MINUTES$5L</ID>
+    <ID>MagicNumber:SimModel.kt:CacheTtl.FIVE_MINUTES$60_000</ID>
+    <ID>MagicNumber:SimModel.kt:CacheTtl.ONE_HOUR$60L</ID>
+    <ID>MagicNumber:SimModel.kt:CacheTtl.ONE_HOUR$60_000</ID>
+    <ID>MagicNumber:SiteFiles.kt:100L</ID>
+    <ID>MagicNumber:SiteFiles.kt:1024</ID>
+    <ID>MagicNumber:SiteFiles.kt:16</ID>
+    <ID>MagicNumber:SitePublish.kt:SitePublisher.Companion$6</ID>
+    <ID>MagicNumber:SkillFrontmatter.kt:SkillFrontmatter$1024</ID>
+    <ID>MagicNumber:SkillFrontmatter.kt:SkillFrontmatter$500</ID>
+    <ID>MagicNumber:SkillFrontmatter.kt:SkillFrontmatter$80</ID>
+    <ID>MagicNumber:SkillImport.kt:SkillImport$1023</ID>
+    <ID>MagicNumber:SkillImport.kt:SkillImport$1024</ID>
+    <ID>MagicNumber:SkillImport.kt:SkillImport$1024.0</ID>
+    <ID>MagicNumber:SkillImport.kt:SkillImport$19</ID>
+    <ID>MagicNumber:SkillImport.kt:SkillImport$4</ID>
+    <ID>MagicNumber:SkillImport.kt:SkillImport$80</ID>
+    <ID>MagicNumber:SkillImport.kt:SkillImportLimits$1024</ID>
+    <ID>MagicNumber:SkillImport.kt:SkillImportLimits$10L</ID>
+    <ID>MagicNumber:SkillImport.kt:SkillImportLimits$256L</ID>
+    <ID>MagicNumber:SkillImport.kt:SkillImportLimits$5L</ID>
+    <ID>MagicNumber:SkillImport.kt:SkillSource$7</ID>
+    <ID>MagicNumber:SkillManifest.kt:SkillManifest.Companion$200</ID>
+    <ID>MagicNumber:SkillManifest.kt:SkillManifest.Companion$40</ID>
+    <ID>MagicNumber:SkillManifest.kt:SkillManifest.Companion$60</ID>
+    <ID>MagicNumber:SkillManifest.kt:SkillManifest.Companion$64</ID>
+    <ID>MagicNumber:SkillManifest.kt:SkillManifest.Companion$80</ID>
+    <ID>MagicNumber:SkillManifestInference.kt:SkillManifestInference$32</ID>
+    <ID>MagicNumber:SubagentEngine.kt:SubagentEngine$8</ID>
+    <ID>MagicNumber:SubagentEngine.kt:SubagentEngine.Companion$60</ID>
+    <ID>MagicNumber:SubagentEngine.kt:SubagentLimits$15</ID>
+    <ID>MagicNumber:SubagentEngine.kt:SubagentLimits$30</ID>
+    <ID>MagicNumber:SubagentEngine.kt:SubagentLimits$5</ID>
+    <ID>MagicNumber:SubagentEngine.kt:SubagentLimits$60_000L</ID>
+    <ID>MagicNumber:SubagentTools.kt:AgentSend$120</ID>
+    <ID>MagicNumber:SubagentTools.kt:AgentSpawn$120</ID>
+    <ID>MagicNumber:SubagentTools.kt:AgentWait$1_000L</ID>
+    <ID>MagicNumber:Supabase.kt:SupabaseApi$200</ID>
+    <ID>MagicNumber:Supabase.kt:SupabaseApi$256</ID>
+    <ID>MagicNumber:Supabase.kt:SupabaseApi$299</ID>
+    <ID>MagicNumber:Supabase.kt:SupabaseApi$401</ID>
+    <ID>MagicNumber:Supabase.kt:SupabaseApi$402</ID>
+    <ID>MagicNumber:Supabase.kt:SupabaseApi$403</ID>
+    <ID>MagicNumber:Supabase.kt:SupabaseApi$404</ID>
+    <ID>MagicNumber:Supabase.kt:SupabaseApi$429</ID>
+    <ID>MagicNumber:Supabase.kt:SupabaseApiKeys$120</ID>
+    <ID>MagicNumber:Supabase.kt:SupabaseProjects$10</ID>
+    <ID>MagicNumber:Supabase.kt:SupabaseQuery$100</ID>
+    <ID>MagicNumber:Supabase.kt:SupabaseQuery$100_000</ID>
+    <ID>MagicNumber:Supabase.kt:SupabaseQuery$120</ID>
+    <ID>MagicNumber:Supabase.kt:SupabaseQuery$500</ID>
+    <ID>MagicNumber:Supabase.kt:SupabaseSql$100</ID>
+    <ID>MagicNumber:Supabase.kt:SupabaseSql$1_000_000</ID>
+    <ID>MagicNumber:Supabase.kt:SupabaseSql$400</ID>
+    <ID>MagicNumber:Telegram.kt:Telegram$1_000</ID>
+    <ID>MagicNumber:Telegram.kt:Telegram$200</ID>
+    <ID>MagicNumber:Telegram.kt:Telegram$299</ID>
+    <ID>MagicNumber:Telegram.kt:Telegram$40</ID>
+    <ID>MagicNumber:Telegram.kt:Telegram$400</ID>
+    <ID>MagicNumber:Telegram.kt:Telegram$401</ID>
+    <ID>MagicNumber:Telegram.kt:Telegram$403</ID>
+    <ID>MagicNumber:Telegram.kt:Telegram$404</ID>
+    <ID>MagicNumber:Telegram.kt:Telegram$409</ID>
+    <ID>MagicNumber:Telegram.kt:Telegram$429</ID>
+    <ID>MagicNumber:TelegramRemote.kt:TelegramRemote$100</ID>
+    <ID>MagicNumber:TelegramRemote.kt:TelegramRemote$1000</ID>
+    <ID>MagicNumber:TelegramRemote.kt:TelegramRemote$16</ID>
+    <ID>MagicNumber:TelegramRemote.kt:TelegramRemote$200</ID>
+    <ID>MagicNumber:TelegramRemote.kt:TelegramRemote$60_000</ID>
+    <ID>MagicNumber:TelegramRemote.kt:TelegramRemote.Channel$59</ID>
+    <ID>MagicNumber:TelegramRemote.kt:TelegramRemote.Channel$60</ID>
+    <ID>MagicNumber:TextEdits.kt:TextEdits$0.5</ID>
+    <ID>MagicNumber:TextEdits.kt:TextEdits$10</ID>
+    <ID>MagicNumber:ToolDiscovery.kt:ToolIndex.Companion$0x0E00</ID>
+    <ID>MagicNumber:ToolDiscovery.kt:ToolIndex.Companion$3</ID>
+    <ID>MagicNumber:ToolDiscovery.kt:ToolIndex.Companion$5</ID>
+    <ID>MagicNumber:ToolReviewer.kt:ReviewerTrouble$1000</ID>
+    <ID>MagicNumber:ToolReviewer.kt:ReviewerTrouble$999</ID>
+    <ID>MagicNumber:UntrustedContent.kt:UntrustedContent$0x09</ID>
+    <ID>MagicNumber:UntrustedContent.kt:UntrustedContent$0x0A</ID>
+    <ID>MagicNumber:UntrustedContent.kt:UntrustedContent$0x0B</ID>
+    <ID>MagicNumber:UntrustedContent.kt:UntrustedContent$0x0C</ID>
+    <ID>MagicNumber:UntrustedContent.kt:UntrustedContent$0x20</ID>
+    <ID>MagicNumber:UntrustedContent.kt:UntrustedContent$0x2800</ID>
+    <ID>MagicNumber:UntrustedContent.kt:UntrustedContent$0x7F</ID>
+    <ID>MagicNumber:UntrustedContent.kt:UntrustedContent$0x80</ID>
+    <ID>MagicNumber:UntrustedContent.kt:UntrustedContent$0x9F</ID>
+    <ID>MagicNumber:Vercel.kt:VercelApi$200</ID>
+    <ID>MagicNumber:Vercel.kt:VercelApi$299</ID>
+    <ID>MagicNumber:Vercel.kt:VercelApi$401</ID>
+    <ID>MagicNumber:Vercel.kt:VercelApi$402</ID>
+    <ID>MagicNumber:Vercel.kt:VercelApi$403</ID>
+    <ID>MagicNumber:Vercel.kt:VercelApi$404</ID>
+    <ID>MagicNumber:Vercel.kt:VercelApi$429</ID>
+    <ID>MagicNumber:Vercel.kt:VercelEnvSet$65_536</ID>
+    <ID>MagicNumber:ViewImage.kt:ImageFiles$0x0A</ID>
+    <ID>MagicNumber:ViewImage.kt:ImageFiles$0x1A</ID>
+    <ID>MagicNumber:ViewImage.kt:ImageFiles$0x47</ID>
+    <ID>MagicNumber:ViewImage.kt:ImageFiles$0x4E</ID>
+    <ID>MagicNumber:ViewImage.kt:ImageFiles$0x50</ID>
+    <ID>MagicNumber:ViewImage.kt:ImageFiles$0x89</ID>
+    <ID>MagicNumber:ViewImage.kt:ImageFiles$0xD8</ID>
+    <ID>MagicNumber:ViewImage.kt:ImageFiles$0xFF</ID>
+    <ID>MagicNumber:ViewImage.kt:ImageFiles$26</ID>
+    <ID>MagicNumber:ViewImage.kt:ImageFiles$4</ID>
+    <ID>MagicNumber:ViewImage.kt:ImageFiles$8</ID>
+    <ID>MagicNumber:ViewImage.kt:ViewImage$1024</ID>
+    <ID>MagicNumber:WebTools.kt:FetchGuard$0x20</ID>
+    <ID>MagicNumber:WebTools.kt:FetchGuard$0x64</ID>
+    <ID>MagicNumber:WebTools.kt:FetchGuard$0x9b</ID>
+    <ID>MagicNumber:WebTools.kt:FetchGuard$0xfc</ID>
+    <ID>MagicNumber:WebTools.kt:FetchGuard$0xfe</ID>
+    <ID>MagicNumber:WebTools.kt:FetchGuard$0xff</ID>
+    <ID>MagicNumber:WebTools.kt:FetchGuard$100</ID>
+    <ID>MagicNumber:WebTools.kt:FetchGuard$11</ID>
+    <ID>MagicNumber:WebTools.kt:FetchGuard$12</ID>
+    <ID>MagicNumber:WebTools.kt:FetchGuard$127</ID>
+    <ID>MagicNumber:WebTools.kt:FetchGuard$18</ID>
+    <ID>MagicNumber:WebTools.kt:FetchGuard$19</ID>
+    <ID>MagicNumber:WebTools.kt:FetchGuard$192</ID>
+    <ID>MagicNumber:WebTools.kt:FetchGuard$198</ID>
+    <ID>MagicNumber:WebTools.kt:FetchGuard$240</ID>
+    <ID>MagicNumber:WebTools.kt:FetchGuard$3</ID>
+    <ID>MagicNumber:WebTools.kt:FetchGuard$4</ID>
+    <ID>MagicNumber:WebTools.kt:FetchGuard$64</ID>
+    <ID>MagicNumber:WebTools.kt:FetchUrl$301</ID>
+    <ID>MagicNumber:WebTools.kt:FetchUrl$303</ID>
+    <ID>MagicNumber:Webhook.kt:Webhook$16</ID>
+    <ID>MagicNumber:Webhook.kt:Webhook$200</ID>
+    <ID>MagicNumber:Webhook.kt:Webhook$256</ID>
+    <ID>MagicNumber:Webhook.kt:Webhook$299</ID>
+    <ID>MagicNumber:Webhook.kt:Webhook$3</ID>
+    <ID>MagicNumber:Webhook.kt:Webhook$300</ID>
+    <ID>MagicNumber:Webhook.kt:Webhook$399</ID>
+    <ID>MagicNumber:Webhook.kt:Webhook$401</ID>
+    <ID>MagicNumber:Webhook.kt:Webhook$403</ID>
+    <ID>MagicNumber:Webhook.kt:Webhook$5</ID>
+    <ID>MagicNumber:WorkflowDraft.kt:WorkflowDraft$120</ID>
+    <ID>MagicNumber:WorkflowDraft.kt:WorkflowDraft$160</ID>
+    <ID>MagicNumber:WorkflowDraft.kt:WorkflowDraft$3</ID>
+    <ID>MagicNumber:WorkflowDraft.kt:WorkflowDraft$300</ID>
+    <ID>MagicNumber:WorkflowDraft.kt:WorkflowDraft$64</ID>
+    <ID>MagicNumber:WorkflowStore.kt:WorkflowStore$60</ID>
+    <ID>MagicNumber:WorkflowStore.kt:WorkflowStore.Companion$64</ID>
+    <ID>MagicNumber:WorkspaceTools.kt:1024</ID>
+    <ID>MagicNumber:WorkspaceTools.kt:ReadFile$4096</ID>
+    <ID>MagicNumber:WorkspaceTools.kt:SearchFiles$300</ID>
+    <ID>MagicNumber:WorkspaceTools.kt:WriteFile$1024</ID>
+    <ID>MatchingDeclarationName:CloudflareStatic.kt:CloudflareDeployStatic : Tool</ID>
+    <ID>MatchingDeclarationName:Schema.kt:ObjectSchema</ID>
+    <ID>MayBeConstant:ConnectedFiles.kt:ConnectedFiles.Companion$private val FAT_FORBIDDEN = "\"*/:&lt;&gt;?\\|"</ID>
+    <ID>MayBeConstant:SkillManifest.kt:SkillManifest.Companion$private val HOST_LABEL = "[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?"</ID>
+    <ID>NestedBlockDepth:AgentLoop.kt:AgentLoop$private suspend fun FlowCollector&lt;AgentEvent&gt;.streamWithRetry: Streamed</ID>
+    <ID>NestedBlockDepth:CodeFiles.kt:CodeFiles$fun globRegex: Regex</ID>
+    <ID>NestedBlockDepth:PromptTemplate.kt:PromptTemplate.Companion$fun parse: PromptTemplate</ID>
+    <ID>NestedBlockDepth:ShellSnapshots.kt:ShellSnapshots$private fun copyIn: Pair&lt;String, Long&gt;</ID>
+    <ID>NestedBlockDepth:SqlCheck.kt:SqlCheck$fun strip: String?</ID>
+    <ID>NestedBlockDepth:Tool.kt:ToolRegistry$fun resolve: ResolvedCall</ID>
+    <ID>ReturnCount:AgentControl.kt:Plans$fun parse: ProposedPlan?</ID>
+    <ID>ReturnCount:AgentControl.kt:Todos$fun parse: List&lt;TodoItem&gt;?</ID>
+    <ID>ReturnCount:AgentHome.kt:AgentHome$fun skillContentHash: String?</ID>
+    <ID>ReturnCount:AgentHome.kt:AgentHome$fun skillFile: String?</ID>
+    <ID>ReturnCount:AgentHome.kt:AgentHome$fun skillFileBytes: ByteArray?</ID>
+    <ID>ReturnCount:AgentHome.kt:AgentHome$fun skillManifest: SkillManifest?</ID>
+    <ID>ReturnCount:AgentHome.kt:AgentHome$private fun indexFor: MemorySearchIndex?</ID>
+    <ID>ReturnCount:AgentHome.kt:AgentHome$private fun namedDir: File?</ID>
+    <ID>ReturnCount:AgentHome.kt:AgentHome.Companion$fun splitFrontmatter: Pair&lt;Map&lt;String, String&gt;, String&gt;</ID>
+    <ID>ReturnCount:AgentLoop.kt:AgentLoop$private suspend fun FlowCollector&lt;AgentEvent&gt;.authorizeAndRun: Authorized</ID>
+    <ID>ReturnCount:AgentLoop.kt:AgentLoop$private suspend fun FlowCollector&lt;AgentEvent&gt;.compact: Boolean</ID>
+    <ID>ReturnCount:AgentLoop.kt:AgentLoop$private suspend fun FlowCollector&lt;AgentEvent&gt;.runAfterEdits</ID>
+    <ID>ReturnCount:AgentLoop.kt:AgentLoop$private suspend fun FlowCollector&lt;AgentEvent&gt;.runBeforeFinish: Boolean</ID>
+    <ID>ReturnCount:AgentLoop.kt:AgentLoop$private suspend fun FlowCollector&lt;AgentEvent&gt;.useEarly: Boolean</ID>
+    <ID>ReturnCount:AgentLoop.kt:AgentLoop$private suspend fun beforeFinishApplies: Boolean</ID>
+    <ID>ReturnCount:AgentLoop.kt:AgentLoop$private suspend fun completionCheckApplies: Boolean</ID>
+    <ID>ReturnCount:AgentLoop.kt:AgentLoop$private suspend fun runsTogether: Boolean</ID>
+    <ID>ReturnCount:AgentLoop.kt:AgentLoop.EarlySummary$suspend fun leftover: Taken?</ID>
+    <ID>ReturnCount:AgentLoop.kt:AgentLoop.RunReview$suspend fun check: Checked</ID>
+    <ID>ReturnCount:AgentLoop.kt:AgentLoop.RunSkills$suspend fun reason: String?</ID>
+    <ID>ReturnCount:AgentLoop.kt:AgentLoop.RunTaint$fun named: Boolean</ID>
+    <ID>ReturnCount:AgentLoop.kt:AgentLoop.RunTaint$suspend fun couldGate: Boolean</ID>
+    <ID>ReturnCount:AskUser.kt:AskUser$override suspend fun execute: ToolResult</ID>
+    <ID>ReturnCount:AskUser.kt:QuestionDesk$fun answer: Boolean</ID>
+    <ID>ReturnCount:ChatGptOAuth.kt:ChatGptOAuth$suspend fun revoke: Boolean</ID>
+    <ID>ReturnCount:ChatPolicy.kt:ChatPolicy$fun projectDenial: String?</ID>
+    <ID>ReturnCount:ChatPolicy.kt:ChatPolicy$suspend fun denial: String?</ID>
+    <ID>ReturnCount:Cloudflare.kt:CloudflarePages$override suspend fun execute: ToolResult</ID>
+    <ID>ReturnCount:CodeFiles.kt:GitIgnore.Companion$private fun parse: Rule?</ID>
+    <ID>ReturnCount:ColdClearing.kt:ColdClearing$fun view: List&lt;Message&gt;</ID>
+    <ID>ReturnCount:CommandSafety.kt:CommandSafety$fun dangerReason: String?</ID>
+    <ID>ReturnCount:CommandSafety.kt:CommandSafety$fun matches: Boolean</ID>
+    <ID>ReturnCount:CommandSafety.kt:CommandSafety$fun mayFetch: Boolean</ID>
+    <ID>ReturnCount:CommandSafety.kt:CommandSafety$fun rememberablePrefix: String?</ID>
+    <ID>ReturnCount:CommandSafety.kt:CommandSafety$private fun outside: Boolean</ID>
+    <ID>ReturnCount:CommandSafety.kt:CommandSafety$private fun runsProgram: Boolean</ID>
+    <ID>ReturnCount:Compaction.kt:Compaction$fun dropOldest: List&lt;Message&gt;?</ID>
+    <ID>ReturnCount:Compaction.kt:Compaction$fun due: Boolean</ID>
+    <ID>ReturnCount:Compaction.kt:Compaction$fun from: From</ID>
+    <ID>ReturnCount:Compaction.kt:Compaction$fun todos: String?</ID>
+    <ID>ReturnCount:CompactionCjkTest.kt:CompactionCjkTest$private fun hasLoneSurrogate: Boolean</ID>
+    <ID>ReturnCount:ConnectedFiles.kt:ConnectedFiles$fun readState: FileReads.State</ID>
+    <ID>ReturnCount:ConnectedFiles.kt:ConnectedFiles$fun stat: DocEntry?</ID>
+    <ID>ReturnCount:ConnectedFiles.kt:ConnectedFiles$fun storedTarget: Target?</ID>
+    <ID>ReturnCount:ConnectedFiles.kt:ConnectedFiles$fun target: Target?</ID>
+    <ID>ReturnCount:ConnectedFiles.kt:ConnectedFiles$fun walk: Walk</ID>
+    <ID>ReturnCount:ConnectedFiles.kt:ConnectedFiles$fun writeProblem: String?</ID>
+    <ID>ReturnCount:ConnectorSeal.kt:ConnectorSeal$internal fun unapproved: List&lt;String&gt;</ID>
+    <ID>ReturnCount:DenyReason.kt:DenyReason$fun clean: String?</ID>
+    <ID>ReturnCount:EmailSetup.kt:EmailAutoconfig$fun parse: Found?</ID>
+    <ID>ReturnCount:FileReads.kt:FileReads$@Synchronized fun state: State</ID>
+    <ID>ReturnCount:GitHub.kt:GitHubIssues$override suspend fun execute: ToolResult</ID>
+    <ID>ReturnCount:GitHub.kt:GitHubRead$override suspend fun execute: ToolResult</ID>
+    <ID>ReturnCount:Gotify.kt:Gotify$fun parse: Target?</ID>
+    <ID>ReturnCount:InstructionSeal.kt:InstructionSeal$fun check: Check</ID>
+    <ID>ReturnCount:JsonSchemas.kt:JsonSchemas$private fun allowsNull: Boolean</ID>
+    <ID>ReturnCount:JsonSchemas.kt:JsonSchemas$private fun check</ID>
+    <ID>ReturnCount:JsonSchemas.kt:JsonSchemas$private fun resolveRef: JsonObject?</ID>
+    <ID>ReturnCount:LineDiff.kt:LineDiff$fun diff: Result</ID>
+    <ID>ReturnCount:LineDiff.kt:LineDiff$fun unified: String?</ID>
+    <ID>ReturnCount:LineDiff.kt:LineDiff$private fun myers: List&lt;Line&gt;?</ID>
+    <ID>ReturnCount:LongOutput.kt:LongOutput$fun shorten: String</ID>
+    <ID>ReturnCount:Matrix.kt:Matrix$fun parse: Target?</ID>
+    <ID>ReturnCount:McpOAuth.kt:McpOAuth.Companion$fun covers: Boolean</ID>
+    <ID>ReturnCount:MemoryIndex.kt:MemorySearchIndex$private fun &lt;T&gt; guarded: T?</ID>
+    <ID>ReturnCount:MemoryIndex.kt:internal fun memorySnippet: String?</ID>
+    <ID>ReturnCount:MemoryReads.kt:MemoryReads$fun format: String</ID>
+    <ID>ReturnCount:MemoryTidy.kt:MemoryTidy$internal fun jsonList: JsonArray?</ID>
+    <ID>ReturnCount:MemoryTidy.kt:MemoryTidy$private fun proposal: Proposal?</ID>
+    <ID>ReturnCount:Netlify.kt:NetlifyDeploys$override suspend fun execute: ToolResult</ID>
+    <ID>ReturnCount:Ntfy.kt:Ntfy$fun parse: Target?</ID>
+    <ID>ReturnCount:OAuthRedirect.kt:OAuthRedirect$fun params: Map&lt;String, String&gt;?</ID>
+    <ID>ReturnCount:ProjectRuleHooks.kt:RuleHooks$fun blockReason: String?</ID>
+    <ID>ReturnCount:ProviderDraftTool.kt:KeyLike$fun looksLikeKey: Boolean</ID>
+    <ID>ReturnCount:PublicSuffixes.kt:PublicSuffixes$fun isPublicSuffix: Boolean</ID>
+    <ID>ReturnCount:RememberedApprovals.kt:ApprovalScopes$fun covers: Boolean</ID>
+    <ID>ReturnCount:RememberedApprovals.kt:ApprovalScopes$fun forRule: JsonObject</ID>
+    <ID>ReturnCount:RememberedApprovals.kt:ApprovalScopes$internal fun folder: String?</ID>
+    <ID>ReturnCount:RememberedApprovals.kt:ApprovalScopes$internal fun origin: String?</ID>
+    <ID>ReturnCount:RememberedApprovals.kt:ApprovalScopes$private fun parseCommand: Pair&lt;CommandCall?, String?&gt;</ID>
+    <ID>ReturnCount:RememberedApprovals.kt:ApprovalScopes$private fun site: ApprovalScope?</ID>
+    <ID>ReturnCount:RememberedApprovals.kt:ApprovalScopes$private fun workspaceFolder: String?</ID>
+    <ID>ReturnCount:RemoteJobs.kt:RemoteJobs.Probe.Companion$fun parse: Probe?</ID>
+    <ID>ReturnCount:Render.kt:RenderDeploys$override suspend fun execute: ToolResult</ID>
+    <ID>ReturnCount:Rewind.kt:Rewind$fun plan: Plan</ID>
+    <ID>ReturnCount:Rewind.kt:Rewind$private fun label: String</ID>
+    <ID>ReturnCount:Schema.kt:fun validateArguments: String?</ID>
+    <ID>ReturnCount:SecretScrubber.kt:SecretScrubber$private fun scrubString: String</ID>
+    <ID>ReturnCount:SendFile.kt:SendFile.Companion$fun parse: Pair&lt;String, String?&gt;?</ID>
+    <ID>ReturnCount:ShellSnapshots.kt:ShellSnapshots$private fun list: Listed</ID>
+    <ID>ReturnCount:ShellSnapshots.kt:ShellSnapshots.Companion$fun parseRef: Pair&lt;String, Int&gt;?</ID>
+    <ID>ReturnCount:SkillFrontmatter.kt:SkillFrontmatter$fun entries: Map&lt;String, Entry&gt;?</ID>
+    <ID>ReturnCount:SkillFrontmatter.kt:SkillFrontmatter$fun parse: Pair&lt;Map&lt;String, String&gt;, String&gt;?</ID>
+    <ID>ReturnCount:SkillImport.kt:SkillImport$fun skillRoot: String</ID>
+    <ID>ReturnCount:SkillScope.kt:SkillScope$fun missing: String?</ID>
+    <ID>ReturnCount:SqlCheck.kt:SqlCheck$fun readOnlyProblem: String?</ID>
+    <ID>ReturnCount:SqlCheck.kt:SqlCheck$fun strip: String?</ID>
+    <ID>ReturnCount:SubagentEngine.kt:SubagentEngine$fun status: ToolResult</ID>
+    <ID>ReturnCount:SubagentEngine.kt:SubagentEngine$fun steer: Boolean</ID>
+    <ID>ReturnCount:SubagentEngine.kt:SubagentEngine$suspend fun cancel: ToolResult</ID>
+    <ID>ReturnCount:SubagentEngine.kt:SubagentEngine$suspend fun send: ToolResult</ID>
+    <ID>ReturnCount:SubagentEngine.kt:SubagentEngine$suspend fun spawn: ToolResult</ID>
+    <ID>ReturnCount:SubagentEngine.kt:SubagentEngine$suspend fun wait: ToolResult</ID>
+    <ID>ReturnCount:SubagentEngine.kt:SubagentEngine.ChildTool$override suspend fun execute: ToolResult</ID>
+    <ID>ReturnCount:SubagentProfiles.kt:ReadCommands$fun isReadOnly: Boolean</ID>
+    <ID>ReturnCount:SubagentProfiles.kt:ReadCommands$private fun segmentIsRead: Boolean</ID>
+    <ID>ReturnCount:Supabase.kt:private fun rowsText: String</ID>
+    <ID>ReturnCount:Supabase.kt:private fun sqlParams: JsonArray?</ID>
+    <ID>ReturnCount:Taint.kt:Taint$fun isLocalOutput: Boolean</ID>
+    <ID>ReturnCount:Taint.kt:Taint$suspend fun disclosureReason: String?</ID>
+    <ID>ReturnCount:Taint.kt:Taint$suspend fun reason: String?</ID>
+    <ID>ReturnCount:Taint.kt:Taint$suspend fun typingReason: String?</ID>
+    <ID>ReturnCount:TaskReceipts.kt:TaskReceipts$fun costLabel: String?</ID>
+    <ID>ReturnCount:TaskReceipts.kt:TaskReceipts$fun withPlanCost: ReceiptCost?</ID>
+    <ID>ReturnCount:TaskReceipts.kt:TaskReceipts$private fun receipt: TaskReceipt?</ID>
+    <ID>ReturnCount:Telegram.kt:Telegram$fun parse: Target?</ID>
+    <ID>ReturnCount:TelegramRemote.kt:TelegramRemote$fun inbound: Inbound</ID>
+    <ID>ReturnCount:TelegramRemote.kt:TelegramRemote$fun parseChoice: Choice?</ID>
+    <ID>ReturnCount:TelegramRemote.kt:TelegramRemote.ApprovalDesk$@Synchronized fun press: Outcome</ID>
+    <ID>ReturnCount:TextEdits.kt:TextEdits$private fun indentShift: Shift?</ID>
+    <ID>ReturnCount:TextEdits.kt:TextEdits$private fun lenientApply: Applied?</ID>
+    <ID>ReturnCount:TextEdits.kt:TextEdits$private fun notFound: String</ID>
+    <ID>ReturnCount:Tool.kt:ToolRegistry$fun resolve: ResolvedCall</ID>
+    <ID>ReturnCount:ToolReviewer.kt:ReviewerPrompt$fun parse: Pair&lt;Verdict, String&gt;?</ID>
+    <ID>ReturnCount:ToolReviewer.kt:fun reviewPlan: String?</ID>
+    <ID>ReturnCount:UntrustedContent.kt:UntrustedContent$internal fun defuseTags: String</ID>
+    <ID>ReturnCount:Vercel.kt:VercelDeployments$override suspend fun execute: ToolResult</ID>
+    <ID>ReturnCount:ViewImage.kt:ViewImage$override suspend fun execute: ToolResult</ID>
+    <ID>ReturnCount:WebTools.kt:FetchGuard$suspend fun refusal: String?</ID>
+    <ID>ReturnCount:WebTools.kt:private fun render</ID>
+    <ID>ReturnCount:Webhook.kt:Webhook$fun check: ServiceAddress.Checked</ID>
+    <ID>ReturnCount:Webhook.kt:Webhook$fun parse: Target?</ID>
+    <ID>ReturnCount:WorkflowDraft.kt:WorkflowDraft$fun draft: Workflow</ID>
+    <ID>ReturnCount:WorkflowDraft.kt:WorkflowDraft$private fun jsonObject: String?</ID>
+    <ID>ReturnCount:WorkflowPlan.kt:WorkflowRender$fun active: WorkflowPlan?</ID>
+    <ID>ReturnCount:WorkflowPlan.kt:WorkflowScope$fun escalation: String?</ID>
+    <ID>ReturnCount:Workspace.kt:Workspace$fun indirection: String?</ID>
+    <ID>ReturnCount:WorkspaceTools.kt:ChangingTool$override suspend fun execute: ToolResult</ID>
+    <ID>ReturnCount:WorkspaceTools.kt:ChangingTool$override suspend fun precheck: String?</ID>
+    <ID>ReturnCount:WorkspaceTools.kt:ChangingTool$protected fun existingTarget: EditTarget?</ID>
+    <ID>ReturnCount:WorkspaceTools.kt:FindFiles$override fun run: ToolResult</ID>
+    <ID>ReturnCount:WorkspaceTools.kt:ListFiles$override fun run: ToolResult</ID>
+    <ID>ReturnCount:WorkspaceTools.kt:ReadFile$override fun run: ToolResult</ID>
+    <ID>SwallowedException:AgentLoop.kt:AgentLoop.Serving$e: Exception</ID>
+    <ID>SwallowedException:ConnectedFiles.kt:ConnectedFiles$e: SecurityException</ID>
+    <ID>SwallowedException:Email.kt:EmailFormat$e: AddressException</ID>
+    <ID>SwallowedException:Email.kt:MailClient$e: AuthenticationFailedException</ID>
+    <ID>SwallowedException:Email.kt:MailClient$e: EmailConfigException</ID>
+    <ID>SwallowedException:Email.kt:MailClient$e: FolderNotFoundException</ID>
+    <ID>SwallowedException:HomeTools.kt:ConnectorCall$e: Exception</ID>
+    <ID>SwallowedException:HomeTools.kt:ConnectorCreate$e: Exception</ID>
+    <ID>SwallowedException:HomeTools.kt:ConnectorCreate$e: IllegalArgumentException</ID>
+    <ID>SwallowedException:HomeTools.kt:SkillCreate$e: IllegalArgumentException</ID>
+    <ID>SwallowedException:Matrix.kt:Matrix$e: Failure</ID>
+    <ID>SwallowedException:RemoteJobsTest.kt:RemoteJobsTest$e: TimeoutException</ID>
+    <ID>SwallowedException:ShellSnapshots.kt:ShellSnapshots$e: IOException</ID>
+    <ID>SwallowedException:ShellSnapshots.kt:ShellSnapshots$e: RuntimeException</ID>
+    <ID>SwallowedException:ShellSnapshots.kt:ShellSnapshots.Companion$e: IOException</ID>
+    <ID>SwallowedException:ShellSnapshots.kt:ShellSnapshots.Companion$e: UnsupportedOperationException</ID>
+    <ID>SwallowedException:SkillImport.kt:SkillImport$e: ZipException</ID>
+    <ID>SwallowedException:SubagentEngine.kt:SubagentEngine$e: Exception</ID>
+    <ID>SwallowedException:SubagentTools.kt:AgentCreate$e: IllegalArgumentException</ID>
+    <ID>SwallowedException:WebTools.kt:FetchUrl$e: java.net.UnknownHostException</ID>
+    <ID>SwallowedException:Workspace.kt:Workspace$e: NoFollowFiles.LinkException</ID>
+    <ID>SwallowedException:WorkspaceTools.kt:ChangingTool$e: Exception</ID>
+    <ID>SwallowedException:WorkspaceTools.kt:ChangingTool$e: ToolException</ID>
+    <ID>ThrowsCount:AgentLoop.kt:AgentLoop$private suspend fun FlowCollector&lt;AgentEvent&gt;.streamWithRetry: Streamed</ID>
+    <ID>ThrowsCount:AgentLoop.kt:AgentLoop$private suspend fun complete: AssistantTurn</ID>
+    <ID>ThrowsCount:AskUser.kt:AskUser.Companion$fun parse: UserQuestion</ID>
+    <ID>ThrowsCount:ChatGptOAuth.kt:ChatGptOAuth$fun callbackClientId: String</ID>
+    <ID>ThrowsCount:ChatGptOAuth.kt:ChatGptOAuth$fun verifyIdToken: JsonObject</ID>
+    <ID>ThrowsCount:ChatGptOAuth.kt:ChatGptOAuth$suspend fun complete: ChatGptSession</ID>
+    <ID>ThrowsCount:ChatGptOAuth.kt:ChatGptOAuth$suspend fun discover: Discovery</ID>
+    <ID>ThrowsCount:ChatGptOAuth.kt:ChatGptOAuth$suspend fun refresh: ChatGptSession</ID>
+    <ID>ThrowsCount:Cloudflare.kt:CloudflareApi$suspend fun accountId: String</ID>
+    <ID>ThrowsCount:Cloudflare.kt:CloudflareApi$suspend fun zone: Pair&lt;String, String&gt;</ID>
+    <ID>ThrowsCount:Cloudflare.kt:CloudflareDnsSet$override suspend fun execute: ToolResult</ID>
+    <ID>ThrowsCount:Cloudflare.kt:CloudflarePagesDeploy$override suspend fun execute: ToolResult</ID>
+    <ID>ThrowsCount:CloudflareStatic.kt:CloudflareDeployStatic.Companion$internal suspend fun deploy: Deployed</ID>
+    <ID>ThrowsCount:ConnectedFiles.kt:ConnectedFiles$fun trash: TrashEntry</ID>
+    <ID>ThrowsCount:ConnectedFiles.kt:ConnectedFiles$fun writeFile: Boolean</ID>
+    <ID>ThrowsCount:ConnectedFoldersTest.kt:ConnectedFoldersTest.FakeTree$private fun at: File</ID>
+    <ID>ThrowsCount:ConnectorKeys.kt:ConnectorKeys$suspend fun resolve: String</ID>
+    <ID>ThrowsCount:Email.kt:EmailConfig$private fun account: EmailAccount</ID>
+    <ID>ThrowsCount:Email.kt:EmailConfig$private fun parseJson: EmailAccount</ID>
+    <ID>ThrowsCount:Email.kt:EmailConfig$private fun parseLine: EmailAccount</ID>
+    <ID>ThrowsCount:Email.kt:EmailConfig$private fun server: Parsed</ID>
+    <ID>ThrowsCount:Email.kt:EmailFormat$fun recipients: List&lt;InternetAddress&gt;</ID>
+    <ID>ThrowsCount:Email.kt:EmailSend$override suspend fun execute: ToolResult</ID>
+    <ID>ThrowsCount:GitHub.kt:GitHubRead$override suspend fun execute: ToolResult</ID>
+    <ID>ThrowsCount:GitHubSkills.kt:GitHubSkillFetcher$private suspend fun checkStatus</ID>
+    <ID>ThrowsCount:GitHubSkills.kt:GitHubSkillFetcher$suspend fun fetch: SkillBundle</ID>
+    <ID>ThrowsCount:GitHubSkills.kt:GitHubSkillLink.Companion$fun parse: GitHubSkillLink</ID>
+    <ID>ThrowsCount:HomeTools.kt:ConnectorCall$override suspend fun execute: ToolResult</ID>
+    <ID>ThrowsCount:HomeTools.kt:ConnectorCall$private suspend fun follow: Reply</ID>
+    <ID>ThrowsCount:HomeTools.kt:ConnectorCreate$override suspend fun execute: ToolResult</ID>
+    <ID>ThrowsCount:Matrix.kt:Matrix$private suspend fun call: JsonObject</ID>
+    <ID>ThrowsCount:Matrix.kt:Matrix$suspend fun resolveAlias: String</ID>
+    <ID>ThrowsCount:McpOAuth.kt:McpOAuth$private suspend fun authServer: AuthServer</ID>
+    <ID>ThrowsCount:McpOAuth.kt:McpOAuth$suspend fun complete: OAuthSession</ID>
+    <ID>ThrowsCount:McpOAuth.kt:McpOAuth$suspend fun discover: Discovery?</ID>
+    <ID>ThrowsCount:Netlify.kt:NetlifyApi$suspend fun site: JsonObject</ID>
+    <ID>ThrowsCount:Netlify.kt:NetlifyEnvSet$override suspend fun execute: ToolResult</ID>
+    <ID>ThrowsCount:Netlify.kt:internal suspend fun netlifyDeployFolder: NetlifyDeployed</ID>
+    <ID>ThrowsCount:ProviderDraftTool.kt:ProviderDraftTool$internal suspend fun parse: ProviderDraft</ID>
+    <ID>ThrowsCount:Render.kt:RenderApi$suspend fun serviceId: String</ID>
+    <ID>ThrowsCount:Render.kt:RenderEnvSet$override suspend fun execute: ToolResult</ID>
+    <ID>ThrowsCount:Render.kt:RenderLogs$override suspend fun execute: ToolResult</ID>
+    <ID>ThrowsCount:ShellSnapshots.kt:ShellSnapshots.&lt;no name provided&gt;$override fun visitFile: FileVisitResult</ID>
+    <ID>ThrowsCount:SiteFiles.kt:internal fun collectSiteFiles: SiteFolder</ID>
+    <ID>ThrowsCount:SitePublish.kt:SitePublisher$suspend fun unpublish</ID>
+    <ID>ThrowsCount:SkillFrontmatter.kt:SkillFrontmatter$fun validate: Map&lt;String, String&gt;</ID>
+    <ID>ThrowsCount:SkillImport.kt:SkillImport$fun bundle: SkillBundle</ID>
+    <ID>ThrowsCount:SkillImport.kt:SkillImport$fun readZip: SkillBundle</ID>
+    <ID>ThrowsCount:SkillImport.kt:SkillImport$fun safePath: String</ID>
+    <ID>ThrowsCount:SkillImport.kt:SkillImport$fun skillRoot: String</ID>
+    <ID>ThrowsCount:Supabase.kt:SupabaseApi$suspend fun ref: String</ID>
+    <ID>ThrowsCount:Supabase.kt:SupabaseFunctionDeploy$override suspend fun execute: ToolResult</ID>
+    <ID>ThrowsCount:Telegram.kt:Telegram$internal suspend fun call: JsonElement?</ID>
+    <ID>ThrowsCount:TextEdits.kt:TextEdits$fun apply: Applied</ID>
+    <ID>ThrowsCount:Vercel.kt:VercelDeploy$override suspend fun execute: ToolResult</ID>
+    <ID>ThrowsCount:Vercel.kt:VercelEnvSet$override suspend fun execute: ToolResult</ID>
+    <ID>ThrowsCount:ViewImage.kt:ViewImage$private fun load: Pair&lt;Part.Attachment, Pair&lt;Int, Int&gt;?&gt;</ID>
+    <ID>ThrowsCount:WebTools.kt:FetchUrl$override suspend fun execute: ToolResult</ID>
+    <ID>ThrowsCount:WebTools.kt:FetchUrl$private suspend fun fetch: Fetched</ID>
+    <ID>ThrowsCount:Workspace.kt:Workspace$private fun resolveIn: File</ID>
+    <ID>ThrowsCount:WorkspaceTools.kt:CopyPath$private fun copyConnected: ToolResult</ID>
+    <ID>ThrowsCount:WorkspaceTools.kt:FindFiles$override fun run: ToolResult</ID>
+    <ID>ThrowsCount:WorkspaceTools.kt:MovePath$override fun run: ToolResult</ID>
+    <ID>ThrowsCount:WorkspaceTools.kt:MovePath$private fun moveConnected: ToolResult</ID>
+    <ID>ThrowsCount:WorkspaceTools.kt:MultiEdit$override fun run: ToolResult</ID>
+    <ID>ThrowsCount:WorkspaceTools.kt:SearchFiles$override fun run: ToolResult</ID>
+    <ID>ThrowsCount:WorkspaceTools.kt:WriteFile$private fun writeConnected: ToolResult</ID>
+    <ID>ThrowsCount:WorkspaceTools.kt:private fun editable: EditTarget</ID>
+    <ID>ThrowsCount:WorkspaceTools.kt:private fun editableFile: File</ID>
+    <ID>TooGenericExceptionCaught:AgentLoop.kt:AgentLoop$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:AgentLoop.kt:AgentLoop$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:AgentLoop.kt:AgentLoop.EarlySummary$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:AgentLoop.kt:AgentLoop.RunReview$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:AgentLoop.kt:AgentLoop.Serving$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ChatGptOAuth.kt:ChatGptTokens$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ConnectedFiles.kt:ConnectedFiles$ex: Exception</ID>
+    <ID>TooGenericExceptionCaught:EmailSetup.kt:EmailConnectionTest$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:HomeTools.kt:ConnectorCall$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:HomeTools.kt:ConnectorCreate$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:MemoryIndex.kt:MemorySearchIndex$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ReachMe.kt:ReachMe$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ShellSnapshots.kt:ShellSnapshots$e: RuntimeException</ID>
+    <ID>TooGenericExceptionCaught:SubagentEngine.kt:SubagentEngine$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:Telegram.kt:Telegram$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:TelegramRemote.kt:TelegramRemote.Channel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:Workspace.kt:Workspace$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:WorkspaceTools.kt:ChangingTool$e: Exception</ID>
+    <ID>TooManyFunctions:AgentHome.kt:AgentHome</ID>
+    <ID>TooManyFunctions:AgentHome.kt:MemoryStore</ID>
+    <ID>TooManyFunctions:AgentLoop.kt:AgentLoop</ID>
+    <ID>TooManyFunctions:ChatGptOAuth.kt:ChatGptOAuth</ID>
+    <ID>TooManyFunctions:Compaction.kt:Compaction</ID>
+    <ID>TooManyFunctions:CompletionCheck.kt:CompletionCheck</ID>
+    <ID>TooManyFunctions:ConnectedFiles.kt:ConnectedFiles</ID>
+    <ID>TooManyFunctions:Email.kt:EmailFormat</ID>
+    <ID>TooManyFunctions:EmailSetup.kt:EmailForm</ID>
+    <ID>TooManyFunctions:Matrix.kt:Matrix</ID>
+    <ID>TooManyFunctions:MemoryIndex.kt:MemorySearchIndex</ID>
+    <ID>TooManyFunctions:RememberedApprovals.kt:ApprovalScopes</ID>
+    <ID>TooManyFunctions:SentView.kt:SentView$Companion</ID>
+    <ID>TooManyFunctions:ShellSnapshots.kt:ShellSnapshots</ID>
+    <ID>TooManyFunctions:SkillManifest.kt:SkillManifest$Companion</ID>
+    <ID>TooManyFunctions:SubagentEngine.kt:SubagentBackend</ID>
+    <ID>TooManyFunctions:SubagentEngine.kt:SubagentEngine</ID>
+    <ID>TooManyFunctions:Taint.kt:Taint</ID>
+    <ID>TooManyFunctions:TaskReceipts.kt:TaskReceipts</ID>
+    <ID>TooManyFunctions:Telegram.kt:Telegram</ID>
+    <ID>TooManyFunctions:TelegramRemote.kt:TelegramRemote</ID>
+    <ID>TooManyFunctions:TelegramRemote.kt:TelegramRemote$Channel</ID>
+    <ID>TooManyFunctions:TextEdits.kt:TextEdits</ID>
+    <ID>TooManyFunctions:Tool.kt:Tool</ID>
+    <ID>TooManyFunctions:Workspace.kt:Workspace</ID>
+    <ID>UnusedParameter:Matrix.kt:Matrix$http: HttpClient</ID>
+  </CurrentIssues>
+</SmellBaseline>

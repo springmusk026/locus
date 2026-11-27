@@ -41,18 +41,21 @@ jobs:
           EVENT: ${{ github.event_name }}
         run: |
           # Every Gradle job. unit-tests: unitTests is every module's JVM unit tests (the convention
-          # plugins register it, so a new module is in it); Kover instruments these runs (no thresholds
-          # yet); the screenshot tests run here too but draw nothing. screenshots: every module's
-          # screenshot tests draw into build/ and the render guard checks contrast and raw ids; no
-          # goldens, nothing uploaded (docs/design/design-system.md, "Review gate"). release-r8: R8 runs
-          # only for release builds, so a missing keep rule would otherwise only show on a phone;
-          # verifyReleaseR8KeptNames checks app/r8-kept-names.txt; one ABI is enough, and its APK
-          # (runner's debug key) is kept for reproducible-build comparisons (docs/FDROID.md).
-          # robolectric: the job runs Robolectric tests.
+          # plugins register it, so a new module is in it); Kover instruments these runs and
+          # :koverVerifyUnit fails below the merged line-coverage bound (KOVER_MIN_LINE_COVERAGE in
+          # build-logic); the screenshot tests run here too but draw nothing. lint: Android lint and
+          # detekt (every module, against its baseline: only new findings fail); --continue so one
+          # doesn't hide the other; detekt shares this runner rather than getting its own.
+          # screenshots: every module's screenshot tests draw into build/ and the render guard checks
+          # contrast and raw ids; no goldens, nothing uploaded (docs/design/design-system.md, "Review
+          # gate"). release-r8: R8 runs only for release builds, so a missing keep rule would otherwise
+          # only show on a phone; verifyReleaseR8KeptNames checks app/r8-kept-names.txt; one ABI is
+          # enough, and its APK (runner's debug key) is kept for reproducible-build comparisons
+          # (docs/FDROID.md). robolectric: the job runs Robolectric tests.
           MATRIX='[
-            {"name":"unit-tests","tasks":"unitTests :koverHtmlReportUnit :koverXmlReportUnit","ndk":false,"robolectric":true,"artifact":"coverage","artifact-path":"build/reports/kover/"},
+            {"name":"unit-tests","tasks":"unitTests :koverHtmlReportUnit :koverXmlReportUnit :koverVerifyUnit","ndk":false,"robolectric":true,"artifact":"coverage","artifact-path":"build/reports/kover/"},
             {"name":"screenshots","tasks":"recordRoborazziDebug","ndk":false,"robolectric":true},
-            {"name":"lint","tasks":"lintDebug","ndk":false,"robolectric":false},
+            {"name":"lint","tasks":"lintDebug detekt --continue","ndk":false,"robolectric":false},
             {"name":"debug-apk","tasks":":app:assembleDebug","ndk":true,"robolectric":false,"artifact":"locus-debug-apk","artifact-path":"app/build/outputs/apk/debug/app-*-debug.apk"},
             {"name":"release-r8","tasks":":app:assembleRelease -Plocus.abi=arm64-v8a","ndk":true,"robolectric":false,"artifact":"locus-release-arm64-v8a-debugkey","artifact-path":"app/build/outputs/apk/release/app-arm64-v8a-release.apk"}
           ]'

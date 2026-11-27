@@ -1,0 +1,15 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>LongMethod:AnalyticsScreen.kt:@Composable internal fun AnalyticsScreen</ID>
+    <ID>MagicNumber:AnalyticsScreen.kt:0.02f</ID>
+    <ID>MagicNumber:AnalyticsScreen.kt:100</ID>
+    <ID>MagicNumber:AnalyticsScreen.kt:3</ID>
+    <ID>MagicNumber:AnalyticsScreen.kt:4</ID>
+    <ID>MagicNumber:AnalyticsScreen.kt:5</ID>
+    <ID>MagicNumber:AnalyticsScreen.kt:6</ID>
+    <ID>MagicNumber:AnalyticsScreen.kt:7</ID>
+    <ID>TooManyFunctions:AnalyticsScreen.kt:dev.locus.feature.analytics.AnalyticsScreen.kt</ID>
+  </CurrentIssues>
+</SmellBaseline>

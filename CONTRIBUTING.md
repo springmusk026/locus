@@ -32,9 +32,20 @@ You need JDK 21 (Android Studio's bundled one works) and the Android SDK.
 ./gradlew :app:assembleDebug                                      # debug APKs, installable next to a release build
 ./gradlew unitTests                                                # every module's JVM unit tests
 ./gradlew lintDebug
+./gradlew detekt                                                   # static analysis, every module
+./gradlew unitTests :koverVerifyUnit                               # fails if line coverage falls under the bound
 ```
 
 `unitTests` is registered in every module by the convention plugins: an Android module's `testDebugUnitTest`, a plain Kotlin module's `test` (`:core:agent`, `:core:llm`, `:core:model`). A new module that applies a `locus.*` convention plugin is in it without any list to update. [docs/TESTING.md](docs/TESTING.md) covers running one test class, coverage, the instrumentation suite on a phone and the agent benchmarks.
+
+### Static analysis and coverage
+
+[detekt](https://detekt.dev) runs in every module (the convention plugins apply it), with its default rules, the [Compose rules](https://mrmans0n.github.io/compose-rules/) and [config/detekt/detekt.yml](config/detekt/detekt.yml), which keeps the size and complexity limits (cyclomatic complexity 14, 60-line functions, 600-line classes) for production code. Each module has a `detekt-baseline.xml` listing the findings that were already there, so only new code has to pass. CI runs `detekt` in the lint job. The HTML report is `<module>/build/reports/detekt/detekt.html`.
+
+- Fix a new finding rather than baselining it. If a rule is wrong for one place, `@Suppress("RuleId")` on that declaration, with a reason.
+- After fixing or removing baselined code, refresh that module's baseline so the stale entries drop out: `./gradlew :core:agent:detektBaseline` (or `./gradlew detektBaseline` for all modules), and commit the changed `detekt-baseline.xml`. Never regenerate a baseline to make new findings pass.
+
+`./gradlew unitTests :koverVerifyUnit` fails when the merged line coverage drops under `KOVER_MIN_LINE_COVERAGE` (`build-logic/.../Kover.kt`); CI runs it in the unit-tests job. Add tests rather than lowering it, and raise it when coverage has grown.
 
 ## Code
 

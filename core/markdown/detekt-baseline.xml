@@ -1,0 +1,50 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:MathSyntax.kt:k &lt; to &amp;&amp; (text[k] == ' ' || text[k] == '\t' || text[k] == '&gt;')</ID>
+    <ID>ComplexCondition:MathSyntax.kt:run != null &amp;&amp; run.first == openChar &amp;&amp; run.second &gt;= openLength &amp;&amp; trimmed.substring(run.second).isBlank()</ID>
+    <ID>ComplexCondition:MermaidResult.kt:png.isNullOrEmpty() || width == null || height == null || width &lt;= 0 || height &lt;= 0</ID>
+    <ID>CompositionLocalAllowlist:ArtifactCard.kt:val LocalArtifactHost = staticCompositionLocalOf { ArtifactHost() }</ID>
+    <ID>ContentSlotReused:MermaidDiagram.kt:codeCard: @Composable () -&gt; Unit</ID>
+    <ID>CyclomaticComplexMethod:Artifact.kt:fun findArtifacts: List&lt;Artifact&gt;</ID>
+    <ID>CyclomaticComplexMethod:ArtifactCard.kt:@Composable fun ArtifactCard</ID>
+    <ID>CyclomaticComplexMethod:ArtifactSandbox.kt:ArtifactSandbox$fun webResources: WebResources</ID>
+    <ID>CyclomaticComplexMethod:FileKinds.kt:fun openTargetFor: OpenTarget</ID>
+    <ID>CyclomaticComplexMethod:MathSyntax.kt:internal fun inlineDollarEnd: Int</ID>
+    <ID>CyclomaticComplexMethod:MathSyntax.kt:private fun rewriteProse</ID>
+    <ID>LongMethod:ArtifactCard.kt:@Composable fun ArtifactCard</ID>
+    <ID>LongMethod:MathSyntax.kt:private fun rewriteProse</ID>
+    <ID>LoopWithTooManyJumpStatements:Artifact.kt:while</ID>
+    <ID>MagicNumber:ArtifactCard.kt:1.3f</ID>
+    <ID>MagicNumber:ArtifactCard.kt:100</ID>
+    <ID>MagicNumber:ArtifactCard.kt:1024</ID>
+    <ID>MagicNumber:ArtifactCard.kt:1024.0</ID>
+    <ID>MagicNumber:ArtifactWebView.kt:200</ID>
+    <ID>MagicNumber:ArtifactWebView.kt:403</ID>
+    <ID>MagicNumber:MathSyntax.kt:0xF8FF</ID>
+    <ID>MagicNumber:MathSyntax.kt:3</ID>
+    <ID>MagicNumber:MermaidRenderer.kt:MermaidRenderer$403</ID>
+    <ID>MatchingDeclarationName:ArtifactCard.kt:ArtifactHost</ID>
+    <ID>MatchingDeclarationName:MermaidResult.kt:MermaidOutcome</ID>
+    <ID>MatchingDeclarationName:RichFences.kt:FenceKind</ID>
+    <ID>ModifierMissing:MathText.kt:@Composable fun MathBlock</ID>
+    <ID>ModifierMissing:MermaidDiagram.kt:@Composable fun MermaidDiagram</ID>
+    <ID>NestedBlockDepth:MathSyntax.kt:private fun rewriteProse</ID>
+    <ID>ReturnCount:Artifact.kt:fun parseArtifactFence: ArtifactFence?</ID>
+    <ID>ReturnCount:ArtifactSandbox.kt:ArtifactSandbox$fun decide: Decision</ID>
+    <ID>ReturnCount:ArtifactSandbox.kt:ArtifactSandbox$fun linkToOffer: String?</ID>
+    <ID>ReturnCount:FileKinds.kt:fun openTargetFor: OpenTarget</ID>
+    <ID>ReturnCount:MathSyntax.kt:fun prepareMath: PreparedMarkdown</ID>
+    <ID>ReturnCount:MathSyntax.kt:internal fun inlineDollarEnd: Int</ID>
+    <ID>ReturnCount:MathSyntax.kt:private fun emitDisplayBlock: Boolean</ID>
+    <ID>ReturnCount:MathSyntax.kt:private fun fenceIndent: FenceIndent?</ID>
+    <ID>ReturnCount:MathSyntax.kt:private fun fenceRun: Pair&lt;Char, Int&gt;?</ID>
+    <ID>ReturnCount:MathSyntax.kt:private fun findCloser: Int</ID>
+    <ID>ReturnCount:MermaidRenderer.kt:MermaidRenderer$private suspend fun drawOnce: MermaidOutcome?</ID>
+    <ID>ReturnCount:MermaidRenderer.kt:MermaidRenderer$suspend fun render: MermaidImage?</ID>
+    <ID>ReturnCount:MermaidResult.kt:fun parseMermaidTake: MermaidOutcome?</ID>
+    <ID>TooManyFunctions:ArtifactSandbox.kt:ArtifactSandbox</ID>
+    <ID>TooManyFunctions:MathSyntax.kt:dev.locus.core.markdown.MathSyntax.kt</ID>
+  </CurrentIssues>
+</SmellBaseline>

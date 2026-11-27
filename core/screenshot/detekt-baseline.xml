@@ -1,0 +1,22 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>CyclomaticComplexMethod:RenderGuard.kt:RenderGuard$internal fun inspect: List&lt;Finding&gt;</ID>
+    <ID>MagicNumber:RenderGuard.kt:RenderGuard$0xFFFFFF</ID>
+    <ID>MagicNumber:RenderGuard.kt:RenderGuard$3</ID>
+    <ID>MagicNumber:RenderGuard.kt:RenderGuard$60</ID>
+    <ID>MagicNumber:RenderGuard.kt:RenderGuard$80</ID>
+    <ID>MagicNumber:ScreenshotSteps.kt:3</ID>
+    <ID>MagicNumber:ScreenshotSteps.kt:400</ID>
+    <ID>MagicNumber:Screenshots.kt:Variant.Dark360$360</ID>
+    <ID>MagicNumber:Screenshots.kt:Variant.Dark411$411</ID>
+    <ID>MagicNumber:Screenshots.kt:Variant.Font200$360</ID>
+    <ID>MagicNumber:Screenshots.kt:Variant.Light360$360</ID>
+    <ID>MagicNumber:Screenshots.kt:Variant.Light411$411</ID>
+    <ID>ModifierMissing:ScreenshotSteps.kt:@Composable fun OnScreen</ID>
+    <ID>ReturnCount:RenderGuard.kt:RenderGuard$@Synchronized internal fun enforce: String?</ID>
+    <ID>ReturnCount:RenderGuard.kt:RenderGuardOption$private fun findComposeRoot: ViewRootForTest?</ID>
+    <ID>ReturnCount:ScreenshotSteps.kt:private fun composeRoot: ViewRootForTest?</ID>
+  </CurrentIssues>
+</SmellBaseline>

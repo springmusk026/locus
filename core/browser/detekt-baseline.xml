@@ -1,0 +1,152 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:BrowserLoginTest.kt:BrowserLoginTest.Open$taint != null &amp;&amp; origin != null &amp;&amp; (taint.sources.isEmpty() || dev.locus.core.agent.Taint.trusted(BrowserArgs.host(url), taint.trustedHosts))</ID>
+    <ID>ComplexCondition:BrowserTools.kt:Open$taint != null &amp;&amp; origin != null &amp;&amp; (taint.sources.isEmpty() || dev.locus.core.agent.Taint.trusted(dev.locus.core.model.LocalNetwork.plainHostOf(url) ?: "", taint.trustedHosts))</ID>
+    <ID>ComplexCondition:LoginCapture.kt:LoginCapture$existing != null &amp;&amp; existing.password == typed.password &amp;&amp; (typed.username.isEmpty() || typed.username == existing.username)</ID>
+    <ID>CyclomaticComplexMethod:AgentBrowser.kt:AgentBrowser$private suspend fun Session.clickNow: String?</ID>
+    <ID>CyclomaticComplexMethod:AgentBrowser.kt:AgentBrowser$private suspend fun Session.record</ID>
+    <ID>CyclomaticComplexMethod:DropdownSelect.kt:DropdownSelect$suspend fun run: Outcome</ID>
+    <ID>CyclomaticComplexMethod:LoginCapture.kt:LoginCapture$fun read: Typed?</ID>
+    <ID>CyclomaticComplexMethod:LoginTool.kt:BrowserLogin$private suspend fun fillNow: ToolResult</ID>
+    <ID>CyclomaticComplexMethod:Logins.kt:LoginRules$fun plan: Result</ID>
+    <ID>CyclomaticComplexMethod:PageLogs.kt:PageLogs.Companion$fun format: String</ID>
+    <ID>CyclomaticComplexMethod:SensitiveActions.kt:SensitiveActions$private fun knownPrefix: Boolean</ID>
+    <ID>CyclomaticComplexMethod:Snapshot.kt:SnapshotFormat$fun line: String</ID>
+    <ID>CyclomaticComplexMethod:Totp.kt:Totp$fun parse: Key?</ID>
+    <ID>LargeClass:AgentBrowser.kt:AgentBrowser</ID>
+    <ID>MagicNumber:AgentBrowser.kt:AgentBrowser$100</ID>
+    <ID>MagicNumber:AgentBrowser.kt:AgentBrowser$1000L</ID>
+    <ID>MagicNumber:AgentBrowser.kt:AgentBrowser$120</ID>
+    <ID>MagicNumber:AgentBrowser.kt:AgentBrowser$200</ID>
+    <ID>MagicNumber:AgentBrowser.kt:AgentBrowser$250</ID>
+    <ID>MagicNumber:AgentBrowser.kt:AgentBrowser$3</ID>
+    <ID>MagicNumber:AgentBrowser.kt:AgentBrowser$300</ID>
+    <ID>MagicNumber:AgentBrowser.kt:AgentBrowser$4</ID>
+    <ID>MagicNumber:AgentBrowser.kt:AgentBrowser$400</ID>
+    <ID>MagicNumber:AgentBrowser.kt:AgentBrowser$5</ID>
+    <ID>MagicNumber:AgentBrowser.kt:AgentBrowser$50</ID>
+    <ID>MagicNumber:AgentBrowser.kt:AgentBrowser$60</ID>
+    <ID>MagicNumber:AgentBrowser.kt:AgentBrowser$80</ID>
+    <ID>MagicNumber:AgentBrowser.kt:AgentBrowser.&lt;no name provided&gt;$200</ID>
+    <ID>MagicNumber:AgentBrowser.kt:AgentBrowser.&lt;no name provided&gt;$400</ID>
+    <ID>MagicNumber:BrowserControl.kt:BrowserControl.Companion$3600</ID>
+    <ID>MagicNumber:BrowserControl.kt:BrowserControl.Companion$60</ID>
+    <ID>MagicNumber:BrowserTools.kt:Dialog$300</ID>
+    <ID>MagicNumber:BrowserTools.kt:Open$300</ID>
+    <ID>MagicNumber:BrowserTools.kt:Type$60</ID>
+    <ID>MagicNumber:CapturePlan.kt:CapturePlan$100</ID>
+    <ID>MagicNumber:DropdownSelect.kt:DropdownSelect$1000</ID>
+    <ID>MagicNumber:LoginCapture.kt:LoginCapture$256</ID>
+    <ID>MagicNumber:LoginCapture.kt:LoginCapture$512</ID>
+    <ID>MagicNumber:LoginTool.kt:1000</ID>
+    <ID>MagicNumber:PageLogs.kt:PageLogs.Companion$300</ID>
+    <ID>MagicNumber:PageReply.kt:PageReply.Companion$16</ID>
+    <ID>MagicNumber:PickedElement.kt:PickedElement.Companion$40</ID>
+    <ID>MagicNumber:SensitiveActions.kt:SensitiveActions$10</ID>
+    <ID>MagicNumber:SensitiveActions.kt:SensitiveActions$120</ID>
+    <ID>MagicNumber:SensitiveActions.kt:SensitiveActions$13</ID>
+    <ID>MagicNumber:SensitiveActions.kt:SensitiveActions$14</ID>
+    <ID>MagicNumber:SensitiveActions.kt:SensitiveActions$15</ID>
+    <ID>MagicNumber:SensitiveActions.kt:SensitiveActions$16</ID>
+    <ID>MagicNumber:SensitiveActions.kt:SensitiveActions$19</ID>
+    <ID>MagicNumber:SensitiveActions.kt:SensitiveActions$2200</ID>
+    <ID>MagicNumber:SensitiveActions.kt:SensitiveActions$2204</ID>
+    <ID>MagicNumber:SensitiveActions.kt:SensitiveActions$2221</ID>
+    <ID>MagicNumber:SensitiveActions.kt:SensitiveActions$2720</ID>
+    <ID>MagicNumber:SensitiveActions.kt:SensitiveActions$3</ID>
+    <ID>MagicNumber:SensitiveActions.kt:SensitiveActions$300</ID>
+    <ID>MagicNumber:SensitiveActions.kt:SensitiveActions$305</ID>
+    <ID>MagicNumber:SensitiveActions.kt:SensitiveActions$3095</ID>
+    <ID>MagicNumber:SensitiveActions.kt:SensitiveActions$34</ID>
+    <ID>MagicNumber:SensitiveActions.kt:SensitiveActions$35</ID>
+    <ID>MagicNumber:SensitiveActions.kt:SensitiveActions$36</ID>
+    <ID>MagicNumber:SensitiveActions.kt:SensitiveActions$37</ID>
+    <ID>MagicNumber:SensitiveActions.kt:SensitiveActions$38</ID>
+    <ID>MagicNumber:SensitiveActions.kt:SensitiveActions$39</ID>
+    <ID>MagicNumber:SensitiveActions.kt:SensitiveActions$4</ID>
+    <ID>MagicNumber:SensitiveActions.kt:SensitiveActions$50</ID>
+    <ID>MagicNumber:SensitiveActions.kt:SensitiveActions$51</ID>
+    <ID>MagicNumber:SensitiveActions.kt:SensitiveActions$55</ID>
+    <ID>MagicNumber:SensitiveActions.kt:SensitiveActions$56</ID>
+    <ID>MagicNumber:SensitiveActions.kt:SensitiveActions$58</ID>
+    <ID>MagicNumber:SensitiveActions.kt:SensitiveActions$60</ID>
+    <ID>MagicNumber:SensitiveActions.kt:SensitiveActions$81</ID>
+    <ID>MagicNumber:SensitiveActions.kt:SensitiveActions$82</ID>
+    <ID>MagicNumber:SensitiveActions.kt:SensitiveActions$9</ID>
+    <ID>MagicNumber:Snapshot.kt:SnapshotFormat$10</ID>
+    <ID>MagicNumber:Snapshot.kt:SnapshotFormat$100</ID>
+    <ID>MagicNumber:Snapshot.kt:SnapshotFormat$120</ID>
+    <ID>MagicNumber:Snapshot.kt:SnapshotFormat$200</ID>
+    <ID>MagicNumber:Snapshot.kt:SnapshotFormat$40</ID>
+    <ID>MagicNumber:Snapshot.kt:SnapshotFormat$50</ID>
+    <ID>MagicNumber:Snapshot.kt:SnapshotFormat$6</ID>
+    <ID>MagicNumber:Snapshot.kt:SnapshotFormat$60</ID>
+    <ID>MagicNumber:Snapshot.kt:SnapshotFormat$80</ID>
+    <ID>MagicNumber:Totp.kt:Totp$0xff</ID>
+    <ID>MagicNumber:Totp.kt:Totp$10</ID>
+    <ID>MagicNumber:Totp.kt:Totp$300</ID>
+    <ID>MagicNumber:Totp.kt:Totp$5</ID>
+    <ID>MagicNumber:Totp.kt:Totp$6</ID>
+    <ID>MagicNumber:Totp.kt:Totp$8</ID>
+    <ID>MagicNumber:Transfers.kt:Transfers$119</ID>
+    <ID>MagicNumber:Transfers.kt:Transfers$120</ID>
+    <ID>MagicNumber:Transfers.kt:Transfers$15_000</ID>
+    <ID>MagicNumber:Transfers.kt:Transfers$200</ID>
+    <ID>MagicNumber:Transfers.kt:Transfers$299</ID>
+    <ID>MagicNumber:Transfers.kt:Transfers$30_000</ID>
+    <ID>MagicNumber:Transfers.kt:Transfers$999</ID>
+    <ID>MayBeConstant:SensitiveWords.kt:SensitiveWords$/** Autocomplete tokens of password, card and one-time-code fields (tokens are case-insensitive). */ val SENSITIVE_AUTOCOMPLETE: String = "cc-|one-time-code|current-password|new-password"</ID>
+    <ID>ReturnCount:AddressInput.kt:AddressInput$fun parse: Target?</ID>
+    <ID>ReturnCount:AgentBrowser.kt:AgentBrowser$fun takeOver: Boolean</ID>
+    <ID>ReturnCount:AgentBrowser.kt:AgentBrowser$private suspend fun Session.clickNow: String?</ID>
+    <ID>ReturnCount:AgentBrowser.kt:AgentBrowser$private suspend fun Session.stableRect: JsonObject?</ID>
+    <ID>ReturnCount:AgentBrowser.kt:AgentBrowser$suspend fun pickAt: PickOutcome</ID>
+    <ID>ReturnCount:AgentBrowser.kt:AgentBrowser$suspend fun userOpen: String?</ID>
+    <ID>ReturnCount:AgentBrowser.kt:AgentBrowser.&lt;no name provided&gt;$override fun onCreateWindow: Boolean</ID>
+    <ID>ReturnCount:BrowserPages.kt:BrowserPages$fun load: PageRecord?</ID>
+    <ID>ReturnCount:BrowserPages.kt:BrowserPages$fun pictureOf: File?</ID>
+    <ID>ReturnCount:BrowserPages.kt:BrowserPages$private fun recordFile: File?</ID>
+    <ID>ReturnCount:BrowserPages.kt:BrowserPages.Companion$fun headerOf: Pair&lt;String, String&gt;?</ID>
+    <ID>ReturnCount:BrowserSessions.kt:BrowserSessions$@Synchronized fun checkRefs: RefCheck</ID>
+    <ID>ReturnCount:DropdownSelect.kt:DropdownSelect$suspend fun run: Outcome</ID>
+    <ID>ReturnCount:LoginCapture.kt:LoginCapture$fun offer: LoginOffer?</ID>
+    <ID>ReturnCount:LoginCapture.kt:LoginCapture$fun read: Typed?</ID>
+    <ID>ReturnCount:LoginTool.kt:BrowserLogin$private suspend fun refusal: Pair&lt;String?, String?&gt;</ID>
+    <ID>ReturnCount:Logins.kt:LoginForm.Companion$fun parse: LoginForm?</ID>
+    <ID>ReturnCount:Logins.kt:LoginRules$fun pageRefusal: String?</ID>
+    <ID>ReturnCount:Logins.kt:LoginRules$fun plan: Result</ID>
+    <ID>ReturnCount:Logins.kt:LoginRules$fun reachRefusal: String?</ID>
+    <ID>ReturnCount:Logins.kt:LoginRules$fun sameSite: Boolean</ID>
+    <ID>ReturnCount:PageActions.kt:PageActions$fun of: PageAction?</ID>
+    <ID>ReturnCount:PageReply.kt:PageReply.Companion$fun open: PageReply</ID>
+    <ID>ReturnCount:PickedElement.kt:PickedElement.Companion$fun parse: PickedElement?</ID>
+    <ID>ReturnCount:PickedElement.kt:PickedElement.Companion$fun shownIn: String?</ID>
+    <ID>ReturnCount:SensitiveActions.kt:ElementFacts.Companion$fun parse: ElementFacts?</ID>
+    <ID>ReturnCount:Snapshot.kt:PageSnapshot.Companion$private fun item: Item?</ID>
+    <ID>ReturnCount:Snapshot.kt:SnapshotFormat$fun afterAction: String</ID>
+    <ID>ReturnCount:Totp.kt:Totp$fun parse: Key?</ID>
+    <ID>ReturnCount:Totp.kt:Totp$internal fun base32: ByteArray?</ID>
+    <ID>ReturnCount:Transfers.kt:Transfers$fun decodeDataUrl: Pair&lt;ByteArray, String&gt;?</ID>
+    <ID>ReturnCount:Transfers.kt:Transfers$fun sanitize: String</ID>
+    <ID>SwallowedException:AgentBrowser.kt:AgentBrowser$e: Exception</ID>
+    <ID>SwallowedException:BrowserControl.kt:e: ToolException</ID>
+    <ID>SwallowedException:LoginTool.kt:e: ToolException</ID>
+    <ID>ThrowsCount:AgentBrowser.kt:AgentBrowser$private suspend fun Session.captureFullPage: Pair&lt;Bitmap, String&gt;</ID>
+    <ID>ThrowsCount:AgentBrowser.kt:AgentBrowser$private suspend fun Session.reply: PageReply</ID>
+    <ID>ThrowsCount:AgentBrowser.kt:AgentBrowser$private suspend fun readBlob</ID>
+    <ID>ThrowsCount:BrowserArgs.kt:BrowserArgs$fun formFields: List&lt;Pair&lt;String, String&gt;&gt;</ID>
+    <ID>ThrowsCount:BrowserTools.kt:Upload$private fun files: List&lt;java.io.File&gt;</ID>
+    <ID>ThrowsCount:LoginTool.kt:BrowserLogin$private suspend fun fillNow: ToolResult</ID>
+    <ID>ThrowsCount:Transfers.kt:Transfers$fun openDownload: HttpURLConnection</ID>
+    <ID>TooGenericExceptionCaught:AgentBrowser.kt:AgentBrowser$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:AgentBrowser.kt:AgentBrowser$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:OffscreenWindow.kt:OffscreenWindow.Companion$e: Exception</ID>
+    <ID>TooManyFunctions:AgentBrowser.kt:AgentBrowser</ID>
+    <ID>TooManyFunctions:BrowserPages.kt:BrowserPages</ID>
+    <ID>TooManyFunctions:BrowserSessions.kt:BrowserSessions</ID>
+    <ID>TooManyFunctions:SensitiveActions.kt:SensitiveActions</ID>
+    <ID>TooManyFunctions:Snapshot.kt:SnapshotFormat</ID>
+  </CurrentIssues>
+</SmellBaseline>

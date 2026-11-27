@@ -1,0 +1,153 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:NetworkSettings.kt:enabled &amp;&amp; auth &amp;&amp; (user.isNotEmpty() || password.isNotEmpty())</ID>
+    <ID>ComplexCondition:SshSettings.kt:fingerprint.isNotBlank() &amp;&amp; !hostChanged || fingerprint.isNotBlank() &amp;&amp; isNew</ID>
+    <ID>ComposableParamOrder:OnDeviceComponents.kt:@Composable internal fun ProblemBanner</ID>
+    <ID>ComposableParamOrder:SettingsScreen.kt:@Composable fun SettingsRoute</ID>
+    <ID>ComposableParamOrder:SettingsScreen.kt:@Composable internal fun SettingsScreen</ID>
+    <ID>CyclomaticComplexMethod:BackupSettings.kt:@Composable private fun RestoreSheet</ID>
+    <ID>CyclomaticComplexMethod:ImportChatsUi.kt:@Composable private fun PreviewSheet</ID>
+    <ID>CyclomaticComplexMethod:IntegrationsSettings.kt:@Composable internal fun IntegrationsSettings</ID>
+    <ID>CyclomaticComplexMethod:ModelsSettings.kt:@Composable internal fun ModelsSettings</ID>
+    <ID>CyclomaticComplexMethod:ModelsSettings.kt:@Composable private fun ProviderEditor</ID>
+    <ID>CyclomaticComplexMethod:NetworkSettings.kt:@Composable internal fun NetworkSettings</ID>
+    <ID>CyclomaticComplexMethod:NetworkSettings.kt:@Composable private fun DefaultProxySheet</ID>
+    <ID>CyclomaticComplexMethod:OnDeviceComponents.kt:@Composable internal fun DownloadRows</ID>
+    <ID>CyclomaticComplexMethod:OnDeviceComponents.kt:@Composable internal fun OfferSheet</ID>
+    <ID>CyclomaticComplexMethod:OnDeviceDetailScreen.kt:@Composable internal fun OnDeviceModelDetail</ID>
+    <ID>CyclomaticComplexMethod:OnDeviceDetailScreen.kt:@Composable private fun Facts</ID>
+    <ID>CyclomaticComplexMethod:OnDeviceLibraryScreen.kt:@Composable internal fun OnDeviceLibrary</ID>
+    <ID>CyclomaticComplexMethod:PhoneSettings.kt:@Composable internal fun PhoneSettings</ID>
+    <ID>CyclomaticComplexMethod:ProviderDraftReview.kt:@Composable private fun DraftCheckResult</ID>
+    <ID>CyclomaticComplexMethod:ProviderDraftReview.kt:@OptIn(ExperimentalLayoutApi::class) @Composable internal fun ProviderDraftSheet</ID>
+    <ID>CyclomaticComplexMethod:ProviderNetworkEditor.kt:@Composable internal fun ProviderNetworkSheet</ID>
+    <ID>CyclomaticComplexMethod:SavedLoginsSettings.kt:@Composable private fun LoginEditor</ID>
+    <ID>CyclomaticComplexMethod:SettingsHub.kt:@Composable internal fun SettingsHub</ID>
+    <ID>CyclomaticComplexMethod:SettingsScreen.kt:@Composable internal fun SettingsScreen</ID>
+    <ID>CyclomaticComplexMethod:SshSettings.kt:@Composable private fun SshHostEditor</ID>
+    <ID>CyclomaticComplexMethod:StorageSettings.kt:@Composable private fun AreaRow</ID>
+    <ID>CyclomaticComplexMethod:UpdatesSection.kt:@Composable private fun ProblemBanner</ID>
+    <ID>CyclomaticComplexMethod:UpdatesSection.kt:internal fun LazyListScope.updatesSection</ID>
+    <ID>CyclomaticComplexMethod:UpdatesViewModel.kt:internal fun problemMessage: String</ID>
+    <ID>CyclomaticComplexMethod:UpdatesViewModel.kt:internal fun updateStatusLine: String</ID>
+    <ID>LambdaParameterEventTrailing:ModelsSettings.kt:onClick: () -&gt; Unit</ID>
+    <ID>LambdaParameterEventTrailing:ModelsSettings.kt:onUseMobileData: () -&gt; Unit</ID>
+    <ID>LambdaParameterInRestartableEffect:IntegrationsSettings.kt:/** Tries MCP servers set up next to their built-in, so the rows can say whether they work. */ onCheckMcp: () -&gt; Unit = {}</ID>
+    <ID>LambdaParameterInRestartableEffect:ModelsSettings.kt:load: ((Result&lt;List&lt;RemoteModel&gt;&gt;) -&gt; Unit) -&gt; Unit</ID>
+    <ID>LambdaParameterInRestartableEffect:ModelsSettings.kt:onDraftOpened: () -&gt; Unit = {}</ID>
+    <ID>LambdaParameterInRestartableEffect:OnDeviceDetailScreen.kt:onBack: () -&gt; Unit</ID>
+    <ID>LongMethod:AboutSettings.kt:@Composable internal fun AboutSettings</ID>
+    <ID>LongMethod:AgentSettings.kt:@Composable internal fun AgentSettings</ID>
+    <ID>LongMethod:AutomationSettings.kt:@Composable internal fun AutomationSettings</ID>
+    <ID>LongMethod:BackupSettings.kt:@Composable internal fun BackupSettings</ID>
+    <ID>LongMethod:BatterySettings.kt:@Composable internal fun BatterySettings</ID>
+    <ID>LongMethod:ChatGptSettings.kt:@Composable internal fun ChatGptAccountSection</ID>
+    <ID>LongMethod:DiagnosticsSettings.kt:@Composable internal fun DiagnosticsSettings</ID>
+    <ID>LongMethod:ExtrasSettings.kt:@Composable internal fun ExtrasSettings</ID>
+    <ID>LongMethod:ImportChatsUi.kt:@Composable private fun PreviewSheet</ID>
+    <ID>LongMethod:IntegrationsSettings.kt:@Composable internal fun IntegrationsSettings</ID>
+    <ID>LongMethod:ModelsSettings.kt:@Composable internal fun ModelsSettings</ID>
+    <ID>LongMethod:ModelsSettings.kt:@Composable private fun ProviderEditor</ID>
+    <ID>LongMethod:NetworkSettings.kt:@Composable internal fun NetworkSettings</ID>
+    <ID>LongMethod:OnDeviceComponents.kt:@Composable internal fun DownloadRows</ID>
+    <ID>LongMethod:OnDeviceDetailScreen.kt:@Composable internal fun OnDeviceModelDetail</ID>
+    <ID>LongMethod:OnDeviceLibraryScreen.kt:@Composable internal fun OnDeviceLibrary</ID>
+    <ID>LongMethod:PhoneSettings.kt:@Composable internal fun PhoneSettings</ID>
+    <ID>LongMethod:ProviderDraftReview.kt:@OptIn(ExperimentalLayoutApi::class) @Composable internal fun ProviderDraftSheet</ID>
+    <ID>LongMethod:ProviderNetworkEditor.kt:@Composable internal fun ProviderNetworkSheet</ID>
+    <ID>LongMethod:SavedLoginsSettings.kt:@Composable private fun LoginEditor</ID>
+    <ID>LongMethod:SettingsHub.kt:@Composable internal fun SettingsHub</ID>
+    <ID>LongMethod:SettingsScreen.kt:@Composable fun SettingsRoute</ID>
+    <ID>LongMethod:SettingsScreen.kt:@Composable internal fun SettingsScreen</ID>
+    <ID>LongMethod:SshSettings.kt:@Composable private fun SshHostEditor</ID>
+    <ID>LongMethod:UpdatesSection.kt:@Composable private fun ReleaseCard</ID>
+    <ID>LongMethod:VoiceSettingsPage.kt:@Composable internal fun VoiceSettingsPage</ID>
+    <ID>MagicNumber:BackupSettings.kt:12</ID>
+    <ID>MagicNumber:BackupSettings.kt:16</ID>
+    <ID>MagicNumber:BackupSettings.kt:3</ID>
+    <ID>MagicNumber:BackupSettings.kt:5</ID>
+    <ID>MagicNumber:BackupSettings.kt:PasswordStrength.Fair$3</ID>
+    <ID>MagicNumber:BackupSettings.kt:PasswordStrength.Weak$3</ID>
+    <ID>MagicNumber:BackupViewModel.kt:100</ID>
+    <ID>MagicNumber:BackupViewModel.kt:1024</ID>
+    <ID>MagicNumber:DiagnosticsSettings.kt:6_000</ID>
+    <ID>MagicNumber:IntegrationsSettings.kt:160</ID>
+    <ID>MagicNumber:ModelsSettings.kt:120</ID>
+    <ID>MagicNumber:ModelsSettings.kt:1_000_000</ID>
+    <ID>MagicNumber:ModelsSettings.kt:1e9</ID>
+    <ID>MagicNumber:ModelsSettings.kt:600</ID>
+    <ID>MagicNumber:ModelsSettings.kt:8</ID>
+    <ID>MagicNumber:ModelsSettings.kt:90f</ID>
+    <ID>MagicNumber:OnDeviceComponents.kt:1_280_835_840</ID>
+    <ID>MagicNumber:OnDeviceComponents.kt:1_915_305_312</ID>
+    <ID>MagicNumber:OnDeviceComponents.kt:223</ID>
+    <ID>MagicNumber:OnDeviceComponents.kt:2_588_147_712</ID>
+    <ID>MagicNumber:OnDeviceComponents.kt:5_000_000</ID>
+    <ID>MagicNumber:OnDeviceComponents.kt:800_000_000</ID>
+    <ID>MagicNumber:OnDeviceDetailScreen.kt:16_384</ID>
+    <ID>MagicNumber:OnDeviceDetailScreen.kt:1_280_835_840</ID>
+    <ID>MagicNumber:OnDeviceDetailScreen.kt:1_900_000_000</ID>
+    <ID>MagicNumber:OnDeviceDetailScreen.kt:262_144</ID>
+    <ID>MagicNumber:OnDeviceDetailViewModel.kt:OnDeviceDetailViewModel$7</ID>
+    <ID>MagicNumber:OnDeviceSearchScreen.kt:169</ID>
+    <ID>MagicNumber:OnDeviceSearchScreen.kt:1_000_000</ID>
+    <ID>MagicNumber:OnDeviceSearchScreen.kt:438_879</ID>
+    <ID>MagicNumber:OnDeviceSearchScreen.kt:900</ID>
+    <ID>MagicNumber:OnDeviceText.kt:10</ID>
+    <ID>MagicNumber:OnDeviceText.kt:1000.0</ID>
+    <ID>MagicNumber:OnDeviceUi.kt:10</ID>
+    <ID>MagicNumber:OnDeviceUi.kt:1e9</ID>
+    <ID>MagicNumber:PermissionsSettings.kt:90f</ID>
+    <ID>MagicNumber:PhoneSettings.kt:PhoneSystemPages$31</ID>
+    <ID>MagicNumber:ProviderDraftReview.kt:200</ID>
+    <ID>MagicNumber:ProviderNetworkEditor.kt:0.45f</ID>
+    <ID>MagicNumber:SettingsScreen.kt:5</ID>
+    <ID>MagicNumber:SshSettings.kt:22</ID>
+    <ID>MagicNumber:StorageSettings.kt:100</ID>
+    <ID>MagicNumber:UpdatesSection.kt:10</ID>
+    <ID>MagicNumber:UpdatesViewModel.kt:1_000_000.0</ID>
+    <ID>MatchingDeclarationName:ChatGptSettings.kt:ChatGptActions</ID>
+    <ID>MatchingDeclarationName:DiagnosticsSettings.kt:DiagnosticsViewModel : ViewModel</ID>
+    <ID>MatchingDeclarationName:LanguageSettings.kt:AppLanguage</ID>
+    <ID>MatchingDeclarationName:VoiceSettingsPage.kt:VoiceSettingsViewModel : ViewModel</ID>
+    <ID>ModifierWithoutDefault:ModelsSettings.kt:modifier: Modifier</ID>
+    <ID>MultipleEmitters:ChatGptSettings.kt:@Composable internal fun ChatGptAccountSection</ID>
+    <ID>MultipleEmitters:ProviderNetworkEditor.kt:@Composable internal fun ProxyFields</ID>
+    <ID>MultipleEmitters:UpdatesSection.kt:@Composable private fun ReleaseCard</ID>
+    <ID>ParameterNaming:AutomationSettings.kt:onSetEnabled: (Boolean) -&gt; Unit</ID>
+    <ID>ParameterNaming:ModelsSettings.kt:onDraftOpened: () -&gt; Unit = {}</ID>
+    <ID>ParameterNaming:SettingsScreen.kt:onDraftOpened: () -&gt; Unit = {}</ID>
+    <ID>ParameterNaming:SettingsScreen.kt:onRestoreRemembered: (dev.locus.core.model.RememberedApproval) -&gt; Unit = {}</ID>
+    <ID>ParameterNaming:SettingsScreen.kt:onRevokeRemembered: (String) -&gt; Unit = {}</ID>
+    <ID>ReturnCount:AutomationSettings.kt:DefaultAssistant$fun isLocus: Boolean?</ID>
+    <ID>ReturnCount:BackupSettings.kt:internal fun passwordStrength: PasswordStrength</ID>
+    <ID>ReturnCount:BackupViewModel.kt:private fun Exception.spaceNeeded: SpaceNeeded?</ID>
+    <ID>ReturnCount:ImportChatsUi.kt:internal fun outcomeText: String</ID>
+    <ID>ReturnCount:ModelsSettings.kt:internal fun insecureUrlWarning: UiText?</ID>
+    <ID>ReturnCount:OnDeviceDetailViewModel.kt:OnDeviceDetailViewModel$private fun ggufDownload: ActiveDownload?</ID>
+    <ID>ReturnCount:OnDeviceText.kt:internal fun backendText: String</ID>
+    <ID>ReturnCount:SettingsHub.kt:@Composable internal fun modelsSummary: String</ID>
+    <ID>TooGenericExceptionCaught:BackupViewModel.kt:BackupViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:NetworkSettings.kt:NetworkViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:OnDeviceDetailViewModel.kt:OnDeviceDetailViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:OnDeviceLibraryViewModel.kt:OnDeviceLibraryViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:OnDeviceSearchViewModel.kt:OnDeviceSearchViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:SelfTestSettings.kt:SelfTestViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:StorageSettings.kt:StorageViewModel$e: Exception</ID>
+    <ID>TooManyFunctions:BackupSettings.kt:dev.locus.feature.settings.BackupSettings.kt</ID>
+    <ID>TooManyFunctions:BackupViewModel.kt:BackupViewModel : ViewModel</ID>
+    <ID>TooManyFunctions:ModelsSettings.kt:dev.locus.feature.settings.ModelsSettings.kt</ID>
+    <ID>TooManyFunctions:OnDeviceActions.kt:OnDeviceActions</ID>
+    <ID>TooManyFunctions:OnDeviceDetailScreen.kt:dev.locus.feature.settings.ondevice.OnDeviceDetailScreen.kt</ID>
+    <ID>TooManyFunctions:OnDeviceDetailViewModel.kt:OnDeviceDetailViewModel : ViewModel</ID>
+    <ID>TooManyFunctions:OnDeviceLibraryViewModel.kt:OnDeviceLibraryViewModel : ViewModel</ID>
+    <ID>TooManyFunctions:PermissionsSettings.kt:dev.locus.feature.settings.PermissionsSettings.kt</ID>
+    <ID>TooManyFunctions:SettingsViewModel.kt:SettingsViewModel : ViewModel</ID>
+    <ID>UnusedParameter:OnDeviceDetailViewModel.kt:OnDeviceDetailViewModel$l: Local</ID>
+    <ID>UnusedParameter:OnDeviceDetailViewModel.kt:OnDeviceDetailViewModel$memory: DeviceMemory</ID>
+    <ID>VariableNaming:SettingsScreenshots.kt:SettingsScreenshots$/** A date that renders the same on every run (2026-10-20 12:40 UTC). */ private val FIXED = 1_792_500_000_000L</ID>
+    <ID>ViewModelForwarding:AboutSettings.kt:UpdatesResumeEffect(updatesViewModel)</ID>
+  </CurrentIssues>
+</SmellBaseline>

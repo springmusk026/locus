@@ -13,6 +13,14 @@ import org.gradle.kotlin.dsl.configure
 const val KOVER_VARIANT = "unit"
 
 /**
+ * The lowest line coverage, in percent, that the merged [KOVER_VARIANT] report may show:
+ * `./gradlew unitTests :koverVerifyUnit` fails below it (CI's unit-tests job runs it). Set just under
+ * the coverage measured on main when it was added (docs/TESTING.md, "Coverage"); raise it as tests
+ * are added, never lower it to make a change pass.
+ */
+const val KOVER_MIN_LINE_COVERAGE = 59
+
+/**
  * Generated code that tests can't meaningfully reach (DI factories, Room implementations,
  * Compose singletons). Wildcards per the Kover filter DSL: `*` and `?`.
  */

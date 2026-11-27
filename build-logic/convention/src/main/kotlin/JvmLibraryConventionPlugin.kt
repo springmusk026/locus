@@ -1,3 +1,4 @@
+import dev.locus.buildlogic.configureDetekt
 import dev.locus.buildlogic.configureKover
 import dev.locus.buildlogic.configureKotlinJvm
 import dev.locus.buildlogic.lib
@@ -14,6 +15,7 @@ class JvmLibraryConventionPlugin : Plugin<Project> {
         apply(plugin = "org.jetbrains.kotlin.jvm")
         configureKotlinJvm()
         configureKover(androidVariant = null)
+        configureDetekt()
         registerUnitTests("test")
         dependencies {
             "testImplementation"(libs.lib("kotlin.test"))
