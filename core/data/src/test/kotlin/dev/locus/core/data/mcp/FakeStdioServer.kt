@@ -44,6 +44,9 @@ class FakeStdioServer(
     /** Tools listed besides echo, env and crash (they answer like echo). */
     @Volatile var extraTools: List<String> = emptyList()
 
+    /** Rewrites the tools/list reply's tools (built with [tool]), e.g. to list a name twice. */
+    @Volatile var reshape: (List<JsonObject>) -> List<JsonObject> = { it }
+
     /** Every line the client wrote, across processes. */
     val received = CopyOnWriteArrayList<String>()
     private val listCount = AtomicInteger()
@@ -124,13 +127,10 @@ class FakeStdioServer(
                                 exit(3)
                                 return
                             }
+                            val tools = listOf(tool("echo", readOnly = true), tool("env", readOnly = false), tool("crash", readOnly = false)) +
+                                extraTools.map { tool(it, readOnly = false) }
                             send(result(id) {
-                                putJsonArray("tools") {
-                                    add(tool("echo", readOnly = true))
-                                    add(tool("env", readOnly = false))
-                                    add(tool("crash", readOnly = false))
-                                    extraTools.forEach { add(tool(it, readOnly = false)) }
-                                }
+                                putJsonArray("tools") { reshape(tools).forEach { add(it) } }
                             })
                         }
                         "tools/call" -> {
@@ -172,9 +172,9 @@ class FakeStdioServer(
         putJsonArray("content") { add(buildJsonObject { put("type", "text"); put("text", text) }) }
     }
 
-    private fun tool(name: String, readOnly: Boolean) = buildJsonObject {
+    fun tool(name: String, readOnly: Boolean, description: String = describe(name)) = buildJsonObject {
         put("name", name)
-        put("description", describe(name))
+        put("description", description)
         putJsonObject("inputSchema") {
             put("type", "object")
             putJsonObject("properties") { properties.forEach { p -> putJsonObject(p) { put("type", "string") } } }
