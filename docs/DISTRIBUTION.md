@@ -1,13 +1,13 @@
 # Distribution
 
-Where Locus is published, and what only the owner can do. Updated 2026-11-05.
+Where Locus is published, and what only the owner can do. Updated 2026-11-05; the Google Play row on 2026-11-27.
 
 | Channel | State | Details |
 |---|---|---|
 | GitHub releases | Live. One signed APK per ABI per release. | [RELEASING.md](RELEASING.md) |
 | F-Droid | Submitted 2026-11-05 as fdroiddata [MR !55897](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/55897), closed the same day as too new (Quality point 6: 3 months of development). Resubmit on or after 2027-01-31; 0.1.6 reproduces against its release APKs. | [FDROID.md](FDROID.md) |
 | IzzyOnDroid | Request text ready. Likely declined under its generative-AI policy; owner's call. | [FDROID.md](FDROID.md#izzyondroid) |
-| Google Play | Not planned (a reduced Play flavour is on the roadmap as "only if wanted"). | [ROADMAP.md](ROADMAP.md) |
+| Google Play | Researched, not started; needs the owner's decision (a `play` flavour without the update check, and a build without Linux kept ready). | [research/google-play.md](research/google-play.md), [ROADMAP.md](ROADMAP.md#recommended-next-after-020) |
 | Android developer verification | Not registered. Needed before the 2027 global rollout. | Below |
 
 ## Android developer verification

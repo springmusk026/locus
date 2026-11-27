@@ -66,13 +66,24 @@ tools/render-screens.sh build/screens xhdpi    # every screen at 2x, for a perso
 
 - **No screenshots in git.** Don't commit golden images, renders or other screenshots, and don't attach them to the pull request; describe what you checked instead. `.gitignore` covers the render folders. Images that are part of the product or its docs (icons, `docs/screenshots/`) change only in a PR about them.
 
+## Translations
+
+Locus's screens are in English, Spanish, Portuguese (Brazil) and Simplified Chinese. The rules, the glossary and the review checklist are in [docs/design/localization.md](docs/design/localization.md); read it before adding or changing text.
+
+- **Where strings live:** one `strings.xml` per module, in that module's `src/main/res/values/` (English), with the translations beside it in `values-es/`, `values-pt/` (Brazilian Portuguese) and `values-b+zh+Hans/`. Keys are `<module>_<screen>_<element>`; text several modules share is `common_*` in core/designsystem.
+- **New or changed text** needs all three translations in the same pull request: lint fails on a missing or extra translation. Use the glossary's term for each product word, positional arguments (`%1$s`), real plurals, and `translatable="false"` for names, commands and URLs.
+- **Text the model reads stays English** (tool descriptions, prompts, tool results, logs), whatever the app's language.
+- **Check** with `python3 tools/i18n_check.py --strict`, which compares every translation with English (keys, placeholders, plural categories, escaping), and look at your screens in each language as the checklist describes.
+- **Corrections from native speakers are welcome.** The translations were made with AI help and haven't had a native review yet. Send a pull request that edits the strings, or open an issue quoting the screen and the wording.
+- **The READMEs:** [README.md](README.md) is the reference; [README.es.md](README.es.md), [README.pt-BR.md](README.pt-BR.md) and [README.zh-Hans.md](README.zh-Hans.md) are translations of it. A pull request that changes README.md updates the three translations too, or says in its description which ones it leaves for someone else.
+
 ## Before opening a pull request
 
 ```sh
 ./gradlew assembleDebug unitTests lintDebug
 ```
 
-CI runs the same commands, plus the screenshot render guard and a release build with R8, as parallel jobs behind one `build` check. Draft PRs, and PRs that change only `docs/` or top-level Markdown files, skip the Gradle jobs. See [docs/design/ci.md](docs/design/ci.md). If you changed behaviour, try it on a real device or emulator and say what you tried.
+CI runs the same commands, plus detekt, the Kover coverage floor (`:koverVerifyUnit`), the screenshot render guard and a release build with R8, as parallel jobs behind one `build` check; a pull request gets only the jobs its files need. Draft PRs, and PRs that change only `docs/` or top-level Markdown files, skip the Gradle jobs. See [docs/design/ci.md](docs/design/ci.md). If you changed behaviour, try it on a real device or emulator and say what you tried.
 
 - Add an entry for anything a user would notice as a new file in [changelog.d/](changelog.d/README.md) (not in CHANGELOG.md directly, so pull requests don't conflict), in [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) form. Say if it hasn't been tried on a phone.
 - Fill in the pull request template's checklist.

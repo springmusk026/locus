@@ -18,6 +18,8 @@ You'll get an acknowledgement within a few days. Please give us reasonable time 
 - A helper (sub-agent) doing something the run that started it couldn't.
 - Problems in the OAuth sign-in flows (ChatGPT, MCP), the loopback redirect listener, or the DocumentsProvider.
 - Escaping the connector script sandbox.
+- Getting past Lock Locus or a locked chat (on `main` since 0.2.0): seeing a locked chat's name or messages, or Locus's content, without unlocking, outside what [docs/design/app-lock.md](docs/design/app-lock.md) lists as not covered.
+- A page published to the user's own host (on `main` since 0.2.0) carrying a value from the vault ([docs/design/publish.md](docs/design/publish.md)).
 - Backup files (`.locusbackup`, docs/design/backup.md). In scope:
   - Reading or changing a backup without its password.
   - A restore that accepts a changed, cut-short or crafted file.

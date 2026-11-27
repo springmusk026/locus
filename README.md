@@ -1,4 +1,7 @@
 <div align="center">
+
+**English** · [Español](README.es.md) · [Português (Brasil)](README.pt-BR.md) · [简体中文](README.zh-Hans.md)
+
   <img src="docs/icon.svg" alt="Locus icon" width="96" />
   <h1>Locus</h1>
 
@@ -50,7 +53,7 @@ Locus gives a capable model hands on your phone: a Linux shell, a browser you ca
 - **Your model, your keys, no middleman.** Anthropic, OpenAI, a ChatGPT plan, any OpenAI-compatible server or a model running on the phone. There is no Locus account or server, and no analytics or telemetry.
 - **A real agent, not a chat box.** A Linux shell with Python, Node and git, a browser it drives while you watch, SSH to your machines, MCP servers and connectors, helpers that work in parallel, and a receipt for every task.
 - **You stay in charge.** Every tool is Allow, Ask or Deny. Once a run has read outside content, anything that could send data out asks first, and secrets never reach the model.
-- **Built for a phone.** Voice mode, a widget, a quick settings tile, Direct Share, Telegram approvals, background tasks that respect heat and battery, and calendar, reminders and hand-offs to your other apps.
+- **Built for a phone.** Voice mode, home-screen widgets, a quick settings tile, Direct Share, Telegram approvals, background tasks that respect heat and battery, and calendar, reminders and hand-offs to your other apps. In English, Spanish, Portuguese (Brazil) or Simplified Chinese.
 
 ## Features
 
@@ -58,56 +61,63 @@ Locus gives a capable model hands on your phone: a Linux shell, a browser you ca
 
 - Anthropic and OpenAI API keys, your **ChatGPT Plus or Pro plan** through OpenAI's official sign-in, any OpenAI-compatible server, **Gemma 4** on the phone through LiteRT-LM, and GGUF models through llama.cpp ([on-device GGUF](docs/design/llamacpp.md)). Switch models per chat.
 - Backup models and backup keys take over when a model is out of quota, rate limited or overloaded ([fallbacks](docs/design/fallbacks.md)). Locus checks a model's tools, vision and context window before routing work to it, and says why one was skipped ([capabilities](docs/design/model-capabilities.md)).
-- Cost accounting: per-task receipts, budgets and Insights count cache reads and writes and server-side summaries, and long chats are summarised below a model's price step. Effort follows each model's own default (**(next)**, [cost](docs/design/cost.md)).
+- Cost accounting: per-task receipts, budgets and Insights count cache reads and writes and server-side summaries, and long chats are summarised below a model's price step. Effort follows each model's own default ([cost](docs/design/cost.md)); **(next)** on current Claude and GPT models, changing effort mid-chat keeps the prompt cache ([mid-chat changes](docs/design/midchat-config.md)).
+- **Compare models (next):** send one message to a second model and keep the answer you prefer; the second model can only read ([compare models](docs/design/compare-models.md)). **Plan on one model, run on another (next)** in plan mode ([plan run](docs/design/plan-run.md)).
 
 ### Agent
 
 - Plan mode, a live checklist, and helpers (sub-agents) for research and side jobs, up to three at once ([sub-agents](docs/design/subagents.md)).
 - Long tasks don't run out of context: work is summarised between steps near the model's window ([compaction](docs/design/compaction.md)). Steer a running task, ask a side question with `/btw`, or set a budget for tokens, cost and time.
 - Every finished task gets a receipt: how it ended, time taken, files changed, checks passed, approvals and estimated cost ([receipts](docs/design/task-receipt.md)).
-- Regenerate a reply, edit a message as a new branch, or fork a chat from any point ([branching](docs/design/branching.md)).
-- Memory you can see and edit, with ranked search in any language, and skills and connectors the agent drafts for you to approve ([memory search](docs/design/memory-search.md), [skill manifests](docs/design/skill-manifests.md)).
-- **Temporary chats (next):** don't read or save memory, aren't listed or searched, and are deleted when you leave them ([temporary chats](docs/design/temporary-chats.md)).
+- Regenerate a reply, edit a message as a new branch, or fork a chat from any point ([branching](docs/design/branching.md)). **Rewind here (next)** also puts back the workspace files later turns changed, and **Summarise from here (next)** shortens the rest of a chat with a summary you can edit ([rewind](docs/design/rewind.md)).
+- Memory you can see and edit, with ranked search in any language, and skills and connectors the agent drafts for you to approve ([memory search](docs/design/memory-search.md), [skill manifests](docs/design/skill-manifests.md)). **(next)** Optionally approve every memory change, and let Tidy up suggest merges and removals ([memory approval](docs/design/memory-approval.md)).
+- **Temporary chats:** don't read or save memory, aren't listed or searched, and are deleted when you leave them ([temporary chats](docs/design/temporary-chats.md)).
+- **Saved prompts (next)** with blanks to fill in, picked with `/` ([saved prompts](docs/design/saved-prompts.md)). **Import your ChatGPT and Claude chats (next)** from their data export, read on the phone ([import](docs/design/import-chats.md)).
 
 ### Linux, files and code
 
 - An Alpine Linux shell on the phone, no root needed, installed only if you choose it, with a health page, repair and a package list ([Linux setup](docs/design/linux-setup.md), [health](docs/design/linux-health.md)).
 - A real terminal with tabs and an extra-keys row ([terminal](docs/design/terminal.md)).
-- A workspace you can open from Android's Files app, with viewers for PDF, code, Markdown, tables and media. A card under each turn lists changed files with diffs and per-file undo; builds and tests show as pass/fail cards ([change tracking](docs/design/change-tracking.md)).
-- Charts, diagrams and small tools in a reply run as live previews in a sandbox with no network or storage ([artifacts](docs/design/artifacts.md)).
+- A workspace you can open from Android's Files app, with viewers for PDF, code, Markdown, tables and media. A card under each turn lists changed files with diffs and per-file undo; builds and tests show as pass/fail cards ([change tracking](docs/design/change-tracking.md)). The agent can look at images in its workspace with a vision model ([view image](docs/design/view-image.md)).
+- **Connected folders:** give the agent an Obsidian or Logseq vault, a Syncthing folder or any folder through Android's picker ([connected folders](docs/design/connected-folders.md)).
+- Charts, diagrams and small tools in a reply run as live previews in a sandbox with no network or storage ([artifacts](docs/design/artifacts.md)). **Publish (next)** an artifact or a chat as a web page on your own Netlify, Cloudflare or Vercel account, scrubbed of secrets first ([publish](docs/design/publish.md)).
 - SSH to your own servers, long jobs that survive disconnects, and projects that run their commands on one of your machines ([remote execution](docs/design/remote-execution.md)).
 
 ### Browser
 
 - A browser the agent drives while you watch, with logins, payments and form submits confirmed by you ([browser](docs/design/browser.md)).
-- **Take over and hand back (next):** the agent waits and sees nothing until you hand the page back, optionally with a note ([take over](docs/design/browser.md#take-over-and-hand-back)).
-- **Address bar, back, forward and reload (next)** in the full-screen browser; a site you type there counts as one you named ([address bar](docs/design/browser.md#the-address-bar)).
-- **Reliable dropdowns (next):** custom menus, autocompletes and long virtualised lists on MUI, Radix, react-select and similar sites ([forms and dropdowns](docs/design/browser.md#forms-and-dropdowns)).
-- **Saved logins (next):** Locus fills a saved username, password and two-step code on the exact site without the model ever seeing them, and offers to save a login after you sign in yourself ([saved logins](docs/design/browser.md#saved-logins)).
+- **Take over and hand back:** the agent waits and sees nothing until you hand the page back, optionally with a note ([take over](docs/design/browser.md#take-over-and-hand-back)).
+- **Address bar, back, forward and reload** in the full-screen browser; a site you type there counts as one you named ([address bar](docs/design/browser.md#the-address-bar)).
+- **Reliable dropdowns:** custom menus, autocompletes and long virtualised lists on MUI, Radix, react-select and similar sites ([forms and dropdowns](docs/design/browser.md#forms-and-dropdowns)).
+- **Point at something (next):** pick a button, link or picture on the page and attach it to your message; **See the page (next)** shows a past browser step's page as it was ([element picker](docs/design/browser.md#element-picker), [the page as it was](docs/design/browser.md#the-page-as-it-was)).
+- **Saved logins:** Locus fills a saved username, password and two-step code on the exact site without the model ever seeing them, and offers to save a login after you sign in yourself ([saved logins](docs/design/browser.md#saved-logins)).
 
 ### Connectors and integrations
 
 - MCP servers over HTTP (with OAuth) or running locally in Linux, and HTTP connectors with vault secrets ([MCP connectors](docs/design/mcp-connectors.md)).
-- Search (Firecrawl, Tavily, Brave, Exa), GitHub, Vercel, Netlify, Cloudflare, Supabase, Render, email, ntfy and Telegram.
-- **Your own services (next):** templates for Miniflux, FreshRSS, Paperless-ngx, Immich, Mastodon and Vikunja, with Test connection, plus Home Assistant (risky devices always ask), Todoist and Nextcloud presets ([integrations](docs/design/integrations.md)).
-- **Email setup form (next):** address and app password, with server settings filled in for common providers and a connection test ([email setup](docs/design/email-setup.md)).
+- Search (Firecrawl, Tavily, Brave, Exa), GitHub, Vercel, Netlify, Cloudflare, Supabase, Render, email, ntfy and Telegram. **(next)** Matrix, Gotify and webhooks as channels for notifications and task results ([reach-me channels](docs/design/reach-me-channels.md)).
+- **Your own services:** templates for Miniflux, FreshRSS, Paperless-ngx, Immich, Mastodon and Vikunja (and **Jellyfin (next)**), with Test connection, plus Home Assistant (risky devices always ask), Todoist and Nextcloud presets ([integrations](docs/design/integrations.md)).
+- **Email setup form:** address and app password, with server settings filled in for common providers and a connection test ([email setup](docs/design/email-setup.md)).
 - New chats load the everyday tools and find the rest when needed, with Anthropic's and OpenAI's own tool search where available ([tool discovery](docs/design/tool-discovery.md)).
 
 ### On the phone
 
 - **Voice mode:** a hands-free conversation with the same tools and approvals, using Android's speech services and keeping no audio ([voice mode](docs/design/voice-mode.md)).
-- **Ways in:** launcher and Direct Share shortcuts, a quick settings tile, "Ask Locus" on selected text, a home-screen widget, the default assistant role, and opt-in automation intents for Tasker and Automate ([Android bridge](docs/design/android-bridge.md)).
-- **Calendar, reminders and hand-offs (next):** create, edit and delete events on one calendar you pick; reminders with snooze that survive a reboot; new contacts, Save as and clipboard handed to the system with you in the loop ([phone integrations](docs/design/phone-integrations.md)).
+- **Ways in:** launcher and Direct Share shortcuts, a quick settings tile, "Ask Locus" on selected text, the default assistant role, and opt-in automation intents for Tasker and Automate ([Android bridge](docs/design/android-bridge.md)).
+- **Home-screen widgets:** a status widget with what Locus is doing and the latest scheduled-task result (**(next)** also the next run, sized to fit), and **(next)** a usage widget with today's spend or tokens and the last seven days ([widgets](docs/design/android-bridge.md#the-widget)).
+- **Your language:** Locus's screens are in English, Spanish, Portuguese (Brazil) and Simplified Chinese. Settings → Language picks one for Locus alone (Android 13 and later; older phones follow the phone's language). What the model reads stays English, and it answers in the language you write in ([localization](docs/design/localization.md)).
+- **Calendar, reminders and hand-offs:** create, edit and delete events on one calendar you pick; reminders with snooze that survive a reboot; new contacts, Save as and clipboard handed to the system with you in the loop ([phone integrations](docs/design/phone-integrations.md)).
 - **Telegram remote:** approve a background request from your bot chat, or start tasks by messaging it. Off by default ([Telegram remote](docs/design/telegram-remote.md)).
 
 ### Organising the work
 
-- **Projects** keep chats together with their own folder, instructions, memory, permissions and default model. **Home projects (next):** a shelf on Home shows which project needs you ([projects](docs/design/projects.md)).
-- **Workflows:** save a task that went well and run it again with new inputs, on demand or on a schedule ([workflows](docs/design/workflows.md)).
-- **Scheduled tasks:** read-only background runs that report by notification, ntfy or Telegram. **Event triggers (next)** start them when something happens instead: a calendar entry, an ntfy message, new mail or another app, each with a history ([scheduled runs](docs/design/scheduled-runs.md), [event triggers](docs/design/event-triggers.md)).
+- **Projects** keep chats together with their own folder (files you attach in a project chat go into it), instructions, memory, permissions and default model, and a shelf on Home shows which project needs you ([projects](docs/design/projects.md)). **(next)** Project rules run a check after edits or before the agent finishes, or block a command ([rules](docs/design/rules.md)), and an optional snapshot lets you undo what a shell command changed ([shell snapshots](docs/design/shell-snapshots.md)).
+- **Workflows:** save a task that went well and run it again with new inputs, on demand or on a schedule. **Research (next)** is built in: helpers search and read sources, check key claims and write a cited report ([workflows](docs/design/workflows.md), [research](docs/design/deep-research.md)).
+- **Scheduled tasks:** read-only background runs that report by notification, ntfy or Telegram, on a period or **(next)** at a time of day ("every day at 07:30"). **Event triggers** start them when something happens instead: a calendar entry, an ntfy message, new mail or another app, each with a history. **(next)** Open a running task's chat and send a message to take it over ([scheduled runs](docs/design/scheduled-runs.md), [event triggers](docs/design/event-triggers.md)).
+- **Needs you (next):** one section on Home with every approval, question and budget pause, and what scheduled tasks proposed for you to approve ([needs you](docs/design/needs-you.md)).
 - **Battery and heat:** non-urgent work waits while the phone is hot or in battery saver ([battery and heat](docs/design/battery-thermal.md)).
 - **Encrypted backup and restore** to a file you pick, checked before anything is replaced ([backup](docs/design/backup.md)).
-- **Quick start (next):** set up a model and start; the optional steps wait as cards on Home ([quick start](docs/design/onboarding-quick-start.md)).
+- **Quick start:** set up a model and start; the optional steps wait as cards on Home ([quick start](docs/design/onboarding-quick-start.md)).
 
 ## Screenshots
 
@@ -143,7 +153,7 @@ On first launch, choose a model and tap **Quick start**, or go through the full 
 
 **Staying up to date.** Pick one:
 
-- **In the app:** turn on **Check GitHub for new versions** (setup, or Settings → About & privacy). It's off by default. Locus then asks GitHub about once a day on Wi-Fi, verifies a new APK against `SHA256SUMS.txt` and the installed app's signing key, and hands it to Android's installer for you to confirm. **Include beta versions (next)** also offers pre-releases ([updates](docs/design/updates.md)).
+- **In the app:** turn on **Check GitHub for new versions** (setup, or Settings → About & privacy). It's off by default. Locus then asks GitHub about once a day on Wi-Fi, verifies a new APK against `SHA256SUMS.txt` and the installed app's signing key, and hands it to Android's installer for you to confirm. **Include beta versions** also offers pre-releases ([updates](docs/design/updates.md)).
 - **With [Obtainium](https://github.com/ImranR98/Obtainium):** add `https://github.com/springmusk026/locus` as an app source, and filter APKs with `arm64-v8a` (or `x86_64`) if asked. When Obtainium installed Locus, Locus leaves updates to it.
 
 **Checking a download.** The release key's SHA-256 certificate fingerprint is
@@ -165,15 +175,15 @@ See [docs/RELEASING.md](docs/RELEASING.md) and [docs/FDROID.md](docs/FDROID.md) 
 
 The full model, including what is and isn't isolated, is in [SECURITY.md](SECURITY.md).
 
-- **Approvals.** Every tool is Allow, Ask or Deny, and a chat can be limited further (Read-only, Workspace or Full). Approvals come to the chat or to a notification that needs the phone unlocked; an optional reviewer checks Ask-level actions against what you asked for ([remembered approvals](docs/design/remembered-approvals.md)).
+- **Approvals.** Every tool is Allow, Ask or Deny, and a chat can be limited further (Read-only, Workspace or Full). Approvals come to the chat or to a notification that needs the phone unlocked; an optional reviewer checks Ask-level actions against what you asked for. **(next)** Long-press Deny to tell the agent why ([remembered approvals](docs/design/remembered-approvals.md)).
 - **Taint tracking.** Once a run has read outside content (a web page, an email, a command's output), sending anything out, opening a site you didn't name and saving to memory ask first. Once it has read your own data, a new site with anything in its address asks too ([taint](docs/design/taint.md)).
-- **Prompt-injection hardening (next).** Hidden characters (Unicode tags, bidi controls, zero-width runs) are stripped from everything the model reads; MCP tools are pinned and changes need your review; links in replies that could leak data ask before opening.
-- **Lock Locus and locked chats.** An optional lock asks for your fingerprint, face or screen lock before Locus shows anything; a locked chat asks before it opens and is never named in lists, search, notifications or shortcuts ([app lock](docs/design/app-lock.md)).
-- **Secrets stay secret.** API keys, tokens and saved logins are encrypted with Tink under an Android Keystore key, kept out of backups unless you include them, and never shown to the model.
+- **Prompt-injection hardening.** Hidden characters (Unicode tags, bidi controls, zero-width runs) are stripped from everything the model reads; MCP tools are pinned and changes need your review; links in replies that could leak data ask before opening.
+- **Lock Locus and locked chats (next).** An optional lock asks for your fingerprint, face or screen lock before Locus shows anything; a locked chat asks before it opens and is never named in lists, search, notifications or shortcuts ([app lock](docs/design/app-lock.md)).
+- **Secrets stay secret.** API keys, tokens and saved logins are encrypted with Tink under an Android Keystore key, kept out of backups unless you include them, and never shown to the model. Screens that show a key or password block screenshots.
 - **No telemetry.** No analytics, crash reporting or Locus server. Diagnostics is a local log, scrubbed of secrets, that leaves only if you tap Share ([diagnostics](docs/design/diagnostics.md)). The only network requests go to the providers and services you configure; the model catalogue (models.dev) and the update check are off until you turn them on.
 - **No AccessibilityService.** Locus can't read or control other apps. It hands things to them, and you confirm there.
 - **Linux is not a sandbox.** Linux commands run as the app's own user. Locus hides its processes and seals its settings against changes from Linux, but treat Linux programs as code you chose to run with Locus's rights ([Linux isolation](docs/design/linux-isolation.md)).
-- **Undo.** Activity logs every action, and deleted files go to a trash you can restore from.
+- **Undo.** Activity logs every action and can be searched, and deleted files go to a trash you can restore from.
 
 Found a vulnerability? Please [report it privately](https://github.com/springmusk026/locus/security/advisories/new), as [SECURITY.md](SECURITY.md) describes.
 
@@ -204,16 +214,18 @@ Locus is Kotlin, Jetpack Compose and MVVM across 26 Gradle modules.
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): the design and why each library was chosen
 - [docs/STATE.md](docs/STATE.md): what's built, what's tested and what's next
-- [docs/TESTING.md](docs/TESTING.md): unit, screenshot, instrumentation and benchmark suites
+- [docs/TESTING.md](docs/TESTING.md): unit, screenshot, instrumentation and benchmark suites; CI also runs detekt and a Kover coverage floor ([CONTRIBUTING.md](CONTRIBUTING.md#static-analysis-and-coverage))
 - [docs/design/](docs/design/): one note per feature, with the research behind it
+- [Translations](CONTRIBUTING.md#translations): where the strings live and how to check them
 
 ## Roadmap
 
 Near-term focus, from [docs/ROADMAP.md](docs/ROADMAP.md):
 
-- **Phone checks** for everything marked "not yet tried on the phone" in [STATE.md](docs/STATE.md#tested-on-the-phone-vs-not-yet).
+- **Bugs from the November code review**, then **phone checks** for everything marked "not yet tried on the phone" in [STATE.md](docs/STATE.md#tested-on-the-phone-vs-not-yet), including the translated screens.
 - **Distribution:** an F-Droid resubmission once Locus meets its age requirement; Google Play is researched but not started.
-- **More local models:** llama.cpp on the GPU, image input for GGUF models, and Gemini Nano where supported.
+- **More local models:** faster GGUF chats (a saved KV cache, GPU offload), image input for GGUF models, and Gemini Nano where supported.
+- **Providers:** a native Gemini adapter, and Bedrock, Vertex and Azure OpenAI routes.
 - **Harder benchmarks**, so the suite can rank current models.
 - **Stronger Linux isolation**, researched in [Linux isolation](docs/design/linux-isolation.md).
 
@@ -247,6 +259,12 @@ Not yet. Releases reproduce byte for byte against their APKs, and an F-Droid sub
 <summary><strong>How does the Linux workspace work?</strong></summary>
 
 It's an Alpine Linux root filesystem run with proot, downloaded only when you choose to install it. You get `apk`, Python, Node and git, a terminal, and a health page with repairs. It shares Locus's app user, so it isn't a security boundary ([Linux setup](docs/design/linux-setup.md), [isolation](docs/design/linux-isolation.md)).
+</details>
+
+<details>
+<summary><strong>Which languages does it speak?</strong></summary>
+
+The app is in English, Spanish, Portuguese (Brazil) and Simplified Chinese; pick one in Settings → Language on Android 13 and later. The translations were made with AI help and checked for meaning and consistency, but not yet by native speakers, so corrections are welcome ([CONTRIBUTING.md](CONTRIBUTING.md#translations)). The model answers in whatever language you write to it.
 </details>
 
 <details>
@@ -325,7 +343,7 @@ Locus stands on a lot of open-source work. Thank you to the people behind:
 | [PRoot](https://github.com/termux/proot), [talloc](https://talloc.samba.org), [Alpine Linux](https://alpinelinux.org) | The Linux workspace | GPL-2.0-or-later, LGPL-3.0-or-later, per package |
 | [LobeHub Icons](https://github.com/lobehub/lobe-icons), [Simple Icons](https://github.com/simple-icons/simple-icons), [Material Icon Theme](https://github.com/material-extensions/vscode-material-icon-theme) | Provider, service and file-type icons | MIT, CC0-1.0, MIT |
 | [models.dev](https://models.dev) | The optional model catalogue (an online service, off by default) | n/a |
-| [Roborazzi](https://github.com/takahirom/roborazzi), [Robolectric](https://robolectric.org), [Turbine](https://github.com/cashapp/turbine), [GreenMail](https://greenmail-mail-test.github.io/greenmail/), [Kover](https://github.com/Kotlin/kotlinx-kover) | Tests and coverage | Apache-2.0, MIT, Apache-2.0, Apache-2.0, Apache-2.0 |
+| [Roborazzi](https://github.com/takahirom/roborazzi), [Robolectric](https://robolectric.org), [Turbine](https://github.com/cashapp/turbine), [GreenMail](https://greenmail-mail-test.github.io/greenmail/), [Kover](https://github.com/Kotlin/kotlinx-kover), [detekt](https://detekt.dev), [Compose Rules](https://github.com/mrmans0n/compose-rules) | Tests, coverage and static analysis | Apache-2.0, MIT, Apache-2.0, Apache-2.0, Apache-2.0, Apache-2.0, Apache-2.0 |
 
 Bundled third-party code keeps its own licence; the details are in [core/linux/NOTICE](core/linux/NOTICE), [core/terminal/NOTICE](core/terminal/NOTICE), [core/designsystem/NOTICE.md](core/designsystem/NOTICE.md) and [core/markdown/NOTICE.md](core/markdown/NOTICE.md). Product names and logos belong to their owners and only identify the service you connect.
 

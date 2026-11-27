@@ -18,7 +18,7 @@ The layering follows Google's guide (UI layer → data layer; no domain layer un
 ## Modules
 
 ```
-app                  Activity, Navigation 3, Hilt application, share target
+app                  Activity, Navigation 3, Hilt application, share target, home-screen widgets (Glance)
 feature/chat         Home, chat, composer, projects, live terminal/browser panel, sub-agent rows
 feature/onboarding   First-run setup and the agent persona questionnaire
 feature/settings     Settings hub: models, permissions, integrations, SSH, about
@@ -42,8 +42,11 @@ core/designsystem    Theme, components, logos and file icons
 core/ui              Sheets and form parts several features share (Telegram setup, SSH login fields)
 core/markdown        Maths and Mermaid for Markdown in chat and the workspace
 core/testing         Test doubles: in-memory DAOs and DataStore, TestGraph, scripted providers (tests only)
+core/screenshot      Screenshot-test harness: Roborazzi renders and the render guard (tests only)
 bench                Agent benchmark: tasks, graders and the trial runner (docs/benchmarks/README.md)
 ```
+
+Each module keeps its own UI text in `src/main/res/values/strings.xml`, with Spanish, Portuguese (Brazil) and Simplified Chinese beside it in `values-es`, `values-pt` and `values-b+zh+Hans`; text the model reads (tool specs, prompts, results) stays English in the core modules so the prompt cache doesn't depend on the app's language ([localization](design/localization.md)).
 
 ## The agent loop (`core/agent/AgentLoop.kt`)
 
