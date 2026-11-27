@@ -129,7 +129,7 @@ class WorkspaceRepository @Inject constructor(
                 val scale = minOf(1f, 1568f / maxOf(bitmap.width, bitmap.height))
                 val scaled = if (scale < 1f) bitmap.scale((bitmap.width * scale).toInt(), (bitmap.height * scale).toInt()) else bitmap
                 val name = (displayName(uri) ?: "photo").substringBeforeLast('.') + ".jpg"
-                return@withContext saveAttachment(name, "image/jpeg", scope) { scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, it) }
+                return@withContext saveAttachment(name, "image/jpeg", scope) { scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, JPEG_QUALITY, it) }
             }
         }
         val name = displayName(uri) ?: "imported-${System.currentTimeMillis()}"
@@ -204,6 +204,9 @@ class WorkspaceRepository @Inject constructor(
 
         /** Where attachments go, inside the chat's root. */
         const val INBOX = "inbox"
+
+        /** Attached photos are saved as JPEG at this quality. */
+        const val JPEG_QUALITY = 85
     }
 
     suspend fun trash(): List<TrashEntry> = withContext(io) { workspace.trashEntries() }
