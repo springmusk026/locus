@@ -29,6 +29,7 @@ import dev.locus.core.designsystem.Tone
 @Composable
 internal fun toolChangesBadge(pending: List<PendingTool>): String? = when {
     pending.isEmpty() -> null
+    pending.all { it.change == PendingTool.Change.DUPLICATE } -> stringResource(R.string.library_toolchanges_badge_duplicate)
     pending.all { it.change == PendingTool.Change.NEW } -> pluralStringResource(R.plurals.library_toolchanges_badge_new, pending.size)
     else -> stringResource(R.string.library_toolchanges_badge_changed)
 }
@@ -36,6 +37,16 @@ internal fun toolChangesBadge(pending: List<PendingTool>): String? = when {
 /** One line for the connector's row: what waits and that chats don't get it yet. */
 @Composable
 internal fun toolChangesSummary(pending: List<PendingTool>): String {
+    // A name listed twice is one problem however many copies there are, and approving doesn't clear it.
+    val twice = pending.filter { it.change == PendingTool.Change.DUPLICATE }.map { it.name }.distinct().size
+    val rest = pending.filter { it.change != PendingTool.Change.DUPLICATE }
+    val duplicates = if (twice > 0) pluralStringResource(R.plurals.library_toolchanges_summary_duplicate, twice, twice) else null
+    if (rest.isEmpty()) return duplicates.orEmpty()
+    return listOfNotNull(approvableSummary(rest), duplicates).joinToString(" ")
+}
+
+@Composable
+private fun approvableSummary(pending: List<PendingTool>): String {
     val new = pending.count { it.change == PendingTool.Change.NEW }
     val changed = pending.size - new
     return when {
@@ -65,12 +76,15 @@ internal fun ToolChangesBanner(pending: List<PendingTool>, onReview: () -> Unit)
 @Composable
 internal fun McpToolChangesSheet(server: String, pending: List<PendingTool>, onApprove: () -> Unit, onDismiss: () -> Unit) {
     // Approve sits under the diffs, not beside the title: it's read first, then decided.
+    // A name listed twice is shown but can't be approved (McpToolPinStore.approve skips it).
+    val approvable = pending.count { it.change != PendingTool.Change.DUPLICATE }
     ConfirmSheet(
         title = stringResource(R.string.library_toolchanges_sheet_title),
         message = stringResource(R.string.library_toolchanges_sheet_body, server),
-        confirmLabel = pluralStringResource(R.plurals.library_toolchanges_approve, pending.size),
+        confirmLabel = pluralStringResource(R.plurals.library_toolchanges_approve, approvable.coerceAtLeast(1)),
         dismissLabel = stringResource(R.string.library_action_not_now),
         tone = Tone.Caution,
+        confirmEnabled = approvable > 0,
         onConfirm = onApprove,
         onDismiss = onDismiss,
     ) {
@@ -89,12 +103,16 @@ private fun ToolChange(tool: PendingTool) {
                     PendingTool.Change.NEW -> stringResource(R.string.library_toolchanges_chip_new)
                     PendingTool.Change.CHANGED -> stringResource(if (tool.onlyHintsChanged) R.string.library_toolchanges_chip_hints_changed else R.string.library_toolchanges_chip_changed)
                     PendingTool.Change.REVIEW -> stringResource(R.string.library_toolchanges_chip_check_again)
+                    PendingTool.Change.DUPLICATE -> stringResource(R.string.library_toolchanges_chip_duplicate)
                 },
                 tone = if (tool.change == PendingTool.Change.NEW) Tone.Brand else Tone.Caution,
             )
         }
         if (tool.change == PendingTool.Change.REVIEW) {
             SupportingText(stringResource(R.string.library_toolchanges_record_changed))
+        }
+        if (tool.change == PendingTool.Change.DUPLICATE) {
+            SupportingText(stringResource(R.string.library_toolchanges_duplicate))
         }
         if (tool.onlyHintsChanged) {
             SupportingText(stringResource(R.string.library_toolchanges_only_hints))

@@ -269,6 +269,36 @@ class FakeDatabase {
                     (needle == null || e.toolName in textTools || needle in e.argumentsJson || needle in e.resultPreview)
             }.sortedByDescending { it.startedAt }.take(limit)
         }
+        /** The text a `LIKE '%…%'` pattern looks for, with its `\` escapes undone. */
+        private fun needle(pattern: String) = Regex("\\\\(.)").replace(pattern.removePrefix("%").removeSuffix("%"), "$1")
+
+        /** [AuditDao.observeSearch] and [AuditDao.observeSearchScan]: the same rows, as the SQL's LIKE recheck decides them. */
+        private fun search(
+            pattern: String, textTools: List<String>, titleChats: List<String>, allChats: Boolean, chats: List<String>, since: Long, until: Long,
+            allTools: Boolean, tools: List<String>, allDecisions: Boolean, decisions: List<String>, onlyErrors: Boolean, limit: Int,
+        ) = select { t ->
+            val text = needle(pattern)
+            t.audit.filter { e ->
+                e.startedAt >= since && e.startedAt <= until && (allChats || e.conversationId in chats) &&
+                    (allTools || e.toolName in tools) && (allDecisions || e.decision in decisions) && (!onlyErrors || e.isError) &&
+                    (e.toolName in textTools || e.conversationId in titleChats || e.argumentsJson.contains(text, ignoreCase = true) ||
+                        e.resultPreview.contains(text, ignoreCase = true))
+            }.sortedByDescending { it.startedAt }.take(limit)
+        }
+        override fun observeSearch(
+            match: String, pattern: String, textTools: List<String>, titleChats: List<String>, allChats: Boolean, chats: List<String>, since: Long,
+            until: Long, allTools: Boolean, tools: List<String>, allDecisions: Boolean, decisions: List<String>, onlyErrors: Boolean, limit: Int,
+        ) = search(pattern, textTools, titleChats, allChats, chats, since, until, allTools, tools, allDecisions, decisions, onlyErrors, limit)
+        override fun observeSearchScan(
+            pattern: String, textTools: List<String>, titleChats: List<String>, allChats: Boolean, chats: List<String>, since: Long,
+            until: Long, allTools: Boolean, tools: List<String>, allDecisions: Boolean, decisions: List<String>, onlyErrors: Boolean, limit: Int,
+        ) = search(pattern, textTools, titleChats, allChats, chats, since, until, allTools, tools, allDecisions, decisions, onlyErrors, limit)
+        override fun observeTitleMatches(pattern: String) = select { t ->
+            t.conversations.values.filter { it.title.contains(needle(pattern), ignoreCase = true) }.map { it.id }.sorted()
+        }
+        override fun observeHelperChats(conversationId: String) = select { t ->
+            t.conversations.values.filter { it.parentConversationId == conversationId }.map { it.id }.sorted()
+        }
         /** The no-text browse queries: [observeFiltered] with no pattern. */
         private fun browse(
             since: Long, until: Long, conversationId: String?, withHelpers: Boolean, allTools: Boolean, tools: List<String>,

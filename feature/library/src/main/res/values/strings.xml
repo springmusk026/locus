@@ -358,6 +358,7 @@
 
     <!-- Library → Connectors: reviewing an MCP server's tool changes -->
     <string name="library_toolchanges_badge_changed">Tools changed</string>
+    <string name="library_toolchanges_badge_duplicate">Tool listed twice</string>
     <string name="library_toolchanges_summary_both">%1$s and %2$s since you approved this server. Chats don\'t get them until you review and approve.</string>
     <string name="library_toolchanges_review">Review changes</string>
     <string name="library_toolchanges_sheet_title">Review tool changes</string>
@@ -367,6 +368,8 @@
     <string name="library_toolchanges_chip_hints_changed">Hints changed</string>
     <string name="library_toolchanges_chip_changed">Changed</string>
     <string name="library_toolchanges_chip_check_again">Check again</string>
+    <string name="library_toolchanges_chip_duplicate">Listed twice</string>
+    <string name="library_toolchanges_duplicate">The server lists more than one tool with this name, so Locus can\'t tell which one a call would reach. Every copy is held back until the server lists it once; approving doesn\'t change that.</string>
     <string name="library_toolchanges_record_changed">Locus\'s record of this tool was changed outside Locus, so it can\'t vouch for it.</string>
     <string name="library_toolchanges_only_hints">Only its hints changed: whether it says it reads, writes or deletes. That decides whether calls ask you first.</string>
     <string name="library_toolchanges_diff_description">Description</string>
@@ -378,6 +381,10 @@
     <plurals name="library_toolchanges_summary_changed">
         <item quantity="one">%1$d tool changed since you approved this server. Chats don\'t get it until you review and approve.</item>
         <item quantity="other">%1$d tools changed since you approved this server. Chats don\'t get them until you review and approve.</item>
+    </plurals>
+    <plurals name="library_toolchanges_summary_duplicate">
+        <item quantity="one">%1$d tool name is listed more than once by this server, so every copy is held back. Chats can\'t use it until the server lists it once.</item>
+        <item quantity="other">%1$d tool names are listed more than once by this server, so every copy is held back. Chats can\'t use them until the server lists each once.</item>
     </plurals>
     <plurals name="library_toolchanges_summary_new">
         <item quantity="one">%1$d new tool since you approved this server. Chats don\'t get it until you review and approve.</item>

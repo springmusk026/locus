@@ -276,12 +276,18 @@ data class TriggerEventEntity(
     val outcome: String? = null,
 )
 
+/**
+ * One tool call, as the Activity screen shows it. [seq] (v21) is the row's stable number: the rowid [AuditFtsEntity]
+ * points at. It is an explicit INTEGER PRIMARY KEY because "VACUUM may change the ROWIDs of entries in any tables
+ * that do not have an explicit INTEGER PRIMARY KEY" (sqlite.org/lang_vacuum.html), and a backup is a `VACUUM INTO`.
+ * [id] stays unique, as it was as the primary key.
+ */
 @Entity(
     tableName = "audit_log",
-    indices = [Index("conversationId"), Index("startedAt")],
+    indices = [Index("conversationId"), Index("startedAt"), Index("id", unique = true), Index("toolName")],
 )
 data class AuditEntity(
-    @PrimaryKey val id: String,
+    val id: String,
     val conversationId: String,
     val callId: String,
     val toolName: String,
@@ -291,6 +297,26 @@ data class AuditEntity(
     val isError: Boolean,
     val startedAt: Long,
     val finishedAt: Long,
+    @PrimaryKey(autoGenerate = true) val seq: Long = 0,
+)
+
+/**
+ * The text index behind Activity's search (v21): an FTS5 table with external content over [AuditEntity.argumentsJson]
+ * and [AuditEntity.resultPreview]. It stores only the index, reads the text from `audit_log`, and its rowid is
+ * [AuditEntity.seq]; Room creates the triggers that keep it in step. The `trigram` tokenizer indexes every run of three
+ * characters, so a quoted phrase matches any substring of three or more characters, in any script (CJK included), as
+ * `LIKE '%…%'` does. See docs/design/search.md, "Activity's queries".
+ */
+@Fts5(
+    contentEntity = AuditEntity::class,
+    contentRowId = "seq",
+    tokenizer = FtsOptions.TOKENIZER_TRIGRAM,
+)
+@Entity(tableName = "audit_fts")
+data class AuditFtsEntity(
+    @PrimaryKey @ColumnInfo(name = "rowid") val rowid: Long,
+    val argumentsJson: String,
+    val resultPreview: String,
 )
 
 /**

@@ -62,7 +62,11 @@ data class PendingTool(
     val before: McpToolPin?,
     val after: McpToolDef,
 ) {
-    enum class Change { NEW, CHANGED, REVIEW }
+    /**
+     * [DUPLICATE]: the server lists more than one tool with this name, so a call can't be tied to one
+     * definition. Every copy is held back and can't be approved until the server lists the name once.
+     */
+    enum class Change { NEW, CHANGED, REVIEW, DUPLICATE }
 
     val name: String get() = after.name
 
@@ -99,9 +103,16 @@ object McpPinning {
     /** Pins for a connector seen for the first time ("trust on first use"), or null when it isn't a first use. */
     fun firstUse(pins: McpToolPins, server: String, defs: List<McpToolDef>): McpToolPins? {
         if (pins.noFirstUse || server in pins.servers) return null
+        // A name listed twice is pinned as neither copy: which one the user "connected to" is unknowable.
+        val twice = duplicates(defs)
         // approvedAt 0: what the user connected to is usable in every chat, as before pinning existed.
-        return pins.copy(servers = pins.servers + (server to defs.associate { it.name to pin(it, approvedAt = 0L) }))
+        val tools = defs.filter { it.name !in twice }.associate { it.name to pin(it, approvedAt = 0L) }
+        return pins.copy(servers = pins.servers + (server to tools))
     }
+
+    /** Names [defs] lists more than once. Every copy of such a name is refused (fail closed). */
+    fun duplicates(defs: List<McpToolDef>): Set<String> =
+        defs.groupingBy { it.name }.eachCount().filterValues { it > 1 }.keys
 
     /** What [server]'s tools [defs] give a chat created at [chatStartedAt] (null: no chat, e.g. a settings check). */
     data class Check(
@@ -111,29 +122,44 @@ object McpPinning {
         val pending: List<PendingTool>,
         /** Approved after this chat started: usable in new chats only. */
         val newChatsOnly: Set<String> = emptySet(),
-    )
+        /** The approved hash of each [usable] tool. */
+        val approvedHashes: Map<String, String> = emptyMap(),
+    ) {
+        /**
+         * Whether this exact definition may reach a chat: its name is usable and its own hash is the pin,
+         * so no other copy under the same name can ride on the approved one.
+         */
+        fun allows(def: McpToolDef): Boolean = def.name in usable && approvedHashes[def.name] == def.hash
+    }
 
     fun check(pins: McpToolPins, server: String, defs: List<McpToolDef>, chatStartedAt: Long?): Check {
         val approved = pins.servers[server].orEmpty()
         val usable = mutableSetOf<String>()
         val later = mutableSetOf<String>()
         val pending = mutableListOf<PendingTool>()
+        val hashes = mutableMapOf<String, String>()
+        val twice = duplicates(defs)
         defs.forEach { def ->
             val pin = approved[def.name]
             when {
+                def.name in twice -> pending += PendingTool(server, PendingTool.Change.DUPLICATE, pin, def)
                 pin == null -> pending += PendingTool(server, PendingTool.Change.NEW, null, def)
                 pin.hash.isEmpty() -> pending += PendingTool(server, PendingTool.Change.REVIEW, pin, def)
                 pin.hash != def.hash -> pending += PendingTool(server, PendingTool.Change.CHANGED, pin, def)
                 chatStartedAt != null && pin.approvedAt > chatStartedAt -> later += def.name
-                else -> usable += def.name
+                else -> {
+                    usable += def.name
+                    hashes[def.name] = pin.hash
+                }
             }
         }
-        return Check(usable, pending, later)
+        return Check(usable, pending, later, hashes)
     }
 
-    /** [pins] with [defs] of [server] approved at [now]: for chats created after this. */
+    /** [pins] with [defs] of [server] approved at [now]: for chats created after this. A name given twice isn't approved. */
     fun approve(pins: McpToolPins, server: String, defs: List<McpToolDef>, now: Long): McpToolPins {
-        val tools = pins.servers[server].orEmpty() + defs.associate { it.name to pin(it, approvedAt = now) }
+        val twice = duplicates(defs)
+        val tools = pins.servers[server].orEmpty() + defs.filter { it.name !in twice }.associate { it.name to pin(it, approvedAt = now) }
         return pins.copy(servers = pins.servers + (server to tools))
     }
 
@@ -206,7 +232,7 @@ class McpToolPinStore @Inject constructor(
      */
     suspend fun filter(server: String, tools: List<McpTool>, now: Long = System.currentTimeMillis()): List<McpTool> {
         val check = check(server, tools, now)
-        return tools.filter { it.name in check.usable }
+        return tools.filter { check.allows(McpToolDef.of(it)) }
     }
 
     /** Why [name] of [server] can't be called in this chat, or null when it can (or isn't listed at all). */
@@ -215,6 +241,8 @@ class McpToolPinStore @Inject constructor(
         val check = check(server, tools, System.currentTimeMillis())
         return when {
             name in check.usable -> null
+            check.pending.any { it.name == name && it.change == PendingTool.Change.DUPLICATE } ->
+                "“$server” lists more than one tool named “$name”, so Locus can't tell which one a call would reach. Every copy is held back until the server lists it once."
             name in check.newChatsOnly ->
                 "“$server” changed “$name” and you approved the new version after this chat started. Approvals apply to new chats, so start a new chat to use it."
             check.pending.any { it.name == name && it.change == PendingTool.Change.NEW } ->
@@ -238,13 +266,14 @@ class McpToolPinStore @Inject constructor(
     /** [tools] whose approved version matches, from the pins last read; never waits. Used for provider-side tool search. */
     fun cachedFilter(server: String, tools: List<McpTool>): List<McpTool> {
         val pins = last ?: return emptyList()
-        val usable = McpPinning.check(pins, server, tools.map(McpToolDef::of), chatStartedAt = null).usable
-        return tools.filter { it.name in usable }
+        val check = McpPinning.check(pins, server, tools.map(McpToolDef::of), chatStartedAt = null)
+        return tools.filter { check.allows(McpToolDef.of(it)) }
     }
 
     /** Approves [server]'s waiting tools named [names] (all of them when null), for chats created from now on. */
     suspend fun approve(server: String, names: Set<String>? = null, now: Long = System.currentTimeMillis()) {
-        val waiting = _pending.value[server].orEmpty().filter { names == null || it.name in names }
+        // A name the server lists twice can't be approved: neither copy is the one a call would reach.
+        val waiting = _pending.value[server].orEmpty().filter { (names == null || it.name in names) && it.change != PendingTool.Change.DUPLICATE }
         if (waiting.isEmpty()) return
         val updated = store.updateData { s -> s.copy(mcpToolPins = McpPinning.approve(s.mcpToolPins, server, waiting.map { it.after }, now)) }
         last = updated.mcpToolPins
