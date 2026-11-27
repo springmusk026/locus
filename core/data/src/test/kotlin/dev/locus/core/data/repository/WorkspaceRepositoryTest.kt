@@ -112,4 +112,58 @@ class WorkspaceRepositoryTest {
         // A leading slash means the workspace root, not the filesystem's.
         assertEquals(g.workspace.resolve("."), g.workspace.resolve("/"))
     }
+
+    private val project = dev.locus.core.model.ChatScopeSpec("p1", "projects/garden", dev.locus.core.model.MemoryScope.PROJECT_AND_GLOBAL)
+
+    /** What a chat's file tools find at [path]: inside the project's folder in a project chat. */
+    private fun TestGraph.toolsSee(scope: dev.locus.core.model.ChatScopeSpec?, path: String): File =
+        dev.locus.core.agent.ChatScope.with(scope) { workspace.resolve(path) }
+
+    @Test
+    fun `a project chat's attachment goes into the project's folder, under the path its tools resolve`() = runTest {
+        val g = TestGraph(backgroundScope)
+        val a = g.workspaceRepository.saveAttachment("Nepoflix-main.zip", "application/zip", project) { it.write("zip".toByteArray()) }
+        assertEquals("inbox/Nepoflix-main.zip", a.workspacePath)
+        assertEquals(g.workspace.base.resolve("projects/garden/inbox/Nepoflix-main.zip").path, a.path)
+        // The path the model is told is the file read_file and ls find in that chat.
+        val seen = g.toolsSee(project, a.workspacePath)
+        assertEquals(File(a.path).canonicalFile, seen)
+        assertEquals("zip", seen.readText())
+        assertFalse(g.workspace.base.resolve("inbox/Nepoflix-main.zip").exists())
+    }
+
+    @Test
+    fun `outside projects an attachment goes into the workspace's inbox as before`() = runTest {
+        val g = TestGraph(backgroundScope)
+        g.workspace.resolve("inbox").mkdirs()
+        g.workspace.resolve("inbox/notes.txt").writeText("old")
+        val a = g.workspaceRepository.saveAttachment("notes.txt", "text/plain", null) { it.write("new".toByteArray()) }
+        assertEquals("inbox/notes (1).txt", a.workspacePath)
+        assertEquals(g.workspace.base.resolve("inbox/notes (1).txt").path, a.path)
+        assertEquals("new", g.toolsSee(null, a.workspacePath).readText())
+        assertEquals(3L, a.sizeBytes)
+    }
+
+    @Test
+    fun `an attachment waiting in a chat moved into a project is brought into the project's folder`() = runTest {
+        val g = TestGraph(backgroundScope)
+        val before = g.workspaceRepository.saveAttachment("data.csv", "text/csv", null) { it.write("a,b".toByteArray()) }
+        val after = g.workspaceRepository.attachmentFor(before, project)
+        assertEquals("inbox/data.csv", after.workspacePath)
+        assertEquals("a,b", g.toolsSee(project, after.workspacePath).readText())
+        assertEquals(File(after.path).canonicalFile, g.toolsSee(project, after.workspacePath))
+        assertEquals("text/csv", after.mimeType)
+    }
+
+    @Test
+    fun `an attachment waiting in a chat moved out of a project keeps its file, under its workspace path`() = runTest {
+        val g = TestGraph(backgroundScope)
+        val before = g.workspaceRepository.saveAttachment("data.csv", "text/csv", project) { it.write("a,b".toByteArray()) }
+        val after = g.workspaceRepository.attachmentFor(before, null)
+        assertEquals("projects/garden/inbox/data.csv", after.workspacePath)
+        assertEquals(before.path, after.path)
+        assertEquals("a,b", g.toolsSee(null, after.workspacePath).readText())
+        // Nothing was copied.
+        assertFalse(g.workspace.base.resolve("inbox/data.csv").exists())
+    }
 }
