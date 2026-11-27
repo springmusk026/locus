@@ -35,12 +35,17 @@ class TaskRepository(
     private val work: TaskWork,
     /** Where an ntfy trigger's access token is kept. */
     private val vault: SecretStore,
+    /** Each task's time of day and planned run, as WorkManager's side records them; none in tests that don't need them. */
+    private val slots: DailySlots = DailySlots { null },
 ) {
     @Inject
     constructor(@ApplicationContext context: Context, dao: ScheduledTaskDao, eventDao: TriggerEventDao, vault: SecretStore) :
-        this(dao, eventDao, WorkManagerTaskWork(context), vault)
+        this(dao, eventDao, WorkManagerTaskWork(context), vault, TaskTimesSlots(context))
 
     val tasks: Flow<List<ScheduledTask>> = dao.observeAll().map { list -> list.map(ScheduledTaskEntity::toModel) }
+
+    /** [id]'s time of day and planned next run, for a task that runs at a time of day ([DailySlots]). */
+    fun dailySlot(id: String): DailySlot? = slots.dailySlot(id)
 
     /** Turns tasks' events into runs (docs/design/event-triggers.md). */
     val triggers = TriggerEngine(dao, eventDao, work)

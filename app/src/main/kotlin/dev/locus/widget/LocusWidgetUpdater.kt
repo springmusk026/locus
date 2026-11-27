@@ -26,7 +26,7 @@ import javax.inject.Singleton
  * Pushes the widgets a new state whenever [WidgetFeed] changes: the agent's status (the flow the status
  * notification uses) or the latest task result for [LocusWidget], today's usage and the running task's
  * budget for [LocusUsageWidget]. No polling and no periodic updates. At most one update per [MIN_GAP_MS]
- * per widget, latest state wins, and none while that widget isn't placed; the usage figures aren't even
+ * per widget, latest state wins, and none while that widget isn't placed; its figures aren't even
  * computed then. The first emission after the process starts also replaces a state left from before
  * Android killed Locus mid-run.
  */
@@ -39,15 +39,24 @@ class LocusWidgetUpdater @Inject constructor(
     /** Whether a usage widget is on the home screen: read at start, then kept by its receiver's onEnabled and onDisabled. */
     private val usageOn = MutableStateFlow(false)
 
+    /** The same for the status widget. */
+    private val statusOn = MutableStateFlow(false)
+
     /** A usage widget was placed (the first one) or removed (the last one). */
     fun usagePlaced(placed: Boolean) {
         usageOn.value = placed
     }
 
+    /** A status widget was placed (the first one) or removed (the last one). */
+    fun statusPlaced(placed: Boolean) {
+        statusOn.value = placed
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     fun start() {
         scope.launch {
-            feed.state.distinctUntilChanged().conflate().collect {
+            if (placed(LocusWidget::class.java)) statusOn.value = true
+            statusOn.flatMapLatest { on -> if (on) feed.state else emptyFlow() }.distinctUntilChanged().conflate().collect {
                 push(LocusWidget::class.java) { LocusWidget() }
                 delay(MIN_GAP_MS)
             }

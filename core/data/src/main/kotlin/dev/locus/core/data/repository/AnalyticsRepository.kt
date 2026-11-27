@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.serialization.json.Json
 import java.time.Instant
 import java.time.LocalDate
@@ -195,9 +196,20 @@ internal fun priceLookup(settings: AppSettings, catalog: ModelCatalogIndex?): Pr
 
 /**
  * Today's usage across every provider (the usage widget): [tokens] and [requests] as Insights totals them,
- * and the estimated [cost] from models.dev prices, [pricesOn] when those are switched on.
+ * and the estimated [cost] from models.dev prices, [pricesOn] when those are switched on. [week] is the
+ * last seven days, oldest first and today last, and [weekCost] their spend (Insights' 7-day window).
  */
-data class UsageToday(val tokens: Long = 0, val requests: Int = 0, val cost: CostEstimate = CostEstimate(), val pricesOn: Boolean = false)
+data class UsageToday(
+    val tokens: Long = 0,
+    val requests: Int = 0,
+    val cost: CostEstimate = CostEstimate(),
+    val pricesOn: Boolean = false,
+    val week: List<UsageDay> = emptyList(),
+    val weekCost: CostEstimate = CostEstimate(),
+)
+
+/** One day of [UsageToday.week]: its tokens and requests as Insights' daily bars count them, and its spend. */
+data class UsageDay(val tokens: Long = 0, val requests: Int = 0, val cost: CostEstimate = CostEstimate())
 
 /**
  * The start of each local day, in epoch millis: today's at once, then the next one at each midnight while
@@ -261,18 +273,25 @@ class AnalyticsRepository @Inject constructor(
 
     /**
      * Today's usage across every provider and source, counted exactly as Insights counts it ([buildReport]'s
-     * tokens, requests and `cost.today`), for the usage widget. Reads only today's requests, starts over at
-     * local midnight while collected, and re-computes as requests land, newest state first (see [report]).
+     * daily bars and `cost.today`), and the last seven days, for the usage widget. Reads only the week's
+     * requests, starts over at local midnight while collected, and re-computes as requests land, newest
+     * state first (see [report]).
+     *
+     * The prices come from [ModelDirectory.catalog], which holds the catalogue only once something in this
+     * process has loaded it (a chat screen, Insights, a run with a budget). A process started for the widget
+     * alone had none, so every request was unpriced and the widget said "cost unknown" until Locus was
+     * opened; collecting this loads the saved copy first ([ModelDirectory.index], no network wait).
      */
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    fun today(zone: ZoneId = ZoneId.systemDefault()): Flow<UsageToday> = dayStarts(zone).flatMapLatest { from ->
-        combine(messages.observeStats(from), usageEvents.observeSince(from), directory.catalog, settings.settings) { m, e, catalog, s -> TodayInputs(from, m, e, catalog, s) }
+    fun today(zone: ZoneId = ZoneId.systemDefault()): Flow<UsageToday> = dayStarts(zone).onStart { directory.index() }.flatMapLatest { from ->
+        val weekFrom = Instant.ofEpochMilli(from).atZone(zone).toLocalDate().minusDays(WEEK_DAYS - 1L).atStartOfDay(zone).toInstant().toEpochMilli()
+        combine(messages.observeStats(weekFrom), usageEvents.observeSince(weekFrom), directory.catalog, settings.settings) { m, e, catalog, s -> TodayInputs(weekFrom, m, e, catalog, s) }
             .distinctUntilChanged()
             .conflate()
             .map { i ->
-                // No chats or tool log: today's rows all store their provider and model (v9), and only totals are read.
+                // No chats or tool log: the week's rows all store their provider and model (v9), and only totals are read.
                 val report = buildReport(AnalyticsPeriod.Week, i.from, System.currentTimeMillis(), i.messages, emptyList(), emptyList(), i.settings, emptyList(), zone, i.events, priceLookup(i.settings, i.catalog), i.settings.modelCatalog)
-                UsageToday(tokens = report.tokens.total, requests = report.requests, cost = report.cost.today, pricesOn = i.settings.modelCatalog)
+                usageToday(report, i.settings.modelCatalog)
             }
     }
         .distinctUntilChanged()
@@ -293,6 +312,16 @@ class AnalyticsRepository @Inject constructor(
 
         /** The spend's longest window, in days: requests are read back at least this far. */
         const val COST_DAYS = 30
+
+        /** The usage widget's week, in days, today included. */
+        const val WEEK_DAYS = 7
+
+        /** The usage widget's figures from a one-week [report] whose last daily bar is today. */
+        fun usageToday(report: AnalyticsReport, pricesOn: Boolean): UsageToday {
+            val week = report.buckets.mapIndexed { i, b -> UsageDay(b.tokens.total, b.requests, report.cost.buckets.getOrElse(i) { CostEstimate() }) }
+            val today = week.lastOrNull() ?: UsageDay()
+            return UsageToday(today.tokens, today.requests, report.cost.today, pricesOn, week, report.cost.week)
+        }
 
         fun buildReport(
             period: AnalyticsPeriod,

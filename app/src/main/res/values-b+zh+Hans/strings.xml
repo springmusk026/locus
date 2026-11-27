@@ -15,6 +15,51 @@
     <string name="widget_ask">询问 Locus</string>
     <string name="widget_usage_label">Locus 用量</string>
     <string name="widget_usage_description">今天在所有服务商上的花费和 token 数，以及正在运行的任务的预算</string>
+    <!-- What the widgets say (LocusWidget, LocusUsageWidget; WidgetWords). -->
+    <string name="widget_idle">空闲</string>
+    <string name="widget_working">工作中</string>
+    <string name="widget_working_on">工作中：%1$s</string>
+    <string name="widget_scheduled">正在运行定时任务</string>
+    <string name="widget_budget_paused">已在任务预算处暂停</string>
+    <plurals name="widget_approvals">
+        <item quantity="other">%d 个审批</item>
+    </plurals>
+    <plurals name="widget_questions">
+        <item quantity="other">%d 个问题</item>
+    </plurals>
+    <plurals name="widget_helpers">
+        <item quantity="other">%d 个助手</item>
+    </plurals>
+    <string name="widget_waiting">%1$s 等待中</string>
+    <string name="widget_waiting_both">%1$s、%2$s 等待中</string>
+    <string name="widget_run_label">%1$s · %2$s</string>
+    <string name="widget_run_untitled">定时任务</string>
+    <string name="widget_run_done">已完成</string>
+    <string name="widget_run_failed">失败</string>
+    <string name="widget_run_stopped">已停止</string>
+    <string name="widget_run_hidden">打开 Locus 查看。</string>
+    <string name="widget_next">下次：%1$s · %2$s</string>
+    <string name="widget_next_untitled">下个任务：%1$s</string>
+    <string name="widget_time_tomorrow">明天 %1$s</string>
+    <string name="widget_time_yesterday">昨天 %1$s</string>
+    <string name="widget_time_or_later">%1$s 或之后</string>
+    <string name="widget_usage_today">今天</string>
+    <string name="widget_usage_cost_unknown">今天 · 费用未知</string>
+    <string name="widget_usage_prices_off">今天 · 价格已关闭</string>
+    <string name="widget_usage_nothing">今天还没有用量</string>
+    <plurals name="widget_usage_tokens">
+        <item quantity="other">%1$s 个令牌</item>
+    </plurals>
+    <plurals name="widget_usage_requests">
+        <item quantity="other">%d 次请求</item>
+    </plurals>
+    <string name="widget_usage_week">7 天 · %1$s</string>
+    <string name="widget_usage_week_description">最近 7 天的用量，今天在最后</string>
+    <string name="widget_usage_task">任务：%1$s</string>
+    <string name="widget_usage_task_paused">任务已暂停：%1$s</string>
+    <string name="widget_usage_of_tokens">%1$s / %2$s 个令牌</string>
+    <string name="widget_usage_of">%1$s / %2$s</string>
+    <string name="widget_usage_parts">%1$s · %2$s</string>
     <string name="assist_label">Locus</string>
     <string name="app_restore_unfinished_title">恢复未完成</string>
     <string name="app_restore_tasks_off_title">定时任务已关闭</string>

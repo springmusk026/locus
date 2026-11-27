@@ -78,7 +78,7 @@ A trip out that Locus starts itself and expects back from (its own credential pr
 - **Allow and Continue, lock on or off,** have `setAuthenticationRequired(true)`, and are offered only on Android 12+ (`LockedNotifications.actionOffered`). Below Android 12 nothing can make the system ask for the unlock first ([`NotificationCompat.Action.Builder.setAuthenticationRequired`](https://developer.android.com/reference/androidx/core/app/NotificationCompat.Action.Builder#setAuthenticationRequired(boolean)): "From API 31"), so anyone holding a locked phone could approve from the lock screen. There the approval keeps Deny, a budget pause keeps Stop, questions keep their answers (they aren't permissions), and the tap opens Locus to allow or continue.
 - **Needs you's** one notification counts a locked chat's proposals but never describes them; it has no actions ([needs you](needs-you.md)).
 - **A locked chat's** approval, question, budget pause or scheduled result is never described, lock on or off: the notification says "A locked chat is waiting for you. Open Locus to see it." and offers no actions. A reminder set in a locked chat says "Reminder from a locked chat". Until the lock's settings have been read in a fresh process, a reminder from any chat errs on the side of saying less.
-- The widget never named chats (counts and fixed phrases only). With Lock Locus on it also drops the latest task result line, a model's words on the home screen. The usage widget shows only amounts and token counts, the same with the lock on or off ([usage widget](android-bridge.md#the-usage-widget)).
+- The widget never named chats (counts and fixed phrases only). With Lock Locus on it also leaves out the latest task's answer (a model's words) and every task title (the user's own words), keeping only that a task ran, how it ended and when, and the next run's time ([the widget](android-bridge.md#the-widget)). The usage widget shows only amounts and token counts, the same with the lock on or off ([usage widget](android-bridge.md#the-usage-widget)).
 - The "questions waiting" banner inside Locus counts a locked chat but never names it, even once the session is unlocked ([approvals waiting](approvals-waiting.md)).
 - **Launcher and Direct Share shortcuts**: a locked chat is never one, and with Lock Locus on there are no chat shortcuts at all (the launcher's long-press menu and the share sheet would show chat names to anyone). The static ones (New chat, Voice, Workspace) stay; they open Locus, which asks.
 
@@ -95,7 +95,7 @@ A locked chat this session hasn't unlocked:
 
 - What the agent itself can read: a run in another chat can still look up recent chats or memory as before (point 5 above: no tool changes).
 - Telegram remote messages, set up by the user to go to their own bot chat.
-- Scheduled tasks' own titles and their latest result on home and in Tasks belong to the task, not to a chat; a task's run chat can be locked, and then its result notification is hidden.
+- Scheduled tasks' own titles and their latest result on Locus's home and in Tasks belong to the task, not to a chat (the home-screen widget hides both while the lock is on); a task's run chat can be locked, and then its result notification is hidden.
 - The shade on an unlocked phone (see Notifications), and Telegram approvals.
 
 ## Tests
