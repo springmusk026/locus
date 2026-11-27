@@ -409,7 +409,7 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>, appLock: AppLock) 
                             dev.locus.core.model.TaskActivityFilter(
                                 chat, since, key.taskUntil ?: Long.MAX_VALUE,
                                 key.taskDecisions.mapNotNull { n -> dev.locus.core.model.ApprovalDecision.entries.firstOrNull { it.name == n } }.toSet(),
-                                key.taskLabel ?: "This task",
+                                key.taskLabel ?: stringResource(R.string.app_activity_this_task),
                             )
                         }
                     }

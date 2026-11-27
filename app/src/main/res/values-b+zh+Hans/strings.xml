@@ -44,4 +44,7 @@
     <string name="app_automation_never">始终拒绝</string>
     <string name="app_automation_always">始终允许</string>
     <string name="app_automation_unknown_caller">Android 没有说明这是哪个应用，因此 Locus 每次都会询问。为获取结果而启动 Locus、或在启动时提供身份信息的应用（Android 14+）可以设为始终允许。</string>
+
+    <!-- Activity narrowed to a task that has no label -->
+    <string name="app_activity_this_task">此任务</string>
 </resources>

@@ -57,4 +57,7 @@
     <string name="app_automation_never">Never</string>
     <string name="app_automation_always">Always allow</string>
     <string name="app_automation_unknown_caller">Android didn\'t say which app this is, so Locus asks every time. Apps that start Locus for a result, or share their identity when they start it (Android 14+), can be allowed always.</string>
+
+    <!-- Activity narrowed to a task that has no label -->
+    <string name="app_activity_this_task">This task</string>
 </resources>

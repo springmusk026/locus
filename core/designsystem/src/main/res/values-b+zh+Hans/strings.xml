@@ -620,4 +620,10 @@
     <string name="designsystem_check_check_finished">检查已结束</string>
     <string name="designsystem_tool_project_rule_past">运行了项目规则“%1$s”</string>
     <string name="designsystem_tool_project_rule_present">运行项目规则“%1$s”</string>
+
+    <!-- Attachments' counters and the ChatGPT sign-in button -->
+    <string name="designsystem_attachments_more">+%1$d</string>
+    <string name="designsystem_attachments_position">%1$d / %2$d</string>
+    <string name="designsystem_chatgpt_continue">使用 ChatGPT 继续</string>
+    <string name="designsystem_chatgpt_waiting">正在等待浏览器…</string>
 </resources>

@@ -3,8 +3,12 @@ package dev.locus.core.ui
 import android.content.res.Resources
 import dev.locus.core.agent.integrations.Integration
 import dev.locus.core.agent.integrations.ServerCheck
+import dev.locus.core.agent.home.Connector
 import dev.locus.core.data.connectors.ConnectorTemplate
+import dev.locus.core.data.connectors.ConnectorTemplates
 import dev.locus.core.data.mcp.McpTemplate
+import dev.locus.core.data.mcp.McpTemplates
+import dev.locus.core.data.repository.LibraryRepository
 import dev.locus.core.model.ProviderPreset
 
 /*
@@ -40,6 +44,9 @@ fun Integration.linkLabelText(r: Resources): String = r.textOr(CatalogRes.LINK[l
 fun Integration.keyHelpText(r: Resources): String? = keyHelp?.let { r.textOr(CatalogRes.INTEGRATION_KEY_HELP[id], it) }
 
 // ---- MCP templates (core/data) ---------------------------------------------------------------
+
+/** The name; a product's stays, "Files" and "Knowledge graph" are translated. Connectors added from it keep the English. */
+fun McpTemplate.displayName(r: Resources): String = r.textOr(CatalogRes.MCP_NAME[id], name)
 
 fun McpTemplate.descriptionText(r: Resources): String = r.textOr(CatalogRes.MCP_DESCRIPTION[id], description)
 
@@ -130,7 +137,45 @@ fun ConnectorTemplate.AuthSpec.sentAsText(r: Resources): String = when {
 
 // ---- Provider presets (core/model) -----------------------------------------------------------
 
+/** The name; a product's stays, "Custom" and "On this phone (Gemma 4, offline)" are translated. */
+fun ProviderPreset.displayName(r: Resources): String = r.providerName(name)
+
 fun ProviderPreset.noteText(r: Resources): String = r.textOr(CatalogRes.PRESET_NOTE[name], note)
+
+/**
+ * A saved provider's [name] as screens show it: a preset's English name (saved as the provider's name when
+ * it was added) in the app's language; a name the user typed or changed, as it is.
+ */
+fun Resources.providerName(name: String): String = textOr(CatalogRes.PRESET_NAME[name], name)
+
+// ---- Connectors (core/agent), as Library lists them ----------------------------------------------
+
+/**
+ * A connector's name: a catalogue template's English name (saved when it was added from the template) in the
+ * app's language; any other, the user's or the agent's, as it is.
+ */
+fun Connector.displayName(r: Resources): String =
+    McpTemplates.official(this)?.takeIf { it.name == name }?.displayName(r) ?: name
+
+/**
+ * A connector's description: a catalogue template's, or one Locus wrote when it was added, in the app's language;
+ * one the agent or the user wrote, as it is. The saved English stays: the model reads it.
+ */
+fun Connector.descriptionText(r: Resources): String {
+    val mcp = McpTemplates.official(this)?.takeIf { it.description == description }
+    val service = ConnectorTemplates.byId(template)?.takeIf { it.description == description }
+    return when {
+        mcp != null -> mcp.descriptionText(r)
+        service != null -> service.descriptionText(r)
+        description == LibraryRepository.HOME_ASSISTANT_FULL -> r.getString(R.string.ui_connector_home_assistant_full)
+        description == LibraryRepository.HOME_ASSISTANT_ASSIST -> r.getString(R.string.ui_connector_home_assistant_assist)
+        description.startsWith(LibraryRepository.LOCAL_DESCRIPTION) ->
+            r.getString(R.string.ui_connector_local_description, description.removePrefix(LibraryRepository.LOCAL_DESCRIPTION))
+        description.startsWith(LibraryRepository.REMOTE_DESCRIPTION) && ' ' !in description.removePrefix(LibraryRepository.REMOTE_DESCRIPTION) ->
+            r.getString(R.string.ui_connector_remote_description, description.removePrefix(LibraryRepository.REMOTE_DESCRIPTION))
+        else -> description
+    }
+}
 
 // ---- Email presets (core/agent) -------------------------------------------------------------
 

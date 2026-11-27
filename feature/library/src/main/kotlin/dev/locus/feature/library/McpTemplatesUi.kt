@@ -40,7 +40,6 @@ import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
-import dev.locus.core.model.LINUX_INSTALL_PATH
 import dev.locus.core.ui.authSummaryText
 import dev.locus.core.ui.bylineText
 import dev.locus.core.ui.descriptionText
@@ -79,7 +78,7 @@ internal fun McpTemplatePicker(onPick: (McpTemplate) -> Unit, onCustom: () -> Un
             CardGroup {
                 templates.forEachIndexed { i, t ->
                     if (i > 0) GroupDivider(inset = Insets.iconRow)
-                    TemplateRow(t.name, stringResource(R.string.library_mcp_picker_template_subtitle, t.descriptionText(res), t.authSummaryText(res)), leading = { ConnectorIcon(t.id) }) { onPick(t) }
+                    TemplateRow(t.displayName(res), stringResource(R.string.library_mcp_picker_template_subtitle, t.descriptionText(res), t.authSummaryText(res)), leading = { ConnectorIcon(t.id) }) { onPick(t) }
                 }
             }
         }
@@ -155,7 +154,7 @@ internal fun McpTemplateSheet(
         else -> stringResource(R.string.library_action_add)
     }
     LocusSheet(
-        title = template.name,
+        title = template.displayName(res),
         subtitle = template.descriptionText(res),
         onDismiss = onDismiss,
         action = action,
@@ -235,7 +234,7 @@ internal fun savedKeyNote(resources: Resources, integration: Integration, templa
 private fun ColumnScope.LocalTemplateFields(local: McpTemplate.Local, form: TemplateForm, linuxInstalled: Boolean) {
     if (!linuxInstalled) {
         Banner(
-            stringResource(R.string.library_localmcp_linux_missing_body, LINUX_INSTALL_PATH),
+            stringResource(R.string.library_localmcp_linux_missing_body, stringResource(dev.locus.core.linux.R.string.linux_install_path)),
             Tone.Caution,
             title = stringResource(R.string.library_localmcp_linux_missing_title),
         )

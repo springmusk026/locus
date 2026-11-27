@@ -51,7 +51,9 @@ import dev.locus.core.designsystem.compactCount
 import dev.locus.core.llm.ChatGptErrors
 import dev.locus.core.model.ApiFormat
 import dev.locus.core.ondevice.ModelState
+import dev.locus.core.ui.displayName
 import dev.locus.core.ui.noteText
+import dev.locus.core.ui.providerName
 
 @Composable
 internal fun ColumnScope.ProviderStep(state: OnboardingUiState, viewModel: OnboardingViewModel) {
@@ -64,7 +66,7 @@ internal fun ColumnScope.ProviderStep(state: OnboardingUiState, viewModel: Onboa
                 if (i > 0) GroupDivider(Insets.iconRow)
                 val isDefault = p.id == state.defaultProvider?.id
                 ListRow(
-                    p.name,
+                    providerName(p.name),
                     subtitle = p.model.ifBlank { stringResource(R.string.onboarding_provider_no_model) },
                     onClick = { viewModel.useExisting(p.id) },
                     leading = { ProviderBadge(p.name, p.baseUrl, p.format == ApiFormat.ON_DEVICE, size = IconSize.tile, model = p.model) },
@@ -86,7 +88,7 @@ internal fun ColumnScope.ProviderStep(state: OnboardingUiState, viewModel: Onboa
             viewModel.presets.forEachIndexed { i, preset ->
                 if (i > 0) GroupDivider(Insets.iconRow)
                 ListRow(
-                    preset.name,
+                    preset.displayName(LocalResources.current),
                     subtitle = preset.noteText(LocalResources.current),
                     // The note says what to enter; cutting it mid-instruction loses the point.
                     subtitleMaxLines = Int.MAX_VALUE,
@@ -98,7 +100,7 @@ internal fun ColumnScope.ProviderStep(state: OnboardingUiState, viewModel: Onboa
         return
     }
 
-    SectionLabel(draft.preset.name, action = stringResource(R.string.onboarding_provider_change), onAction = { viewModel.pickPreset(null) })
+    SectionLabel(draft.preset.displayName(LocalResources.current), action = stringResource(R.string.onboarding_provider_change), onAction = { viewModel.pickPreset(null) })
     LocusCard {
         Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(Spacing.md)) {
             val localNetwork = rememberLocalNetworkGate()

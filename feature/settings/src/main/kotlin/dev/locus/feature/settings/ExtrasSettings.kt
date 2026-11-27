@@ -26,6 +26,7 @@ import dev.locus.core.model.ProviderConfig
 import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.RowChevron
 import dev.locus.core.designsystem.SwitchRow
+import dev.locus.core.ui.providerName
 
 /** The helper model and the small chat extras: titles, follow-ups, lessons after tasks, and their prompts. */
 @Composable
@@ -48,7 +49,7 @@ internal fun ExtrasSettings(
             CardGroup {
                 ListRow(
                     title = stringResource(R.string.settings_extras_helper_title),
-                    subtitle = helper?.let { summaryJoin(it.name, dev.locus.core.model.ModelNames.short(state.helperModel.ifBlank { it.model })) }
+                    subtitle = helper?.let { summaryJoin(providerName(it.name), dev.locus.core.model.ModelNames.short(state.helperModel.ifBlank { it.model })) }
                         ?: if (state.helperAutomatic) stringResource(R.string.settings_extras_helper_automatic_row) else stringResource(R.string.settings_extras_helper_same),
                     subtitleMaxLines = 2,
                     onClick = { editingHelper = true },
@@ -177,7 +178,7 @@ private fun HelperSheet(
             }
             providers.forEach { p ->
                 GroupDivider(inset = Insets.iconRow)
-                HelperOption(p.name, dev.locus.core.model.ModelNames.short(p.model), selected = id == p.id, onClick = { if (id != p.id) { id = p.id; model = "" } }) {
+                HelperOption(providerName(p.name), dev.locus.core.model.ModelNames.short(p.model), selected = id == p.id, onClick = { if (id != p.id) { id = p.id; model = "" } }) {
                     ProviderBadge(p.name, p.baseUrl, false, size = IconSize.tile)
                 }
             }

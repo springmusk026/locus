@@ -1,5 +1,7 @@
 package dev.locus.feature.library
 
+import android.content.res.Resources
+import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -23,6 +25,7 @@ import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import dev.locus.core.data.mcp.LocalMcpHealth
 import dev.locus.core.data.repository.ConnectorEntry
@@ -35,16 +38,30 @@ import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
-import dev.locus.core.model.LINUX_INSTALL_PATH
+import dev.locus.core.ui.descriptionText
+import dev.locus.core.ui.displayName
 
-/** A known-good local server, offered as a hint. Picking one fills the form; nothing is installed. */
-internal data class LocalMcpExample(val name: String, val command: String, val needs: String)
+/**
+ * A known-good local server, offered as a hint. Picking one fills the form; nothing is installed. [nameRes] and
+ * [needsRes] are [name] and [needs] in the app's language, where they are words.
+ */
+internal data class LocalMcpExample(
+    val name: String,
+    val command: String,
+    val needs: String,
+    @param:StringRes val nameRes: Int? = null,
+    @param:StringRes val needsRes: Int? = null,
+) {
+    fun nameIn(r: Resources): String = nameRes?.let(r::getString) ?: name
+
+    fun needsIn(r: Resources): String = needsRes?.let(r::getString) ?: needs
+}
 
 internal val LOCAL_MCP_EXAMPLES = listOf(
-    LocalMcpExample("Files", "npx -y @modelcontextprotocol/server-filesystem /workspace", "Node.js: apk add nodejs npm"),
-    LocalMcpExample("Memory", "npx -y @modelcontextprotocol/server-memory", "Node.js: apk add nodejs npm"),
-    LocalMcpExample("Fetch", "uvx mcp-server-fetch", "uv: apk add uv"),
-    LocalMcpExample("Git", "uvx mcp-server-git --repository /workspace", "uv and git: apk add uv git"),
+    LocalMcpExample("Files", "npx -y @modelcontextprotocol/server-filesystem /workspace", "Node.js: apk add nodejs npm", R.string.library_localmcp_example_files),
+    LocalMcpExample("Memory", "npx -y @modelcontextprotocol/server-memory", "Node.js: apk add nodejs npm", R.string.library_localmcp_example_memory),
+    LocalMcpExample("Fetch", "uvx mcp-server-fetch", "uv: apk add uv", R.string.library_localmcp_example_fetch),
+    LocalMcpExample("Git", "uvx mcp-server-git --repository /workspace", "uv and git: apk add uv git", needsRes = R.string.library_localmcp_example_git_needs),
 )
 
 /** The local-server part of the Add an MCP server sheet. */
@@ -82,7 +99,7 @@ internal class LocalMcpForm {
 internal fun ColumnScope.LocalMcpFields(form: LocalMcpForm, linuxInstalled: Boolean, onExample: (LocalMcpExample) -> Unit) {
     if (!linuxInstalled) {
         Banner(
-            stringResource(R.string.library_localmcp_linux_missing_body, LINUX_INSTALL_PATH),
+            stringResource(R.string.library_localmcp_linux_missing_body, stringResource(dev.locus.core.linux.R.string.linux_install_path)),
             Tone.Caution,
             title = stringResource(R.string.library_localmcp_linux_missing_title),
         )
@@ -120,7 +137,7 @@ internal fun ColumnScope.LocalMcpFields(form: LocalMcpForm, linuxInstalled: Bool
     LOCAL_MCP_EXAMPLES.forEach { ex ->
         Column(Modifier.fillMaxWidth().clickable { onExample(ex) }.padding(vertical = Spacing.xs)) {
             Text(ex.command, style = LocusType.code)
-            SupportingText(stringResource(R.string.library_localmcp_example_needs, ex.name, ex.needs))
+            SupportingText(stringResource(R.string.library_localmcp_example_needs, ex.nameIn(LocalResources.current), ex.needsIn(LocalResources.current)))
         }
     }
 }
@@ -152,7 +169,7 @@ internal fun LocalMcpRow(
         else -> stringResource(R.string.library_localmcp_badge_stopped) to Tone.Neutral
     }
     ExpandableRow(
-        title = c.name,
+        title = c.displayName(LocalResources.current),
         subtitle = stringResource(R.string.library_localmcp_subtitle),
         leading = { ConnectorTile(c) },
         badge = badge,
@@ -161,7 +178,7 @@ internal fun LocalMcpRow(
         expandKey = if (entry.draft) "draft" else if (toolChanges.isNotEmpty()) "tools" else "active",
     ) {
         if (toolChanges.isNotEmpty()) ToolChangesBanner(toolChanges, onReview = onReviewTools)
-        Text(c.description, style = LocusType.rowSupporting)
+        Text(c.descriptionText(LocalResources.current), style = LocusType.rowSupporting)
         SupportingText(
             stringResource(if (entry.draft) R.string.library_localmcp_command_draft else R.string.library_localmcp_command_active),
         )

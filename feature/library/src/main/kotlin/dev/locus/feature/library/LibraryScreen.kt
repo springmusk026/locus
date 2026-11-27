@@ -1,10 +1,10 @@
 package dev.locus.feature.library
 
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.platform.LocalResources
 import dev.locus.core.designsystem.SecretContent
 import dev.locus.core.designsystem.PasswordField
 import dev.locus.core.designsystem.asString
-import androidx.compose.ui.platform.LocalResources
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.Arrangement
@@ -69,6 +69,8 @@ import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.agent.home.Connector
 import dev.locus.core.data.repository.ProjectMemory
 import androidx.compose.foundation.layout.Box
+import dev.locus.core.ui.descriptionText
+import dev.locus.core.ui.displayName
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -413,7 +415,7 @@ private fun ConnectorsTab(
                     return@forEachIndexed
                 }
                 ExpandableRow(
-                    title = c.name,
+                    title = c.displayName(LocalResources.current),
                     subtitle = if (c.kind == "mcp") stringResource(R.string.library_connectors_subtitle_mcp, c.host)
                     else pluralStringResource(R.plurals.library_connectors_subtitle_operations, c.operations.size, c.host, c.operations.size),
                     leading = { ConnectorTile(c) },
@@ -428,7 +430,7 @@ private fun ConnectorsTab(
                     startExpanded = entry.draft || toolChanges[c.id].orEmpty().isNotEmpty(),
                 ) {
                     toolChanges[c.id]?.takeIf { it.isNotEmpty() }?.let { pending -> ToolChangesBanner(pending, onReview = { reviewingTools = c.id }) }
-                    Text(c.description, style = LocusType.rowSupporting)
+                    Text(c.descriptionText(LocalResources.current), style = LocusType.rowSupporting)
                     SupportingText(stringResource(R.string.library_connectors_only_talks_to, c.host))
                     c.operations.forEach { op ->
                         Text(
@@ -545,6 +547,7 @@ private fun ConnectorsTab(
         var url by rememberSaveable { mutableStateOf("https://") }
         var token by rememberSaveable { mutableStateOf("") }
         val form = rememberSaveable(saver = LocalMcpForm.Saver) { LocalMcpForm() }
+        val res = LocalResources.current
         LocusSheet(
             title = stringResource(R.string.library_connectors_add_mcp),
             subtitle = stringResource(if (local == 0) R.string.library_connectors_custom_subtitle_remote else R.string.library_connectors_custom_subtitle_local),
@@ -567,22 +570,22 @@ private fun ConnectorsTab(
             if (local == 0) {
                 OutlinedTextField(url, { url = it.trim() }, label = { Text(stringResource(R.string.library_connectors_custom_url)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 // Plain http:// is meant for servers on this phone or the home network; say so for anything else.
-                dev.locus.core.model.LocalNetwork.cleartextWarning(url)?.let { warning ->
-                    Text(warning, style = LocusType.supporting, color = MaterialTheme.colorScheme.error)
+                if (dev.locus.core.model.LocalNetwork.cleartextWarning(url) != null) {
+                    Text(stringResource(R.string.library_connectors_custom_cleartext), style = LocusType.supporting, color = MaterialTheme.colorScheme.error)
                 }
                 LocalNetworkNote(url, localNetwork)
                 PasswordField(
                     token, { token = it.trim() }, label = stringResource(R.string.library_connectors_custom_token), supportingText = stringResource(R.string.library_connectors_custom_token_hint),
                 )
             } else {
-                LocalMcpFields(form, linuxInstalled = library.linuxInstalled, onExample = { ex -> form.command = ex.command; if (name.isBlank()) name = ex.name })
+                LocalMcpFields(form, linuxInstalled = library.linuxInstalled, onExample = { ex -> form.command = ex.command; if (name.isBlank()) name = ex.nameIn(res) })
             }
         }
     }
     secretFor?.let { (entry, secretName) ->
         var value by rememberSaveable { mutableStateOf("") }
         LocusSheet(
-            title = stringResource(R.string.library_connectors_key_title, entry.connector.name),
+            title = stringResource(R.string.library_connectors_key_title, entry.connector.displayName(LocalResources.current)),
             subtitle = if (entry.connector.local != null) stringResource(R.string.library_connectors_key_subtitle_local)
             else stringResource(R.string.library_connectors_key_subtitle_remote, entry.connector.host),
             onDismiss = { secretFor = null },
@@ -606,7 +609,7 @@ private fun ConnectorsTab(
     removing?.let { entry ->
         val c = entry.connector
         ConfirmRemove(
-            title = stringResource(R.string.library_connectors_remove_title, c.name),
+            title = stringResource(R.string.library_connectors_remove_title, c.displayName(LocalResources.current)),
             body = stringResource(
                 when {
                     c.local != null -> R.string.library_connectors_remove_body_local
